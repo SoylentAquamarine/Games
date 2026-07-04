@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Beat Maker — Music Maker</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🥁</text></svg>" />
+  <style>
+    :root{--bg:#0f1020;--panel:#1e2140;--panel2:#252a4d;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;--cell:#2a2e56;}
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+      background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.2),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.14),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;}
+    .wrap{max-width:900px;margin:0 auto;padding:14px 12px 40px;display:flex;flex-direction:column;gap:12px}
+    .topbar{display:flex;align-items:center;justify-content:space-between;gap:8px}
+    .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px;white-space:nowrap}
+    .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+    h1{margin:0;font-size:1.4rem;background:linear-gradient(120deg,#fb923c,var(--accent-2));-webkit-background-clip:text;background-clip:text;color:transparent}
+    .card{background:var(--panel);border:1px solid rgba(255,255,255,.06);border-radius:14px;padding:12px}
+    .transport{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+    .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:9px 18px;border-radius:999px;cursor:pointer;font-size:.9rem}
+    .btn:hover{transform:translateY(-1px)}
+    .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,.16);color:var(--muted)}
+    .btn.play{min-width:96px}
+    .ctl{display:flex;align-items:center;gap:8px;font-size:.85rem;color:var(--muted)}
+    input[type=range]{accent-color:var(--accent-2)}
+    select,input[type=text]{background:var(--panel2);color:var(--text);border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:6px 9px;font-size:.85rem}
+    .seq{display:grid;grid-template-columns:118px repeat(16,1fr);gap:4px;min-width:640px;align-items:center}
+    .seq-wrap{overflow-x:auto}
+    .lbl{display:flex;align-items:center;gap:6px;font-size:.78rem;cursor:pointer;user-select:none;padding:2px 4px;border-radius:6px}
+    .lbl:hover{background:var(--panel2)}
+    .lbl.muted{opacity:.4;text-decoration:line-through}
+    .lbl .em{font-size:1rem}
+    .cell{aspect-ratio:1;min-height:26px;background:var(--cell);border-radius:5px;cursor:pointer}
+    .cell.beat{outline:1px solid rgba(255,255,255,.10);outline-offset:-1px}
+    .cell.on{background:linear-gradient(120deg,#fb923c,#f43f5e)}
+    .cell.on.acc{background:linear-gradient(120deg,#22d3ee,#7c5cff)}
+    .cell.ph{filter:brightness(1.6)}
+    .numbers{display:grid;grid-template-columns:118px repeat(16,1fr);gap:4px;min-width:640px;font-size:.6rem;color:var(--muted);margin-bottom:2px}
+    .numbers span{text-align:center}
+    .save-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+    .note{color:var(--muted);font-size:.78rem}
+    .tabs{display:flex;gap:6px}
+    .tabs a{font-size:.8rem;color:var(--muted);text-decoration:none;padding:6px 12px;border-radius:999px;border:1px solid rgba(255,255,255,.12)}
+    .tabs a.active{background:var(--panel2);color:var(--text)}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <a class="home" href="/games/musicmaker/">← Modes</a>
+      <h1>🥁 Beat Maker</h1>
+      <a class="home" href="/">Home</a>
+    </div>
+
+    <div class="card transport">
+      <button class="btn play" id="play">▶ Play</button>
+      <div class="ctl">Tempo <input type="range" id="bpm" min="60" max="200" value="100"><span id="bpmv">100</span></div>
+      <div class="ctl">Vol <input type="range" id="vol" min="0" max="100" value="75"></div>
+      <label class="ctl">Preset
+        <select id="preset">
+          <option value="">—</option>
+          <option value="rock">Rock</option>
+          <option value="boombap">Boom Bap</option>
+          <option value="house">Four-on-the-Floor</option>
+          <option value="funk">Funk</option>
+          <option value="trap">Trap</option>
+          <option value="latin">Latin</option>
+        </select>
+      </label>
+      <button class="btn ghost" id="rand">🎲 Random</button>
+      <button class="btn ghost" id="clear">Clear</button>
+    </div>
+
+    <div class="card">
+      <div class="note" style="margin-bottom:8px">Tap cells to build a pattern. Tap a track name to mute it. Shift-tap a cell for an accent.</div>
+      <div class="seq-wrap">
+        <div class="numbers" id="numbers"></div>
+        <div class="seq" id="seq"></div>
+      </div>
+    </div>
+
+    <div class="card save-row">
+      <input type="text" id="beatname" placeholder="Beat name" maxlength="40" />
+      <button class="btn" id="save">💾 Save</button>
+      <select id="beats"><option value="">— saved beats —</option></select>
+      <button class="btn ghost" id="load">Load</button>
+      <button class="btn ghost" id="del">Delete</button>
+      <span class="note" id="status"></span>
+    </div>
+  </div>
+
+  <script src="../engine.js"></script>
+  <script>
+  (function(){
+    const STEPS=16, KIT=MME.DRUMKIT;
+    const seqEl=document.getElementById("seq"), numsEl=document.getElementById("numbers");
+    // pattern[trackId] = array of STEPS: 0=off, 1=on, 2=accent
+    let pattern={}, muted={}, bpm=100, master=0.75;
+    KIT.forEach(k=>{pattern[k.id]=Array(STEPS).fill(0);muted[k.id]=false;});
+    const cells={};
+
+    function buildNumbers(){ numsEl.innerHTML="<span></span>"; for(let s=0;s<STEPS;s++){const sp=document.createElement("span");sp.textContent=(s%4===0)?(s/4+1):"";numsEl.appendChild(sp);} }
+    function build(){
+      seqEl.innerHTML="";
+      KIT.forEach(k=>{
+        const lbl=document.createElement("div"); lbl.className="lbl"; lbl.dataset.id=k.id;
+        lbl.innerHTML=`<span class="em">${k.emoji}</span>${k.label}`;
+        lbl.addEventListener("click",()=>{muted[k.id]=!muted[k.id];lbl.classList.toggle("muted",muted[k.id]);});
+        seqEl.appendChild(lbl);
+        cells[k.id]=[];
+        for(let s=0;s<STEPS;s++){
+          const c=document.createElement("div"); c.className="cell"+(s%4===0?" beat":"");
+          c.addEventListener("click",(e)=>toggle(k.id,s,e.shiftKey));
+          seqEl.appendChild(c); cells[k.id][s]=c;
+        }
+      });
+    }
+    function paintCell(id,s){ const v=pattern[id][s], c=cells[id][s]; c.classList.toggle("on",v>0); c.classList.toggle("acc",v===2); }
+    function toggle(id,s,accent){
+      MME.ensure(); MME.resume();
+      const cur=pattern[id][s];
+      pattern[id][s]= accent ? (cur===2?0:2) : (cur>0?0:1);
+      paintCell(id,s);
+      if(pattern[id][s]>0) MME.playDrum(id, undefined, pattern[id][s]===2?1.3:1);
+    }
+    function repaintAll(){ KIT.forEach(k=>{for(let s=0;s<STEPS;s++)paintCell(k.id,s);}); }
+
+    // transport
+    function onStep(step,time){
+      for(const k of KIT){ if(muted[k.id])continue; const v=pattern[k.id][step]; if(v>0) MME.playDrum(k.id,time,v===2?1.3:1); }
+    }
+    function onDraw(step){
+      for(const k of KIT)for(let s=0;s<STEPS;s++) cells[k.id][s].classList.toggle("ph",s===step && step>=0);
+    }
+    function play(){ MME.transport.start({steps:STEPS,getBpm:()=>bpm,onStep,onDraw}); document.getElementById("play").textContent="⏹ Stop"; }
+    function stop(){ MME.transport.stop(); document.getElementById("play").textContent="▶ Play"; }
+
+    // presets ---------------------------------------------------------------
+    const P=(o)=>{ const pat={}; KIT.forEach(k=>pat[k.id]=Array(STEPS).fill(0)); for(const id in o) o[id].forEach(s=>pat[id][s]=1); return pat; };
+    const ALL8=[0,2,4,6,8,10,12,14];
+    const PRESETS={
+      rock:    P({kick:[0,8],snare:[4,12],hatClosed:ALL8,crash:[0]}),
+      boombap: P({kick:[0,10],snare:[4,12],hatClosed:[0,2,4,6,8,10,12,14],rimshot:[7]}),
+      house:   P({kick:[0,4,8,12],hatOpen:[2,6,10,14],clap:[4,12],hatClosed:[1,3,5,7,9,11,13,15]}),
+      funk:    P({kick:[0,3,10],snare:[4,12],hatClosed:ALL8,cowbell:[6,14]}),
+      trap:    P({kick:[0,6,10],snare:[4,12],hatClosed:[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15],hatOpen:[15]}),
+      latin:   P({kick:[0,6,8,14],rimshot:[2,10],shaker:[0,2,4,6,8,10,12,14],cowbell:[4,12],tomLo:[7]}),
+    };
+    document.getElementById("preset").addEventListener("change",e=>{ const p=PRESETS[e.target.value]; if(!p)return; pattern=p; KIT.forEach(k=>muted[k.id]=false); document.querySelectorAll(".lbl").forEach(l=>l.classList.remove("muted")); repaintAll(); });
+
+    document.getElementById("rand").addEventListener("click",()=>{
+      KIT.forEach(k=>pattern[k.id]=Array(STEPS).fill(0));
+      [0,8].forEach(s=>pattern.kick[s]=1); if(Math.random()<.6)pattern.kick[Math.random()<.5?3:11]=1;
+      [4,12].forEach(s=>pattern.snare[s]=1);
+      for(let s=0;s<STEPS;s+=2) if(Math.random()<.85) pattern.hatClosed[s]=1;
+      if(Math.random()<.5) pattern.hatOpen[Math.random()<.5?2:14]=1;
+      if(Math.random()<.4) [6,14].forEach(s=>{if(Math.random()<.5)pattern.cowbell[s]=1;});
+      if(Math.random()<.4) pattern.clap[12]=1;
+      repaintAll();
+    });
+    document.getElementById("clear").addEventListener("click",()=>{ KIT.forEach(k=>pattern[k.id]=Array(STEPS).fill(0)); repaintAll(); });
+
+    // controls
+    document.getElementById("play").addEventListener("click",()=>MME.transport.isPlaying()?stop():play());
+    document.getElementById("bpm").addEventListener("input",e=>{bpm=+e.target.value;document.getElementById("bpmv").textContent=bpm;});
+    document.getElementById("vol").addEventListener("input",e=>{master=+e.target.value/100;MME.setMaster(master);});
+
+    // save / load (local) ---------------------------------------------------
+    const LS="mm_beats";
+    function serialize(){ return {v:1,type:"beat",bpm,master,pattern,muted}; }
+    function deserialize(d){
+      bpm=d.bpm||100; master=d.master!=null?d.master:0.75;
+      document.getElementById("bpm").value=bpm; document.getElementById("bpmv").textContent=bpm;
+      document.getElementById("vol").value=Math.round(master*100); MME.setMaster(master);
+      KIT.forEach(k=>{ pattern[k.id]=(d.pattern&&d.pattern[k.id])?d.pattern[k.id].slice(0,STEPS):Array(STEPS).fill(0); muted[k.id]=!!(d.muted&&d.muted[k.id]); });
+      document.querySelectorAll(".lbl").forEach(l=>l.classList.toggle("muted",muted[l.dataset.id]));
+      repaintAll();
+    }
+    const store=()=>{try{return JSON.parse(localStorage.getItem(LS)||"{}");}catch(e){return{};}};
+    const saveStore=(o)=>localStorage.setItem(LS,JSON.stringify(o));
+    function refresh(){ const s=store(),sel=document.getElementById("beats"); sel.innerHTML='<option value="">— saved beats —</option>'; Object.keys(s).sort().forEach(n=>{const o=document.createElement("option");o.value=n;o.textContent=n;sel.appendChild(o);}); }
+    function status(m){ const s=document.getElementById("status"); s.textContent=m; setTimeout(()=>{if(s.textContent===m)s.textContent="";},2500); }
+    document.getElementById("save").addEventListener("click",()=>{ const n=(document.getElementById("beatname").value||"").trim(); if(!n){status("Name your beat first.");return;} const s=store(); s[n]=serialize(); saveStore(s); refresh(); document.getElementById("beats").value=n; status("Saved “"+n+"”."); });
+    document.getElementById("load").addEventListener("click",()=>{ const n=document.getElementById("beats").value; if(!n)return; const s=store(); if(s[n]){deserialize(s[n]);document.getElementById("beatname").value=n;status("Loaded “"+n+"”.");} });
+    document.getElementById("del").addEventListener("click",()=>{ const n=document.getElementById("beats").value; if(!n)return; if(!confirm("Delete “"+n+"”?"))return; const s=store(); delete s[n]; saveStore(s); refresh(); status("Deleted."); });
+
+    // boot
+    buildNumbers(); build();
+    pattern=PRESETS.rock; repaintAll(); refresh();
+  })();
+  </script>
+</body>
+</html>

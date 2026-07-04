@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Music Maker — Melody</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🎼</text></svg>" />
+  <style>
+    :root{--bg:#0f1020;--panel:#1e2140;--panel2:#252a4d;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;
+      --row-white:#20233f;--row-black:#171a30;--cell:#2a2e56;--ph:rgba(255,255,255,.10);}
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+      background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.2),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.14),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;}
+    .wrap{max-width:860px;margin:0 auto;padding:14px 12px 40px;display:flex;flex-direction:column;gap:12px}
+    .topbar{display:flex;align-items:center;justify-content:space-between;gap:8px}
+    .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px;white-space:nowrap}
+    .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+    h1{margin:0;font-size:1.4rem;background:linear-gradient(120deg,var(--accent),var(--accent-2));-webkit-background-clip:text;background-clip:text;color:transparent}
+    .card{background:var(--panel);border:1px solid rgba(255,255,255,.06);border-radius:14px;padding:12px}
+    .transport{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+    .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:9px 18px;border-radius:999px;cursor:pointer;font-size:.9rem}
+    .btn:hover{transform:translateY(-1px)}
+    .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,.16);color:var(--muted)}
+    .btn.play{min-width:96px}
+    .ctl{display:flex;align-items:center;gap:8px;font-size:.85rem;color:var(--muted)}
+    input[type=range]{accent-color:var(--accent-2)}
+    select,input[type=text]{background:var(--panel2);color:var(--text);border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:6px 9px;font-size:.85rem}
+    .voices{display:grid;grid-template-columns:repeat(8,1fr);gap:6px}
+    .voice{background:var(--panel2);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:6px 4px;text-align:center;cursor:pointer;font-size:.72rem}
+    .voice.active{outline:2px solid var(--accent-2);outline-offset:-2px}
+    .voice.muted{opacity:.4}
+    .voice .vn{font-weight:800;font-size:.9rem}
+    .voice .vi{color:var(--muted);display:block;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .voice .swatch{width:100%;height:4px;border-radius:2px;margin-top:4px}
+    .editor{display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-size:.85rem}
+    .roll-wrap{overflow:auto;max-height:320px;border-radius:10px;border:1px solid rgba(255,255,255,.06)}
+    .roll{display:grid;grid-template-columns:44px repeat(16,1fr);min-width:560px}
+    .rlabel{font-size:.62rem;color:var(--muted);padding:2px 4px;display:flex;align-items:center;background:var(--panel);position:sticky;left:0;z-index:1;border-right:1px solid rgba(255,255,255,.06)}
+    .rlabel.black{background:#14162b}
+    .rc{height:15px;border-right:1px solid rgba(255,255,255,.03);border-bottom:1px solid rgba(255,255,255,.03);cursor:pointer}
+    .rc.wr{background:var(--row-white)}
+    .rc.bl{background:var(--row-black)}
+    .rc.beat{border-left:1px solid rgba(255,255,255,.10)}
+    .rc.ph{background-image:linear-gradient(var(--ph),var(--ph))}
+    .drums{display:grid;grid-template-columns:64px repeat(16,1fr);gap:3px;min-width:560px}
+    .dlabel{font-size:.72rem;color:var(--muted);display:flex;align-items:center}
+    .dc{aspect-ratio:1;background:var(--cell);border-radius:4px;cursor:pointer;min-height:22px}
+    .dc.beat{outline:1px solid rgba(255,255,255,.08);outline-offset:-1px}
+    .dc.on{background:linear-gradient(120deg,var(--accent),var(--accent-2))}
+    .dc.ph{filter:brightness(1.5)}
+    .drum-wrap{overflow-x:auto}
+    .row-lbl{font-weight:700;font-size:.8rem;color:var(--muted);margin-bottom:6px}
+    .save-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+    .note{color:var(--muted);font-size:.78rem}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <a class="home" href="/games/musicmaker/">← Modes</a>
+      <h1>🎼 Music Maker</h1>
+      <a class="home" href="/">Home</a>
+    </div>
+
+    <div class="card transport">
+      <button class="btn play" id="play">▶ Play</button>
+      <div class="ctl">Tempo <input type="range" id="bpm" min="60" max="200" value="110"><span id="bpmv">110</span></div>
+      <div class="ctl">Vol <input type="range" id="vol" min="0" max="100" value="70"></div>
+      <button class="btn ghost" id="clear">Clear</button>
+    </div>
+
+    <div class="card">
+      <div class="row-lbl">Voices — tap to edit, double-tap to mute</div>
+      <div class="voices" id="voices"></div>
+    </div>
+
+    <div class="card">
+      <div class="editor">
+        <b id="editing-label">Voice 1</b>
+        <label class="ctl">Instrument <select id="inst"></select></label>
+        <span class="note">Click the grid to place notes</span>
+      </div>
+      <div class="roll-wrap"><div class="roll" id="roll"></div></div>
+    </div>
+
+    <div class="card">
+      <div class="row-lbl">🥁 Rhythm track</div>
+      <div class="drum-wrap"><div class="drums" id="drums"></div></div>
+    </div>
+
+    <div class="card save-row">
+      <input type="text" id="songname" placeholder="Song name" maxlength="40" />
+      <button class="btn" id="save">💾 Save</button>
+      <select id="songs"><option value="">— saved songs —</option></select>
+      <button class="btn ghost" id="load">Load</button>
+      <button class="btn ghost" id="del">Delete</button>
+      <span class="note" id="save-status"></span>
+    </div>
+  </div>
+
+  <script src="../engine.js"></script>
+  <script>
+  (function(){
+    const STEPS=16, LOW=48, HIGH=71;
+    const PITCHES=[]; for(let m=HIGH;m>=LOW;m--) PITCHES.push(m);
+    const NAMES=["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+    const BLACK=new Set([1,3,6,8,10]);
+    const VCOLORS=["#f43f5e","#fb923c","#eab308","#4ade80","#22d3ee","#7c5cff","#e879f9","#f472b6"];
+    const INSTRUMENTS=MME.INSTRUMENTS;
+    const DRUMS=["kick","snare","hatClosed","clap"];
+    const DLABEL={kick:"🥁 Kick",snare:"🪘 Snare",hatClosed:"🎩 Hat",clap:"👏 Clap"};
+
+    let voices=makeVoices();
+    let drums=Object.fromEntries(DRUMS.map(d=>[d,Array(STEPS).fill(false)]));
+    let bpm=110, master=0.7, current=0;
+    function makeVoices(){ return Array.from({length:8},(_,i)=>({
+      instrument:["piano","strings","organ","lead","bass","bell","pluck","epiano"][i], muted:false,
+      grid:Array.from({length:STEPS},()=>Array(PITCHES.length).fill(false)) })); }
+
+    const rollCells=[], drumCells={};
+    function buildRoll(){ const roll=document.getElementById("roll"); roll.innerHTML="";
+      for(let p=0;p<PITCHES.length;p++){ const m=PITCHES[p], isB=BLACK.has(m%12);
+        const lbl=document.createElement("div"); lbl.className="rlabel"+(isB?" black":""); lbl.textContent=NAMES[m%12]+(Math.floor(m/12)-1); roll.appendChild(lbl);
+        rollCells[p]=[];
+        for(let s=0;s<STEPS;s++){ const c=document.createElement("div"); c.className="rc "+(isB?"bl":"wr")+(s%4===0?" beat":"");
+          c.addEventListener("click",()=>toggleNote(s,p)); roll.appendChild(c); rollCells[p][s]=c; } } }
+    function buildDrums(){ const d=document.getElementById("drums"); d.innerHTML="";
+      for(const dr of DRUMS){ const lbl=document.createElement("div"); lbl.className="dlabel"; lbl.textContent=DLABEL[dr]; d.appendChild(lbl); drumCells[dr]=[];
+        for(let s=0;s<STEPS;s++){ const c=document.createElement("div"); c.className="dc"+(s%4===0?" beat":"");
+          c.addEventListener("click",()=>toggleDrum(dr,s)); d.appendChild(c); drumCells[dr][s]=c; } } }
+    function buildVoices(){ const box=document.getElementById("voices"); box.innerHTML="";
+      voices.forEach((v,i)=>{ const el=document.createElement("div"); el.className="voice"+(i===current?" active":"")+(v.muted?" muted":"");
+        el.innerHTML=`<span class="vn">${i+1}</span><span class="vi">${INSTRUMENTS.find(x=>x.id===v.instrument).name}</span><div class="swatch" style="background:${VCOLORS[i]}"></div>`;
+        el.addEventListener("click",()=>selectVoice(i)); el.addEventListener("dblclick",()=>{v.muted=!v.muted;buildVoices();}); box.appendChild(el); }); }
+    function buildInst(){ const s=document.getElementById("inst"); s.innerHTML=""; INSTRUMENTS.forEach(I=>{const o=document.createElement("option");o.value=I.id;o.textContent=I.name;s.appendChild(o);}); }
+
+    function selectVoice(i){ current=i; document.getElementById("editing-label").textContent="Voice "+(i+1); document.getElementById("inst").value=voices[i].instrument; buildVoices(); renderGrid(); }
+    function renderGrid(){ const g=voices[current].grid, col=VCOLORS[current];
+      for(let p=0;p<PITCHES.length;p++)for(let s=0;s<STEPS;s++){ const c=rollCells[p][s], on=g[s][p]; c.classList.toggle("on",on); c.style.background=on?col:""; } }
+    function renderDrums(){ for(const dr of DRUMS)for(let s=0;s<STEPS;s++) drumCells[dr][s].classList.toggle("on",drums[dr][s]); }
+    function stepDur(){return (60/bpm)/4;}
+    function toggleNote(s,p){ MME.ensure(); MME.resume(); const g=voices[current].grid; g[s][p]=!g[s][p];
+      const c=rollCells[p][s]; c.classList.toggle("on",g[s][p]); c.style.background=g[s][p]?VCOLORS[current]:"";
+      if(g[s][p]) MME.playNote(voices[current].instrument, MME.midiToFreq(PITCHES[p]), MME.ctx().currentTime, stepDur()*0.9); }
+    function toggleDrum(dr,s){ MME.ensure(); MME.resume(); drums[dr][s]=!drums[dr][s]; drumCells[dr][s].classList.toggle("on",drums[dr][s]); if(drums[dr][s]) MME.playDrum(dr); }
+
+    // transport
+    function onStep(step,time){ const gate=stepDur()*0.9;
+      for(let v=0;v<8;v++){ if(voices[v].muted)continue; const inst=voices[v].instrument, col=voices[v].grid[step];
+        for(let p=0;p<PITCHES.length;p++) if(col[p]) MME.playNote(inst, MME.midiToFreq(PITCHES[p]), time, gate); }
+      for(const d of DRUMS) if(drums[d][step]) MME.playDrum(d,time); }
+    function onDraw(step){ for(let p=0;p<PITCHES.length;p++)for(let s=0;s<STEPS;s++) rollCells[p][s].classList.toggle("ph",s===step&&step>=0);
+      for(const d of DRUMS)for(let s=0;s<STEPS;s++) drumCells[d][s].classList.toggle("ph",s===step&&step>=0); }
+    function play(){ MME.transport.start({steps:STEPS,getBpm:()=>bpm,onStep,onDraw}); document.getElementById("play").textContent="⏹ Stop"; }
+    function stop(){ MME.transport.stop(); document.getElementById("play").textContent="▶ Play"; }
+
+    // save / load (local)
+    const LS="mm_melody";
+    function serialize(){ return {v:1,type:"melody",bpm,master,
+      voices:voices.map(v=>({instrument:v.instrument,muted:v.muted,notes:v.grid.flatMap((col,s)=>col.map((on,p)=>on?[s,p]:null).filter(Boolean))})), drums}; }
+    function deserialize(d){ bpm=d.bpm||110; master=d.master!=null?d.master:0.7;
+      document.getElementById("bpm").value=bpm; document.getElementById("bpmv").textContent=bpm; document.getElementById("vol").value=Math.round(master*100); MME.setMaster(master);
+      voices=makeVoices(); (d.voices||[]).forEach((sv,i)=>{ if(i>7)return; voices[i].instrument=sv.instrument||voices[i].instrument; voices[i].muted=!!sv.muted; (sv.notes||[]).forEach(([s,p])=>{ if(voices[i].grid[s]&&p<PITCHES.length) voices[i].grid[s][p]=true; }); });
+      drums=Object.fromEntries(DRUMS.map(dr=>[dr,(d.drums&&d.drums[dr])?d.drums[dr].slice(0,STEPS):Array(STEPS).fill(false)]));
+      current=0; buildVoices(); document.getElementById("inst").value=voices[0].instrument; renderGrid(); renderDrums(); }
+    const store=()=>{try{return JSON.parse(localStorage.getItem(LS)||"{}");}catch(e){return{};}};
+    const saveStore=(o)=>localStorage.setItem(LS,JSON.stringify(o));
+    function refresh(){ const s=store(),sel=document.getElementById("songs"); sel.innerHTML='<option value="">— saved songs —</option>'; Object.keys(s).sort().forEach(n=>{const o=document.createElement("option");o.value=n;o.textContent=n;sel.appendChild(o);}); }
+    function status(m){ const s=document.getElementById("save-status"); s.textContent=m; setTimeout(()=>{if(s.textContent===m)s.textContent="";},2500); }
+
+    document.getElementById("play").addEventListener("click",()=>MME.transport.isPlaying()?stop():play());
+    document.getElementById("bpm").addEventListener("input",e=>{bpm=+e.target.value;document.getElementById("bpmv").textContent=bpm;});
+    document.getElementById("vol").addEventListener("input",e=>{master=+e.target.value/100;MME.setMaster(master);});
+    document.getElementById("inst").addEventListener("change",e=>{voices[current].instrument=e.target.value;buildVoices();});
+    document.getElementById("clear").addEventListener("click",()=>{ if(!confirm("Clear all voices and drums?"))return; voices=makeVoices(); drums=Object.fromEntries(DRUMS.map(d=>[d,Array(STEPS).fill(false)])); current=0; buildVoices(); document.getElementById("inst").value=voices[0].instrument; renderGrid(); renderDrums(); });
+    document.getElementById("save").addEventListener("click",()=>{ const n=(document.getElementById("songname").value||"").trim(); if(!n){status("Name your song first.");return;} const s=store(); s[n]=serialize(); saveStore(s); refresh(); document.getElementById("songs").value=n; status("Saved “"+n+"”."); });
+    document.getElementById("load").addEventListener("click",()=>{ const n=document.getElementById("songs").value; if(!n)return; const s=store(); if(s[n]){deserialize(s[n]);document.getElementById("songname").value=n;status("Loaded “"+n+"”.");} });
+    document.getElementById("del").addEventListener("click",()=>{ const n=document.getElementById("songs").value; if(!n)return; if(!confirm("Delete “"+n+"”?"))return; const s=store(); delete s[n]; saveStore(s); refresh(); status("Deleted."); });
+
+    // boot
+    buildRoll(); buildDrums(); buildVoices(); buildInst(); document.getElementById("inst").value=voices[0].instrument; renderGrid();
+    drums.kick[0]=drums.kick[8]=true; drums.snare[4]=drums.snare[12]=true; renderDrums(); refresh();
+  })();
+  </script>
+</body>
+</html>

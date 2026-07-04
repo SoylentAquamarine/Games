@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Music Maker — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🎹</text></svg>" />
+  <style>
+    :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;--card:#1e2140;}
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+      background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.22),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.16),transparent 60%),var(--bg);}
+    .wrap{max-width:820px;margin:0 auto;padding:20px 18px 60px}
+    .topbar{display:flex;align-items:center;justify-content:space-between}
+    .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+    .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+    h1{font-size:clamp(2rem,7vw,3rem);margin:.4em 0 .1em;background:linear-gradient(120deg,var(--accent),var(--accent-2));-webkit-background-clip:text;background-clip:text;color:transparent;text-align:center}
+    .sub{text-align:center;color:var(--muted);margin:0 0 8px}
+    .modes{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px;margin-top:30px}
+    .mode{display:flex;flex-direction:column;gap:8px;background:var(--card);border:1px solid rgba(255,255,255,.07);border-radius:18px;padding:24px 22px;text-decoration:none;color:var(--text);transition:transform .15s,border-color .15s}
+    .mode:hover{transform:translateY(-4px);border-color:rgba(124,92,255,.6)}
+    .mode .icon{font-size:2.6rem}
+    .mode h2{margin:0;font-size:1.3rem}
+    .mode p{margin:0;color:var(--muted);font-size:.9rem;line-height:1.4}
+    .mode.soon{opacity:.6;cursor:default}
+    .mode.soon:hover{transform:none;border-color:rgba(255,255,255,.07)}
+    .badge{align-self:flex-start;margin-top:4px;font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;padding:3px 10px;border-radius:999px}
+    .badge.ready{background:rgba(52,211,153,.14);border:1px solid rgba(52,211,153,.4);color:#34d399}
+    .badge.soon{background:rgba(154,154,181,.12);border:1px solid rgba(154,154,181,.35);color:var(--muted)}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar"><a class="home" href="/">← Home</a><span></span></div>
+    <h1>🎹 Music Maker</h1>
+    <p class="sub">Pick a studio. Everything runs on one shared sound engine.</p>
+
+    <div class="modes">
+      <a class="mode" href="/games/musicmaker/beat/">
+        <div class="icon">🥁</div>
+        <h2>Beat Maker</h2>
+        <p>Build drum &amp; percussion patterns on a 14-piece kit — kick, snares, hats, toms, cymbals, cowbell, shaker and more. Presets, random grooves, save your beats.</p>
+        <span class="badge ready">Ready</span>
+      </a>
+
+      <a class="mode" href="/games/musicmaker/melody/">
+        <div class="icon">🎼</div>
+        <h2>Music Maker</h2>
+        <p>Eight programmable voices on a player-piano roll. Choose instruments and notes, add a rhythm track, and compose full songs.</p>
+        <span class="badge ready">Ready</span>
+      </a>
+
+      <div class="mode soon">
+        <div class="icon">🎺</div>
+        <h2>Band Composer</h2>
+        <p>School-band instruments — flute, clarinet, sax, trumpet, trombone, tuba, percussion — with multiple parts (1st through 5th chair). Coming later.</p>
+        <span class="badge soon">Coming soon</span>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
