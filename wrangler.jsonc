@@ -1,8 +1,13 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "games",
+  "main": "src/index.js",
   "compatibility_date": "2026-07-04",
   "assets": {
-    "directory": "./public"
+    "directory": "./public",
+    "binding": "ASSETS"
+  },
+  "vars": {
+    "GOOGLE_CLIENT_ID": "REPLACE_WITH_YOUR_CLIENT_ID.apps.googleusercontent.com"
   }
 }

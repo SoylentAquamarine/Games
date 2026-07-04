@@ -29,6 +29,65 @@ body {
   min-height: 100vh;
 }
 
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.brand {
+  font-weight: 700;
+  font-size: 1.1rem;
+  letter-spacing: -0.01em;
+}
+
+.auth-area {
+  display: flex;
+  align-items: center;
+  min-height: 40px;
+}
+
+.auth-hint {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.user-name {
+  font-size: 0.95rem;
+  color: var(--text);
+}
+
+.logout {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: var(--muted);
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.logout:hover {
+  border-color: rgba(124, 92, 255, 0.6);
+  color: var(--text);
+}
+
 .hero {
   flex: 1;
   max-width: 900px;
