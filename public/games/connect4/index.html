@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Connect Four — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔴</text></svg>" />
+  <style>
+    :root {
+      --bg: #0f1020;
+      --panel: #1e2140;
+      --board: #232752;
+      --hole: #0f1020;
+      --text: #e6e6f0;
+      --muted: #9a9ab5;
+      --accent: #7c5cff;
+      --accent-2: #22d3ee;
+      --red: #f43f5e;
+      --yellow: #fbbf24;
+      --win: #34d399;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0; min-height: 100%;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(1000px 500px at 70% -10%, rgba(124,92,255,.22), transparent 60%),
+        radial-gradient(800px 400px at 10% 110%, rgba(34,211,238,.16), transparent 60%),
+        var(--bg);
+      -webkit-tap-highlight-color: transparent;
+    }
+    .wrap {
+      max-width: 520px; margin: 0 auto; padding: 16px 16px 40px;
+      display: flex; flex-direction: column; align-items: center; gap: 14px;
+    }
+    .topbar { width: 100%; display: flex; align-items: center; justify-content: space-between; }
+    .home {
+      color: var(--muted); text-decoration: none; font-size: .9rem;
+      padding: 6px 12px; border: 1px solid rgba(255,255,255,.12); border-radius: 999px;
+      transition: border-color .15s, color .15s;
+    }
+    .home:hover { color: var(--text); border-color: rgba(124,92,255,.6); }
+    h1 {
+      margin: 0; font-size: 1.5rem; letter-spacing: -.02em;
+      background: linear-gradient(120deg, var(--red), var(--yellow));
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+    .modes { display: flex; gap: 8px; background: var(--panel); padding: 5px; border-radius: 999px; border: 1px solid rgba(255,255,255,.06); }
+    .modes button {
+      background: transparent; border: none; color: var(--muted); cursor: pointer;
+      padding: 8px 16px; border-radius: 999px; font-size: .9rem; font-weight: 600; transition: all .15s;
+    }
+    .modes button.active { background: linear-gradient(120deg, var(--accent), var(--accent-2)); color: #0b0c1a; }
+    .status { font-size: 1.05rem; font-weight: 600; min-height: 1.4em; text-align: center; }
+    .board {
+      display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px;
+      background: var(--board); padding: 10px; border-radius: 16px; width: 100%;
+      border: 1px solid rgba(255,255,255,.08);
+    }
+    .slot {
+      aspect-ratio: 1; background: var(--hole); border-radius: 50%;
+      display: flex; align-items: center; justify-content: center; position: relative;
+      overflow: hidden;
+    }
+    .disc {
+      width: 84%; height: 84%; border-radius: 50%;
+      animation: drop .28s cubic-bezier(.3,1.2,.5,1);
+    }
+    .disc.red { background: radial-gradient(circle at 35% 30%, #ff7089, var(--red)); }
+    .disc.yellow { background: radial-gradient(circle at 35% 30%, #fde08a, var(--yellow)); }
+    .slot.win .disc { box-shadow: 0 0 0 3px var(--win), 0 0 16px var(--win); }
+    @keyframes drop { 0% { transform: translateY(-320px); } 100% { transform: translateY(0); } }
+    .colbtns { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; width: 100%; padding: 0 10px; }
+    .colbtn {
+      background: transparent; border: none; color: var(--muted); font-size: 1.1rem;
+      cursor: pointer; padding: 4px 0; border-radius: 8px; transition: color .12s, background .12s;
+    }
+    .colbtn:hover:not(:disabled) { color: var(--text); background: rgba(124,92,255,.15); }
+    .colbtn:disabled { opacity: .25; cursor: default; }
+    .scoreboard { display: flex; gap: 12px; width: 100%; }
+    .score { flex: 1; background: var(--panel); border: 1px solid rgba(255,255,255,.06); border-radius: 12px; padding: 8px; text-align: center; }
+    .score .label { font-size: .7rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+    .score .value { font-size: 1.3rem; font-weight: 700; }
+    .btn {
+      background: linear-gradient(120deg, var(--accent), var(--accent-2));
+      color: #0b0c1a; border: none; font-weight: 700; font-size: .95rem;
+      padding: 10px 24px; border-radius: 999px; cursor: pointer; transition: transform .12s;
+    }
+    .btn:hover { transform: translateY(-2px); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <a class="home" href="/">← Home</a>
+      <h1>🔴 Connect Four 🟡</h1>
+      <span style="width:64px"></span>
+    </div>
+
+    <div class="modes">
+      <button id="mode-ai" class="active">vs Computer</button>
+      <button id="mode-2p">2 Players</button>
+    </div>
+
+    <div class="status" id="status">Your turn</div>
+
+    <div class="colbtns" id="colbtns"></div>
+    <div class="board" id="board"></div>
+
+    <div class="scoreboard">
+      <div class="score"><div class="label" id="lr">You</div><div class="value" id="sr">0</div></div>
+      <div class="score"><div class="label">Draws</div><div class="value" id="sd">0</div></div>
+      <div class="score"><div class="label" id="ly">CPU</div><div class="value" id="sy">0</div></div>
+    </div>
+
+    <button class="btn" id="reset">New Round</button>
+  </div>
+
+  <script>
+  (function () {
+    const ROWS = 6, COLS = 7;
+    const RED = 1, YELLOW = 2;         // RED = human/P1, YELLOW = AI/P2
+    const boardEl = document.getElementById("board");
+    const colbtnsEl = document.getElementById("colbtns");
+    const statusEl = document.getElementById("status");
+    const sr = document.getElementById("sr"), sy = document.getElementById("sy"), sd = document.getElementById("sd");
+    const lr = document.getElementById("lr"), ly = document.getElementById("ly");
+
+    let grid, current, active, vsAI, scores = { 1: 0, 2: 0, D: 0 };
+
+    function build() {
+      boardEl.innerHTML = ""; colbtnsEl.innerHTML = "";
+      for (let c = 0; c < COLS; c++) {
+        const b = document.createElement("button");
+        b.className = "colbtn"; b.textContent = "▾"; b.dataset.col = c;
+        b.addEventListener("click", () => drop(c));
+        colbtnsEl.appendChild(b);
+      }
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          const s = document.createElement("div");
+          s.className = "slot"; s.id = `s-${r}-${c}`;
+          s.addEventListener("click", () => drop(c));
+          boardEl.appendChild(s);
+        }
+      }
+    }
+
+    function newRound() {
+      grid = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+      current = RED; active = true;
+      for (const s of boardEl.children) { s.className = "slot"; s.innerHTML = ""; }
+      updateColBtns();
+      setStatus();
+    }
+
+    function setStatus() {
+      if (!active) return;
+      if (vsAI) statusEl.textContent = current === RED ? "Your turn 🔴" : "Computer thinking…";
+      else statusEl.textContent = current === RED ? "Red's turn 🔴" : "Yellow's turn 🟡";
+    }
+
+    function updateColBtns() {
+      for (const b of colbtnsEl.children) {
+        const c = Number(b.dataset.col);
+        b.disabled = !active || grid[0][c] !== 0 || (vsAI && current === YELLOW);
+      }
+    }
+
+    function lowestRow(g, c) {
+      for (let r = ROWS - 1; r >= 0; r--) if (g[r][c] === 0) return r;
+      return -1;
+    }
+
+    function drop(c) {
+      if (!active) return;
+      if (vsAI && current === YELLOW) return;
+      placeAndResolve(c, () => {
+        if (active && vsAI && current === YELLOW) {
+          updateColBtns();
+          setTimeout(aiTurn, 400);
+        }
+      });
+    }
+
+    function placeAndResolve(c, after) {
+      const r = lowestRow(grid, c);
+      if (r < 0) return;
+      grid[r][c] = current;
+      const slot = document.getElementById(`s-${r}-${c}`);
+      const disc = document.createElement("div");
+      disc.className = "disc " + (current === RED ? "red" : "yellow");
+      slot.appendChild(disc);
+
+      const line = winningLine(grid, r, c, current);
+      if (line) return end(current, line);
+      if (grid[0].every((v) => v !== 0)) return end(0);
+
+      current = current === RED ? YELLOW : RED;
+      setStatus(); updateColBtns();
+      if (after) after();
+    }
+
+    function end(winner, line) {
+      active = false;
+      if (line) line.forEach(([r, c]) => document.getElementById(`s-${r}-${c}`).classList.add("win"));
+      if (winner === 0) { scores.D++; statusEl.textContent = "It's a draw 🤝"; }
+      else {
+        scores[winner]++;
+        if (vsAI) statusEl.textContent = winner === RED ? "You win! 🎉" : "Computer wins 🤖";
+        else statusEl.textContent = (winner === RED ? "Red" : "Yellow") + " wins! 🎉";
+      }
+      updateScores(); updateColBtns();
+    }
+
+    function updateScores() { sr.textContent = scores[1]; sy.textContent = scores[2]; sd.textContent = scores.D; }
+
+    // --- win detection returning the 4 winning cells ---
+    function winningLine(g, r, c, p) {
+      const dirs = [[0,1],[1,0],[1,1],[1,-1]];
+      for (const [dr, dc] of dirs) {
+        const cells = [[r, c]];
+        for (const s of [1, -1]) {
+          let nr = r + dr * s, nc = c + dc * s;
+          while (nr >= 0 && nr < ROWS && nc >= 0 && nc < COLS && g[nr][nc] === p) {
+            cells.push([nr, nc]); nr += dr * s; nc += dc * s;
+          }
+        }
+        if (cells.length >= 4) return cells.slice(0, 4);
+      }
+      return null;
+    }
+
+    function hasWin(g, p) {
+      for (let r = 0; r < ROWS; r++)
+        for (let c = 0; c < COLS; c++)
+          if (g[r][c] === p && winningLine(g, r, c, p)) return true;
+      return false;
+    }
+
+    // --- AI: alpha-beta search with heuristic ---
+    function aiTurn() {
+      if (!active) return;
+      const col = chooseColumn();
+      placeAndResolve(col);
+    }
+
+    function chooseColumn() {
+      const valid = validCols(grid);
+      let bestScore = -Infinity, bestCol = valid[0];
+      // small randomness among equal top moves for variety
+      let ties = [];
+      for (const c of valid) {
+        const g = clone(grid);
+        g[lowestRow(g, c)][c] = YELLOW;
+        const s = minimax(g, 5, -Infinity, Infinity, false);
+        if (s > bestScore) { bestScore = s; bestCol = c; ties = [c]; }
+        else if (s === bestScore) ties.push(c);
+      }
+      return ties[Math.floor(Math.random() * ties.length)];
+    }
+
+    function minimax(g, depth, alpha, beta, maximizing) {
+      if (hasWin(g, YELLOW)) return 1000000 + depth;
+      if (hasWin(g, RED)) return -1000000 - depth;
+      const valid = validCols(g);
+      if (depth === 0 || valid.length === 0) return evaluate(g);
+
+      if (maximizing) {
+        let value = -Infinity;
+        for (const c of valid) {
+          const ng = clone(g); ng[lowestRow(ng, c)][c] = YELLOW;
+          value = Math.max(value, minimax(ng, depth - 1, alpha, beta, false));
+          alpha = Math.max(alpha, value);
+          if (alpha >= beta) break;
+        }
+        return value;
+      } else {
+        let value = Infinity;
+        for (const c of valid) {
+          const ng = clone(g); ng[lowestRow(ng, c)][c] = RED;
+          value = Math.min(value, minimax(ng, depth - 1, alpha, beta, true));
+          beta = Math.min(beta, value);
+          if (alpha >= beta) break;
+        }
+        return value;
+      }
+    }
+
+    function evaluate(g) {
+      let score = 0;
+      // center preference
+      for (let r = 0; r < ROWS; r++) if (g[r][3] === YELLOW) score += 6;
+      // score all length-4 windows
+      const windows = [];
+      for (let r = 0; r < ROWS; r++)
+        for (let c = 0; c < COLS; c++) {
+          if (c + 3 < COLS) windows.push([[r,c],[r,c+1],[r,c+2],[r,c+3]]);
+          if (r + 3 < ROWS) windows.push([[r,c],[r+1,c],[r+2,c],[r+3,c]]);
+          if (r + 3 < ROWS && c + 3 < COLS) windows.push([[r,c],[r+1,c+1],[r+2,c+2],[r+3,c+3]]);
+          if (r + 3 < ROWS && c - 3 >= 0) windows.push([[r,c],[r+1,c-1],[r+2,c-2],[r+3,c-3]]);
+        }
+      for (const w of windows) {
+        let me = 0, opp = 0, empty = 0;
+        for (const [r, c] of w) { const v = g[r][c]; if (v === YELLOW) me++; else if (v === RED) opp++; else empty++; }
+        if (me === 4) score += 100;
+        else if (me === 3 && empty === 1) score += 10;
+        else if (me === 2 && empty === 2) score += 4;
+        if (opp === 3 && empty === 1) score -= 12;   // block threats
+        else if (opp === 2 && empty === 2) score -= 2;
+      }
+      return score;
+    }
+
+    function validCols(g) { const v = []; for (let c = 0; c < COLS; c++) if (g[0][c] === 0) v.push(c); return v; }
+    function clone(g) { return g.map((row) => row.slice()); }
+
+    function setMode(ai) {
+      vsAI = ai;
+      document.getElementById("mode-ai").classList.toggle("active", ai);
+      document.getElementById("mode-2p").classList.toggle("active", !ai);
+      lr.textContent = ai ? "You" : "Red";
+      ly.textContent = ai ? "CPU" : "Yellow";
+      scores = { 1: 0, 2: 0, D: 0 }; updateScores();
+      newRound();
+    }
+
+    document.getElementById("mode-ai").addEventListener("click", () => setMode(true));
+    document.getElementById("mode-2p").addEventListener("click", () => setMode(false));
+    document.getElementById("reset").addEventListener("click", newRound);
+
+    build();
+    setMode(true);
+  })();
+  </script>
+</body>
+</html>
