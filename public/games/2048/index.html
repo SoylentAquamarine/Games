@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>2048 — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🔢</text></svg>" />
+  <style>
+    :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;--grid:#232752;--empty:#2a2e56;}
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+      background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.22),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.16),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;}
+    .wrap{max-width:440px;margin:0 auto;padding:16px 16px 40px;display:flex;flex-direction:column;align-items:center;gap:14px}
+    .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
+    .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+    .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+    h1{margin:0;font-size:1.6rem;background:linear-gradient(120deg,var(--accent),var(--accent-2));-webkit-background-clip:text;background-clip:text;color:transparent}
+    .scores{display:flex;gap:12px;width:100%}
+    .stat{flex:1;background:var(--panel);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:10px;text-align:center}
+    .stat .label{font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+    .stat .value{font-size:1.4rem;font-weight:700}
+    .grid{position:relative;width:100%;aspect-ratio:1;background:var(--grid);border-radius:14px;padding:10px}
+    .cells{position:absolute;inset:10px;display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(4,1fr);gap:10px}
+    .cell{background:var(--empty);border-radius:10px}
+    .tiles{position:absolute;inset:10px}
+    .tile{position:absolute;display:flex;align-items:center;justify-content:center;border-radius:10px;font-weight:800;
+      transition:transform .12s ease;font-size:clamp(1.1rem,6vw,2rem)}
+    .status{min-height:1.3em;font-weight:600;color:var(--accent-2)}
+    .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:10px 24px;border-radius:999px;cursor:pointer}
+    .btn:hover{transform:translateY(-2px)}
+    .hint{color:var(--muted);font-size:.85rem}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar"><a class="home" href="/">← Home</a><h1>🔢 2048</h1><span style="width:64px"></span></div>
+    <div class="scores">
+      <div class="stat"><div class="label">Score</div><div class="value" id="score">0</div></div>
+      <div class="stat"><div class="label">Best</div><div class="value" id="best">0</div></div>
+    </div>
+    <div class="grid"><div class="cells" id="cells"></div><div class="tiles" id="tiles"></div></div>
+    <div class="status" id="status"></div>
+    <button class="btn" id="new">New Game</button>
+    <p class="hint">Arrow keys / WASD or swipe · merge to reach 2048</p>
+  </div>
+  <script>
+  (function(){
+    const SIZE=4, cellsEl=document.getElementById("cells"), tilesEl=document.getElementById("tiles");
+    const scoreEl=document.getElementById("score"), bestEl=document.getElementById("best"), statusEl=document.getElementById("status");
+    const COLORS={2:"#3a3f74",4:"#4a5085",8:"#7c5cff",16:"#9333ea",32:"#c026d3",64:"#db2777",128:"#f43f5e",256:"#fb923c",512:"#f59e0b",1024:"#eab308",2048:"#22d3ee"};
+    let grid, score, best=Number(localStorage.getItem("2048_best")||0), over, won;
+    bestEl.textContent=best;
+    for(let i=0;i<16;i++){const d=document.createElement("div");d.className="cell";cellsEl.appendChild(d);}
+
+    function init(){grid=Array.from({length:SIZE},()=>Array(SIZE).fill(0));score=0;over=false;won=false;statusEl.textContent="";scoreEl.textContent=0;add();add();draw();}
+    function add(){const e=[];for(let r=0;r<SIZE;r++)for(let c=0;c<SIZE;c++)if(!grid[r][c])e.push([r,c]);if(!e.length)return;const[r,c]=e[Math.floor(Math.random()*e.length)];grid[r][c]=Math.random()<.9?2:4;}
+    function draw(){
+      tilesEl.innerHTML="";
+      const g=cellsEl.getBoundingClientRect(), gap=10, size=(g.width-gap*3)/4;
+      for(let r=0;r<SIZE;r++)for(let c=0;c<SIZE;c++){const v=grid[r][c];if(!v)continue;
+        const t=document.createElement("div");t.className="tile";
+        t.style.width=t.style.height=size+"px";
+        t.style.transform=`translate(${c*(size+gap)}px,${r*(size+gap)}px)`;
+        t.style.background=COLORS[v]||"#111827";t.style.color=v<=4?"#cdd0e8":"#0b0c1a";
+        t.textContent=v;tilesEl.appendChild(t);}
+    }
+    function slide(row){
+      let a=row.filter(v=>v);
+      for(let i=0;i<a.length-1;i++){if(a[i]===a[i+1]){a[i]*=2;score+=a[i];if(a[i]===2048)won=true;a.splice(i+1,1);}}
+      while(a.length<SIZE)a.push(0);
+      return a;
+    }
+    function move(dir){
+      if(over)return;
+      const before=JSON.stringify(grid);
+      let g=grid.map(r=>r.slice());
+      const rot=n=>{for(let k=0;k<n;k++)g=g[0].map((_,i)=>g.map(r=>r[i]).reverse());};
+      const times={left:0,up:3,right:2,down:1}[dir];
+      rot(times);
+      g=g.map(slide);
+      rot((4-times)%4);
+      grid=g;
+      if(JSON.stringify(grid)!==before){add();scoreEl.textContent=score;
+        if(score>best){best=score;bestEl.textContent=best;localStorage.setItem("2048_best",best);}
+        draw();
+        if(won){statusEl.textContent="🎉 You made 2048! Keep going.";won=false;}
+        if(!canMove()){over=true;statusEl.textContent="Game over — no moves left.";}
+      }
+    }
+    function canMove(){for(let r=0;r<SIZE;r++)for(let c=0;c<SIZE;c++){if(!grid[r][c])return true;if(c<3&&grid[r][c]===grid[r][c+1])return true;if(r<3&&grid[r][c]===grid[r+1][c])return true;}return false;}
+    document.addEventListener("keydown",e=>{const m={ArrowLeft:"left",ArrowRight:"right",ArrowUp:"up",ArrowDown:"down",a:"left",d:"right",w:"up",s:"down"}[e.key];if(m){e.preventDefault();move(m);}});
+    let ts=null;const grEl=document.querySelector(".grid");
+    grEl.addEventListener("touchstart",e=>ts={x:e.touches[0].clientX,y:e.touches[0].clientY},{passive:true});
+    grEl.addEventListener("touchend",e=>{if(!ts)return;const dx=e.changedTouches[0].clientX-ts.x,dy=e.changedTouches[0].clientY-ts.y;if(Math.abs(dx)<24&&Math.abs(dy)<24)return;if(Math.abs(dx)>Math.abs(dy))move(dx>0?"right":"left");else move(dy>0?"down":"up");ts=null;},{passive:true});
+    window.addEventListener("resize",draw);
+    document.getElementById("new").addEventListener("click",init);
+    init();
+  })();
+  </script>
+</body>
+</html>

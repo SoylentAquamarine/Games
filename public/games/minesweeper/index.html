@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Minesweeper — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>💣</text></svg>" />
+  <style>
+    :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;--cover:#2a2e56;--cover2:#333868;--open:#1a1c33;}
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+      background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.22),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.16),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;}
+    .wrap{max-width:460px;margin:0 auto;padding:16px 12px 40px;display:flex;flex-direction:column;align-items:center;gap:12px}
+    .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
+    .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+    .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+    h1{margin:0;font-size:1.5rem;background:linear-gradient(120deg,var(--accent),var(--accent-2));-webkit-background-clip:text;background-clip:text;color:transparent}
+    .bar{display:flex;gap:10px;width:100%;align-items:center;justify-content:space-between}
+    .stat{background:var(--panel);border:1px solid rgba(255,255,255,.06);border-radius:10px;padding:6px 12px;font-weight:700;font-size:1.1rem}
+    .modes{display:flex;gap:6px;background:var(--panel);padding:4px;border-radius:999px}
+    .modes button{background:transparent;border:none;color:var(--muted);cursor:pointer;padding:6px 12px;border-radius:999px;font-size:.85rem;font-weight:600}
+    .modes button.active{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a}
+    .status{min-height:1.2em;font-weight:600;color:var(--accent-2)}
+    .grid{display:grid;gap:3px;width:100%;touch-action:manipulation}
+    .cell{aspect-ratio:1;background:linear-gradient(160deg,var(--cover2),var(--cover));border-radius:4px;display:flex;align-items:center;justify-content:center;
+      font-weight:800;cursor:pointer;user-select:none;font-size:clamp(.7rem,3.4vw,1.1rem)}
+    .cell.open{background:var(--open);cursor:default}
+    .cell.mine{background:#7f1d1d}
+    .cell.flag{color:#fbbf24}
+    .c1{color:#60a5fa}.c2{color:#4ade80}.c3{color:#f87171}.c4{color:#c084fc}.c5{color:#fb923c}.c6{color:#22d3ee}.c7{color:#e879f9}.c8{color:#94a3b8}
+    .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:9px 20px;border-radius:999px;cursor:pointer}
+    .flagbtn{background:var(--panel);border:1px solid rgba(255,255,255,.15);color:var(--muted);font-weight:700;padding:9px 16px;border-radius:999px;cursor:pointer}
+    .flagbtn.on{background:#fbbf24;color:#0b0c1a;border-color:#fbbf24}
+    .hint{color:var(--muted);font-size:.8rem;text-align:center}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar"><a class="home" href="/">← Home</a><h1>💣 Minesweeper</h1><span style="width:64px"></span></div>
+    <div class="modes" id="modes">
+      <button data-m="easy" class="active">Easy</button>
+      <button data-m="medium">Medium</button>
+      <button data-m="hard">Hard</button>
+    </div>
+    <div class="bar">
+      <div class="stat">💣 <span id="mines">0</span></div>
+      <button class="flagbtn" id="flagtoggle">🚩 Flag: off</button>
+      <div class="stat">⏱ <span id="time">0</span></div>
+    </div>
+    <div class="status" id="status"></div>
+    <div class="grid" id="grid"></div>
+    <button class="btn" id="new">New Game</button>
+    <p class="hint">Tap to reveal. Toggle 🚩 (or long-press / right-click) to flag mines.</p>
+  </div>
+  <script>
+  (function(){
+    const LEVELS={easy:{n:9,m:10},medium:{n:12,m:24},hard:{n:14,m:40}};
+    const gridEl=document.getElementById("grid"),minesEl=document.getElementById("mines"),timeEl=document.getElementById("time"),statusEl=document.getElementById("status");
+    const flagBtn=document.getElementById("flagtoggle");
+    let N,M,cells,mines,revealed,flags,over,started,timer,secs,flagMode=false,level="easy";
+    function newGame(){
+      const L=LEVELS[level];N=L.n;M=L.m;
+      cells=[];mines=new Set();revealed=new Set();flags=new Set();over=false;started=false;secs=0;
+      clearInterval(timer);timeEl.textContent=0;minesEl.textContent=M;statusEl.textContent="";
+      gridEl.style.gridTemplateColumns=`repeat(${N},1fr)`;gridEl.innerHTML="";
+      for(let i=0;i<N*N;i++){const d=document.createElement("div");d.className="cell";d.dataset.i=i;
+        d.addEventListener("click",()=>onCell(i));
+        d.addEventListener("contextmenu",e=>{e.preventDefault();toggleFlag(i);});
+        let lp;d.addEventListener("touchstart",()=>{lp=setTimeout(()=>{toggleFlag(i);lp=null;},350);},{passive:true});
+        d.addEventListener("touchend",()=>{if(lp){clearTimeout(lp);}},{passive:true});
+        gridEl.appendChild(d);cells.push(d);}
+    }
+    function plant(safe){const opts=[];for(let i=0;i<N*N;i++)if(i!==safe&&!neighbors(safe).includes(i))opts.push(i);
+      while(mines.size<M&&opts.length){const k=Math.floor(Math.random()*opts.length);mines.add(opts[k]);opts.splice(k,1);}}
+    function neighbors(i){const r=Math.floor(i/N),c=i%N,out=[];for(let dr=-1;dr<=1;dr++)for(let dc=-1;dc<=1;dc++){if(!dr&&!dc)continue;const nr=r+dr,nc=c+dc;if(nr>=0&&nr<N&&nc>=0&&nc<N)out.push(nr*N+nc);}return out;}
+    function count(i){return neighbors(i).filter(j=>mines.has(j)).length;}
+    function startTimer(){if(started)return;started=true;timer=setInterval(()=>{secs++;timeEl.textContent=secs;},1000);}
+    function onCell(i){if(over)return;
+      if(flagMode){toggleFlag(i);return;}
+      if(flags.has(i))return;
+      if(!started){plant(i);startTimer();}
+      reveal(i);
+      if(mines.has(i)){return lose(i);}
+      if(revealed.size===N*N-M)return win();
+    }
+    function reveal(i){if(revealed.has(i)||flags.has(i))return;revealed.add(i);const d=cells[i];d.classList.add("open");
+      const n=count(i);if(mines.has(i))return;
+      if(n>0){d.textContent=n;d.classList.add("c"+n);}
+      else{for(const j of neighbors(i))reveal(j);}
+    }
+    function toggleFlag(i){if(over||revealed.has(i))return;
+      if(flags.has(i)){flags.delete(i);cells[i].classList.remove("flag");cells[i].textContent="";}
+      else{flags.add(i);cells[i].classList.add("flag");cells[i].textContent="🚩";}
+      minesEl.textContent=M-flags.size;
+    }
+    function lose(hit){over=true;clearInterval(timer);
+      mines.forEach(i=>{if(!flags.has(i)){cells[i].classList.add("open","mine");cells[i].textContent="💣";}});
+      cells[hit].style.background="#dc2626";statusEl.textContent="💥 Boom! Game over.";
+    }
+    function win(){over=true;clearInterval(timer);statusEl.textContent=`🎉 Cleared in ${secs}s!`;
+      mines.forEach(i=>{cells[i].classList.add("flag");cells[i].textContent="🚩";});minesEl.textContent=0;}
+    flagBtn.addEventListener("click",()=>{flagMode=!flagMode;flagBtn.classList.toggle("on",flagMode);flagBtn.textContent="🚩 Flag: "+(flagMode?"on":"off");});
+    document.querySelectorAll("#modes button").forEach(b=>b.addEventListener("click",()=>{
+      document.querySelectorAll("#modes button").forEach(x=>x.classList.remove("active"));b.classList.add("active");level=b.dataset.m;newGame();}));
+    document.getElementById("new").addEventListener("click",newGame);
+    newGame();
+  })();
+  </script>
+</body>
+</html>

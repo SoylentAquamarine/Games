@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Simon — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🔴</text></svg>" />
+  <style>
+    :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;}
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+      background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.22),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.16),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;}
+    .wrap{max-width:420px;margin:0 auto;padding:16px 16px 40px;display:flex;flex-direction:column;align-items:center;gap:16px}
+    .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
+    .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+    .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+    h1{margin:0;font-size:1.6rem;background:linear-gradient(120deg,var(--accent),var(--accent-2));-webkit-background-clip:text;background-clip:text;color:transparent}
+    .scores{display:flex;gap:12px;width:100%}
+    .stat{flex:1;background:var(--panel);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:10px;text-align:center}
+    .stat .label{font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+    .stat .value{font-size:1.5rem;font-weight:700}
+    .simon{position:relative;width:min(84vw,340px);aspect-ratio:1;border-radius:50%;overflow:hidden;box-shadow:0 0 0 10px #1a1c33}
+    .pad{position:absolute;width:50%;height:50%;cursor:pointer;opacity:.55;transition:opacity .1s}
+    .pad.lit{opacity:1;filter:brightness(1.4)}
+    .green{top:0;left:0;background:#16a34a;border-top-left-radius:100%}
+    .red{top:0;right:0;background:#dc2626;border-top-right-radius:100%}
+    .yellow{bottom:0;left:0;background:#eab308;border-bottom-left-radius:100%}
+    .blue{bottom:0;right:0;background:#2563eb;border-bottom-right-radius:100%}
+    .center{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:34%;height:34%;background:var(--bg);border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 6px #1a1c33;font-weight:800;font-size:1.4rem}
+    .status{min-height:1.3em;font-weight:600;color:var(--accent-2)}
+    .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:10px 24px;border-radius:999px;cursor:pointer}
+    .btn:hover{transform:translateY(-2px)}
+    .hint{color:var(--muted);font-size:.85rem;text-align:center}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar"><a class="home" href="/">← Home</a><h1>🔴 Simon</h1><span style="width:64px"></span></div>
+    <div class="scores">
+      <div class="stat"><div class="label">Round</div><div class="value" id="round">0</div></div>
+      <div class="stat"><div class="label">Best</div><div class="value" id="best">0</div></div>
+    </div>
+    <div class="simon" id="simon">
+      <div class="pad green" data-i="0"></div>
+      <div class="pad red" data-i="1"></div>
+      <div class="pad yellow" data-i="2"></div>
+      <div class="pad blue" data-i="3"></div>
+      <div class="center" id="center">▶</div>
+    </div>
+    <div class="status" id="status">Repeat the pattern.</div>
+    <button class="btn" id="start">Start</button>
+    <p class="hint">Watch the sequence, then tap it back. It grows each round.</p>
+  </div>
+  <script>
+  (function(){
+    const pads=[...document.querySelectorAll(".pad")];
+    const roundEl=document.getElementById("round"),bestEl=document.getElementById("best"),statusEl=document.getElementById("status"),centerEl=document.getElementById("center");
+    const FREQ=[329.63,261.63,392,523.25];
+    let seq,step,playing,acceptInput,best=Number(localStorage.getItem("simon_best")||0);
+    bestEl.textContent=best;
+    let actx;
+    function tone(i,dur){try{actx=actx||new(window.AudioContext||window.webkitAudioContext)();const o=actx.createOscillator(),g=actx.createGain();o.frequency.value=FREQ[i];o.type="sine";o.connect(g);g.connect(actx.destination);g.gain.setValueAtTime(.0001,actx.currentTime);g.gain.exponentialRampToValueAtTime(.3,actx.currentTime+.02);g.gain.exponentialRampToValueAtTime(.0001,actx.currentTime+dur/1000);o.start();o.stop(actx.currentTime+dur/1000);}catch(e){}}
+    function light(i,dur){pads[i].classList.add("lit");tone(i,dur);setTimeout(()=>pads[i].classList.remove("lit"),dur*.8);}
+    function start(){seq=[];acceptInput=false;statusEl.textContent="";next();}
+    function next(){step=0;seq.push(Math.floor(Math.random()*4));roundEl.textContent=seq.length;acceptInput=false;statusEl.textContent="Watch…";playback();}
+    function playback(){let i=0;const speed=Math.max(300,650-seq.length*20);const t=setInterval(()=>{if(i>=seq.length){clearInterval(t);acceptInput=true;statusEl.textContent="Your turn";return;}light(seq[i],speed*.7);i++;},speed);}
+    function click(i){if(!acceptInput)return;light(i,220);
+      if(seq[step]===i){step++;if(step===seq.length){acceptInput=false;if(seq.length>best){best=seq.length;bestEl.textContent=best;localStorage.setItem("simon_best",best);}statusEl.textContent="✓ Nice!";setTimeout(next,700);}}
+      else{acceptInput=false;statusEl.textContent=`✗ Wrong! You reached round ${seq.length-1}.`;centerEl.textContent="▶";pads.forEach(p=>{p.style.opacity=".2";setTimeout(()=>p.style.opacity="",600);});}
+    }
+    pads.forEach((p,i)=>{p.addEventListener("click",()=>click(i));});
+    document.getElementById("start").addEventListener("click",start);
+    centerEl.addEventListener("click",start);
+  })();
+  </script>
+</body>
+</html>
