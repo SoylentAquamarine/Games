@@ -24,10 +24,21 @@
     let bpm = 110, master = 0.7, bars = 8, viewBar = 0, current = 0;
     let voices = [], drums = {};
     let playMode = null;   // "song" | "loop" | null
+    let noteLen = 1;       // length (in 1/16 steps) of newly placed notes
 
     function makeVoice(i) {
       return { instrument: cfg.defaultInstruments[i % cfg.defaultInstruments.length] || INSTS[0].id,
-               chair: 1, muted: false, notes: new Set() };
+               chair: 1, muted: false, notes: new Map() };   // "bar_step_pitch" -> length in steps
+    }
+    function toNoteMap(arr) {
+      const m = new Map();
+      (arr || []).forEach((item) => { if (Array.isArray(item)) m.set(item[0], item[1] || 1); else m.set(item, 1); });
+      return m;
+    }
+    function noteDur(L) { return L * (60 / bpm) / 4 * 0.96; }
+    function coveringNote(v, bar, pitch, s) {
+      for (const [k, L] of v.notes) { const pr = k.split("_"); if (+pr[0] === bar && +pr[2] === pitch) { const s0 = +pr[1]; if (s0 <= s && s < s0 + L) return k; } }
+      return null;
     }
     function resetState() {
       voices = Array.from({ length: cfg.voiceCount }, (_, i) => makeVoice(i));
@@ -76,6 +87,13 @@
         lbl.appendChild(chairSel); id("inst").parentNode.after(lbl);
       }
     }
+    function buildNoteLen() {
+      const lbl = document.createElement("label"); lbl.className = "ctl"; lbl.textContent = "Note ";
+      const sel = document.createElement("select");
+      [[1,"1/16"],[2,"1/8"],[3,"1/8 dot"],[4,"1/4"],[6,"1/4 dot"],[8,"1/2"],[16,"whole"]].forEach(([v,t]) => { const o = document.createElement("option"); o.value = v; o.textContent = t; sel.appendChild(o); });
+      sel.addEventListener("change", () => { noteLen = +sel.value; });
+      lbl.appendChild(sel); id("inst").parentNode.after(lbl);
+    }
     function buildVoiceControls() {
       if (cfg.maxVoices <= cfg.voiceCount) return;
       const bar = document.createElement("div"); bar.className = "row"; bar.style.marginTop = "8px";
@@ -112,8 +130,12 @@
     function renderGrid() {
       const v = voices[current], col = VCOLORS[current % VCOLORS.length];
       for (let p = 0; p < PITCHES.length; p++) for (let s = 0; s < STEPS; s++) {
-        const on = v.notes.has(key(viewBar, s, PITCHES[p])); const c = rollCells[p][s];
-        c.classList.toggle("on", on); c.style.background = on ? col : "";
+        const c = rollCells[p][s]; c.classList.remove("on"); c.style.background = ""; c.style.opacity = "";
+      }
+      for (const [k, L] of v.notes) {
+        const pr = k.split("_"); if (+pr[0] !== viewBar) continue;
+        const s0 = +pr[1], p = PITCHES.indexOf(+pr[2]); if (p < 0) continue;
+        for (let i = 0; i < L && s0 + i < STEPS; i++) { const c = rollCells[p][s0 + i]; c.classList.add("on"); c.style.background = col; c.style.opacity = i === 0 ? "" : ".5"; }
       }
     }
     function renderDrums() { for (const dr of KIT) for (let s = 0; s < STEPS; s++) drumCells[dr][s].classList.toggle("on", drums[dr].has(viewBar + "_" + s)); }
@@ -129,9 +151,14 @@
     function gate() { return (60 / bpm) / 4 * 0.9; }
     function toggleNote(s, p) {
       MME.ensure(); MME.resume();
-      const v = voices[current], k = key(viewBar, s, PITCHES[p]);
-      if (v.notes.has(k)) v.notes.delete(k); else { v.notes.add(k); MME.playNote(v.instrument, MME.midiToFreq(PITCHES[p]), MME.ctx().currentTime, gate(), 1, chairDetune(v)); }
-      const c = rollCells[p][s], on = v.notes.has(k); c.classList.toggle("on", on); c.style.background = on ? VCOLORS[current % VCOLORS.length] : "";
+      const v = voices[current], pitch = PITCHES[p];
+      const cover = coveringNote(v, viewBar, pitch, s);
+      if (cover) { v.notes.delete(cover); renderGrid(); return; }   // click on a note (head or tail) removes it
+      const L = Math.min(noteLen, STEPS - s);                        // clamp within the bar
+      for (const k of [...v.notes.keys()]) { const pr = k.split("_"); if (+pr[0] === viewBar && +pr[2] === pitch) { const s0 = +pr[1]; if (s0 >= s && s0 < s + L) v.notes.delete(k); } }
+      v.notes.set(key(viewBar, s, pitch), L);
+      MME.playNote(v.instrument, MME.midiToFreq(pitch), MME.ctx().currentTime, noteDur(L), 1, chairDetune(v));
+      renderGrid();
     }
     function toggleDrum(dr, s) {
       MME.ensure(); MME.resume();
@@ -146,8 +173,8 @@
       if (viewBar + 1 >= bars) { status("No next bar — increase length first."); return; }
       const src = viewBar, dst = viewBar + 1, pre = src + "_";
       voices.forEach((v) => {
-        [...v.notes].forEach((k) => { if (k.startsWith(dst + "_")) v.notes.delete(k); });
-        [...v.notes].forEach((k) => { if (k.startsWith(pre)) v.notes.add(dst + "_" + k.substring(pre.length)); });
+        [...v.notes.keys()].forEach((k) => { if (k.startsWith(dst + "_")) v.notes.delete(k); });
+        [...v.notes.entries()].forEach(([k, L]) => { if (k.startsWith(pre)) v.notes.set(dst + "_" + k.substring(pre.length), L); });
       });
       for (const dr of KIT) {
         [...drums[dr]].forEach((k) => { if (k.startsWith(dst + "_")) drums[dr].delete(k); });
@@ -157,7 +184,7 @@
     }
     function clearBar() {
       const pre = viewBar + "_";
-      voices.forEach((v) => { [...v.notes].forEach((k) => { if (k.startsWith(pre)) v.notes.delete(k); }); });
+      voices.forEach((v) => { [...v.notes.keys()].forEach((k) => { if (k.startsWith(pre)) v.notes.delete(k); }); });
       for (const dr of KIT) [...drums[dr]].forEach((k) => { if (k.startsWith(pre)) drums[dr].delete(k); });
       renderGrid(); renderDrums();
     }
@@ -183,11 +210,10 @@
 
     // ---- transport ----
     function playBarStep(bar, step, time) {
-      const g = gate();
       for (const v of voices) {
         if (v.muted) continue;
         const dt = chairDetune(v);
-        for (let p = 0; p < PITCHES.length; p++) if (v.notes.has(key(bar, step, PITCHES[p]))) MME.playNote(v.instrument, MME.midiToFreq(PITCHES[p]), time, g, 1, dt);
+        for (let p = 0; p < PITCHES.length; p++) { const L = v.notes.get(key(bar, step, PITCHES[p])); if (L) MME.playNote(v.instrument, MME.midiToFreq(PITCHES[p]), time, noteDur(L), 1, dt); }
       }
       for (const dr of KIT) if (drums[dr].has(bar + "_" + step)) MME.playDrum(dr, time);
     }
@@ -220,13 +246,13 @@
     // ---- save / load ----
     function serialize() {
       return { v: 2, bpm, master, bars,
-        voices: voices.map((v) => ({ instrument: v.instrument, chair: v.chair, muted: v.muted, notes: [...v.notes] })),
+        voices: voices.map((v) => ({ instrument: v.instrument, chair: v.chair, muted: v.muted, notes: [...v.notes] })),  // Map spread -> [[key,len],...]
         drums: Object.fromEntries(KIT.map((k) => [k, [...drums[k]]])) };
     }
     function deserialize(d) {
       bpm = d.bpm || 110; master = d.master != null ? d.master : 0.7; bars = d.bars || 8;
       id("bpm").value = bpm; id("bpmv").textContent = bpm; id("vol").value = Math.round(master * 100); MME.setMaster(master);
-      voices = (d.voices || []).slice(0, cfg.maxVoices).map((sv) => ({ instrument: sv.instrument || INSTS[0].id, chair: sv.chair || 1, muted: !!sv.muted, notes: new Set(sv.notes || []) }));
+      voices = (d.voices || []).slice(0, cfg.maxVoices).map((sv) => ({ instrument: sv.instrument || INSTS[0].id, chair: sv.chair || 1, muted: !!sv.muted, notes: toNoteMap(sv.notes) }));
       if (voices.length === 0) voices = [makeVoice(0)];
       drums = {}; KIT.forEach((k) => drums[k] = new Set((d.drums && d.drums[k]) || []));
       current = 0; updateDuration(); buildVoices(); selectVoice(0); setViewBar(Math.min(viewBar, bars - 1));
@@ -255,7 +281,7 @@
 
     // ---- boot ----
     resetState();
-    buildRoll(); buildDrums(); buildInst(); buildVoiceControls(); buildVoices();
+    buildRoll(); buildDrums(); buildInst(); buildNoteLen(); buildVoiceControls(); buildVoices();
     id("inst").value = voices[0].instrument;
     updateDuration(); setViewBar(0); selectVoice(0);
     // starter groove so it isn't silent
