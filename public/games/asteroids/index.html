@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Asteroids — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🚀</text></svg>" />
+  <style>
+    :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;}
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+      background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.22),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.16),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;}
+    .wrap{max-width:460px;margin:0 auto;padding:16px 16px 30px;display:flex;flex-direction:column;align-items:center;gap:12px}
+    .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
+    .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+    .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+    h1{margin:0;font-size:1.6rem;background:linear-gradient(120deg,var(--accent),var(--accent-2));-webkit-background-clip:text;background-clip:text;color:transparent}
+    .scores{display:flex;gap:12px;width:100%}
+    .stat{flex:1;background:var(--panel);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:8px;text-align:center}
+    .stat .label{font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+    .stat .value{font-size:1.3rem;font-weight:700}
+    .board-wrap{position:relative;width:100%}
+    canvas{width:100%;height:auto;display:block;background:#05060f;border:1px solid rgba(255,255,255,.08);border-radius:14px;touch-action:none}
+    .overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:rgba(15,16,32,.85);border-radius:14px;text-align:center}
+    .overlay.hidden{display:none}
+    .overlay h2{margin:0}.overlay p{margin:0;color:var(--muted)}
+    .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:12px 28px;border-radius:999px;cursor:pointer}
+    .pad{display:flex;gap:8px;width:100%;justify-content:center;flex-wrap:wrap}
+    .pad button{background:var(--panel);border:1px solid rgba(255,255,255,.14);color:var(--text);border-radius:10px;padding:12px 16px;font-size:1.1rem;cursor:pointer;min-width:56px;user-select:none;touch-action:none}
+    .hint{color:var(--muted);font-size:.82rem;text-align:center}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar"><a class="home" href="/">← Home</a><h1>🚀 Asteroids</h1><span style="width:64px"></span></div>
+    <div class="scores">
+      <div class="stat"><div class="label">Score</div><div class="value" id="score">0</div></div>
+      <div class="stat"><div class="label">Lives</div><div class="value" id="lives">3</div></div>
+      <div class="stat"><div class="label">Best</div><div class="value" id="best">0</div></div>
+    </div>
+    <div class="board-wrap">
+      <canvas id="c" width="420" height="460"></canvas>
+      <div class="overlay" id="ov"><h2 id="ot">Asteroids</h2><p id="om">Rotate, thrust, and blast the rocks.</p><button class="btn" id="start">Play</button></div>
+    </div>
+    <div class="pad">
+      <button data-k="left">⟲</button>
+      <button data-k="thrust">🔥 Thrust</button>
+      <button data-k="right">⟳</button>
+      <button data-k="fire">● Fire</button>
+    </div>
+    <p class="hint">← → rotate · ↑ thrust · Space fire (or use buttons)</p>
+  </div>
+  <script>
+  (function(){
+    const cv=document.getElementById("c"),ctx=cv.getContext("2d"),W=cv.width,H=cv.height;
+    const scoreEl=document.getElementById("score"),livesEl=document.getElementById("lives"),bestEl=document.getElementById("best");
+    const ov=document.getElementById("ov"),ot=document.getElementById("ot"),om=document.getElementById("om"),startBtn=document.getElementById("start");
+    let ship,rocks,bullets,score,lives,wave,running,raf,inv,best=+localStorage.getItem("asteroids_best")||0;
+    bestEl.textContent=best;
+    const keys={left:false,right:false,thrust:false};
+    let lastFire=0;
+
+    function newShip(){return {x:W/2,y:H/2,a:-Math.PI/2,vx:0,vy:0};}
+    function makeRock(x,y,size){
+      const verts=[],n=9+Math.floor(Math.random()*4);
+      for(let i=0;i<n;i++)verts.push(0.7+Math.random()*0.5);
+      const ang=Math.random()*Math.PI*2,sp=(3-size)*0.4+0.3+Math.random()*0.5;
+      return {x,y,size,r:size*14+6,vx:Math.cos(ang)*sp,vy:Math.sin(ang)*sp,verts,rot:Math.random()*Math.PI*2,vr:(Math.random()-.5)*0.04};
+    }
+    function spawnWave(){rocks=[];const count=3+wave;for(let i=0;i<count;i++){
+      let x,y;do{x=Math.random()*W;y=Math.random()*H;}while(Math.hypot(x-ship.x,y-ship.y)<120);
+      rocks.push(makeRock(x,y,3));}}
+    function reset(full){if(full){score=0;lives=3;wave=1;}ship=newShip();bullets=[];inv=90;spawnWave();scoreEl.textContent=score;livesEl.textContent=lives;}
+    function start(){reset(true);ov.classList.add("hidden");running=true;loop();}
+    function fire(){const now=performance.now();if(now-lastFire<220)return;lastFire=now;
+      bullets.push({x:ship.x+Math.cos(ship.a)*14,y:ship.y+Math.sin(ship.a)*14,vx:Math.cos(ship.a)*6+ship.vx,vy:Math.sin(ship.a)*6+ship.vy,life:60});}
+    function wrap(o){if(o.x<0)o.x+=W;if(o.x>W)o.x-=W;if(o.y<0)o.y+=H;if(o.y>H)o.y-=H;}
+    function loop(){if(!running)return;update();render();raf=requestAnimationFrame(loop);}
+    function update(){
+      if(keys.left)ship.a-=0.07;if(keys.right)ship.a+=0.07;
+      if(keys.thrust){ship.vx+=Math.cos(ship.a)*0.13;ship.vy+=Math.sin(ship.a)*0.13;}
+      ship.vx*=0.99;ship.vy*=0.99;ship.x+=ship.vx;ship.y+=ship.vy;wrap(ship);
+      if(inv>0)inv--;
+      bullets.forEach(b=>{b.x+=b.vx;b.y+=b.vy;b.life--;wrap(b);});
+      bullets=bullets.filter(b=>b.life>0);
+      rocks.forEach(r=>{r.x+=r.vx;r.y+=r.vy;r.rot+=r.vr;wrap(r);});
+      // bullet-rock
+      for(let i=rocks.length-1;i>=0;i--){const r=rocks[i];
+        for(let j=bullets.length-1;j>=0;j--){const b=bullets[j];
+          if(Math.hypot(b.x-r.x,b.y-r.y)<r.r){
+            bullets.splice(j,1);rocks.splice(i,1);
+            score+=[0,100,50,20][r.size];scoreEl.textContent=score;
+            if(r.size>1){rocks.push(makeRock(r.x,r.y,r.size-1));rocks.push(makeRock(r.x,r.y,r.size-1));}
+            break;
+          }
+        }
+      }
+      // ship-rock
+      if(inv<=0){for(const r of rocks){if(Math.hypot(ship.x-r.x,ship.y-r.y)<r.r+8){die();break;}}}
+      if(rocks.length===0){wave++;ship=newShip();inv=90;spawnWave();}
+    }
+    function die(){lives--;livesEl.textContent=lives;
+      if(lives<=0){running=false;cancelAnimationFrame(raf);if(score>best){best=score;localStorage.setItem("asteroids_best",best);bestEl.textContent=best;}
+        ot.textContent="Game Over";om.textContent="Score "+score+" · wave "+wave;startBtn.textContent="Play again";ov.classList.remove("hidden");return;}
+      ship=newShip();inv=100;}
+    function render(){
+      ctx.clearRect(0,0,W,H);
+      // stars
+      ctx.fillStyle="rgba(255,255,255,.35)";
+      // rocks
+      ctx.strokeStyle="#9aa4d0";ctx.lineWidth=1.6;
+      rocks.forEach(r=>{ctx.save();ctx.translate(r.x,r.y);ctx.rotate(r.rot);ctx.beginPath();
+        r.verts.forEach((v,i)=>{const ang=i/r.verts.length*Math.PI*2,x=Math.cos(ang)*r.r*v,y=Math.sin(ang)*r.r*v;i?ctx.lineTo(x,y):ctx.moveTo(x,y);});
+        ctx.closePath();ctx.stroke();ctx.restore();});
+      // bullets
+      ctx.fillStyle="#22d3ee";bullets.forEach(b=>{ctx.beginPath();ctx.arc(b.x,b.y,2.2,0,7);ctx.fill();});
+      // ship (blink when invulnerable)
+      if(inv<=0||Math.floor(inv/5)%2===0){
+        ctx.save();ctx.translate(ship.x,ship.y);ctx.rotate(ship.a);
+        ctx.strokeStyle="#facc15";ctx.lineWidth=2;ctx.beginPath();
+        ctx.moveTo(14,0);ctx.lineTo(-10,-9);ctx.lineTo(-6,0);ctx.lineTo(-10,9);ctx.closePath();ctx.stroke();
+        if(keys.thrust){ctx.strokeStyle="#fb923c";ctx.beginPath();ctx.moveTo(-6,0);ctx.lineTo(-16,0);ctx.stroke();}
+        ctx.restore();
+      }
+    }
+    // input
+    function setKey(k,v){if(k==="fire"){if(v)fire();return;}if(k in keys)keys[k]=v;}
+    document.addEventListener("keydown",e=>{const m={ArrowLeft:"left",ArrowRight:"right",ArrowUp:"thrust",a:"left",d:"right",w:"thrust"}[e.key];
+      if(m){e.preventDefault();keys[m]=true;}if(e.key===" "){e.preventDefault();if(running)fire();}});
+    document.addEventListener("keyup",e=>{const m={ArrowLeft:"left",ArrowRight:"right",ArrowUp:"thrust",a:"left",d:"right",w:"thrust"}[e.key];if(m)keys[m]=false;});
+    document.querySelectorAll(".pad button").forEach(b=>{const k=b.dataset.k;
+      const on=(e)=>{e.preventDefault();setKey(k,true);},off=(e)=>{e.preventDefault();setKey(k,false);};
+      b.addEventListener("touchstart",on,{passive:false});b.addEventListener("touchend",off,{passive:false});
+      b.addEventListener("mousedown",on);b.addEventListener("mouseup",off);b.addEventListener("mouseleave",off);
+    });
+    startBtn.addEventListener("click",start);
+    reset(true);render();
+  })();
+  </script>
+</body>
+</html>
