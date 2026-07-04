@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mastermind — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🎯</text></svg>" />
+  <style>
+    :root{--bg:#0f1020;--panel:#1e2140;--panel2:#252a4d;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;}
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+      background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.22),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.16),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;}
+    .wrap{max-width:440px;margin:0 auto;padding:16px 16px 40px;display:flex;flex-direction:column;align-items:center;gap:12px}
+    .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
+    .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+    .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+    h1{margin:0;font-size:1.6rem;background:linear-gradient(120deg,var(--accent),var(--accent-2));-webkit-background-clip:text;background-clip:text;color:transparent}
+    .status{min-height:1.3em;font-weight:600;color:var(--accent-2);text-align:center}
+    .board{width:100%;display:flex;flex-direction:column;gap:6px}
+    .rowline{display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid rgba(255,255,255,.06);border-radius:10px;padding:6px 10px}
+    .rowline.active{border-color:rgba(124,92,255,.6)}
+    .pegs{display:flex;gap:8px}
+    .peg{width:30px;height:30px;border-radius:50%;border:1px solid rgba(255,255,255,.15);background:#0e0f1e}
+    .fb{display:grid;grid-template-columns:repeat(2,10px);grid-template-rows:repeat(2,10px);gap:3px;margin-left:auto}
+    .fp{width:10px;height:10px;border-radius:50%;background:#33374f}
+    .fp.black{background:#e6e6f0}
+    .fp.white{background:#8b8fb0;border:1px solid #cbd0f0}
+    .palette{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:6px}
+    .swatch{width:36px;height:36px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:transform .1s}
+    .swatch:hover{transform:scale(1.1)}
+    .swatch.sel{border-color:#fff}
+    .btns{display:flex;gap:10px}
+    .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:10px 22px;border-radius:999px;cursor:pointer}
+    .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,.18);color:var(--muted)}
+    .btn:disabled{opacity:.4;cursor:default}
+    .hint{color:var(--muted);font-size:.82rem;text-align:center}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar"><a class="home" href="/">← Home</a><h1>🎯 Mastermind</h1><span style="width:64px"></span></div>
+    <div class="status" id="status">Crack the 4-color code in 10 tries.</div>
+    <div class="board" id="board"></div>
+    <div class="palette" id="palette"></div>
+    <div class="btns">
+      <button class="btn ghost" id="clear">Undo</button>
+      <button class="btn" id="submit">Guess</button>
+      <button class="btn ghost" id="new">New</button>
+    </div>
+    <p class="hint">● = right color &amp; spot · ○ = right color, wrong spot. Duplicates allowed.</p>
+  </div>
+  <script>
+  (function(){
+    const COLORS=["#f43f5e","#fb923c","#eab308","#4ade80","#22d3ee","#7c5cff"];
+    const LEN=4, ROWS=10;
+    const boardEl=document.getElementById("board"),paletteEl=document.getElementById("palette"),statusEl=document.getElementById("status");
+    let secret,row,guess,over,rowEls=[];
+    function init(){
+      secret=Array.from({length:LEN},()=>Math.floor(Math.random()*COLORS.length));
+      row=0;guess=[];over=false;statusEl.textContent="Crack the 4-color code in 10 tries.";
+      boardEl.innerHTML="";rowEls=[];
+      for(let r=0;r<ROWS;r++){
+        const line=document.createElement("div");line.className="rowline";
+        const pegs=document.createElement("div");pegs.className="pegs";
+        const pegEls=[];
+        for(let i=0;i<LEN;i++){const p=document.createElement("div");p.className="peg";pegs.appendChild(p);pegEls.push(p);}
+        const fb=document.createElement("div");fb.className="fb";
+        const fpEls=[];for(let i=0;i<LEN;i++){const f=document.createElement("div");f.className="fp";fb.appendChild(f);fpEls.push(f);}
+        line.appendChild(pegs);line.appendChild(fb);boardEl.appendChild(line);
+        rowEls.push({line,pegEls,fpEls});
+      }
+      renderActive();updateSubmit();
+    }
+    function renderActive(){rowEls.forEach((r,i)=>r.line.classList.toggle("active",i===row));
+      if(row<ROWS){const pe=rowEls[row].pegEls;for(let i=0;i<LEN;i++){pe[i].style.background=i<guess.length?COLORS[guess[i]]:"#0e0f1e";}}}
+    function updateSubmit(){document.getElementById("submit").disabled=guess.length!==LEN||over;}
+    function pick(c){if(over||row>=ROWS||guess.length>=LEN)return;guess.push(c);renderActive();updateSubmit();}
+    function undo(){if(over||!guess.length)return;guess.pop();renderActive();updateSubmit();}
+    function submit(){
+      if(guess.length!==LEN||over)return;
+      let black=0,white=0;const s=secret.slice(),g=guess.slice();
+      for(let i=0;i<LEN;i++)if(g[i]===s[i]){black++;s[i]=g[i]=-1;}
+      for(let i=0;i<LEN;i++){if(g[i]<0)continue;const j=s.indexOf(g[i]);if(j>=0){white++;s[j]=-1;}}
+      const fp=rowEls[row].fpEls;let k=0;for(let i=0;i<black;i++)fp[k++].classList.add("black");for(let i=0;i<white;i++)fp[k++].classList.add("white");
+      if(black===LEN){over=true;statusEl.textContent=`🎉 Solved in ${row+1}! `;reveal();return;}
+      row++;guess=[];
+      if(row>=ROWS){over=true;statusEl.textContent="😔 Out of tries — here was the code:";reveal();}
+      else statusEl.textContent=`Try ${row+1} of ${ROWS}`;
+      renderActive();updateSubmit();
+    }
+    function reveal(){const bar=document.createElement("div");bar.className="rowline";bar.style.borderColor="rgba(52,211,153,.5)";
+      const pegs=document.createElement("div");pegs.className="pegs";secret.forEach(c=>{const p=document.createElement("div");p.className="peg";p.style.background=COLORS[c];pegs.appendChild(p);});
+      const lbl=document.createElement("span");lbl.style.cssText="margin-left:auto;color:var(--muted);font-size:.8rem";lbl.textContent="the code";
+      bar.appendChild(pegs);bar.appendChild(lbl);boardEl.appendChild(bar);document.getElementById("submit").disabled=true;}
+    COLORS.forEach((c,i)=>{const s=document.createElement("div");s.className="swatch";s.style.background=c;s.addEventListener("click",()=>pick(i));paletteEl.appendChild(s);});
+    document.getElementById("submit").addEventListener("click",submit);
+    document.getElementById("clear").addEventListener("click",undo);
+    document.getElementById("new").addEventListener("click",init);
+    init();
+  })();
+  </script>
+</body>
+</html>
