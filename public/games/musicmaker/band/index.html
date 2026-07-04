@@ -3,19 +3,19 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Music Maker — Melody</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🎼</text></svg>" />
+  <title>Band Composer — Music Maker</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🎺</text></svg>" />
   <style>
     :root{--bg:#0f1020;--panel:#1e2140;--panel2:#252a4d;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;
       --row-white:#20233f;--row-black:#171a30;--cell:#2a2e56;--ph:rgba(255,255,255,.12);}
     *{box-sizing:border-box}
     html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
-      background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.2),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.14),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;}
+      background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.2),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(251,146,60,.14),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;}
     .wrap{max-width:880px;margin:0 auto;padding:14px 12px 40px;display:flex;flex-direction:column;gap:12px}
     .topbar{display:flex;align-items:center;justify-content:space-between;gap:8px}
     .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px;white-space:nowrap}
     .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
-    h1{margin:0;font-size:1.4rem;background:linear-gradient(120deg,var(--accent),var(--accent-2));-webkit-background-clip:text;background-clip:text;color:transparent}
+    h1{margin:0;font-size:1.4rem;background:linear-gradient(120deg,#fb923c,var(--accent-2));-webkit-background-clip:text;background-clip:text;color:transparent}
     .card{background:var(--panel);border:1px solid rgba(255,255,255,.06);border-radius:14px;padding:12px}
     .row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
     .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:9px 16px;border-radius:999px;cursor:pointer;font-size:.88rem}
@@ -37,7 +37,7 @@
     .voice .vi{color:var(--muted);display:block;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .voice .swatch{width:100%;height:4px;border-radius:2px;margin-top:4px}
     .editor{display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-size:.85rem}
-    .roll-wrap{overflow:auto;max-height:340px;border-radius:10px;border:1px solid rgba(255,255,255,.06)}
+    .roll-wrap{overflow:auto;max-height:360px;border-radius:10px;border:1px solid rgba(255,255,255,.06)}
     .roll{display:grid;grid-template-columns:44px repeat(16,1fr);min-width:560px}
     .rlabel{font-size:.62rem;color:var(--muted);padding:2px 4px;display:flex;align-items:center;background:var(--panel);position:sticky;left:0;z-index:1;border-right:1px solid rgba(255,255,255,.06)}
     .rlabel.black{background:#14162b}
@@ -50,7 +50,7 @@
     .dlabel{font-size:.72rem;color:var(--muted);display:flex;align-items:center}
     .dc{aspect-ratio:1;background:var(--cell);border-radius:4px;cursor:pointer;min-height:22px}
     .dc.beat{outline:1px solid rgba(255,255,255,.08);outline-offset:-1px}
-    .dc.on{background:linear-gradient(120deg,var(--accent),var(--accent-2))}
+    .dc.on{background:linear-gradient(120deg,#fb923c,#f43f5e)}
     .dc.ph{filter:brightness(1.5)}
     .drum-wrap{overflow-x:auto}
     .row-lbl{font-weight:700;font-size:.8rem;color:var(--muted);margin-bottom:6px}
@@ -61,14 +61,14 @@
   <div class="wrap">
     <div class="topbar">
       <a class="home" href="/games/musicmaker/">← Modes</a>
-      <h1>🎼 Music Maker</h1>
+      <h1>🎺 Band Composer</h1>
       <a class="home" href="/">Home</a>
     </div>
 
     <div class="card row">
       <button class="btn" id="playsong">▶ Play Song</button>
       <button class="btn ghost" id="loopbar">🔁 Loop Bar</button>
-      <div class="ctl">Tempo <input type="range" id="bpm" min="50" max="220" value="110"><span id="bpmv">110</span></div>
+      <div class="ctl">Tempo <input type="range" id="bpm" min="50" max="220" value="100"><span id="bpmv">100</span></div>
       <div class="ctl">Vol <input type="range" id="vol" min="0" max="100" value="70"></div>
       <button class="btn ghost sm" id="clearall">Clear All</button>
     </div>
@@ -76,7 +76,7 @@
     <div class="card">
       <div class="row" style="justify-content:space-between">
         <div class="ctl">Length <input type="number" id="bars" min="1" value="8"> bars</div>
-        <div class="ctl">Duration <span class="dur" id="dur">0:16</span> <span class="note">/ max <span id="maxdur">7:00</span></span></div>
+        <div class="ctl">Duration <span class="dur" id="dur">0:00</span> <span class="note">/ max <span id="maxdur">12:00</span></span></div>
       </div>
     </div>
 
@@ -96,7 +96,7 @@
     </div>
 
     <div class="card">
-      <div class="row-lbl">Voices — tap to edit, double-tap to mute</div>
+      <div class="row-lbl">Sections &amp; chairs — tap to edit, double-tap to mute</div>
       <div class="voices" id="voices"></div>
     </div>
 
@@ -110,14 +110,14 @@
     </div>
 
     <div class="card">
-      <div class="row-lbl">🥁 Rhythm track (this bar)</div>
+      <div class="row-lbl">🥁 Percussion (this bar)</div>
       <div class="drum-wrap"><div class="drums" id="drums"></div></div>
     </div>
 
     <div class="card row">
-      <input type="text" id="songname" placeholder="Song name" maxlength="40" />
+      <input type="text" id="songname" placeholder="Piece name" maxlength="40" />
       <button class="btn" id="save">💾 Save</button>
-      <select id="songs"><option value="">— saved songs —</option></select>
+      <select id="songs"><option value="">— saved pieces —</option></select>
       <button class="btn ghost" id="load">Load</button>
       <button class="btn ghost" id="del">Delete</button>
       <span class="note" id="save-status"></span>
@@ -128,15 +128,16 @@
   <script src="../studio.js"></script>
   <script>
     Studio.init({
-      storageKey: "mm_melody",
-      capSeconds: 420,               // 7:00
-      lowMidi: 48, highMidi: 83,     // C3..B5, 3 octaves
-      instruments: MME.INSTRUMENTS.filter(i => i.group === "synth"),
-      drumKit: ["kick","snare","hatClosed","clap"],
-      drumLabels: { kick:"🥁 Kick", snare:"🪘 Snare", hatClosed:"🎩 Hat", clap:"👏 Clap" },
-      voiceCount: 8,
-      defaultInstruments: ["piano","strings","organ","lead","bass","bell","pluck","epiano"],
-      chairs: false,
+      storageKey: "mm_band",
+      capSeconds: 720,               // 12:00
+      lowMidi: 36, highMidi: 84,     // C2..C6 — tuba up to flute
+      instruments: MME.INSTRUMENTS.filter(i => i.group === "band"),
+      drumKit: ["kick","snare","tomHi","tomMid","tomLo","crash","ride"],
+      drumLabels: { kick:"🥁 Bass Drum", snare:"🪘 Snare", tomHi:"🔺 Tom Hi", tomMid:"🔸 Tom Mid", tomLo:"🔻 Tom Low", crash:"💥 Crash", ride:"🛎️ Ride" },
+      voiceCount: 7,
+      maxVoices: 12,
+      defaultInstruments: ["flute","clarinet","altosax","trumpet","horn","trombone","tuba"],
+      chairs: true,
     });
   </script>
 </body>

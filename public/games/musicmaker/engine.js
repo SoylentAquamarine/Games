@@ -45,32 +45,47 @@
 
   // ---------------------------------------------------------------- instruments
   const INSTRUMENTS = [
-    { id: "piano",   name: "Grand Piano",     type: "triangle", a: .004, d: .5,  s: .0,  r: .15, g: .34 },
-    { id: "epiano",  name: "Electric Piano",  type: "sine",     a: .004, d: .4,  s: .15, r: .2,  g: .34, fat: true },
-    { id: "organ",   name: "Organ",           type: "sine",     a: .01,  d: .05, s: .9,  r: .1,  g: .26, fat: true },
-    { id: "lead",    name: "Synth Lead",      type: "sawtooth", a: .01,  d: .2,  s: .5,  r: .12, g: .22 },
-    { id: "bass",    name: "Synth Bass",      type: "square",   a: .005, d: .25, s: .4,  r: .1,  g: .28 },
-    { id: "bell",    name: "Bell",            type: "sine",     a: .002, d: 1.1, s: .0,  r: .3,  g: .32 },
-    { id: "pluck",   name: "Pluck",           type: "sawtooth", a: .002, d: .18, s: .0,  r: .08, g: .28 },
-    { id: "strings", name: "Strings",         type: "sawtooth", a: .08,  d: .3,  s: .7,  r: .3,  g: .2,  fat: true },
+    // --- synth voices (Music Maker) ---
+    { id: "piano",   group: "synth", name: "Grand Piano",    type: "triangle", a: .004, d: .5,  s: .0,  r: .15, g: .34 },
+    { id: "epiano",  group: "synth", name: "Electric Piano", type: "sine",     a: .004, d: .4,  s: .15, r: .2,  g: .34, fat: true },
+    { id: "organ",   group: "synth", name: "Organ",          type: "sine",     a: .01,  d: .05, s: .9,  r: .1,  g: .26, fat: true },
+    { id: "lead",    group: "synth", name: "Synth Lead",     type: "sawtooth", a: .01,  d: .2,  s: .5,  r: .12, g: .22 },
+    { id: "bass",    group: "synth", name: "Synth Bass",     type: "square",   a: .005, d: .25, s: .4,  r: .1,  g: .28 },
+    { id: "bell",    group: "synth", name: "Bell",           type: "sine",     a: .002, d: 1.1, s: .0,  r: .3,  g: .32 },
+    { id: "pluck",   group: "synth", name: "Pluck",          type: "sawtooth", a: .002, d: .18, s: .0,  r: .08, g: .28 },
+    { id: "strings", group: "synth", name: "Strings",        type: "sawtooth", a: .08,  d: .3,  s: .7,  r: .3,  g: .2,  fat: true },
+    // --- concert-band voices (Band Composer) ---
+    { id: "flute",    group: "band", name: "Flute",        type: "sine",     a: .05,  d: .2,  s: .8,  r: .2,  g: .24, lp: 4500, vib: { rate: 5,   depth: 8  } },
+    { id: "clarinet", group: "band", name: "Clarinet",     type: "square",   a: .02,  d: .15, s: .85, r: .15, g: .2,  lp: 2200 },
+    { id: "oboe",     group: "band", name: "Oboe",         type: "sawtooth", a: .02,  d: .15, s: .8,  r: .15, g: .18, lp: 3000, vib: { rate: 5,   depth: 7  } },
+    { id: "altosax",  group: "band", name: "Alto Sax",     type: "sawtooth", a: .015, d: .2,  s: .75, r: .15, g: .2,  lp: 2600, vib: { rate: 5,   depth: 10 } },
+    { id: "trumpet",  group: "band", name: "Trumpet",      type: "sawtooth", a: .008, d: .15, s: .8,  r: .12, g: .2,  lp: 3500, vib: { rate: 5.5, depth: 6  } },
+    { id: "horn",     group: "band", name: "French Horn",  type: "triangle", a: .04,  d: .2,  s: .8,  r: .2,  g: .22, lp: 2400, fat: true },
+    { id: "trombone", group: "band", name: "Trombone",     type: "sawtooth", a: .02,  d: .2,  s: .8,  r: .18, g: .22, lp: 2000 },
+    { id: "tuba",     group: "band", name: "Tuba",         type: "triangle", a: .02,  d: .2,  s: .8,  r: .18, g: .26, lp: 1200 },
   ];
   const INST_BY_ID = Object.fromEntries(INSTRUMENTS.map((i) => [i.id, i]));
 
-  function playNote(instId, freq, time, dur, vel) {
+  function playNote(instId, freq, time, dur, vel, detune) {
     ensure();
     const I = INST_BY_ID[instId] || INSTRUMENTS[0];
     const v = vel == null ? 1 : vel;
-    const g = ctx.createGain(); g.connect(master);
+    const dt = detune || 0;
+    const g = ctx.createGain();
+    if (I.lp) { const f = ctx.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = I.lp; g.connect(f); f.connect(master); }
+    else { g.connect(master); }
     const oscs = [];
-    const mk = (det) => { const o = ctx.createOscillator(); o.type = I.type; o.frequency.value = freq; if (det) o.detune.value = det; o.connect(g); oscs.push(o); };
+    const mk = (det) => { const o = ctx.createOscillator(); o.type = I.type; o.frequency.value = freq; o.detune.value = det + dt; o.connect(g); oscs.push(o); };
     mk(0); if (I.fat) { mk(-7); mk(7); }
-    const peak = I.g * v, end = time + dur;
+    const end = time + dur;
+    if (I.vib) { const lfo = ctx.createOscillator(), lg = ctx.createGain(); lfo.frequency.value = I.vib.rate; lg.gain.value = I.vib.depth; lfo.connect(lg); oscs.forEach((o) => lg.connect(o.detune)); lfo.start(time); lfo.stop(end + I.r + 0.05); }
+    const peak = I.g * v;
     g.gain.setValueAtTime(0.0001, time);
     g.gain.linearRampToValueAtTime(peak, time + I.a);
     g.gain.linearRampToValueAtTime(Math.max(peak * I.s, 0.0001), time + I.a + I.d);
     g.gain.setValueAtTime(Math.max(peak * I.s, 0.0001), end);
     g.gain.exponentialRampToValueAtTime(0.0001, end + I.r);
-    oscs.forEach((o) => { o.start(time); o.stop(end + I.r + 0.02); });
+    oscs.forEach((o) => { o.start(time); o.stop(end + I.r + 0.05); });
   }
 
   // ---------------------------------------------------------------- drum kit
@@ -153,21 +168,31 @@
 
   function start(config) {
     ensure(); resume();
-    cfg = config;                 // { steps, getBpm(), onStep(step,time), onDraw(step) }
-    playing = true; curStep = 0; drawStep = -1; queue.length = 0;
+    // { steps, getBpm(), onStep(step,time), onDraw(step), loop=true, startStep=0, onEnd() }
+    cfg = config;
+    playing = true; curStep = config.startStep || 0; drawStep = -1; queue.length = 0;
     nextTime = ctx.currentTime + 0.06;
     scheduler(); drawLoop();
   }
   function scheduler() {
     if (!playing) return;
     const sps = () => (60 / cfg.getBpm()) / 4;   // seconds per 16th step
+    const loop = cfg.loop !== false;
     while (nextTime < ctx.currentTime + 0.1) {
+      if (!loop && curStep >= cfg.steps) { finishTail(); return; }
       cfg.onStep(curStep, nextTime);
       queue.push({ step: curStep, time: nextTime });
       nextTime += sps();
-      curStep = (curStep + 1) % cfg.steps;
+      curStep++;
+      if (loop && curStep >= cfg.steps) curStep = 0;
     }
     schedTimer = setTimeout(scheduler, 25);
+  }
+  // for non-looping songs: wait for the final scheduled notes to ring out, then stop
+  function finishTail() {
+    if (!playing) return;
+    if (ctx.currentTime >= nextTime + 0.25) { const end = cfg.onEnd; stop(); if (end) end(); }
+    else schedTimer = setTimeout(finishTail, 30);
   }
   function drawLoop() {
     if (!playing) return;
