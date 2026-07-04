@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>War of the Ring — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏰</text></svg>" />
+  <style>
+    :root {
+      --bg: #0f1020;
+      --panel: #1e2140;
+      --board: #1a2b1e;
+      --cell: #24402a;
+      --cell2: #1f3624;
+      --lake: #16324f;
+      --text: #e6e6f0;
+      --muted: #9a9ab5;
+      --accent: #7c5cff;
+      --accent-2: #22d3ee;
+      --good: #eab308;    /* Free Peoples — gold */
+      --good-2: #4ade80;
+      --evil: #dc2626;    /* Mordor — red */
+      --sel: #34d399;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0; min-height: 100%;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(1000px 500px at 70% -10%, rgba(124,92,255,.18), transparent 60%),
+        radial-gradient(800px 400px at 10% 110%, rgba(220,38,38,.14), transparent 60%),
+        var(--bg);
+      -webkit-tap-highlight-color: transparent;
+    }
+    .wrap {
+      max-width: 620px; margin: 0 auto; padding: 16px 14px 40px;
+      display: flex; flex-direction: column; align-items: center; gap: 12px;
+    }
+    .topbar { width: 100%; display: flex; align-items: center; justify-content: space-between; }
+    .home {
+      color: var(--muted); text-decoration: none; font-size: .9rem;
+      padding: 6px 12px; border: 1px solid rgba(255,255,255,.12); border-radius: 999px;
+      transition: border-color .15s, color .15s;
+    }
+    .home:hover { color: var(--text); border-color: rgba(124,92,255,.6); }
+    h1 {
+      margin: 0; font-size: 1.35rem; letter-spacing: -.02em; text-align: center;
+      background: linear-gradient(120deg, var(--good), var(--evil));
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+    .status {
+      font-size: 1rem; font-weight: 600; min-height: 1.3em; text-align: center;
+      padding: 8px 14px; background: var(--panel); border: 1px solid rgba(255,255,255,.06);
+      border-radius: 12px; width: 100%;
+    }
+    .board {
+      display: grid; grid-template-columns: repeat(10, 1fr); gap: 2px;
+      background: #10180f; padding: 6px; border-radius: 12px; width: 100%;
+      border: 1px solid rgba(255,255,255,.08); aspect-ratio: 1;
+      touch-action: manipulation;
+    }
+    .cell {
+      background: var(--cell); border-radius: 4px; position: relative;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; user-select: none; overflow: hidden;
+      font-weight: 800;
+    }
+    .cell.alt { background: var(--cell2); }
+    .cell.lake { background: var(--lake); cursor: default; }
+    .cell.lake::after { content: "🌊"; font-size: clamp(.7rem, 2.6vw, 1.1rem); opacity: .5; }
+    .cell.sel { outline: 2px solid var(--sel); outline-offset: -2px; }
+    .cell.move::before {
+      content: ""; position: absolute; width: 34%; height: 34%; border-radius: 50%;
+      background: rgba(52,211,153,.55);
+    }
+    .cell.target::before {
+      content: ""; position: absolute; inset: 0; border: 2px solid var(--evil); border-radius: 4px;
+    }
+    .cell.flash { animation: flash .5s; }
+    @keyframes flash { 0%,100% { filter: none; } 50% { filter: brightness(1.9); } }
+    .piece {
+      width: 88%; height: 88%; border-radius: 5px;
+      display: flex; align-items: center; justify-content: center; flex-direction: column;
+      line-height: 1; font-size: clamp(.75rem, 3vw, 1.15rem);
+    }
+    .piece.good { background: linear-gradient(160deg, #b8860b, #6b4e08); color: #fff8dc; border: 1px solid #f5d76e; }
+    .piece.evil { background: linear-gradient(160deg, #7f1d1d, #3f0d0d); color: #fecaca; border: 1px solid #ef4444; }
+    .piece .glyph { font-size: clamp(.85rem, 3.4vw, 1.3rem); }
+    .piece .rk { font-size: clamp(.55rem, 2vw, .8rem); opacity: .85; }
+    .piece.hidden { background: linear-gradient(160deg, #3a1414, #200a0a); border: 1px solid #6b2b2b; }
+    .piece.hidden .glyph { opacity: .8; }
+    .controls { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+    .btn {
+      background: linear-gradient(120deg, var(--accent), var(--accent-2));
+      color: #0b0c1a; border: none; font-weight: 700; font-size: .9rem;
+      padding: 9px 18px; border-radius: 999px; cursor: pointer; transition: transform .12s;
+    }
+    .btn.ghost { background: transparent; border: 1px solid rgba(255,255,255,.18); color: var(--muted); }
+    .btn:hover { transform: translateY(-2px); }
+    .log {
+      width: 100%; background: var(--panel); border: 1px solid rgba(255,255,255,.06);
+      border-radius: 12px; padding: 10px 14px; font-size: .85rem; color: var(--muted);
+      min-height: 3.6em; max-height: 6em; overflow-y: auto;
+    }
+    .log div { margin: 2px 0; }
+    details { width: 100%; background: var(--panel); border: 1px solid rgba(255,255,255,.06); border-radius: 12px; padding: 8px 14px; }
+    summary { cursor: pointer; font-weight: 600; color: var(--accent-2); }
+    .legend { font-size: .82rem; color: var(--muted); margin-top: 8px; line-height: 1.6; }
+    .legend b { color: var(--text); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <a class="home" href="/">← Home</a>
+      <h1>🏰 War of the Ring</h1>
+      <span style="width:64px"></span>
+    </div>
+
+    <div class="status" id="status">Deploy your army, then march on Mordor.</div>
+
+    <div class="board" id="board"></div>
+
+    <div class="controls" id="controls"></div>
+
+    <div class="log" id="log"></div>
+
+    <details>
+      <summary>How to play & the ranks</summary>
+      <div class="legend" id="legend"></div>
+    </details>
+  </div>
+
+  <script>
+  (function () {
+    const N = 10;
+    const P = "P", E = "E";           // P = Free Peoples (you, gold, bottom), E = Mordor (red, top)
+    const boardEl = document.getElementById("board");
+    const statusEl = document.getElementById("status");
+    const controlsEl = document.getElementById("controls");
+    const logEl = document.getElementById("log");
+
+    // Rank order: 10 highest ... 1 lowest (Spy). B = bomb, F = flag.
+    const NAMES = {
+      10: "Aragorn", 9: "Gandalf", 8: "Legolas", 7: "Gimli", 6: "Boromir",
+      5: "Faramir", 4: "Éowyn", 3: "Dwarf Sapper", 2: "Ranger", 1: "Frodo",
+      B: "Troll Ambush", F: "Stronghold",
+    };
+    const GLYPH = {
+      10: "👑", 9: "🧙", 8: "🏹", 7: "🪓", 6: "🛡️",
+      5: "⚔️", 4: "🗡️", 3: "⛏️", 2: "🐎", 1: "💍",
+      B: "💥", F: "🏰",
+    };
+    const VAL = { 1: 7, 2: 2, 3: 5, 4: 3, 5: 4, 6: 5, 7: 6, 8: 8, 9: 9, 10: 12, B: 6, F: 1000 };
+    const COUNTS = { 10: 1, 9: 1, 8: 2, 7: 3, 6: 4, 5: 4, 4: 4, 3: 5, 2: 8, 1: 1, B: 6, F: 1 };
+
+    let board;          // board[r][c] = piece | null
+    let phase;          // "setup" | "play" | "over"
+    let turn;           // P or E
+    let sel = null;     // [r,c] selected
+    let legal = new Set();
+    const cells = [];   // DOM refs
+    let uid = 0;
+
+    // ---------- setup ----------
+    function isLake(r, c) { return (r === 4 || r === 5) && (c === 2 || c === 3 || c === 6 || c === 7); }
+    function randInt(n) { return Math.floor(Math.random() * n); }
+    function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = randInt(i + 1); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+
+    function buildPool() {
+      const pool = [];
+      for (const k in COUNTS) {
+        const rank = (k === "B" || k === "F") ? k : Number(k);
+        for (let i = 0; i < COUNTS[k]; i++) pool.push(rank);
+      }
+      return pool;
+    }
+
+    function mk(side, rank) { return { side, rank, known: false, id: ++uid }; }
+
+    function placeArmy(side) {
+      const pool = buildPool();
+      const rows = side === P ? [6, 7, 8, 9] : [0, 1, 2, 3];
+      const backRow = side === P ? 9 : 0;
+      const frontRow = side === P ? 8 : 1;
+
+      // Flag on the back row, guarded by a few bombs.
+      pool.splice(pool.indexOf("F"), 1);
+      const flagCol = randInt(N);
+      board[backRow][flagCol] = mk(side, "F");
+
+      const guards = [[backRow, flagCol - 1], [backRow, flagCol + 1], [frontRow, flagCol]];
+      for (const [r, c] of guards) {
+        if (c < 0 || c >= N || board[r][c]) continue;
+        const bi = pool.indexOf("B");
+        if (bi < 0) break;
+        pool.splice(bi, 1);
+        board[r][c] = mk(side, "B");
+      }
+
+      const empties = [];
+      for (const r of rows) for (let c = 0; c < N; c++) if (!board[r][c]) empties.push([r, c]);
+      shuffle(pool);
+      empties.forEach(([r, c], i) => { board[r][c] = mk(side, pool[i]); });
+    }
+
+    function newGame() {
+      board = Array.from({ length: N }, () => Array(N).fill(null));
+      placeArmy(E);
+      placeArmy(P);
+      phase = "setup"; turn = P; sel = null; legal.clear();
+      logEl.innerHTML = "";
+      setStatus("Deploy your army. Swap any two units by tapping them, then begin.");
+      render(); renderControls();
+    }
+
+    // ---------- rendering ----------
+    function buildBoard() {
+      boardEl.innerHTML = "";
+      for (let r = 0; r < N; r++) {
+        cells[r] = [];
+        for (let c = 0; c < N; c++) {
+          const d = document.createElement("div");
+          d.className = "cell" + ((r + c) % 2 ? " alt" : "") + (isLake(r, c) ? " lake" : "");
+          d.addEventListener("click", () => onClick(r, c));
+          boardEl.appendChild(d);
+          cells[r][c] = d;
+        }
+      }
+    }
+
+    function render() {
+      for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+        const d = cells[r][c];
+        if (isLake(r, c)) continue;
+        d.classList.toggle("sel", !!(sel && sel[0] === r && sel[1] === c));
+        d.classList.remove("move", "target");
+        const p = board[r][c];
+        if (!p) { d.innerHTML = ""; }
+        else {
+          const revealed = p.side === P || p.known || phase === "over";
+          if (!revealed) {
+            d.innerHTML = `<div class="piece hidden"><span class="glyph">👁️</span></div>`;
+          } else {
+            const cls = p.side === P ? "good" : "evil";
+            const rk = (p.rank === "B" || p.rank === "F") ? "" : `<span class="rk">${p.rank}</span>`;
+            d.innerHTML = `<div class="piece ${cls}" title="${NAMES[p.rank]}"><span class="glyph">${GLYPH[p.rank]}</span>${rk}</div>`;
+          }
+        }
+      }
+      // legal-move markers
+      for (const key of legal) {
+        const [r, c] = key.split(",").map(Number);
+        cells[r][c].classList.add(board[r][c] ? "target" : "move");
+      }
+    }
+
+    function renderControls() {
+      controlsEl.innerHTML = "";
+      if (phase === "setup") {
+        addBtn("⚔️ Begin the March", () => startBattle());
+        addBtn("🎲 Re-deploy", () => { board.forEach((row, r) => { if (r >= 6) row.fill(null); }); placeArmy(P); sel = null; legal.clear(); render(); }, true);
+      } else {
+        addBtn("🏳️ New War", newGame, true);
+      }
+    }
+    function addBtn(label, fn, ghost) {
+      const b = document.createElement("button");
+      b.className = "btn" + (ghost ? " ghost" : "");
+      b.textContent = label; b.addEventListener("click", fn);
+      controlsEl.appendChild(b);
+    }
+
+    function setStatus(t) { statusEl.textContent = t; }
+    function log(msg) {
+      const d = document.createElement("div");
+      d.innerHTML = msg;
+      logEl.prepend(d);
+      while (logEl.children.length > 12) logEl.lastChild.remove();
+    }
+
+    function startBattle() {
+      phase = "play"; turn = P; sel = null; legal.clear();
+      setStatus("Your move, Captain of the West.");
+      log("⚔️ <b>The war begins.</b> Free Peoples move first.");
+      render(); renderControls();
+    }
+
+    // ---------- movement rules ----------
+    function movable(p) { return p && p.rank !== "B" && p.rank !== "F"; }
+
+    function legalTargets(r, c) {
+      const p = board[r][c];
+      const out = [];
+      if (!movable(p)) return out;
+      const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+      const scout = p.rank === 2;
+      for (const [dr, dc] of dirs) {
+        let nr = r + dr, nc = c + dc;
+        while (nr >= 0 && nr < N && nc >= 0 && nc < N && !isLake(nr, nc)) {
+          const t = board[nr][nc];
+          if (!t) { out.push([nr, nc]); }
+          else { if (t.side !== p.side) out.push([nr, nc]); break; }
+          if (!scout) break;
+          nr += dr; nc += dc;
+        }
+      }
+      return out;
+    }
+
+    function allMoves(side) {
+      const moves = [];
+      for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+        const p = board[r][c];
+        if (p && p.side === side && movable(p)) {
+          for (const [tr, tc] of legalTargets(r, c)) moves.push({ from: [r, c], to: [tr, tc] });
+        }
+      }
+      return moves;
+    }
+
+    // combat from attacker's perspective: "win" | "lose" | "tie"
+    function combat(atk, def) {
+      if (def.rank === "F") return "win";
+      if (def.rank === "B") return atk.rank === 3 ? "win" : "lose";
+      if (atk.rank === 1 && def.rank === 10) return "win";   // Frodo bests Aragorn (attacking only)
+      if (atk.rank === def.rank) return "tie";
+      return atk.rank > def.rank ? "win" : "lose";
+    }
+
+    // ---------- interaction ----------
+    function onClick(r, c) {
+      if (isLake(r, c)) return;
+      if (phase === "setup") return setupClick(r, c);
+      if (phase !== "play" || turn !== P) return;
+
+      const p = board[r][c];
+      if (sel) {
+        if (legal.has(r + "," + c)) { doMove(sel, [r, c], P); return; }
+        if (p && p.side === P && movable(p)) { select(r, c); return; }
+        sel = null; legal.clear(); render(); return;
+      }
+      if (p && p.side === P && movable(p)) select(r, c);
+    }
+
+    function setupClick(r, c) {
+      const p = board[r][c];
+      if (!p || p.side !== P) return;
+      if (!sel) { sel = [r, c]; render(); return; }
+      const [sr, sc] = sel;
+      if (sr === r && sc === c) { sel = null; render(); return; }
+      // swap the two units
+      const tmp = board[sr][sc]; board[sr][sc] = board[r][c]; board[r][c] = tmp;
+      sel = null; render();
+    }
+
+    function select(r, c) {
+      sel = [r, c]; legal.clear();
+      for (const [tr, tc] of legalTargets(r, c)) legal.add(tr + "," + tc);
+      render();
+    }
+
+    function flash(r, c) { cells[r][c].classList.add("flash"); setTimeout(() => cells[r][c] && cells[r][c].classList.remove("flash"), 500); }
+
+    // returns true if the game ended
+    function doMove(from, to, side) {
+      const [fr, fc] = from, [tr, tc] = to;
+      const atk = board[fr][fc];
+      const def = board[tr][tc];
+      sel = null; legal.clear();
+
+      if (!def) {
+        board[tr][tc] = atk; board[fr][fc] = null;
+      } else {
+        const res = combat(atk, def);
+        flash(tr, tc);
+        const who = side === P ? "Your" : "Mordor's";
+        const foe = side === P ? "Mordor's" : "Your";
+        const aN = NAMES[atk.rank], dN = NAMES[def.rank];
+        if (res === "win") {
+          if (def.rank === "F") {
+            board[tr][tc] = atk; board[fr][fc] = null;
+            render();
+            return finish(side, `${who} <b>${aN}</b> seized the enemy <b>Stronghold</b>!`);
+          }
+          atk.known = true;
+          board[tr][tc] = atk; board[fr][fc] = null;
+          log(`⚔️ ${who} <b>${aN}</b> defeated ${foe} <b>${dN}</b>.`);
+        } else if (res === "lose") {
+          def.known = true;
+          board[fr][fc] = null;
+          log(`💀 ${who} <b>${aN}</b> fell to ${foe} <b>${dN}</b>.`);
+        } else {
+          board[fr][fc] = null; board[tr][tc] = null;
+          log(`🤝 ${who} <b>${aN}</b> and ${foe} <b>${dN}</b> destroyed each other.`);
+        }
+      }
+
+      render();
+
+      // did this move leave the opponent unable to act?
+      const next = side === P ? E : P;
+      if (allMoves(next).length === 0) {
+        return finish(side, `${side === P ? "Mordor" : "The Free Peoples"} can no longer move — ${side === P ? "you triumph" : "Mordor triumphs"}!`);
+      }
+
+      turn = next;
+      if (turn === E) {
+        setStatus("Mordor stirs…");
+        setTimeout(aiMove, 550);
+      } else {
+        setStatus("Your move, Captain of the West.");
+      }
+      return false;
+    }
+
+    function finish(winnerSide, msg) {
+      phase = "over"; turn = null; sel = null; legal.clear();
+      const win = winnerSide === P;
+      setStatus(win ? "🎉 Victory! The Ring is safe." : "☠️ Defeat. The Shadow covers all.");
+      log(`<b>${msg}</b>`);
+      render(); renderControls();
+      return true;
+    }
+
+    // ---------- AI (Mordor) ----------
+    function aiMove() {
+      if (phase !== "play") return;
+      const moves = allMoves(E);
+      if (moves.length === 0) return finish(P, "Mordor is trapped — you triumph!");
+
+      let best = -Infinity, pick = [];
+      for (const m of moves) {
+        const s = scoreMove(m);
+        if (s > best) { best = s; pick = [m]; }
+        else if (s === best) pick.push(m);
+      }
+      const m = pick[randInt(pick.length)];
+      doMove(m.from, m.to, E);
+    }
+
+    function val(rank) { return VAL[rank]; }
+
+    function scoreMove(m) {
+      const atk = board[m.from[0]][m.from[1]];
+      const tgt = board[m.to[0]][m.to[1]];
+      let s = Math.random() * 0.5;
+
+      if (tgt) {
+        if (tgt.known || tgt.rank === "F") {
+          const res = combat(atk, tgt);
+          if (res === "win") { s += 25 + val(tgt.rank); if (tgt.rank === "F") s += 1e6; }
+          else if (res === "lose") s -= val(atk.rank);
+          else s += val(tgt.rank) - val(atk.rank);
+        } else {
+          // attacking an unknown defender — cheap for scouts / weak units, risky for strong ones
+          s += 6 - val(atk.rank) * 0.7;
+          if (atk.rank === 2) s += 3;
+        }
+      } else {
+        // advance toward the Free Peoples (higher row index)
+        s += (m.to[0] - m.from[0]) * 0.8;
+        if (atk.rank === 2) s += 0.4;
+      }
+
+      // avoid stepping next to a known player piece that would crush us
+      for (const [dr, dc] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const ar = m.to[0] + dr, ac = m.to[1] + dc;
+        if (ar < 0 || ar >= N || ac < 0 || ac >= N) continue;
+        const nb = board[ar][ac];
+        if (nb && nb.side === P && nb.known && movable(nb) && combat(nb, atk) === "win") {
+          s -= val(atk.rank) * 0.8;
+        }
+      }
+      return s;
+    }
+
+    // ---------- legend ----------
+    function renderLegend() {
+      const order = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
+      const ranks = order.map((r) => `${GLYPH[r]} <b>${NAMES[r]}</b> (${r})`).join(" · ");
+      document.getElementById("legend").innerHTML = `
+        <p>You command the <b style="color:var(--good)">Free Peoples</b> (gold, bottom). Mordor (red, top) hides its ranks until battle.</p>
+        <p><b>Goal:</b> capture Mordor's <b>Stronghold</b> 🏰, or leave the enemy with no legal move.</p>
+        <p><b>Move</b> one square (up/down/left/right). The <b>Ranger 🐎 (Scout)</b> gallops any distance in a straight line. <b>Troll Ambush 💥 (Bomb)</b> and <b>Stronghold 🏰</b> never move.</p>
+        <p><b>Combat:</b> higher rank wins; equal ranks both fall. Special: <b>Frodo 💍 (1)</b> destroys <b>Aragorn 👑 (10)</b> when attacking. Only the <b>Dwarf Sapper ⛏️ (3)</b> can clear a Troll Ambush — anyone else who strikes it dies.</p>
+        <p><b>Ranks, strongest → weakest:</b> ${ranks}</p>`;
+    }
+
+    // ---------- boot ----------
+    buildBoard();
+    renderLegend();
+    newGame();
+  })();
+  </script>
+</body>
+</html>
