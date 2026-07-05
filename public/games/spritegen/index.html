@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sprite Generator — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🎨</text></svg>" />
+  <style>
+    :root{--bg:#0f1020;--panel:#1e2140;--panel2:#252a4d;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;}
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+      background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.22),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.16),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;}
+    .wrap{max-width:520px;margin:0 auto;padding:16px 14px 40px;display:flex;flex-direction:column;align-items:center;gap:12px}
+    .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
+    .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+    .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+    h1{margin:0;font-size:1.5rem;background:linear-gradient(120deg,var(--accent),var(--accent-2));-webkit-background-clip:text;background-clip:text;color:transparent}
+    .card{background:var(--panel);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:10px;width:100%}
+    .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:center}
+    canvas{width:100%;max-width:400px;aspect-ratio:1;display:block;margin:0 auto;image-rendering:pixelated;
+      border:1px solid rgba(255,255,255,.1);border-radius:8px;touch-action:none;cursor:crosshair;background:#0b0c1a}
+    .tool{background:var(--panel2);border:1px solid rgba(255,255,255,.1);color:var(--text);border-radius:9px;padding:8px 12px;cursor:pointer;font-size:1rem}
+    .tool.active{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;font-weight:700}
+    .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:8px 16px;border-radius:999px;cursor:pointer;font-size:.86rem}
+    .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,.16);color:var(--muted)}
+    .palette{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
+    .sw{width:26px;height:26px;border-radius:6px;cursor:pointer;border:2px solid transparent}
+    .sw.sel{border-color:#fff}
+    .sw.trans{background:conic-gradient(#3a3f66 0 25%,#2a2e4d 0 50%,#3a3f66 0 75%,#2a2e4d 0)}
+    select,input[type=text]{background:var(--panel2);color:var(--text);border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:6px 9px;font-size:.85rem}
+    input[type=color]{width:34px;height:30px;border:none;background:none;border-radius:6px;cursor:pointer;padding:0}
+    label{font-size:.82rem;color:var(--muted);display:flex;align-items:center;gap:6px}
+    .note{color:var(--muted);font-size:.78rem}
+    .hint{color:var(--muted);font-size:.8rem;text-align:center}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar"><a class="home" href="/">← Home</a><h1>🎨 Sprite Generator</h1><span style="width:60px"></span></div>
+
+    <div class="card row">
+      <button class="tool active" data-tool="pencil" title="Pencil">✏️</button>
+      <button class="tool" data-tool="fill" title="Fill">🪣</button>
+      <button class="tool" data-tool="eraser" title="Eraser">🧽</button>
+      <button class="tool" data-tool="pick" title="Eyedropper">💧</button>
+      <button class="tool active" id="mirror" title="Mirror symmetry">🪞</button>
+      <label>Size <select id="size"><option>8</option><option selected>16</option><option>24</option><option>32</option></select></label>
+    </div>
+
+    <canvas id="c" width="512" height="512"></canvas>
+
+    <div class="card">
+      <div class="palette" id="palette"></div>
+      <div class="row" style="margin-top:8px">
+        <label>Color <input type="color" id="custom" value="#7c5cff"></label>
+        <button class="btn" id="gen">🎲 Generate</button>
+        <button class="btn ghost" id="undo">↶ Undo</button>
+        <button class="btn ghost" id="clear">Clear</button>
+      </div>
+    </div>
+
+    <div class="card row">
+      <label>Export ×<select id="scale"><option>8</option><option selected>16</option><option>32</option></select></label>
+      <button class="btn" id="png">⬇ PNG</button>
+      <input type="text" id="name" placeholder="Sprite name" maxlength="30" style="flex:1;min-width:90px">
+      <button class="btn" id="save">💾 Save</button>
+      <select id="saved"><option value="">— saved —</option></select>
+      <button class="btn ghost" id="load">Load</button>
+      <span class="note" id="status"></span>
+    </div>
+    <p class="hint">Click/drag to draw · 🪞 mirrors your strokes · 🎲 makes a random symmetric creature</p>
+  </div>
+  <script>
+  (function(){
+    const cv=document.getElementById("c"),ctx=cv.getContext("2d");
+    const PALETTE=["#000000","#ffffff","#7f7f7f","#c0c0c0","#e6194b","#f58231","#ffe119","#3cb44b",
+      "#42d4f4","#4363d8","#911eb4","#f032e6","#9a6324","#fabebe","#469990","#a9a9a9"];
+    let SIZE=16, cell, grid, color=PALETTE[0], tool="pencil", mirror=true, painting=false, undoStack=[];
+
+    function newGrid(){grid=Array(SIZE*SIZE).fill(null);}
+    function idx(r,c){return r*SIZE+c;}
+    function resize(){cell=cv.width/SIZE;}
+    function pushUndo(){undoStack.push(grid.slice());if(undoStack.length>40)undoStack.shift();}
+
+    function render(){
+      ctx.clearRect(0,0,cv.width,cv.height);
+      for(let r=0;r<SIZE;r++)for(let c=0;c<SIZE;c++){ctx.fillStyle=((r+c)&1)?"#12142a":"#181b34";ctx.fillRect(c*cell,r*cell,cell,cell);}
+      for(let r=0;r<SIZE;r++)for(let c=0;c<SIZE;c++){const col=grid[idx(r,c)];if(col){ctx.fillStyle=col;ctx.fillRect(c*cell,r*cell,cell,cell);}}
+      if(cell>=12){ctx.strokeStyle="rgba(255,255,255,.05)";ctx.lineWidth=1;
+        for(let i=1;i<SIZE;i++){ctx.beginPath();ctx.moveTo(i*cell,0);ctx.lineTo(i*cell,cv.height);ctx.stroke();ctx.beginPath();ctx.moveTo(0,i*cell);ctx.lineTo(cv.width,i*cell);ctx.stroke();}}
+    }
+    function set(r,c,col){if(r<0||r>=SIZE||c<0||c>=SIZE)return;grid[idx(r,c)]=col;if(mirror)grid[idx(r,SIZE-1-c)]=col;}
+    function cellAt(e){const rect=cv.getBoundingClientRect();const x=(e.clientX-rect.left)/rect.width*SIZE,y=(e.clientY-rect.top)/rect.height*SIZE;return {r:Math.floor(y),c:Math.floor(x)};}
+
+    function paint(r,c){
+      if(r<0||r>=SIZE||c<0||c>=SIZE)return;
+      if(tool==="pencil")set(r,c,color);
+      else if(tool==="eraser"){grid[idx(r,c)]=null;if(mirror)grid[idx(r,SIZE-1-c)]=null;}
+      render();
+    }
+    function fill(r,c){
+      const target=grid[idx(r,c)];if(target===color)return;
+      const stack=[[r,c]];
+      while(stack.length){const[y,x]=stack.pop();if(y<0||y>=SIZE||x<0||x>=SIZE)continue;if(grid[idx(y,x)]!==target)continue;
+        grid[idx(y,x)]=color;stack.push([y+1,x],[y-1,x],[y,x+1],[y,x-1]);}
+      render();
+    }
+    function down(e){e.preventDefault();const{r,c}=cellAt(e);if(r<0||r>=SIZE||c<0||c>=SIZE)return;
+      if(tool==="pick"){const col=grid[idx(r,c)];if(col){color=col;selectSwatch(col);}return;}
+      pushUndo();
+      if(tool==="fill"){fill(r,c);return;}
+      painting=true;paint(r,c);
+    }
+    function move(e){if(!painting)return;e.preventDefault();const{r,c}=cellAt(e);paint(r,c);}
+    function up(){painting=false;}
+    cv.addEventListener("pointerdown",down);
+    cv.addEventListener("pointermove",move);
+    window.addEventListener("pointerup",up);
+
+    const palEl=document.getElementById("palette");
+    function buildPalette(){palEl.innerHTML="";
+      const t=document.createElement("div");t.className="sw trans";t.title="transparent / eraser";t.addEventListener("click",()=>{tool="eraser";setTool();});palEl.appendChild(t);
+      PALETTE.forEach(col=>{const s=document.createElement("div");s.className="sw"+(col===color?" sel":"");s.style.background=col;s.dataset.col=col;
+        s.addEventListener("click",()=>{color=col;tool=tool==="eraser"?"pencil":tool;selectSwatch(col);setTool();});palEl.appendChild(s);});}
+    function selectSwatch(col){document.querySelectorAll(".sw").forEach(s=>s.classList.toggle("sel",s.dataset&&s.dataset.col===col));if(/^#[0-9a-f]{6}$/i.test(col))document.getElementById("custom").value=col;}
+    document.getElementById("custom").addEventListener("input",e=>{color=e.target.value;tool="pencil";setTool();document.querySelectorAll(".sw").forEach(s=>s.classList.remove("sel"));});
+
+    function setTool(){document.querySelectorAll(".tool[data-tool]").forEach(b=>b.classList.toggle("active",b.dataset.tool===tool));}
+    document.querySelectorAll(".tool[data-tool]").forEach(b=>b.addEventListener("click",()=>{tool=b.dataset.tool;setTool();}));
+    document.getElementById("mirror").addEventListener("click",()=>{mirror=!mirror;document.getElementById("mirror").classList.toggle("active",mirror);});
+
+    document.getElementById("size").addEventListener("change",e=>{SIZE=+e.target.value;newGrid();resize();undoStack=[];render();});
+
+    function generate(){
+      pushUndo();newGrid();
+      const hue=Math.floor(Math.random()*360);
+      const body=`hsl(${hue} ${55+Math.random()*25}% ${48+Math.random()*12}%)`;
+      const edge=`hsl(${hue} ${55+Math.random()*25}% ${26+Math.random()*8}%)`;
+      const accent=`hsl(${(hue+90+Math.random()*180)%360} 75% 58%)`;
+      const half=Math.ceil(SIZE/2), pad=Math.max(1,Math.round(SIZE*0.12));
+      for(let r=pad;r<SIZE-pad;r++)for(let c=1;c<half;c++){
+        let p=0.55; if(r<pad+1||r>SIZE-pad-2)p=0.25; if(c<=1)p=0.3;
+        if(Math.random()<p){const col=Math.random()<0.14?accent:body;grid[idx(r,c)]=col;grid[idx(r,SIZE-1-c)]=col;}
+      }
+      const snap=grid.slice();
+      const filled=(y,x)=>y>=0&&y<SIZE&&x>=0&&x<SIZE&&snap[idx(y,x)];
+      for(let r=0;r<SIZE;r++)for(let c=0;c<half;c++){
+        if(snap[idx(r,c)])continue;
+        if(filled(r-1,c)||filled(r+1,c)||filled(r,c-1)||filled(r,c+1)){grid[idx(r,c)]=edge;grid[idx(r,SIZE-1-c)]=edge;}
+      }
+      render();
+    }
+    document.getElementById("gen").addEventListener("click",generate);
+    document.getElementById("undo").addEventListener("click",()=>{if(undoStack.length){grid=undoStack.pop();render();}});
+    document.getElementById("clear").addEventListener("click",()=>{pushUndo();newGrid();render();});
+
+    document.getElementById("png").addEventListener("click",()=>{
+      const scale=+document.getElementById("scale").value;const off=document.createElement("canvas");off.width=off.height=SIZE*scale;
+      const octx=off.getContext("2d");
+      for(let r=0;r<SIZE;r++)for(let c=0;c<SIZE;c++){const col=grid[idx(r,c)];if(col){octx.fillStyle=col;octx.fillRect(c*scale,r*scale,scale,scale);}}
+      const a=document.createElement("a");a.download=(document.getElementById("name").value||"sprite")+".png";a.href=off.toDataURL("image/png");a.click();
+      status("Exported PNG.");
+    });
+
+    const LS="spritegen";
+    const store=()=>{try{return JSON.parse(localStorage.getItem(LS)||"{}");}catch(e){return{};}};
+    const saveStore=(o)=>localStorage.setItem(LS,JSON.stringify(o));
+    function refresh(){const s=store(),sel=document.getElementById("saved");sel.innerHTML='<option value="">— saved —</option>';Object.keys(s).sort().forEach(n=>{const o=document.createElement("option");o.value=n;o.textContent=n;sel.appendChild(o);});}
+    function status(m){const s=document.getElementById("status");s.textContent=m;setTimeout(()=>{if(s.textContent===m)s.textContent="";},2200);}
+    document.getElementById("save").addEventListener("click",()=>{const n=(document.getElementById("name").value||"").trim();if(!n){status("Name it first.");return;}const s=store();s[n]={size:SIZE,grid};saveStore(s);refresh();document.getElementById("saved").value=n;status("Saved.");});
+    document.getElementById("load").addEventListener("click",()=>{const n=document.getElementById("saved").value;if(!n)return;const s=store();if(s[n]){SIZE=s[n].size||16;document.getElementById("size").value=SIZE;grid=s[n].grid.slice();resize();render();document.getElementById("name").value=n;status("Loaded.");}});
+
+    resize();newGrid();buildPalette();render();refresh();
+  })();
+  </script>
+</body>
+</html>
