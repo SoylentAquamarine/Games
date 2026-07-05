@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sorry! — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>😅</text></svg>" />
+  <style>
+    :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;}
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+      background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.22),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.16),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;}
+    .wrap{max-width:420px;margin:0 auto;padding:14px 12px 40px;display:flex;flex-direction:column;align-items:center;gap:12px}
+    .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
+    .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+    .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+    h1{margin:0;font-size:1.5rem;background:linear-gradient(120deg,#f43f5e,#22d3ee);-webkit-background-clip:text;background-clip:text;color:transparent}
+    .players{display:flex;gap:6px;width:100%;font-size:.72rem}
+    .pl{flex:1;background:var(--panel);border:1px solid rgba(255,255,255,.06);border-radius:8px;padding:5px;text-align:center}
+    .pl.turn{border-color:var(--accent-2)}
+    .boardbox{position:relative;width:344px;height:344px;background:#0c1526;border:1px solid rgba(255,255,255,.08);border-radius:14px}
+    .dot{position:absolute;border-radius:4px;transform:translate(-50%,-50%)}
+    .space{width:15px;height:15px;background:#1e2a44;border:1px solid rgba(255,255,255,.1)}
+    .slide{background:#3a4668!important;box-shadow:inset 0 0 0 1px rgba(255,255,255,.25)}
+    .tok{position:absolute;width:19px;height:19px;border-radius:50%;transform:translate(-50%,-50%);border:2px solid rgba(0,0,0,.45);z-index:3;display:flex;align-items:center;justify-content:center;font-size:.6rem;font-weight:800;color:#0b0c1a;transition:left .2s,top .2s}
+    .tok.movable{cursor:pointer;box-shadow:0 0 0 3px #34d399}
+    .card{width:76px;height:56px;border-radius:10px;background:#fff;color:#111;display:flex;align-items:center;justify-content:center;font-size:1.8rem;font-weight:800;box-shadow:0 2px 6px rgba(0,0,0,.4)}
+    .status{min-height:1.2em;font-weight:600;color:#fde68a;text-align:center}
+    .btns{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center}
+    .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:11px 22px;border-radius:999px;cursor:pointer}
+    .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,.18);color:var(--muted)}
+    .btn:disabled{opacity:.4;cursor:default}
+    .opts{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}
+    .opts button{background:#252a4d;border:1px solid rgba(255,255,255,.2);color:var(--text);border-radius:8px;padding:6px 10px;font-size:.8rem;cursor:pointer}
+    .hint{color:var(--muted);font-size:.78rem;text-align:center}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar"><a class="home" href="/games/board/">← Board</a><h1>😅 Sorry!</h1><span style="width:56px"></span></div>
+    <div class="players" id="players"></div>
+    <div class="boardbox" id="board"></div>
+    <div class="status" id="status">Draw a card to begin.</div>
+    <div class="btns"><div class="card" id="card">?</div><button class="btn" id="draw">Draw</button><button class="btn ghost" id="new">New Game</button></div>
+    <div class="opts" id="opts"></div>
+    <p class="hint">1/2 start a pawn out. Bump opponents to Start. Slides (light squares) launch you forward. 4 = back 4, 10 = forward 10 or back 1, 11 = move 11 or swap, Sorry! bumps from Start. All 4 pawns Home wins.</p>
+  </div>
+  <script>
+  (function(){
+    const NP=4, PCOL=["#ef4444","#3b82f6","#22c55e","#eab308"],PNAME=["You","CPU 1","CPU 2","CPU 3"];
+    const ENTRY=[0,15,30,45];
+    const SLIDES=[];for(let s=0;s<4;s++){SLIDES.push({start:s*15+1,end:s*15+4,color:s});SLIDES.push({start:s*15+9,end:s*15+13,color:s});}
+    const BS=344,M=18,span=BS-2*M,step=span/15;
+    const boardEl=document.getElementById("board"),statusEl=document.getElementById("status"),cardEl=document.getElementById("card"),drawBtn=document.getElementById("draw"),optsEl=document.getElementById("opts"),playersEl=document.getElementById("players");
+    let pawns,deck,discard,turn,phase,over,curCard;
+
+    // ---- geometry ----
+    function mainXY(idx){const side=Math.floor(idx/15),f=idx%15;
+      if(side===0)return[M+f*step,M];if(side===1)return[BS-M,M+f*step];if(side===2)return[BS-M-f*step,BS-M];return[M,BS-M-f*step];}
+    function inward(p){const [cx,cy]=mainXY(ENTRY[p]);const dx=BS/2-cx,dy=BS/2-cy,L=Math.hypot(dx,dy);return[dx/L,dy/L];}
+    function coordFor(p,pos,i){
+      if(pos==="start"){const [cx,cy]=mainXY(ENTRY[p]);const [ix,iy]=inward(p);const ox=((i%2)*16-8),oy=((i<2?-8:8));return[cx-ix*step*1.4+ox+iy*8,cy-iy*step*1.4+oy-ix*8];}
+      if(pos==="home"){const [cx,cy]=mainXY(ENTRY[p]);const [ix,iy]=inward(p);const o=(i-1.5)*10;return[cx+ix*step*7+ -iy*o,cy+iy*step*7+ix*o];}
+      if(pos.lane==="main")return mainXY(pos.idx);
+      // safe
+      const [cx,cy]=mainXY(ENTRY[p]);const [ix,iy]=inward(p);const d=step*(pos.idx+1.4);return[cx+ix*d,cy+iy*d];
+    }
+
+    // ---- movement primitives ----
+    function forwardOne(p,pos){if(pos==="home")return null;if(pos.lane==="safe")return pos.idx===4?"home":{lane:"safe",idx:pos.idx+1};
+      if(pos.idx===((ENTRY[p]+59)%60))return {lane:"safe",idx:0};return {lane:"main",idx:(pos.idx+1)%60};}
+    function backwardOne(p,pos){if(pos==="home"||pos==="start")return null;if(pos.lane==="safe")return pos.idx===0?{lane:"main",idx:(ENTRY[p]+59)%60}:{lane:"safe",idx:pos.idx-1};
+      return {lane:"main",idx:(pos.idx+59)%60};}
+    function moveBy(p,pos,d){let cur=pos;if(d>0){for(let k=0;k<d;k++){cur=forwardOne(p,cur);if(!cur)return null;}}else{for(let k=0;k<-d;k++){cur=backwardOne(p,cur);if(!cur)return null;}}return cur;}
+    function posEq(a,b){if(a===b)return true;if(typeof a!=="object"||typeof b!=="object"||!a||!b)return false;return a.lane===b.lane&&a.idx===b.idx;}
+    function ownAt(p,pos,exceptI){if(typeof pos!=="object")return false;return pawns[p].some((q,j)=>j!==exceptI&&typeof q==="object"&&posEq(q,pos));}
+
+    // ---- moves ----
+    function genMoves(p,card){
+      const mv=[],pw=pawns[p];
+      const stepMove=(i,pos,d,kind)=>{const np=moveBy(p,pos,d);if(!np)return;if(np!=="home"&&ownAt(p,np,i))return;mv.push({kind,pawn:i,to:np,d});};
+      const canOut=!ownAt(p,{lane:"main",idx:ENTRY[p]},-1);
+      pw.forEach((pos,i)=>{
+        const onBoard=typeof pos==="object";
+        if(card===1){if(pos==="start"){if(canOut)mv.push({kind:"out",pawn:i});}else stepMove(i,pos,1,"fwd");}
+        else if(card===2){if(pos==="start"){if(canOut)mv.push({kind:"out",pawn:i});}else stepMove(i,pos,2,"fwd");}
+        else if(card===3){if(onBoard)stepMove(i,pos,3,"fwd");}
+        else if(card===4){if(onBoard)stepMove(i,pos,-4,"back");}
+        else if(card===5){if(onBoard)stepMove(i,pos,5,"fwd");}
+        else if(card===7){if(onBoard)stepMove(i,pos,7,"fwd");}
+        else if(card===8){if(onBoard)stepMove(i,pos,8,"fwd");}
+        else if(card===10){if(onBoard){stepMove(i,pos,10,"fwd");stepMove(i,pos,-1,"back");}}
+        else if(card===12){if(onBoard)stepMove(i,pos,12,"fwd");}
+        else if(card===11){if(onBoard){stepMove(i,pos,11,"fwd");
+          if(pos.lane==="main"){const t=bestOppMain(p);if(t)mv.push({kind:"swap",pawn:i,target:t});}}}
+        else if(card==="Sorry"){if(pos==="start"){const t=bestOppMain(p);if(t)mv.push({kind:"sorry",pawn:i,target:t});}}
+      });
+      return mv;
+    }
+    function bestOppMain(p){let best=null,bestProg=-1;for(let q=0;q<NP;q++){if(q===p)continue;for(let j=0;j<4;j++){const pos=pawns[q][j];
+      if(typeof pos==="object"&&pos.lane==="main"){const pr=(pos.idx-ENTRY[q]+60)%60;if(pr>bestProg){bestProg=pr;best={q,j};}}}}return best;}
+
+    function bumpAt(idx,except){for(let q=0;q<NP;q++)for(let j=0;j<4;j++){if(except&&except.p===q&&except.i===j)continue;const pp=pawns[q][j];
+      if(typeof pp==="object"&&pp.lane==="main"&&pp.idx===idx)pawns[q][j]="start";}}
+    function resolveLanding(p,i){let pos=pawns[p][i];if(typeof pos!=="object"||pos.lane!=="main")return;let idx=pos.idx;
+      const sl=SLIDES.find(s=>s.start===idx&&s.color!==p);
+      if(sl){for(let s2=sl.start+1;s2<=sl.end;s2++)bumpAt(s2%60,null);idx=sl.end%60;pawns[p][i]={lane:"main",idx};}
+      bumpAt(idx,{p,i});}
+    function applyMove(p,mv){
+      if(mv.kind==="out"){pawns[p][mv.pawn]={lane:"main",idx:ENTRY[p]};resolveLanding(p,mv.pawn);}
+      else if(mv.kind==="fwd"||mv.kind==="back"){pawns[p][mv.pawn]=mv.to;resolveLanding(p,mv.pawn);}
+      else if(mv.kind==="swap"){const a=pawns[p][mv.pawn],b=pawns[mv.target.q][mv.target.j];pawns[p][mv.pawn]=b;pawns[mv.target.q][mv.target.j]=a;resolveLanding(p,mv.pawn);}
+      else if(mv.kind==="sorry"){const t=mv.target,dest=pawns[t.q][t.j];pawns[t.q][t.j]="start";pawns[p][mv.pawn]=dest;resolveLanding(p,mv.pawn);}
+    }
+    function won(p){return pawns[p].every(x=>x==="home");}
+
+    // ---- deck ----
+    function buildDeck(){const counts={1:5,2:4,3:4,4:4,5:4,7:4,8:4,10:4,11:4,12:4,Sorry:4};const d=[];
+      for(const k in counts)for(let n=0;n<counts[k];n++)d.push(k==="Sorry"?"Sorry":+k);return shuffle(d);}
+    function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+    function drawCard(){if(!deck.length){deck=shuffle(discard);discard=[];}const c=deck.pop();discard.push(c);return c;}
+
+    window.__sorry={reset:()=>{pawns=Array.from({length:NP},()=>["start","start","start","start"]);deck=buildDeck();discard=[];},
+      genMoves,applyMove,won,drawCard,state:()=>pawns};
+
+    // ---- AI ----
+    function progOf(p,pos){if(pos==="start")return -6;if(pos==="home")return 72;if(pos.lane==="safe")return 60+pos.idx;return (pos.idx-ENTRY[p]+60)%60;}
+    function scoreMove(p,mv){let s=0;
+      if(mv.kind==="sorry")s+=45;if(mv.kind==="swap")s+=15;if(mv.kind==="out")s+=10;
+      if(mv.to==="home")s+=60;
+      // bump check
+      if(mv.to&&mv.to!=="home"&&mv.to.lane==="main"){const abs=mv.to.idx;for(let q=0;q<NP;q++)if(q!==p)for(let j=0;j<4;j++){const pp=pawns[q][j];if(typeof pp==="object"&&pp.lane==="main"&&pp.idx===abs)s+=35;}}
+      if(mv.kind==="fwd")s+=mv.d;if(mv.kind==="back")s+=1;
+      if(mv.to&&mv.to!=="home"&&typeof mv.to==="object")s+=progOf(p,mv.to)*0.1;
+      return s;}
+    function aiPick(p,moves){let best=moves[0],bs=-1e9;for(const m of moves){const sc=scoreMove(p,m)+Math.random()*0.5;if(sc>bs){bs=sc;best=m;}}return best;}
+
+    // ---- flow ----
+    function newGame(){pawns=Array.from({length:NP},()=>["start","start","start","start"]);deck=buildDeck();discard=[];turn=0;phase="draw";over=false;
+      cardEl.textContent="?";statusEl.textContent="Your turn — Draw!";optsEl.innerHTML="";render();drawBtn.disabled=false;}
+    function cardText(c){return c==="Sorry"?"S!":c;}
+    function draw(){
+      if(over||phase!=="draw")return;
+      curCard=drawCard();cardEl.textContent=cardText(curCard);
+      const moves=genMoves(turn,curCard);
+      if(!moves.length){statusEl.textContent=PNAME[turn]+" drew "+cardText(curCard)+" — no move.";return finishTurn();}
+      if(turn===0){phase="move";optsEl.innerHTML="";statusEl.textContent="Drew "+cardText(curCard)+" — pick a highlighted pawn.";render(moves);
+        const singlePawn=[...new Set(moves.map(m=>m.pawn))];if(singlePawn.length===1&&moves.length===1)setTimeout(()=>choosePawn(moves[0].pawn,moves),300);}
+      else{const m=aiPick(turn,moves);setTimeout(()=>{applyMove(turn,m);afterMove();},550);}
+    }
+    function choosePawn(i,moves){
+      const opts=moves.filter(m=>m.pawn===i);
+      if(opts.length===1)return doHuman(opts[0]);
+      // multiple options for this pawn -> buttons
+      optsEl.innerHTML="";
+      opts.forEach(m=>{const b=document.createElement("button");b.textContent=optLabel(m);b.addEventListener("click",()=>{optsEl.innerHTML="";doHuman(m);});optsEl.appendChild(b);});
+      statusEl.textContent="Choose a move:";
+    }
+    function optLabel(m){if(m.kind==="fwd")return "Forward "+m.d;if(m.kind==="back")return "Back "+(-m.d);if(m.kind==="swap")return "Swap 11";if(m.kind==="out")return "Start out";if(m.kind==="sorry")return "Sorry!";return m.kind;}
+    function doHuman(m){applyMove(0,m);afterMove();}
+    function afterMove(){
+      render();
+      if(won(turn)){over=true;statusEl.textContent="🏆 "+PNAME[turn]+" got everyone Home — "+(turn===0?"you win!":"CPU wins.");drawBtn.disabled=true;return;}
+      finishTurn();
+    }
+    function finishTurn(){
+      const again=(curCard===2);
+      if(again){phase="draw";if(turn===0){drawBtn.disabled=false;statusEl.textContent+=" Drew a 2 — draw again!";}else setTimeout(draw,500);return;}
+      turn=(turn+1)%NP;phase="draw";render();
+      if(turn===0){drawBtn.disabled=false;statusEl.textContent="Your turn — Draw!";}
+      else{drawBtn.disabled=true;statusEl.textContent=PNAME[turn]+" is drawing…";setTimeout(draw,700);}
+    }
+    function render(moves){
+      boardEl.innerHTML="";
+      // slide + track dots
+      for(let k=0;k<60;k++){const [x,y]=mainXY(k);const d=document.createElement("div");d.className="dot space";
+        if(SLIDES.some(s=>k>=s.start&&k<=s.end))d.className="dot space slide";
+        const own=[0,15,30,45].indexOf(k);if(own>=0){d.style.background=PCOL[own];}
+        d.style.left=x+"px";d.style.top=y+"px";boardEl.appendChild(d);}
+      // pawns
+      const mv=moves||[];const movablePawns=new Set(mv.map(m=>m.pawn));
+      for(let p=0;p<NP;p++)for(let i=0;i<4;i++){const [x,y]=coordFor(p,pawns[p][i],i);const t=document.createElement("div");
+        t.className="tok";t.style.background=PCOL[p];t.style.left=x+"px";t.style.top=y+"px";
+        if(p===0&&turn===0&&phase==="move"&&movablePawns.has(i)){t.classList.add("movable");t.addEventListener("click",()=>choosePawn(i,mv));}
+        boardEl.appendChild(t);}
+      // players
+      playersEl.innerHTML="";PNAME.forEach((n,i)=>{const home=pawns[i].filter(x=>x==="home").length;const d=document.createElement("div");
+        d.className="pl"+(i===turn&&!over?" turn":"");d.innerHTML=`<span style="color:${PCOL[i]}">●</span> ${n}<br>home ${home}/4`;playersEl.appendChild(d);});
+    }
+    drawBtn.addEventListener("click",()=>{if(turn===0)draw();});
+    document.getElementById("new").addEventListener("click",newGame);
+    newGame();
+  })();
+  </script>
+</body>
+</html>
