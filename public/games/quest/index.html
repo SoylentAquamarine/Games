@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Quest — a Zelda-style adventure — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>⚔️</text></svg>" />
+  <style>
+    :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;}
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+      background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.22),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.16),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;}
+    .wrap{max-width:520px;margin:0 auto;padding:14px 10px 30px;display:flex;flex-direction:column;align-items:center;gap:10px}
+    .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
+    .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+    .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+    h1{margin:0;font-size:1.4rem;background:linear-gradient(120deg,#4ade80,#eab308);-webkit-background-clip:text;background-clip:text;color:transparent}
+    .hud{display:flex;justify-content:space-between;width:100%;font-weight:700;font-size:.95rem}
+    .board-wrap{position:relative;width:100%}
+    canvas{width:100%;height:auto;display:block;background:#0a0e08;border:1px solid rgba(255,255,255,.08);border-radius:10px;image-rendering:pixelated;touch-action:none}
+    .overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:rgba(15,16,32,.86);border-radius:10px;text-align:center;padding:16px}
+    .overlay.hidden{display:none}
+    .overlay h2{margin:0}.overlay p{margin:0;color:var(--muted);font-size:.9rem}
+    .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:12px 28px;border-radius:999px;cursor:pointer}
+    .controls{display:flex;gap:16px;align-items:center;justify-content:center;width:100%;margin-top:2px}
+    .dpad{display:grid;grid-template-columns:repeat(3,46px);grid-template-rows:repeat(3,40px);gap:4px}
+    .dpad button{background:var(--panel);border:1px solid rgba(255,255,255,.14);color:var(--text);border-radius:9px;font-size:1.1rem;cursor:pointer;user-select:none;touch-action:none}
+    .dpad .u{grid-area:1/2}.dpad .l{grid-area:2/1}.dpad .r{grid-area:2/3}.dpad .d{grid-area:3/2}
+    .sword{width:76px;height:76px;border-radius:50%;background:linear-gradient(120deg,#eab308,#f97316);border:none;color:#0b0c1a;font-size:1.8rem;font-weight:800;cursor:pointer;user-select:none;touch-action:none}
+    .hint{color:var(--muted);font-size:.8rem;text-align:center}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar"><a class="home" href="/">← Home</a><h1>⚔️ Quest</h1><span style="width:56px"></span></div>
+    <div class="hud"><span id="hearts">❤❤❤</span><span id="loot">💎 0 · 🗝️ 0</span></div>
+    <div class="board-wrap">
+      <canvas id="c" width="480" height="352"></canvas>
+      <div class="overlay" id="ov">
+        <h2 id="ot">⚔️ Quest</h2>
+        <p id="om">Explore the dungeon, slay monsters, find the key, and claim the Triforce. Arrow keys/WASD to move, Space to swing your sword.</p>
+        <button class="btn" id="start">Begin</button>
+      </div>
+    </div>
+    <div class="controls">
+      <div class="dpad">
+        <button class="u" data-k="up">▲</button><button class="l" data-k="left">◀</button>
+        <button class="r" data-k="right">▶</button><button class="d" data-k="down">▼</button>
+      </div>
+      <button class="sword" data-k="attack">🗡️</button>
+    </div>
+    <p class="hint">Move: arrows / WASD · Attack: Space · A locked door needs the key. Walk through doorways to explore rooms.</p>
+  </div>
+  <script>
+  (function(){
+    const TILE=32, COLS=15, ROWS=11, W=COLS*TILE, H=ROWS*TILE, RX=3, RY=3;
+    const cv=document.getElementById("c"),ctx=cv.getContext("2d");
+    const heartsEl=document.getElementById("hearts"),lootEl=document.getElementById("loot");
+    const ov=document.getElementById("ov"),ot=document.getElementById("ot"),om=document.getElementById("om"),startBtn=document.getElementById("start");
+    const TRI=[0,0], KEYROOM=[2,2];
+    let rooms,room,player,keys,running,raf,unlocked,over,frame;
+    const keyState={up:false,down:false,left:false,right:false};
+
+    // ---- world gen ----
+    function doorOpen(rx,ry,dir){
+      const nx=rx+(dir==="E"?1:dir==="W"?-1:0),ny=ry+(dir==="S"?1:dir==="N"?-1:0);
+      if(nx<0||nx>=RX||ny<0||ny>=RY)return false;
+      if(rx===TRI[0]&&ry===TRI[1])return dir==="E";       // triforce room: single (locked) east door
+      if(nx===TRI[0]&&ny===TRI[1])return dir==="W";       // its neighbor: only the matching door
+      return true;
+    }
+    function rnd(n){return Math.floor(Math.random()*n);}
+    function genRoom(rx,ry){
+      const map=[];for(let y=0;y<ROWS;y++){const row=[];for(let x=0;x<COLS;x++){
+        let t=".";
+        if(x===0||x===COLS-1||y===0||y===ROWS-1)t="#";
+        row.push(t);}map.push(row);}
+      // carve doors
+      if(doorOpen(rx,ry,"N"))for(let x=6;x<=8;x++)map[0][x]=".";
+      if(doorOpen(rx,ry,"S"))for(let x=6;x<=8;x++)map[ROWS-1][x]=".";
+      if(doorOpen(rx,ry,"W"))for(let y=4;y<=6;y++)map[y][0]=".";
+      if(doorOpen(rx,ry,"E"))for(let y=4;y<=6;y++)map[y][COLS-1]=".";
+      // rocks (avoid center cross)
+      const start=(rx===1&&ry===1);
+      const rockN=start?3:6+rnd(4);
+      for(let k=0;k<rockN;k++){const x=2+rnd(COLS-4),y=2+rnd(ROWS-4);if(x===7||y===5)continue;if(map[y][x]===".")map[y][x]="O";}
+      // enemies
+      const enemies=[];const eN=start?0:(rx===TRI[0]&&ry===TRI[1]?3:2+rnd(2));
+      for(let k=0;k<eN;k++){let x,y,tries=0;do{x=2+rnd(COLS-4);y=2+rnd(ROWS-4);tries++;}while((map[y][x]!=="."||(x===7&&y===5))&&tries<40);
+        enemies.push({x:x*TILE+8,y:y*TILE+8,dir:rnd(4),timer:rnd(40),alive:true,hp:1,hurt:0});}
+      // items
+      const items=[];
+      if(rx===TRI[0]&&ry===TRI[1])items.push({x:7*TILE+4,y:5*TILE+4,type:"tri"});
+      if(rx===KEYROOM[0]&&ry===KEYROOM[1])items.push({x:7*TILE+8,y:3*TILE+8,type:"key"});
+      // scatter a few rupees / hearts
+      const drops=start?1:1+rnd(2);
+      for(let k=0;k<drops;k++){let x,y,tries=0;do{x=2+rnd(COLS-4);y=2+rnd(ROWS-4);tries++;}while(map[y][x]!=="."&&tries<30);
+        items.push({x:x*TILE+8,y:y*TILE+8,type:Math.random()<0.3?"heart":"rupee"});}
+      return {map,enemies,items,visited:false};
+    }
+    function genWorld(){rooms=[];for(let y=0;y<RY;y++){const r=[];for(let x=0;x<RX;x++)r.push(genRoom(x,y));rooms.push(r);}}
+
+    function solidTile(t){return t==="#"||t==="O";}
+    function solidAt(px,py){
+      if(px<0||py<0||px>=W||py>=H)return true;
+      const tx=Math.floor(px/TILE),ty=Math.floor(py/TILE);
+      return solidTile(rooms[room[1]][room[0]].map[ty][tx]);
+    }
+    function boxHitsSolid(x,y,s){return solidAt(x,y)||solidAt(x+s,y)||solidAt(x,y+s)||solidAt(x+s,y+s);}
+
+    function newGame(){
+      genWorld();room=[1,1];keys=0;unlocked=false;over=false;frame=0;
+      player={x:7*TILE+4,y:5*TILE+4,size:24,dir:0,hp:3,maxhp:3,inv:0,atk:0,rupees:0};
+      rooms[1][1].visited=true;updateHud();ov.classList.add("hidden");running=true;loop();
+    }
+    function loop(){if(!running)return;update();render();raf=requestAnimationFrame(loop);}
+
+    function tryTransition(){
+      const cx=player.x+player.size/2,cy=player.y+player.size/2;let dir=null;
+      if(cx<2)dir="W";else if(cx>W-2)dir="E";else if(cy<2)dir="N";else if(cy>H-2)dir="S";
+      if(!dir)return;
+      if(!doorOpen(room[0],room[1],dir))return;
+      const goingToTri=(room[0]+ (dir==="E"?1:dir==="W"?-1:0)===TRI[0])&&(room[1]+(dir==="S"?1:dir==="N"?-1:0)===TRI[1]);
+      if(goingToTri&&!unlocked){if(keys>0){keys--;unlocked=true;updateHud();}else{
+        // bounce back
+        if(dir==="W")player.x=TILE+2;if(dir==="E")player.x=W-TILE-player.size-2;if(dir==="N")player.y=TILE+2;if(dir==="S")player.y=H-TILE-player.size-2;
+        flash("🔒 Locked — find the key!");return;}}
+      room=[room[0]+(dir==="E"?1:dir==="W"?-1:0),room[1]+(dir==="S"?1:dir==="N"?-1:0)];
+      rooms[room[1]][room[0]].visited=true;
+      if(dir==="W")player.x=W-TILE-player.size-2;else if(dir==="E")player.x=TILE+2;
+      else if(dir==="N")player.y=H-TILE-player.size-2;else if(dir==="S")player.y=TILE+2;
+    }
+    let flashMsg="",flashT=0;
+    function flash(m){flashMsg=m;flashT=90;}
+
+    function update(){
+      frame++;const sp=2.4,s=player.size;
+      let dx=0,dy=0;
+      if(keyState.left){dx=-sp;player.dir=2;}else if(keyState.right){dx=sp;player.dir=3;}
+      if(keyState.up){dy=-sp;player.dir=0;}else if(keyState.down){dy=sp;player.dir=1;}
+      if(dx&&!boxHitsSolid(player.x+dx,player.y,s))player.x+=dx;
+      if(dy&&!boxHitsSolid(player.x,player.y+dy,s))player.y+=dy;
+      tryTransition();
+      if(player.inv>0)player.inv--;
+      if(player.atk>0)player.atk--;
+      if(flashT>0)flashT--;
+      const R=rooms[room[1]][room[0]];
+      // sword hitbox
+      let sword=null;
+      if(player.atk>6){const cx=player.x+s/2,cy=player.y+s/2,len=26;
+        if(player.dir===0)sword={x:cx-8,y:cy-len,w:16,h:len};
+        else if(player.dir===1)sword={x:cx-8,y:cy,w:16,h:len};
+        else if(player.dir===2)sword={x:cx-len,y:cy-8,w:len,h:16};
+        else sword={x:cx,y:cy-8,w:len,h:16};}
+      // enemies
+      for(const e of R.enemies){if(!e.alive)continue;
+        if(e.hurt>0)e.hurt--;
+        e.timer--;if(e.timer<=0){e.dir=rnd(4);e.timer=30+rnd(50);}
+        const ev=[[0,-1],[0,1],[-1,0],[1,0]][e.dir],es=1.3;
+        const nx=e.x+ev[0]*es,ny=e.y+ev[1]*es;
+        if(!boxHitsSolid(nx,e.y,16))e.x=nx;else e.dir=rnd(4);
+        if(!boxHitsSolid(e.x,ny,16))e.y=ny;else e.dir=rnd(4);
+        // sword hit
+        if(sword&&rectHit(sword,{x:e.x,y:e.y,w:16,h:16})){e.alive=false;continue;}
+        // touch player
+        if(player.inv<=0&&rectHit({x:player.x,y:player.y,w:s,h:s},{x:e.x,y:e.y,w:16,h:16})){
+          player.hp--;player.inv=70;updateHud();
+          // knockback
+          const kx=Math.sign(player.x-e.x)*10,ky=Math.sign(player.y-e.y)*10;
+          if(!boxHitsSolid(player.x+kx,player.y,s))player.x+=kx;if(!boxHitsSolid(player.x,player.y+ky,s))player.y+=ky;
+          if(player.hp<=0)return gameOver();
+        }
+      }
+      // items
+      for(const it of R.items){if(it.taken)continue;
+        if(rectHit({x:player.x,y:player.y,w:s,h:s},{x:it.x,y:it.y,w:20,h:20})){
+          it.taken=true;
+          if(it.type==="rupee"){player.rupees++;flash("💎 +1 rupee");}
+          else if(it.type==="heart"){player.hp=Math.min(player.maxhp,player.hp+1);flash("❤ +1 heart");}
+          else if(it.type==="key"){keys++;flash("🗝️ Got a key!");}
+          else if(it.type==="tri"){return win();}
+          updateHud();
+        }
+      }
+    }
+    function rectHit(a,b){return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;}
+
+    function render(){
+      const R=rooms[room[1]][room[0]];
+      for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){const t=R.map[y][x];
+        if(t==="#"){ctx.fillStyle="#3a2f1e";ctx.fillRect(x*TILE,y*TILE,TILE,TILE);ctx.fillStyle="#4d3f28";ctx.fillRect(x*TILE+3,y*TILE+3,TILE-6,TILE-6);}
+        else{ctx.fillStyle="#1c3320";ctx.fillRect(x*TILE,y*TILE,TILE,TILE);
+          if(t==="O"){ctx.fillStyle="#5b6472";ctx.beginPath();ctx.arc(x*TILE+16,y*TILE+16,11,0,7);ctx.fill();}}
+      }
+      // items
+      for(const it of R.items){if(it.taken)continue;const ic={rupee:"💎",heart:"❤",key:"🗝️",tri:"▲"}[it.type];
+        ctx.font="18px serif";ctx.textAlign="center";ctx.textBaseline="middle";
+        if(it.type==="tri"){ctx.fillStyle="#facc15";ctx.font="26px serif";ctx.fillText("🔺",it.x+10,it.y+10);}
+        else ctx.fillText(ic,it.x+10,it.y+10);}
+      // enemies
+      for(const e of R.enemies){if(!e.alive)continue;ctx.font="18px serif";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText("👹",e.x+8,e.y+8);}
+      // player (blink when invulnerable)
+      if(player.inv<=0||Math.floor(player.inv/5)%2===0){
+        ctx.fillStyle="#22c55e";ctx.fillRect(player.x,player.y,player.size,player.size);
+        ctx.fillStyle="#065f46";const s=player.size;
+        // facing marker
+        if(player.dir===0)ctx.fillRect(player.x+4,player.y,s-8,5);
+        else if(player.dir===1)ctx.fillRect(player.x+4,player.y+s-5,s-8,5);
+        else if(player.dir===2)ctx.fillRect(player.x,player.y+4,5,s-8);
+        else ctx.fillRect(player.x+s-5,player.y+4,5,s-8);
+      }
+      // sword
+      if(player.atk>6){ctx.fillStyle="#fde68a";const cx=player.x+player.size/2,cy=player.y+player.size/2,len=26;
+        if(player.dir===0)ctx.fillRect(cx-3,cy-len,6,len);else if(player.dir===1)ctx.fillRect(cx-3,cy,6,len);
+        else if(player.dir===2)ctx.fillRect(cx-len,cy-3,len,6);else ctx.fillRect(cx,cy-3,len,6);}
+      // flash message
+      if(flashT>0){ctx.fillStyle="rgba(0,0,0,.6)";ctx.fillRect(W/2-90,6,180,24);ctx.fillStyle="#fde68a";ctx.font="14px system-ui";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(flashMsg,W/2,18);}
+    }
+    function attack(){if(player.atk<=0)player.atk=18;}
+    function updateHud(){let h="";for(let i=0;i<player.maxhp;i++)h+=i<player.hp?"❤":"🖤";heartsEl.textContent=h;lootEl.textContent="💎 "+player.rupees+" · 🗝️ "+keys;}
+    function gameOver(){running=false;cancelAnimationFrame(raf);ot.textContent="💀 You fell";om.textContent="The dungeon claims another hero. Rupees collected: "+player.rupees;startBtn.textContent="Try again";ov.classList.remove("hidden");}
+    function win(){running=false;cancelAnimationFrame(raf);ot.textContent="🔺 The Triforce is yours!";om.textContent="You conquered the dungeon with "+player.rupees+" rupees. A hero is born!";startBtn.textContent="Play again";ov.classList.remove("hidden");}
+
+    // input
+    const map={ArrowUp:"up",ArrowDown:"down",ArrowLeft:"left",ArrowRight:"right",w:"up",s:"down",a:"left",d:"right"};
+    document.addEventListener("keydown",e=>{if(map[e.key]){e.preventDefault();keyState[map[e.key]]=true;}if(e.key===" "){e.preventDefault();if(running)attack();}});
+    document.addEventListener("keyup",e=>{if(map[e.key]){keyState[map[e.key]]=false;}});
+    document.querySelectorAll("[data-k]").forEach(b=>{const k=b.dataset.k;
+      const on=(e)=>{e.preventDefault();if(k==="attack"){if(running)attack();}else keyState[k]=true;};
+      const off=(e)=>{e.preventDefault();if(k!=="attack")keyState[k]=false;};
+      b.addEventListener("touchstart",on,{passive:false});b.addEventListener("touchend",off,{passive:false});
+      b.addEventListener("mousedown",on);b.addEventListener("mouseup",off);b.addEventListener("mouseleave",off);});
+    startBtn.addEventListener("click",newGame);
+    // expose for smoke test
+    window.__quest={genWorld:()=>{genWorld();return rooms;},doorOpen};
+  })();
+  </script>
+</body>
+</html>
