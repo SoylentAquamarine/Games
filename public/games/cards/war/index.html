@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>War — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🃏</text></svg>" />
+  <style>
+    :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;--felt:#12351f;}
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+      background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.22),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.16),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;}
+    .wrap{max-width:460px;margin:0 auto;padding:16px 16px 40px;display:flex;flex-direction:column;align-items:center;gap:12px}
+    .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
+    .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+    .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+    h1{margin:0;font-size:1.6rem;background:linear-gradient(120deg,#f43f5e,var(--accent-2));-webkit-background-clip:text;background-clip:text;color:transparent}
+    .table{width:100%;background:radial-gradient(circle at 50% 40%,#1a4a2b,var(--felt));border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:16px 12px;display:flex;flex-direction:column;align-items:center;gap:10px}
+    .side{display:flex;align-items:center;justify-content:space-between;width:100%}
+    .who{font-weight:700}
+    .count{font-size:.85rem;color:#cfe9d6}
+    .slots{display:flex;gap:8px;align-items:center;min-height:98px;justify-content:center;flex-wrap:wrap}
+    .banner{font-weight:800;font-size:1.2rem;min-height:1.4em;text-align:center;color:#fde68a;letter-spacing:.04em}
+    .stake{font-size:.82rem;color:#cfe9d6}
+    .deckback{--cw:52px;position:relative}
+    .btns{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+    .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:11px 26px;border-radius:999px;cursor:pointer}
+    .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,.18);color:var(--muted)}
+    .btn:disabled{opacity:.4;cursor:default}
+    .hint{color:var(--muted);font-size:.82rem;text-align:center}
+    .pcard{--cw:60px}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar"><a class="home" href="/">← Home</a><h1>🃏 War</h1><span style="width:60px"></span></div>
+
+    <div class="table">
+      <div class="side"><span class="who">🤖 CPU</span><span class="count" id="cpuCount">26 cards</span></div>
+      <div class="slots" id="cpuSlot"></div>
+      <div class="banner" id="banner">Flip to battle!</div>
+      <div class="stake" id="stake"></div>
+      <div class="slots" id="youSlot"></div>
+      <div class="side"><span class="who">🧑 You</span><span class="count" id="youCount">26 cards</span></div>
+    </div>
+
+    <div class="btns">
+      <button class="btn" id="flip">⚔️ Flip</button>
+      <button class="btn ghost" id="auto">⏩ Auto</button>
+      <button class="btn ghost" id="new">New Game</button>
+    </div>
+    <p class="hint">Higher card wins the pile. Tie = <b>WAR</b>: 3 down, 1 up, winner takes all.</p>
+  </div>
+
+  <script src="../cards.js"></script>
+  <script>
+  (function(){
+    const cpuCount=document.getElementById("cpuCount"),youCount=document.getElementById("youCount");
+    const cpuSlot=document.getElementById("cpuSlot"),youSlot=document.getElementById("youSlot");
+    const banner=document.getElementById("banner"),stakeEl=document.getElementById("stake");
+    const flipBtn=document.getElementById("flip"),autoBtn=document.getElementById("auto"),newBtn=document.getElementById("new");
+    let you,cpu,busy,over,auto=false,rounds;
+    const delay=(ms)=>new Promise(r=>setTimeout(r,ms));
+
+    function newGame(){
+      const deck=Cards.shuffle(Cards.makeDeck());
+      const [a,b]=Cards.split(deck,2);you=a;cpu=b;
+      busy=false;over=false;auto=false;rounds=0;autoBtn.textContent="⏩ Auto";
+      banner.textContent="Flip to battle!";stakeEl.textContent="";
+      cpuSlot.innerHTML="";youSlot.innerHTML="";
+      showDeckBacks();updateCounts();flipBtn.disabled=false;
+    }
+    function showDeckBacks(){
+      cpuSlot.innerHTML="";youSlot.innerHTML="";
+      cpuSlot.appendChild(deckBack(cpu.length));youSlot.appendChild(deckBack(you.length));
+    }
+    function deckBack(n){const el=Cards.cardEl(null,false);el.classList.add("deckback");if(n===0){el.className="pcard empty deckback";}return el;}
+    function updateCounts(){cpuCount.textContent=cpu.length+" cards";youCount.textContent=you.length+" cards";}
+
+    // Resolve one full round (including chained wars). Mutates decks + awards stake.
+    // Returns {events, winner}. events replayed by the animator.
+    function playRound(){
+      const stake=[],events=[];let winner=null;
+      while(true){
+        if(!you.length){winner="cpu";break;}
+        if(!cpu.length){winner="you";break;}
+        const p=you.shift(),c=cpu.shift();stake.push(p,c);
+        events.push({type:"battle",p,c});
+        if(p.rank>c.rank){winner="you";break;}
+        if(p.rank<c.rank){winner="cpu";break;}
+        // tie -> war: each lays up to 3 face-down, then loop flips again
+        const pDown=Math.min(3,you.length),cDown=Math.min(3,cpu.length);
+        const downs=[];
+        for(let i=0;i<pDown;i++){const x=you.shift();stake.push(x);downs.push(x);}
+        for(let i=0;i<cDown;i++){const x=cpu.shift();stake.push(x);}
+        events.push({type:"war",pDown,cDown});
+        if(!you.length&&!cpu.length){ // both emptied laying down -> compare not possible; higher last card... give to whoever has cards; here both 0 -> split by last battle (tie) -> award to you arbitrarily by count
+          winner="you";break;
+        }
+      }
+      const win=winner==="you"?you:cpu;
+      Cards.shuffle(stake);
+      win.push(...stake);
+      return {events,winner,stakeCount:stake.length};
+    }
+
+    async function flip(){
+      if(busy||over)return;busy=true;flipBtn.disabled=true;
+      const {events,winner,stakeCount}=playRound();rounds++;
+      // animate
+      for(const ev of events){
+        if(ev.type==="battle"){
+          renderSlot(youSlot,Cards.cardEl(ev.p,true));
+          renderSlot(cpuSlot,Cards.cardEl(ev.c,true));
+          banner.textContent="⚔️";stakeEl.textContent="";
+          await delay(auto?90:360);
+        }else{
+          banner.textContent="WAR!";stakeEl.textContent=(ev.pDown+ev.cDown)+" cards face-down…";
+          renderSlot(youSlot,backRow(ev.pDown));renderSlot(cpuSlot,backRow(ev.cDown));
+          await delay(auto?120:520);
+        }
+      }
+      banner.textContent=winner==="you"?"🧑 You win the pile!":"🤖 CPU wins the pile!";
+      stakeEl.textContent="+"+stakeCount+" cards";
+      updateCounts();
+      await delay(auto?60:420);
+      // win check
+      if(you.length===0||cpu.length===0){return finish();}
+      if(rounds>6000){return finish(true);}
+      showDeckBacks();
+      busy=false;flipBtn.disabled=false;
+      if(auto)flip();
+    }
+
+    function renderSlot(slot,el){slot.innerHTML="";slot.appendChild(el);}
+    function backRow(n){const wrap=document.createElement("div");wrap.style.cssText="display:flex;gap:3px";
+      for(let i=0;i<Math.max(1,n);i++){const b=Cards.cardEl(null,false);b.style.setProperty("--cw","34px");wrap.appendChild(b);}return wrap;}
+
+    function finish(cap){
+      over=true;auto=false;busy=false;flipBtn.disabled=true;
+      let msg;
+      if(cap)msg=you.length>cpu.length?"⏱️ Card cap — You win on count!":you.length<cpu.length?"⏱️ Card cap — CPU wins on count.":"⏱️ Dead heat!";
+      else msg=you.length>0?"🏆 Victory! You captured all 52 cards.":"☠️ Defeat. The CPU took every card.";
+      banner.textContent=msg;stakeEl.textContent="";updateCounts();
+    }
+
+    flipBtn.addEventListener("click",flip);
+    autoBtn.addEventListener("click",()=>{if(over)return;auto=!auto;autoBtn.textContent=auto?"⏸ Stop":"⏩ Auto";if(auto&&!busy)flip();});
+    newBtn.addEventListener("click",newGame);
+    newGame();
+  })();
+  </script>
+</body>
+</html>
