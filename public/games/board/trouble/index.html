@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Trouble — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🎯</text></svg>" />
+  <style>
+    :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;}
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+      background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.22),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.16),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;}
+    .wrap{max-width:420px;margin:0 auto;padding:14px 12px 40px;display:flex;flex-direction:column;align-items:center;gap:12px}
+    .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
+    .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+    .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+    h1{margin:0;font-size:1.5rem;background:linear-gradient(120deg,#f43f5e,#22d3ee);-webkit-background-clip:text;background-clip:text;color:transparent}
+    .players{display:flex;gap:6px;width:100%;font-size:.72rem}
+    .pl{flex:1;background:var(--panel);border:1px solid rgba(255,255,255,.06);border-radius:8px;padding:5px;text-align:center}
+    .pl.turn{border-color:var(--accent-2)}
+    .boardbox{position:relative;width:340px;height:340px;background:radial-gradient(circle at 50% 50%,#1a2b1e,#10180f);border:1px solid rgba(255,255,255,.08);border-radius:50%}
+    .dot{position:absolute;border-radius:50%;transform:translate(-50%,-50%)}
+    .space{width:18px;height:18px;background:#2a3a2c;border:1px solid rgba(255,255,255,.12)}
+    .tok{position:absolute;width:22px;height:22px;border-radius:50%;transform:translate(-50%,-50%);border:2px solid rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:800;color:#0b0c1a;z-index:3;transition:left .25s,top .25s}
+    .tok.movable{cursor:pointer;box-shadow:0 0 0 3px #34d399}
+    .die{width:56px;height:56px;border-radius:12px;background:#fff;color:#0b0c1a;display:flex;align-items:center;justify-content:center;font-size:2.2rem;box-shadow:0 2px 0 rgba(0,0,0,.3)}
+    .status{min-height:1.2em;font-weight:600;color:#fde68a;text-align:center}
+    .btns{display:flex;gap:10px;align-items:center}
+    .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:11px 24px;border-radius:999px;cursor:pointer}
+    .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,.18);color:var(--muted)}
+    .btn:disabled{opacity:.4;cursor:default}
+    .hint{color:var(--muted);font-size:.8rem;text-align:center}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar"><a class="home" href="/games/board/">← Board</a><h1>🎯 Trouble</h1><span style="width:56px"></span></div>
+    <div class="players" id="players"></div>
+    <div class="boardbox" id="board"></div>
+    <div class="status" id="status">Pop the die to start!</div>
+    <div class="btns">
+      <div class="die" id="die">🎲</div>
+      <button class="btn" id="pop">POP!</button>
+      <button class="btn ghost" id="new">New Game</button>
+    </div>
+    <p class="hint">Roll 6 to bring a pawn out. Land on an opponent to send it home. First to get all 4 pawns home wins. (6 = roll again.)</p>
+  </div>
+  <script>
+  (function(){
+    const NP=4, TRACK=28, PCOL=["#ef4444","#3b82f6","#22c55e","#eab308"],PNAME=["You","CPU 1","CPU 2","CPU 3"];
+    const S=340,C=S/2,R=S*0.40;
+    const boardEl=document.getElementById("board"),statusEl=document.getElementById("status"),popBtn=document.getElementById("pop"),dieEl=document.getElementById("die"),playersEl=document.getElementById("players");
+    let pawns,turn,roll,phase,over;   // pawns[p][i] = 'start' | 0..31 (28..31 = home)
+    const entry=(p)=>p*7;
+    function trackXY(a){const ang=a/TRACK*2*Math.PI-Math.PI/2;return [C+Math.cos(ang)*R,C+Math.sin(ang)*R];}
+    function coordOf(p,pos,idx){
+      if(pos==="start"){const ang=entry(p)/TRACK*2*Math.PI-Math.PI/2;const ox=(idx%2)*16-8,oy=(idx<2?-8:8);return [C+Math.cos(ang)*(R*1.28)+ox,C+Math.sin(ang)*(R*1.28)+oy];}
+      if(pos<=27)return trackXY((entry(p)+pos)%TRACK);
+      const h=pos-28,ang=entry(p)/TRACK*2*Math.PI-Math.PI/2,rr=R*(0.66-h*0.15);return [C+Math.cos(ang)*rr,C+Math.sin(ang)*rr];
+    }
+    // ---- pure logic ----
+    function legalMoves(p,r){
+      const mv=[];
+      for(let i=0;i<4;i++){const pos=pawns[p][i];
+        if(pos==="start"){if(r===6&&!pawns[p].some(q=>q===0))mv.push({i,to:0});}
+        else{const to=pos+r;if(to>31)continue;if(pawns[p].some((q,j)=>j!==i&&q===to))continue;mv.push({i,to});}
+      }
+      return mv;
+    }
+    function applyMove(p,mv){
+      pawns[p][mv.i]=mv.to;
+      if(mv.to<=27){const abs=(entry(p)+mv.to)%TRACK;
+        for(let q=0;q<NP;q++){if(q===p)continue;for(let j=0;j<4;j++){const pos=pawns[q][j];if(typeof pos==="number"&&pos<=27&&(entry(q)+pos)%TRACK===abs)pawns[q][j]="start";}}}
+    }
+    function won(p){return pawns[p].every(q=>typeof q==="number"&&q>=28);}
+    window.__trouble={legalMoves:(p,r,st)=>{if(st)pawns=st;return legalMoves(p,r);},applyMove:(p,mv,st)=>{if(st)pawns=st;applyMove(p,mv);return pawns;},won:(p,st)=>{if(st)pawns=st;return won(p);},entry};
+
+    // ---- game ----
+    function newGame(){pawns=Array.from({length:NP},()=>["start","start","start","start"]);turn=0;phase="roll";over=false;
+      dieEl.textContent="🎲";statusEl.textContent="Your turn — POP the die!";render();popBtn.disabled=false;}
+    function render(){
+      boardEl.innerHTML="";
+      // track dots
+      for(let k=0;k<TRACK;k++){const [x,y]=trackXY(k);const d=document.createElement("div");d.className="dot space";
+        const owner=[0,7,14,21].indexOf(k);if(owner>=0)d.style.background=PCOL[owner];d.style.left=x+"px";d.style.top=y+"px";boardEl.appendChild(d);}
+      // pawns
+      const mv=(phase==="move"&&turn===0)?legalMoves(0,roll):[];
+      for(let p=0;p<NP;p++)for(let i=0;i<4;i++){const [x,y]=coordOf(p,pawns[p][i],i);
+        const t=document.createElement("div");t.className="tok";t.style.background=PCOL[p];t.style.left=x+"px";t.style.top=y+"px";
+        const m=mv.find(m=>m.i===i);if(m){t.classList.add("movable");t.addEventListener("click",()=>{doMove(0,m);});}
+        boardEl.appendChild(t);}
+      // players
+      playersEl.innerHTML="";PNAME.forEach((n,i)=>{const homeCount=pawns[i].filter(q=>typeof q==="number"&&q>=28).length;
+        const d=document.createElement("div");d.className="pl"+(i===turn&&!over?" turn":"");d.innerHTML=`<span style="color:${PCOL[i]}">●</span> ${n}<br>home ${homeCount}/4`;playersEl.appendChild(d);});
+    }
+    function pop(){
+      if(over||phase!=="roll")return;
+      roll=1+Math.floor(Math.random()*6);dieEl.textContent="⚀⚁⚂⚃⚄⚅"[roll-1];
+      const mv=legalMoves(turn,roll);
+      if(!mv.length){statusEl.textContent=PNAME[turn]+" rolled "+roll+" — no moves.";return endTurn(roll===6);}
+      if(turn===0){phase="move";statusEl.textContent="Rolled "+roll+" — pick a green-ringed pawn.";render();
+        if(mv.length===1)setTimeout(()=>doMove(0,mv[0]),350);}
+      else{const best=cpuPick(turn,mv);setTimeout(()=>doMove(turn,best),500);}
+    }
+    function cpuPick(p,mv){
+      // prefer a bump, then advancing furthest, then leaving start
+      let best=mv[0],bestScore=-1;
+      for(const m of mv){let s=0;
+        if(m.to<=27){const abs=(entry(p)+m.to)%TRACK;for(let q=0;q<NP;q++)if(q!==p)for(let j=0;j<4;j++){const pos=pawns[q][j];if(typeof pos==="number"&&pos<=27&&(entry(q)+pos)%TRACK===abs)s+=50;}}
+        if(m.to>=28)s+=30;                         // reach home
+        if(pawns[p][m.i]==="start")s+=8;           // get out
+        s+=(typeof pawns[p][m.i]==="number"?pawns[p][m.i]:0)*0.1;
+        if(s>bestScore){bestScore=s;best=m;}
+      }
+      return best;
+    }
+    function doMove(p,mv){
+      if(over)return;applyMove(p,mv);render();
+      if(won(p)){over=true;statusEl.textContent="🏆 "+PNAME[p]+" got everyone home — "+(p===0?"you win!":"CPU wins.");popBtn.disabled=true;return;}
+      endTurn(roll===6);
+    }
+    function endTurn(again){
+      if(over)return;
+      if(again){phase="roll";if(turn===0){popBtn.disabled=false;statusEl.textContent+=" Rolled a 6 — POP again!";}else setTimeout(pop,600);return;}
+      turn=(turn+1)%NP;phase="roll";render();
+      if(turn===0){popBtn.disabled=false;statusEl.textContent="Your turn — POP!";}
+      else{popBtn.disabled=true;statusEl.textContent=PNAME[turn]+" is rolling…";setTimeout(pop,700);}
+    }
+    popBtn.addEventListener("click",()=>{if(turn===0)pop();});
+    document.getElementById("new").addEventListener("click",newGame);
+    newGame();
+  })();
+  </script>
+</body>
+</html>
