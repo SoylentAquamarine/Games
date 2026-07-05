@@ -18,11 +18,23 @@ export default {
     if (url.pathname === "/api/auth/google" && request.method === "POST") {
       return handleGoogleLogin(request, env);
     }
+    if (url.pathname === "/api/account/register" && request.method === "POST") {
+      return handleRegister(request, env);
+    }
+    if (url.pathname === "/api/account/login" && request.method === "POST") {
+      return handleLogin(request, env);
+    }
     if (url.pathname === "/api/me" && request.method === "GET") {
       return handleMe(request, env);
     }
     if (url.pathname === "/api/logout" && request.method === "POST") {
       return handleLogout(request);
+    }
+    if (url.pathname === "/api/saves" && request.method === "GET") {
+      return handleSaveGet(request, env, url);
+    }
+    if (url.pathname === "/api/saves" && request.method === "PUT") {
+      return handleSavePut(request, env, url);
     }
 
     // Not an API route — serve a static asset.
@@ -76,22 +88,101 @@ async function handleGoogleLogin(request, env) {
 }
 
 async function handleMe(request, env) {
-  const token = readCookie(request, SESSION_COOKIE);
-  if (!token) return json({ loggedIn: false });
+  const payload = await getSession(request, env);
+  if (!payload) return json({ loggedIn: false });
+  return json({ loggedIn: true, user: userView(payload) });
+}
 
+// ---------------------------------------------------------------------------
+// Username / password accounts (KV: ACCOUNTS) + per-user cloud saves
+// ---------------------------------------------------------------------------
+
+const USER_RE = /^[a-zA-Z0-9_-]{3,20}$/;
+const NS_RE = /^[a-zA-Z0-9_.-]{1,40}$/;
+const PBKDF2_ITERS = 100000;
+
+async function getSession(request, env) {
+  const token = readCookie(request, SESSION_COOKIE);
+  if (!token) return null;
   const payload = await verifySession(token, env.SESSION_SECRET);
-  if (!payload || payload.exp < Math.floor(Date.now() / 1000)) {
-    return json({ loggedIn: false });
-  }
-  return json({
-    loggedIn: true,
-    user: {
-      sub: payload.sub,
-      email: payload.email,
-      name: payload.name,
-      picture: payload.picture,
-    },
+  if (!payload || payload.exp < Math.floor(Date.now() / 1000)) return null;
+  return payload;
+}
+
+// normalize a session payload into a public user view (local or google)
+function userView(p) {
+  if (p.u) return { username: p.u, kind: "local" };
+  return { username: p.name || p.email, email: p.email, picture: p.picture, kind: "google" };
+}
+
+// stable per-account key prefix for saves (local accounts vs google accounts)
+function accountId(p) { return p.u ? "u:" + p.u.toLowerCase() : "g:" + p.sub; }
+
+async function sessionResponse(request, env, sessionData, bodyObj) {
+  const exp = Math.floor(Date.now() / 1000) + SESSION_TTL;
+  const token = await signSession({ ...sessionData, exp }, env.SESSION_SECRET);
+  const secure = new URL(request.url).protocol === "https:";
+  return json(bodyObj, 200, {
+    "Set-Cookie": cookie(SESSION_COOKIE, token, { httpOnly: true, secure, sameSite: "Lax", path: "/", maxAge: SESSION_TTL }),
   });
+}
+
+async function pbkdf2(password, salt, iters) {
+  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), { name: "PBKDF2" }, false, ["deriveBits"]);
+  const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", salt, iterations: iters, hash: "SHA-256" }, key, 256);
+  return new Uint8Array(bits);
+}
+
+async function handleRegister(request, env) {
+  let body;
+  try { body = await request.json(); } catch { return json({ error: "invalid_body" }, 400); }
+  const username = (body.username || "").trim();
+  const password = body.password || "";
+  if (!USER_RE.test(username)) return json({ error: "bad_username", message: "3-20 letters, numbers, _ or -" }, 400);
+  if (password.length < 6) return json({ error: "short_password", message: "Password must be at least 6 characters" }, 400);
+
+  const key = "u:" + username.toLowerCase();
+  if (await env.ACCOUNTS.get(key)) return json({ error: "taken", message: "That username is taken" }, 409);
+
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const hash = await pbkdf2(password, salt, PBKDF2_ITERS);
+  const rec = { username, salt: bytesToB64url(salt), hash: bytesToB64url(hash), iters: PBKDF2_ITERS, created: Date.now() };
+  await env.ACCOUNTS.put(key, JSON.stringify(rec));
+  return sessionResponse(request, env, { u: username }, { loggedIn: true, user: { username, kind: "local" } });
+}
+
+async function handleLogin(request, env) {
+  let body;
+  try { body = await request.json(); } catch { return json({ error: "invalid_body" }, 400); }
+  const username = (body.username || "").trim();
+  const password = body.password || "";
+  const raw = await env.ACCOUNTS.get("u:" + username.toLowerCase());
+  if (!raw) return json({ error: "bad_credentials", message: "Wrong username or password" }, 401);
+  const rec = JSON.parse(raw);
+  const hash = await pbkdf2(password, b64urlToBytes(rec.salt), rec.iters || PBKDF2_ITERS);
+  if (!timingSafeEqual(bytesToB64url(hash), rec.hash)) return json({ error: "bad_credentials", message: "Wrong username or password" }, 401);
+  return sessionResponse(request, env, { u: rec.username }, { loggedIn: true, user: { username: rec.username, kind: "local" } });
+}
+
+async function handleSaveGet(request, env, url) {
+  const payload = await getSession(request, env);
+  if (!payload) return json({ error: "unauth" }, 401);
+  const ns = url.searchParams.get("ns") || "";
+  if (!NS_RE.test(ns)) return json({ error: "bad_ns" }, 400);
+  const raw = await env.ACCOUNTS.get("s:" + accountId(payload) + ":" + ns);
+  return json({ ok: true, data: raw ? JSON.parse(raw) : null });
+}
+
+async function handleSavePut(request, env, url) {
+  const payload = await getSession(request, env);
+  if (!payload) return json({ error: "unauth" }, 401);
+  const ns = url.searchParams.get("ns") || "";
+  if (!NS_RE.test(ns)) return json({ error: "bad_ns" }, 400);
+  const text = await request.text();
+  if (text.length > 512 * 1024) return json({ error: "too_large" }, 413);
+  try { JSON.parse(text); } catch { return json({ error: "invalid_json" }, 400); }
+  await env.ACCOUNTS.put("s:" + accountId(payload) + ":" + ns, text);
+  return json({ ok: true });
 }
 
 function handleLogout(request) {

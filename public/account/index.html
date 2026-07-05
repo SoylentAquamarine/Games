@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Account — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>☁️</text></svg>" />
+  <style>
+    :root{--bg:#0f1020;--panel:#1e2140;--panel2:#252a4d;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;--good:#34d399;--bad:#f87171;}
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+      background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.22),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.16),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;}
+    .wrap{max-width:440px;margin:0 auto;padding:20px 16px 50px;display:flex;flex-direction:column;gap:16px}
+    .topbar{display:flex;align-items:center;justify-content:space-between}
+    .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+    .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+    h1{margin:0;font-size:1.6rem;background:linear-gradient(120deg,var(--accent),var(--accent-2));-webkit-background-clip:text;background-clip:text;color:transparent}
+    .card{background:var(--panel);border:1px solid rgba(255,255,255,.07);border-radius:16px;padding:20px}
+    h2{margin:0 0 12px;font-size:1.1rem}
+    .field{display:flex;flex-direction:column;gap:4px;margin-bottom:12px}
+    label{font-size:.8rem;color:var(--muted)}
+    input{background:var(--panel2);color:var(--text);border:1px solid rgba(255,255,255,.14);border-radius:10px;padding:10px 12px;font-size:1rem}
+    .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:11px 20px;border-radius:999px;cursor:pointer;font-size:.95rem;width:100%}
+    .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,.18);color:var(--text)}
+    .btn:disabled{opacity:.5;cursor:default}
+    .row{display:flex;gap:10px}
+    .row .btn{width:auto;flex:1}
+    .tabs{display:flex;gap:6px;background:var(--panel2);padding:5px;border-radius:999px;margin-bottom:16px}
+    .tabs button{flex:1;background:transparent;border:none;color:var(--muted);padding:9px;border-radius:999px;cursor:pointer;font-weight:600}
+    .tabs button.active{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a}
+    .msg{min-height:1.2em;font-size:.86rem;text-align:center;margin-top:6px}
+    .msg.ok{color:var(--good)}.msg.err{color:var(--bad)}
+    .who{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+    .avatar{width:44px;height:44px;border-radius:50%;background:linear-gradient(120deg,var(--accent),var(--accent-2));display:flex;align-items:center;justify-content:center;font-weight:800;color:#0b0c1a;font-size:1.2rem}
+    .avatar img{width:44px;height:44px;border-radius:50%}
+    .note{color:var(--muted);font-size:.82rem;line-height:1.5}
+    .hidden{display:none}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar"><a class="home" href="/">← Home</a><h1>☁️ Account</h1><span style="width:56px"></span></div>
+
+    <!-- signed-out -->
+    <div class="card" id="authCard">
+      <div class="tabs"><button id="tabLogin" class="active">Log in</button><button id="tabReg">Register</button></div>
+      <div class="field"><label for="u">Username</label><input id="u" autocomplete="username" placeholder="3–20 letters/numbers" /></div>
+      <div class="field"><label for="p">Password</label><input id="p" type="password" autocomplete="current-password" placeholder="at least 6 characters" /></div>
+      <button class="btn" id="submit">Log in</button>
+      <div class="msg" id="msg"></div>
+      <p class="note" style="margin-top:14px">Create a free account to save your games, high scores, and Music Maker pieces to the cloud so they follow you to any device.</p>
+    </div>
+
+    <!-- signed-in -->
+    <div class="card hidden" id="profileCard">
+      <div class="who"><div class="avatar" id="avatar">?</div><div><div style="font-weight:700" id="uname">—</div><div class="note" id="ukind"></div></div></div>
+      <h2>☁️ Cloud save</h2>
+      <p class="note" id="backupInfo">Back up everything stored on this device — every game's saves, high scores, sprites, and music — to your account.</p>
+      <div class="row" style="margin-top:10px">
+        <button class="btn" id="backup">⬆ Back up</button>
+        <button class="btn ghost" id="restore">⬇ Restore</button>
+      </div>
+      <div class="msg" id="msg2"></div>
+      <button class="btn ghost" id="logout" style="margin-top:16px">Log out</button>
+    </div>
+  </div>
+
+  <script src="/account.js"></script>
+  <script>
+  (function(){
+    const $=(id)=>document.getElementById(id);
+    let mode="login";
+    function setTab(m){mode=m;$("tabLogin").classList.toggle("active",m==="login");$("tabReg").classList.toggle("active",m==="register");
+      $("submit").textContent=m==="login"?"Log in":"Create account";$("p").autocomplete=m==="login"?"current-password":"new-password";$("msg").textContent="";}
+    $("tabLogin").addEventListener("click",()=>setTab("login"));
+    $("tabReg").addEventListener("click",()=>setTab("register"));
+
+    function msg(el,text,ok){el.textContent=text;el.className="msg "+(ok?"ok":"err");}
+    function fmtTime(ts){if(!ts)return "never";const d=new Date(ts);return d.toLocaleString();}
+
+    async function refresh(){
+      const me=await Account.me();
+      if(me.loggedIn){
+        $("authCard").classList.add("hidden");$("profileCard").classList.remove("hidden");
+        const u=me.user;$("uname").textContent=u.username;
+        $("ukind").textContent=u.kind==="google"?"Google account":"Local account";
+        const av=$("avatar");
+        if(u.picture){av.innerHTML='<img src="'+u.picture+'" referrerpolicy="no-referrer" alt="">';}
+        else av.textContent=(u.username||"?").slice(0,1).toUpperCase();
+        const last=await Account.lastBackup();
+        $("backupInfo").innerHTML="Back up everything on this device to your account. <b>Last backup:</b> "+fmtTime(last)+".";
+      }else{
+        $("authCard").classList.remove("hidden");$("profileCard").classList.add("hidden");
+      }
+    }
+
+    $("submit").addEventListener("click",async()=>{
+      const u=$("u").value.trim(),p=$("p").value;
+      if(!u||!p){msg($("msg"),"Enter a username and password.",false);return;}
+      $("submit").disabled=true;
+      const res=mode==="login"?await Account.login(u,p):await Account.register(u,p);
+      $("submit").disabled=false;
+      if(res.ok){msg($("msg"),"Welcome, "+u+"!",true);$("p").value="";refresh();}
+      else msg($("msg"),res.message||res.error||"Something went wrong.",false);
+    });
+    $("p").addEventListener("keydown",e=>{if(e.key==="Enter")$("submit").click();});
+
+    $("backup").addEventListener("click",async()=>{
+      $("backup").disabled=true;msg($("msg2"),"Backing up…",true);
+      const ok=await Account.backupAll();$("backup").disabled=false;
+      if(ok){msg($("msg2"),"✓ Backed up to the cloud.",true);refresh();}
+      else msg($("msg2"),"Backup failed (too large or offline?).",false);
+    });
+    $("restore").addEventListener("click",async()=>{
+      if(!confirm("Restore cloud data onto this device? This overwrites local saves with your backup."))return;
+      $("restore").disabled=true;msg($("msg2"),"Restoring…",true);
+      const r=await Account.restoreAll();$("restore").disabled=false;
+      if(r.restored>0)msg($("msg2"),"✓ Restored "+r.restored+" items (backup from "+fmtTime(r.savedAt)+").",true);
+      else msg($("msg2"),"No cloud backup found yet.",false);
+    });
+    $("logout").addEventListener("click",async()=>{await Account.logout();refresh();});
+
+    refresh();
+  })();
+  </script>
+</body>
+</html>
