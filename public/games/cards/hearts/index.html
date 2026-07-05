@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hearts — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>♥️</text></svg>" />
+  <style>
+    :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;--felt:#12351f;}
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+      background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.22),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.16),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;}
+    .wrap{max-width:560px;margin:0 auto;padding:14px 10px 40px;display:flex;flex-direction:column;align-items:center;gap:10px}
+    .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
+    .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+    .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+    h1{margin:0;font-size:1.5rem;background:linear-gradient(120deg,#f43f5e,var(--accent-2));-webkit-background-clip:text;background-clip:text;color:transparent}
+    .scoreboard{display:flex;gap:6px;width:100%;font-size:.78rem}
+    .sc{flex:1;background:var(--panel);border:1px solid rgba(255,255,255,.06);border-radius:10px;padding:6px;text-align:center}
+    .sc.turn{border-color:var(--accent-2)}
+    .sc b{display:block;font-size:1.1rem}
+    .table{width:100%;background:radial-gradient(circle at 50% 45%,#1a4a2b,var(--felt));border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:16px 12px;min-height:200px;position:relative;display:grid;
+      grid-template-areas:". n ." "w c e" ". s .";grid-template-columns:1fr 1fr 1fr;gap:6px;align-items:center;justify-items:center}
+    .slot-n{grid-area:n}.slot-s{grid-area:s}.slot-w{grid-area:w}.slot-e{grid-area:e}.slot-c{grid-area:c}
+    .trickcard .pcard{--cw:52px}
+    .banner{grid-area:c;font-weight:700;color:#fde68a;text-align:center;font-size:.9rem}
+    .hand{display:flex;flex-wrap:wrap;gap:5px;justify-content:center;width:100%}
+    .hand .pcard{--cw:52px;cursor:default;transition:transform .1s}
+    .hand .pcard.legal{cursor:pointer;box-shadow:0 0 0 2px #34d399,0 2px 6px rgba(0,0,0,.4)}
+    .hand .pcard.legal:hover{transform:translateY(-8px)}
+    .hand .pcard.picked{transform:translateY(-12px);box-shadow:0 0 0 2px #fbbf24}
+    .status{min-height:1.2em;font-weight:600;text-align:center;color:#fde68a}
+    .btns{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+    .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:10px 20px;border-radius:999px;cursor:pointer}
+    .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,.18);color:var(--muted)}
+    .btn:disabled{opacity:.4;cursor:default}
+    .hint{color:var(--muted);font-size:.8rem;text-align:center}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar"><a class="home" href="/games/cards/">← Cards</a><h1>♥️ Hearts</h1><span style="width:56px"></span></div>
+    <div class="scoreboard" id="scoreboard"></div>
+    <div class="table" id="table">
+      <div class="slot-n trickcard" id="tc2"></div>
+      <div class="slot-w trickcard" id="tc1"></div>
+      <div class="banner" id="banner"></div>
+      <div class="slot-e trickcard" id="tc3"></div>
+      <div class="slot-s trickcard" id="tc0"></div>
+    </div>
+    <div class="status" id="status"></div>
+    <div class="hand" id="hand"></div>
+    <div class="btns">
+      <button class="btn" id="pass" style="display:none">Pass 3 →</button>
+      <button class="btn ghost" id="new">New Game</button>
+    </div>
+    <p class="hint">Avoid hearts (1 pt each) and the Q♠ (13). Lowest score at 100 wins. Shoot the moon: take all for 0 &amp; +26 to everyone else.</p>
+  </div>
+
+  <script src="../cards.js"></script>
+  <script>
+  (function(){
+    const NAMES=["You","West","North","East"];
+    const pointsOf=(c)=>c.suit==="H"?1:(c.suit==="S"&&c.rank===12?13:0);
+    function trickWinner(trick){const led=trick[0].card.suit;let hi=trick[0];for(const t of trick)if(t.card.suit===led&&t.card.rank>hi.card.rank)hi=t;return hi.player;}
+    function has2C(hand){return hand.some(c=>c.suit==="C"&&c.rank===2);}
+    function legalPlays(hand,ctx){
+      // ctx: {leading, heartsBroken, firstTrick, ledSuit}
+      if(ctx.leading){
+        if(ctx.firstTrick)return hand.filter(c=>c.suit==="C"&&c.rank===2);
+        let opts=hand;
+        if(!ctx.heartsBroken){const nonH=hand.filter(c=>c.suit!=="H");if(nonH.length)opts=nonH;}
+        return opts;
+      }
+      const inSuit=hand.filter(c=>c.suit===ctx.ledSuit);
+      let opts=inSuit.length?inSuit:hand.slice();
+      if(ctx.firstTrick){const safe=opts.filter(c=>pointsOf(c)===0);if(safe.length)opts=safe;}
+      return opts;
+    }
+    function aiChoose(hand,trick,ctx){
+      const opts=legalPlays(hand,ctx);
+      if(ctx.leading)return opts.slice().sort((a,b)=>a.rank-b.rank)[0]; // lead low
+      const led=ctx.ledSuit;const inSuit=opts.filter(c=>c.suit===led);
+      if(inSuit.length){
+        const curHi=Math.max(...trick.filter(t=>t.card.suit===led).map(t=>t.card.rank));
+        const under=inSuit.filter(c=>c.rank<curHi);
+        if(under.length)return under.sort((a,b)=>b.rank-a.rank)[0]; // duck high
+        return inSuit.sort((a,b)=>a.rank-b.rank)[0];                 // forced to win -> low
+      }
+      // discard: dump QS, then high hearts, then highest card
+      const qs=opts.find(c=>c.suit==="S"&&c.rank===12);if(qs)return qs;
+      const hearts=opts.filter(c=>c.suit==="H");if(hearts.length)return hearts.sort((a,b)=>b.rank-a.rank)[0];
+      return opts.sort((a,b)=>b.rank-a.rank)[0];
+    }
+    function passDanger(c){let d=c.rank;if(c.suit==="S"&&c.rank>=12)d+=20;if(c.suit==="H")d+=6;return d;}
+    function aiPass(hand){return hand.slice().sort((a,b)=>passDanger(b)-passDanger(a)).slice(0,3);}
+
+    // expose for tests
+    window.__hearts={pointsOf,trickWinner,legalPlays,aiChoose,aiPass};
+
+    // ---- game state ----
+    let hands,scores,handPts,trick,current,heartsBroken,tricksDone,firstTrick,phase,passDir,picked,over;
+    const PASS_SEQ=[1,3,2,0]; // left, right, across, none (offset; 0 = no pass)
+    let passIndex=0;
+    const delay=(ms)=>new Promise(r=>setTimeout(r,ms));
+
+    function sortHand(h){const order={C:0,D:1,S:2,H:3};h.sort((a,b)=>order[a.suit]-order[b.suit]||a.rank-b.rank);}
+    function newGame(){scores=[0,0,0,0];passIndex=0;over=false;startHand();}
+    function startHand(){
+      const d=Cards.shuffle(Cards.makeDeck());
+      hands=[d.slice(0,13),d.slice(13,26),d.slice(26,39),d.slice(39,52)];hands.forEach(sortHand);
+      handPts=[0,0,0,0];trick=[];heartsBroken=false;tricksDone=0;firstTrick=true;picked=[];
+      passDir=PASS_SEQ[passIndex%4];
+      if(passDir===0){beginPlay();phase="play";}
+      else{phase="pass";document.getElementById("pass").style.display="";
+        document.getElementById("status").textContent="Pass 3 cards "+["","left","","across","right"][passDir]+" — tap 3, then Pass.";
+        // map offset to label
+        document.getElementById("status").textContent="Pass 3 cards "+passLabel(passDir)+" — tap 3, then Pass.";}
+      render();
+    }
+    function passLabel(off){return off===1?"left":off===3?"right":off===2?"across":"";}
+    function doPass(){
+      if(picked.length!==3)return;
+      const chosen=[picked.slice(),aiPass(hands[1]),aiPass(hands[2]),aiPass(hands[3])];
+      // remove from each hand
+      for(let p=0;p<4;p++)chosen[p].forEach(c=>{const i=hands[p].indexOf(c);if(i>=0)hands[p].splice(i,1);});
+      // give to (p+passDir)%4
+      for(let p=0;p<4;p++){const to=(p+passDir)%4;hands[to].push(...chosen[p]);}
+      hands.forEach(sortHand);picked=[];phase="play";document.getElementById("pass").style.display="none";
+      beginPlay();render();
+    }
+    function beginPlay(){current=hands.findIndex(has2C);firstTrick=true;trick=[];document.getElementById("status").textContent="";proceed();}
+    async function proceed(){
+      render();
+      if(trick.length===4){await delay(700);return resolveTrick();}
+      if(current===0){document.getElementById("status").textContent="Your turn.";render();return;} // wait for click
+      await delay(600);
+      const ctx={leading:trick.length===0,heartsBroken,firstTrick,ledSuit:trick.length?trick[0].card.suit:null};
+      const card=aiChoose(hands[current],trick,ctx);
+      playCard(current,card);
+    }
+    function humanPlay(card){
+      if(phase!=="play"||current!==0)return;
+      const ctx={leading:trick.length===0,heartsBroken,firstTrick,ledSuit:trick.length?trick[0].card.suit:null};
+      if(!legalPlays(hands[0],ctx).includes(card))return;
+      playCard(0,card);
+    }
+    function playCard(p,card){
+      const i=hands[p].indexOf(card);if(i<0)return;hands[p].splice(i,1);
+      trick.push({player:p,card});if(card.suit==="H")heartsBroken=true;
+      current=(current+1)%4;proceed();
+    }
+    async function resolveTrick(){
+      const w=trickWinner(trick);const pts=trick.reduce((a,t)=>a+pointsOf(t.card),0);
+      handPts[w]+=pts;tricksDone++;
+      document.getElementById("status").textContent=NAMES[w]+" takes the trick"+(pts?` (+${pts})`:"");
+      trick=[];firstTrick=false;current=w;render();
+      await delay(650);
+      if(tricksDone===13)return endHand();
+      proceed();
+    }
+    function endHand(){
+      // shoot the moon
+      const moon=handPts.findIndex(p=>p===26);
+      if(moon>=0){for(let p=0;p<4;p++)scores[p]+=(p===moon?0:26);document.getElementById("status").textContent=NAMES[moon]+" shot the moon! 🌙";}
+      else{for(let p=0;p<4;p++)scores[p]+=handPts[p];}
+      passIndex++;render();
+      if(Math.max(...scores)>=100){over=true;const win=scores.indexOf(Math.min(...scores));
+        document.getElementById("banner").textContent="";document.getElementById("status").textContent="🏁 Game over — "+NAMES[win]+" wins with "+scores[win]+"!";return;}
+      setTimeout(startHand,1400);
+    }
+    function render(){
+      // scoreboard
+      const sb=document.getElementById("scoreboard");sb.innerHTML="";
+      NAMES.forEach((n,i)=>{const d=document.createElement("div");d.className="sc"+(i===current&&phase==="play"?" turn":"");
+        d.innerHTML=n+"<b>"+scores[i]+"</b>"+(handPts?("+"+handPts[i]):"");sb.appendChild(d);});
+      // trick cards
+      for(let p=0;p<4;p++){const slot=document.getElementById("tc"+p);slot.innerHTML="";
+        const t=trick.find(x=>x.player===p);if(t)slot.appendChild(Cards.cardEl(t.card,true));}
+      document.getElementById("banner").textContent=phase==="pass"?"Passing "+passLabel(passDir):(trick.length?"":"");
+      // hand
+      const handEl=document.getElementById("hand");handEl.innerHTML="";
+      const ctx={leading:trick.length===0,heartsBroken,firstTrick,ledSuit:trick.length?trick[0].card.suit:null};
+      const legal=phase==="play"&&current===0?legalPlays(hands[0],ctx):[];
+      hands[0].forEach(c=>{const el=Cards.cardEl(c,true);
+        if(phase==="pass"){el.classList.add("legal");if(picked.includes(c))el.classList.add("picked");el.addEventListener("click",()=>togglePick(c));}
+        else if(legal.includes(c)){el.classList.add("legal");el.addEventListener("click",()=>humanPlay(c));}
+        handEl.appendChild(el);});
+      document.getElementById("pass").disabled=picked.length!==3;
+    }
+    function togglePick(c){const i=picked.indexOf(c);if(i>=0)picked.splice(i,1);else if(picked.length<3)picked.push(c);render();}
+    document.getElementById("pass").addEventListener("click",doPass);
+    document.getElementById("new").addEventListener("click",newGame);
+    newGame();
+  })();
+  </script>
+</body>
+</html>
