@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Candy Match — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🍬</text></svg>" />
+  <style>
+    :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;--grid:#2a2050;}
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+      background:radial-gradient(1000px 500px at 70% -10%,rgba(236,72,153,.24),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.16),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;}
+    .wrap{max-width:440px;margin:0 auto;padding:14px 12px 40px;display:flex;flex-direction:column;align-items:center;gap:12px}
+    .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
+    .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+    .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+    h1{margin:0;font-size:1.5rem;background:linear-gradient(120deg,#ec4899,#22d3ee);-webkit-background-clip:text;background-clip:text;color:transparent}
+    .scores{display:flex;gap:10px;width:100%}
+    .stat{flex:1;background:var(--panel);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:8px;text-align:center}
+    .stat .label{font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+    .stat .value{font-size:1.3rem;font-weight:700}
+    .board{display:grid;gap:3px;background:var(--grid);padding:5px;border-radius:12px;width:100%;aspect-ratio:1;touch-action:none}
+    .cell{background:rgba(255,255,255,.03);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:clamp(1.1rem,6vw,1.9rem);cursor:pointer;user-select:none;transition:transform .12s}
+    .cell.sel{background:rgba(52,211,153,.25);box-shadow:inset 0 0 0 2px #34d399}
+    .cell.pop{animation:pop .18s}
+    @keyframes pop{50%{transform:scale(1.3)}100%{transform:scale(0)}}
+    .status{min-height:1.2em;font-weight:600;color:#fde68a;text-align:center}
+    .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:10px 24px;border-radius:999px;cursor:pointer}
+    .overlay{position:relative;width:100%}
+    .hint{color:var(--muted);font-size:.8rem;text-align:center}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar"><a class="home" href="/">← Home</a><h1>🍬 Candy Match</h1><span style="width:56px"></span></div>
+    <div class="scores">
+      <div class="stat"><div class="label">Score</div><div class="value" id="score">0</div></div>
+      <div class="stat"><div class="label">Target</div><div class="value" id="target">1000</div></div>
+      <div class="stat"><div class="label">Moves</div><div class="value" id="moves">25</div></div>
+    </div>
+    <div class="board" id="board"></div>
+    <div class="status" id="status">Swap two neighbors to match 3+.</div>
+    <button class="btn" id="new">New Game</button>
+    <p class="hint">Click a candy, then a neighbor, to swap. Match 3+ in a row/column. Chains score more!</p>
+  </div>
+  <script>
+  (function(){
+    const SIZE=8, NCOL=6, GEMS=["🔴","🟡","🟢","🔵","🟣","🟠"];
+    const TARGET=1000, MOVES=25;
+    const boardEl=document.getElementById("board"),scoreEl=document.getElementById("score"),movesEl=document.getElementById("moves"),targetEl=document.getElementById("target"),statusEl=document.getElementById("status");
+    let board,sel,score,moves,busy,over,cells=[];
+    const rnd=(n)=>Math.floor(Math.random()*n);
+    const delay=(ms)=>new Promise(r=>setTimeout(r,ms));
+
+    function gen(){const b=[];for(let r=0;r<SIZE;r++){b[r]=[];for(let c=0;c<SIZE;c++){let col;
+      do{col=rnd(NCOL);}while((c>=2&&b[r][c-1]===col&&b[r][c-2]===col)||(r>=2&&b[r-1][c]===col&&b[r-2][c]===col));b[r][c]=col;}}return b;}
+    function findMatches(b){const m=new Set();
+      for(let r=0;r<SIZE;r++){let run=1;for(let c=1;c<=SIZE;c++){if(c<SIZE&&b[r][c]===b[r][c-1]&&b[r][c]>=0)run++;else{if(run>=3)for(let k=c-run;k<c;k++)m.add(r+","+k);run=1;}}}
+      for(let c=0;c<SIZE;c++){let run=1;for(let r=1;r<=SIZE;r++){if(r<SIZE&&b[r][c]===b[r-1][c]&&b[r][c]>=0)run++;else{if(run>=3)for(let k=r-run;k<r;k++)m.add(k+","+c);run=1;}}}
+      return m;}
+    function collapse(b){for(let c=0;c<SIZE;c++){const col=[];for(let r=SIZE-1;r>=0;r--)if(b[r][c]>=0)col.push(b[r][c]);
+      while(col.length<SIZE)col.push(rnd(NCOL));for(let r=SIZE-1,i=0;r>=0;r--,i++)b[r][c]=col[i];}}
+
+    function build(){boardEl.style.gridTemplateColumns=`repeat(${SIZE},1fr)`;boardEl.innerHTML="";cells=[];
+      for(let r=0;r<SIZE;r++){cells[r]=[];for(let c=0;c<SIZE;c++){const d=document.createElement("div");d.className="cell";
+        d.addEventListener("click",()=>click(r,c));boardEl.appendChild(d);cells[r][c]=d;}}}
+    function render(){for(let r=0;r<SIZE;r++)for(let c=0;c<SIZE;c++){const v=board[r][c];const el=cells[r][c];
+      el.textContent=v>=0?GEMS[v]:"";el.classList.toggle("sel",!!(sel&&sel[0]===r&&sel[1]===c));}}
+
+    function newGame(){board=gen();sel=null;score=0;moves=MOVES;over=false;busy=false;
+      scoreEl.textContent=0;movesEl.textContent=MOVES;targetEl.textContent=TARGET;statusEl.textContent="Swap two neighbors to match 3+.";render();}
+    function click(r,c){
+      if(busy||over)return;
+      if(!sel){sel=[r,c];render();return;}
+      const [sr,sc]=sel;
+      if(sr===r&&sc===c){sel=null;render();return;}
+      if(Math.abs(sr-r)+Math.abs(sc-c)!==1){sel=[r,c];render();return;}
+      trySwap(sr,sc,r,c);
+    }
+    async function trySwap(r1,c1,r2,c2){
+      busy=true;sel=null;
+      swap(r1,c1,r2,c2);render();await delay(140);
+      if(findMatches(board).size===0){swap(r1,c1,r2,c2);render();statusEl.textContent="No match there.";busy=false;return;}
+      moves--;movesEl.textContent=moves;
+      await resolve();
+      busy=false;
+      if(score>=TARGET){over=true;statusEl.textContent="🎉 Target reached! You win! Score "+score;}
+      else if(moves<=0){over=true;statusEl.textContent="Out of moves. Final score "+score+".";}
+    }
+    function swap(r1,c1,r2,c2){const t=board[r1][c1];board[r1][c1]=board[r2][c2];board[r2][c2]=t;}
+    async function resolve(){
+      let combo=1;
+      while(true){
+        const m=findMatches(board);if(m.size===0)break;
+        m.forEach(k=>{const[r,c]=k.split(",").map(Number);cells[r][c].classList.add("pop");});
+        await delay(180);
+        m.forEach(k=>{const[r,c]=k.split(",").map(Number);board[r][c]=-1;cells[r][c].classList.remove("pop");});
+        score+=m.size*10*combo;scoreEl.textContent=score;
+        render();await delay(120);
+        collapse(board);render();await delay(140);
+        combo++;
+      }
+    }
+    document.getElementById("new").addEventListener("click",newGame);
+    // expose for tests
+    window.__cc={gen,findMatches,collapse,SIZE,NCOL};
+    build();newGame();
+  })();
+  </script>
+</body>
+</html>
