@@ -83,10 +83,8 @@
       if(me.loggedIn){
         $("authCard").classList.add("hidden");$("profileCard").classList.remove("hidden");
         const u=me.user;$("uname").textContent=u.username;
-        $("ukind").textContent=u.kind==="google"?"Google account":"Local account";
-        const av=$("avatar");
-        if(u.picture){av.innerHTML='<img src="'+u.picture+'" referrerpolicy="no-referrer" alt="">';}
-        else av.textContent=(u.username||"?").slice(0,1).toUpperCase();
+        $("ukind").textContent="Signed in";
+        $("avatar").textContent=(u.username||"?").slice(0,1).toUpperCase();
         const last=await Account.lastBackup();
         $("backupInfo").innerHTML="Back up everything on this device to your account. <b>Last backup:</b> "+fmtTime(last)+".";
       }else{

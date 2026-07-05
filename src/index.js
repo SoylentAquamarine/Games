@@ -1,13 +1,13 @@
-// Games Worker — static assets + Google Sign-In session backend.
+// Games Worker — static assets + username/password accounts & cloud saves.
 //
 // Routes:
-//   POST /api/auth/google   { credential }  -> verify Google ID token, set session cookie
-//   GET  /api/me                            -> current user from session cookie
-//   POST /api/logout                        -> clear session cookie
+//   POST /api/account/register { username, password } -> create account + session
+//   POST /api/account/login    { username, password } -> log in + session
+//   GET  /api/me                                       -> current user from session
+//   POST /api/logout                                   -> clear session
+//   GET/PUT /api/saves?ns=<name>                        -> per-user cloud save blob
 // Everything else -> static assets (public/).
 
-const GOOGLE_JWKS_URL = "https://www.googleapis.com/oauth2/v3/certs";
-const GOOGLE_ISS = ["https://accounts.google.com", "accounts.google.com"];
 const SESSION_COOKIE = "games_session";
 const SESSION_TTL = 60 * 60 * 24 * 7; // 7 days
 
@@ -15,9 +15,6 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
-    if (url.pathname === "/api/auth/google" && request.method === "POST") {
-      return handleGoogleLogin(request, env);
-    }
     if (url.pathname === "/api/account/register" && request.method === "POST") {
       return handleRegister(request, env);
     }
@@ -46,47 +43,6 @@ export default {
 // Route handlers
 // ---------------------------------------------------------------------------
 
-async function handleGoogleLogin(request, env) {
-  let body;
-  try {
-    body = await request.json();
-  } catch {
-    return json({ error: "invalid_body" }, 400);
-  }
-
-  const credential = body && body.credential;
-  if (!credential) return json({ error: "missing_credential" }, 400);
-
-  let claims;
-  try {
-    claims = await verifyGoogleToken(credential, env.GOOGLE_CLIENT_ID);
-  } catch (err) {
-    return json({ error: "invalid_token", detail: String(err) }, 401);
-  }
-
-  const user = {
-    sub: claims.sub,
-    email: claims.email,
-    name: claims.name || claims.email,
-    picture: claims.picture || "",
-  };
-
-  const secret = env.SESSION_SECRET;
-  const exp = Math.floor(Date.now() / 1000) + SESSION_TTL;
-  const token = await signSession({ ...user, exp }, secret);
-
-  const secure = new URL(request.url).protocol === "https:";
-  return json({ loggedIn: true, user }, 200, {
-    "Set-Cookie": cookie(SESSION_COOKIE, token, {
-      httpOnly: true,
-      secure,
-      sameSite: "Lax",
-      path: "/",
-      maxAge: SESSION_TTL,
-    }),
-  });
-}
-
 async function handleMe(request, env) {
   const payload = await getSession(request, env);
   if (!payload) return json({ loggedIn: false });
@@ -109,14 +65,11 @@ async function getSession(request, env) {
   return payload;
 }
 
-// normalize a session payload into a public user view (local or google)
-function userView(p) {
-  if (p.u) return { username: p.u, kind: "local" };
-  return { username: p.name || p.email, email: p.email, picture: p.picture, kind: "google" };
-}
+// public user view from a session payload
+function userView(p) { return { username: p.u, kind: "local" }; }
 
-// stable per-account key prefix for saves (local accounts vs google accounts)
-function accountId(p) { return p.u ? "u:" + p.u.toLowerCase() : "g:" + p.sub; }
+// stable per-account key prefix for saves
+function accountId(p) { return "u:" + p.u.toLowerCase(); }
 
 async function sessionResponse(request, env, sessionData, bodyObj) {
   const exp = Math.floor(Date.now() / 1000) + SESSION_TTL;
@@ -196,48 +149,6 @@ function handleLogout(request) {
       maxAge: 0,
     }),
   });
-}
-
-// ---------------------------------------------------------------------------
-// Google ID token verification (RS256 via WebCrypto + Google JWKS)
-// ---------------------------------------------------------------------------
-
-async function verifyGoogleToken(jwt, clientId) {
-  const [headerB64, payloadB64, sigB64] = jwt.split(".");
-  if (!headerB64 || !payloadB64 || !sigB64) throw new Error("malformed jwt");
-
-  const header = JSON.parse(b64urlToText(headerB64));
-  const payload = JSON.parse(b64urlToText(payloadB64));
-
-  if (header.alg !== "RS256") throw new Error("unexpected alg");
-
-  const jwk = await getGoogleKey(header.kid);
-  if (!jwk) throw new Error("signing key not found");
-
-  const key = await crypto.subtle.importKey(
-    "jwk",
-    jwk,
-    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
-    false,
-    ["verify"],
-  );
-
-  const data = new TextEncoder().encode(`${headerB64}.${payloadB64}`);
-  const sig = b64urlToBytes(sigB64);
-  const ok = await crypto.subtle.verify("RSASSA-PKCS1-v1_5", key, sig, data);
-  if (!ok) throw new Error("bad signature");
-
-  if (payload.aud !== clientId) throw new Error("aud mismatch");
-  if (!GOOGLE_ISS.includes(payload.iss)) throw new Error("iss mismatch");
-  if (payload.exp < Math.floor(Date.now() / 1000)) throw new Error("expired");
-
-  return payload;
-}
-
-async function getGoogleKey(kid) {
-  const res = await fetch(GOOGLE_JWKS_URL);
-  const { keys } = await res.json();
-  return keys.find((k) => k.kid === kid);
 }
 
 // ---------------------------------------------------------------------------
