@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Stack — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🧱</text></svg>" />
+  <style>
+    :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;}
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+      background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.22),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.16),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;}
+    .wrap{max-width:400px;margin:0 auto;padding:16px 16px 30px;display:flex;flex-direction:column;align-items:center;gap:12px}
+    .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
+    .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+    .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+    h1{margin:0;font-size:1.6rem;background:linear-gradient(120deg,#f472b6,#22d3ee);-webkit-background-clip:text;background-clip:text;color:transparent}
+    .scores{display:flex;gap:12px;width:100%}
+    .stat{flex:1;background:var(--panel);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:8px;text-align:center}
+    .stat .label{font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+    .stat .value{font-size:1.4rem;font-weight:700}
+    .board-wrap{position:relative;width:100%}
+    canvas{width:100%;height:auto;display:block;background:#0a0e1c;border:1px solid rgba(255,255,255,.08);border-radius:14px;touch-action:none;cursor:pointer}
+    .overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:rgba(15,16,32,.78);border-radius:14px;text-align:center}
+    .overlay.hidden{display:none}
+    .overlay h2{margin:0}.overlay p{margin:0;color:var(--muted)}
+    .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:12px 28px;border-radius:999px;cursor:pointer}
+    .hint{color:var(--muted);font-size:.82rem;text-align:center}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar"><a class="home" href="/">← Home</a><h1>🧱 Stack</h1><span style="width:56px"></span></div>
+    <div class="scores">
+      <div class="stat"><div class="label">Height</div><div class="value" id="score">0</div></div>
+      <div class="stat"><div class="label">Best</div><div class="value" id="best">0</div></div>
+    </div>
+    <div class="board-wrap">
+      <canvas id="c" width="340" height="480"></canvas>
+      <div class="overlay" id="ov"><h2 id="ot">🧱 Stack</h2><p id="om">Tap to drop each block. Line them up!</p><button class="btn" id="start">Play</button></div>
+    </div>
+    <p class="hint">Tap / click / Space to drop the moving block. Overhang gets sliced off — perfect stacks stay wide.</p>
+  </div>
+  <script>
+  (function(){
+    const cv=document.getElementById("c"),ctx=cv.getContext("2d"),W=cv.width,H=cv.height;
+    const scoreEl=document.getElementById("score"),bestEl=document.getElementById("best");
+    const ov=document.getElementById("ov"),ot=document.getElementById("ot"),om=document.getElementById("om"),startBtn=document.getElementById("start");
+    const BH=26;                    // block height
+    let stack,cur,speed,running,raf,score,camY,best=+localStorage.getItem("stack_best")||0;
+    bestEl.textContent=best;
+    function reset(){
+      const w=W*0.6,x=(W-w)/2;
+      stack=[{x,w,y:H-BH}];
+      score=0;camY=0;speed=2.2;scoreEl.textContent=0;spawn();
+    }
+    function spawn(){const prev=stack[stack.length-1];const y=prev.y-BH;
+      cur={x:0,w:prev.w,y,dir:1};}
+    function start(){reset();ov.classList.add("hidden");running=true;loop();}
+    function loop(){if(!running)return;update();render();raf=requestAnimationFrame(loop);}
+    function update(){
+      cur.x+=speed*cur.dir;
+      if(cur.x+cur.w>W){cur.x=W-cur.w;cur.dir=-1;}
+      if(cur.x<0){cur.x=0;cur.dir=1;}
+    }
+    function drop(){
+      if(!running)return;
+      const prev=stack[stack.length-1];
+      const left=Math.max(cur.x,prev.x),right=Math.min(cur.x+cur.w,prev.x+prev.w);
+      const overlap=right-left;
+      if(overlap<=0)return dead();
+      cur.x=left;cur.w=overlap;
+      stack.push({x:cur.x,w:cur.w,y:cur.y});
+      score++;scoreEl.textContent=score;
+      if(speed<7)speed+=0.12;
+      // scroll camera up as tower grows
+      if(cur.y-camY<H*0.35)camY=cur.y-H*0.35;
+      spawn();
+    }
+    function dead(){running=false;cancelAnimationFrame(raf);if(score>best){best=score;localStorage.setItem("stack_best",best);bestEl.textContent=best;}
+      ot.textContent="Toppled!";om.textContent="Height "+score+(score>=best?" · new best!":"");startBtn.textContent="Play again";ov.classList.remove("hidden");}
+    function render(){
+      ctx.clearRect(0,0,W,H);
+      const draw=(b,hue)=>{ctx.fillStyle=`hsl(${hue} 65% 55%)`;ctx.fillRect(b.x,b.y-camY,b.w,BH-2);
+        ctx.fillStyle="rgba(255,255,255,.12)";ctx.fillRect(b.x,b.y-camY,b.w,4);};
+      stack.forEach((b,i)=>draw(b,(i*24)%360));
+      if(running)draw(cur,(stack.length*24)%360);
+    }
+    function press(e){if(e)e.preventDefault();if(running)drop();}
+    cv.addEventListener("mousedown",press);cv.addEventListener("touchstart",press,{passive:false});
+    document.addEventListener("keydown",e=>{if(e.key===" "){e.preventDefault();press();}});
+    startBtn.addEventListener("click",start);
+    reset();render();
+  })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Doodle Jump — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🦘</text></svg>" />
+  <style>
+    :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;}
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+      background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.22),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.16),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;}
+    .wrap{max-width:400px;margin:0 auto;padding:16px 16px 30px;display:flex;flex-direction:column;align-items:center;gap:12px}
+    .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
+    .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+    .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+    h1{margin:0;font-size:1.5rem;background:linear-gradient(120deg,#4ade80,#22d3ee);-webkit-background-clip:text;background-clip:text;color:transparent}
+    .scores{display:flex;gap:12px;width:100%}
+    .stat{flex:1;background:var(--panel);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:8px;text-align:center}
+    .stat .label{font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+    .stat .value{font-size:1.4rem;font-weight:700}
+    .board-wrap{position:relative;width:100%}
+    canvas{width:100%;height:auto;display:block;background:#0a1020;border:1px solid rgba(255,255,255,.08);border-radius:14px;touch-action:none}
+    .overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:rgba(15,16,32,.8);border-radius:14px;text-align:center}
+    .overlay.hidden{display:none}
+    .overlay h2{margin:0}.overlay p{margin:0;color:var(--muted)}
+    .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:12px 28px;border-radius:999px;cursor:pointer}
+    .hint{color:var(--muted);font-size:.82rem;text-align:center}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar"><a class="home" href="/">← Home</a><h1>🦘 Doodle Jump</h1><span style="width:56px"></span></div>
+    <div class="scores">
+      <div class="stat"><div class="label">Height</div><div class="value" id="score">0</div></div>
+      <div class="stat"><div class="label">Best</div><div class="value" id="best">0</div></div>
+    </div>
+    <div class="board-wrap">
+      <canvas id="c" width="340" height="500"></canvas>
+      <div class="overlay" id="ov"><h2 id="ot">🦘 Doodle Jump</h2><p id="om">Bounce up forever. Don't fall!</p><button class="btn" id="start">Play</button></div>
+    </div>
+    <p class="hint">Move: ← → / A D / tilt-tap left-right half of screen. You bounce automatically.</p>
+  </div>
+  <script>
+  (function(){
+    const cv=document.getElementById("c"),ctx=cv.getContext("2d"),W=cv.width,H=cv.height;
+    const scoreEl=document.getElementById("score"),bestEl=document.getElementById("best");
+    const ov=document.getElementById("ov"),ot=document.getElementById("ot"),om=document.getElementById("om"),startBtn=document.getElementById("start");
+    const GRAV=0.32,JUMP=-11,PW=58,PH=12,MOVE=4.4;
+    let player,plats,score,maxY,running,raf,best=+localStorage.getItem("doodle_best")||0;
+    let left=false,right=false;
+    bestEl.textContent=best;
+    function mkPlat(x,y,move){return {x,y,move:move||0,dir:1};}
+    function reset(){
+      player={x:W/2-15,y:H-80,vy:0,w:30,h:30};
+      plats=[];plats.push(mkPlat(W/2-PW/2,H-40));
+      for(let i=1;i<9;i++)plats.push(mkPlat(Math.random()*(W-PW),H-40-i*58,Math.random()<0.2?1:0));
+      score=0;maxY=player.y;scoreEl.textContent=0;
+    }
+    function start(){reset();ov.classList.add("hidden");running=true;player.vy=JUMP;loop();}
+    function loop(){if(!running)return;update();render();raf=requestAnimationFrame(loop);}
+    function update(){
+      if(left)player.x-=MOVE;if(right)player.x+=MOVE;
+      if(player.x<-player.w)player.x=W;if(player.x>W)player.x=-player.w;
+      player.vy+=GRAV;player.y+=player.vy;
+      // scroll when high
+      if(player.y<H*0.4){const dy=H*0.4-player.y;player.y=H*0.4;plats.forEach(p=>p.y+=dy);score+=Math.round(dy);scoreEl.textContent=score;}
+      // moving platforms
+      plats.forEach(p=>{if(p.move){p.x+=p.dir*1.4;if(p.x<0||p.x>W-PW)p.dir*=-1;}});
+      // land
+      if(player.vy>0)for(const p of plats){if(player.x+player.w>p.x&&player.x<p.x+PW&&player.y+player.h>p.y&&player.y+player.h<p.y+PH+player.vy){player.vy=JUMP;break;}}
+      // recycle platforms that fell below
+      plats=plats.filter(p=>p.y<H+20);
+      while(plats.length<9){const top=Math.min(...plats.map(p=>p.y));plats.push(mkPlat(Math.random()*(W-PW),top-58,Math.random()<0.25?1:0));}
+      if(player.y>H)return dead();
+    }
+    function dead(){running=false;cancelAnimationFrame(raf);if(score>best){best=score;localStorage.setItem("doodle_best",best);bestEl.textContent=best;}
+      ot.textContent="You fell!";om.textContent="Height "+score+(score>=best?" · new best!":"");startBtn.textContent="Play again";ov.classList.remove("hidden");}
+    function render(){
+      ctx.clearRect(0,0,W,H);
+      ctx.fillStyle="#22c55e";plats.forEach(p=>{ctx.fillStyle=p.move?"#3b82f6":"#22c55e";
+        ctx.beginPath();ctx.roundRect(p.x,p.y,PW,PH,6);ctx.fill();});
+      ctx.font="28px serif";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText("🦘",player.x+player.w/2,player.y+player.h/2);
+    }
+    document.addEventListener("keydown",e=>{if(e.key==="ArrowLeft"||e.key==="a")left=true;if(e.key==="ArrowRight"||e.key==="d")right=true;});
+    document.addEventListener("keyup",e=>{if(e.key==="ArrowLeft"||e.key==="a")left=false;if(e.key==="ArrowRight"||e.key==="d")right=false;});
+    function touch(e){const rect=cv.getBoundingClientRect();const x=e.touches[0].clientX-rect.left;left=x<rect.width/2;right=x>=rect.width/2;}
+    cv.addEventListener("touchstart",e=>{e.preventDefault();touch(e);},{passive:false});
+    cv.addEventListener("touchmove",e=>{e.preventDefault();touch(e);},{passive:false});
+    cv.addEventListener("touchend",()=>{left=right=false;});
+    startBtn.addEventListener("click",start);
+    reset();render();
+  })();
+  </script>
+</body>
+</html>

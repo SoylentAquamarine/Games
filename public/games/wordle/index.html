@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Word Guess — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🟩</text></svg>" />
+  <style>
+    :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;--absent:#3a3f5c;--present:#c9a227;--correct:#22a352;--key:#3a4066;}
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+      background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.22),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.16),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;}
+    .wrap{max-width:400px;margin:0 auto;padding:14px 10px 30px;display:flex;flex-direction:column;align-items:center;gap:12px}
+    .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
+    .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+    .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+    h1{margin:0;font-size:1.5rem;background:linear-gradient(120deg,#22a352,#22d3ee);-webkit-background-clip:text;background-clip:text;color:transparent}
+    .grid{display:grid;grid-template-rows:repeat(6,1fr);gap:6px}
+    .row{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+    .tile{width:52px;height:52px;border:2px solid var(--absent);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:1.7rem;font-weight:800;text-transform:uppercase}
+    .tile.filled{border-color:#5a6088}
+    .tile.absent{background:var(--absent);border-color:var(--absent)}
+    .tile.present{background:var(--present);border-color:var(--present);color:#0b0c1a}
+    .tile.correct{background:var(--correct);border-color:var(--correct)}
+    .status{min-height:1.2em;font-weight:600;color:#fde68a;text-align:center}
+    .kb{display:flex;flex-direction:column;gap:6px;width:100%;max-width:400px}
+    .kb .krow{display:flex;gap:5px;justify-content:center}
+    .key{flex:1;max-width:38px;height:50px;border:none;border-radius:6px;background:var(--key);color:var(--text);font-weight:700;cursor:pointer;font-size:.9rem;text-transform:uppercase}
+    .key.wide{max-width:60px;font-size:.7rem}
+    .key.absent{background:var(--absent);color:#8a8fae}
+    .key.present{background:var(--present);color:#0b0c1a}
+    .key.correct{background:var(--correct)}
+    .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:9px 20px;border-radius:999px;cursor:pointer;font-size:.85rem}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar"><a class="home" href="/">← Home</a><h1>🟩 Word Guess</h1><span style="width:56px"></span></div>
+    <div class="grid" id="grid"></div>
+    <div class="status" id="status">Guess the 5-letter word.</div>
+    <div class="kb" id="kb"></div>
+    <button class="btn" id="new">New Word</button>
+  </div>
+  <script>
+  (function(){
+    const WORDS=("apple beach brave bread brick bring brown build cabin candy chair charm cheer chess chief child clean clear cloud coast crane crown dance dream drink earth eight elbow enjoy fable fairy faith fancy feast fence fiber field fight flame flash flint float flood flour focus force frost fruit ghost giant glass globe glory grace grain grand grape grass great green greet guard guess guest happy heart heavy honey horse house human ivory jelly jolly juice knife knock known label lemon light lucky lunar magic maple march match metal mirth money month mount mouse music never noble ocean olive onion orbit order otter paint panel paper party peace pearl phone piano pilot pixel place plane plant plaza pride prime prize proud pulse quick quiet quilt raven reach ready realm rider risky river roast robot round royal rugby salad sauce scale scarf scene scout shade shark sharp sheep shine shirt shore short silly siren skate slate sleep slide small smart smile smoke snack snake solar sound south space spade spark spice spine spoon sport spray staff stage stair stamp stand stark steam steel stone storm story stove sugar sunny sweet swing sword table taste teach thank theme there thick thing thorn three throw tiger toast tooth topic torch total tower track trade trail train treat trend trial tribe trick truck truly trust twice twist ultra uncle under unity upper urban usual value vapor vault video vigor vivid vocal voice waltz waste watch water wheat wheel where which while white whole windy witty world worth wound wrist write yield young youth zebra").split(" ");
+    const SET=new Set(WORDS);
+    const gridEl=document.getElementById("grid"),statusEl=document.getElementById("status"),kbEl=document.getElementById("kb");
+    let answer,row,col,over,tiles=[],keyState={};
+    const KROWS=["qwertyuiop","asdfghjkl","zxcvbnm"];
+
+    function build(){gridEl.innerHTML="";tiles=[];for(let r=0;r<6;r++){const rw=document.createElement("div");rw.className="row";tiles[r]=[];
+      for(let c=0;c<5;c++){const t=document.createElement("div");t.className="tile";rw.appendChild(t);tiles[r][c]=t;}gridEl.appendChild(rw);}
+      kbEl.innerHTML="";KROWS.forEach((kr,i)=>{const rw=document.createElement("div");rw.className="krow";
+        if(i===2)rw.appendChild(mkKey("↵","Enter",true));
+        for(const ch of kr)rw.appendChild(mkKey(ch,ch));
+        if(i===2)rw.appendChild(mkKey("⌫","Backspace",true));
+        kbEl.appendChild(rw);});}
+    function mkKey(label,val,wide){const b=document.createElement("button");b.className="key"+(wide?" wide":"");b.textContent=label;b.dataset.k=val;
+      b.addEventListener("click",()=>handle(val));return b;}
+    function newGame(){answer=WORDS[Math.floor(Math.random()*WORDS.length)];row=0;col=0;over=false;keyState={};
+      statusEl.textContent="Guess the 5-letter word.";build();}
+    function handle(k){
+      if(over)return;
+      if(k==="Enter")return submit();
+      if(k==="Backspace"){if(col>0){col--;tiles[row][col].textContent="";tiles[row][col].classList.remove("filled");}return;}
+      if(/^[a-z]$/.test(k)&&col<5){tiles[row][col].textContent=k;tiles[row][col].classList.add("filled");col++;}
+    }
+    function submit(){
+      if(col<5){flash("Not enough letters");return;}
+      const guess=tiles[row].map(t=>t.textContent.toLowerCase()).join("");
+      if(!SET.has(guess)){flash("Not in word list");return;}
+      const res=color(guess,answer);
+      for(let i=0;i<5;i++){tiles[row][i].classList.add(res[i]);setKey(guess[i],res[i]);}
+      if(guess===answer){over=true;statusEl.textContent=["Genius!","Magnificent!","Impressive!","Splendid!","Great!","Phew!"][row]+" 🎉";return;}
+      row++;col=0;
+      if(row>=6){over=true;statusEl.textContent="The word was "+answer.toUpperCase()+".";}
+    }
+    function color(guess,answer){const res=Array(5).fill("absent");const counts={};
+      for(const ch of answer)counts[ch]=(counts[ch]||0)+1;
+      for(let i=0;i<5;i++)if(guess[i]===answer[i]){res[i]="correct";counts[guess[i]]--;}
+      for(let i=0;i<5;i++)if(res[i]!=="correct"&&counts[guess[i]]>0){res[i]="present";counts[guess[i]]--;}
+      return res;}
+    function setKey(ch,state){const rank={absent:0,present:1,correct:2};if((rank[state]||0)<(rank[keyState[ch]]||0))return;keyState[ch]=state;
+      const b=kbEl.querySelector('[data-k="'+ch+'"]');if(b){b.classList.remove("absent","present","correct");b.classList.add(state);}}
+    let ft;function flash(m){statusEl.textContent=m;clearTimeout(ft);ft=setTimeout(()=>{if(!over)statusEl.textContent="Guess the 5-letter word.";},1400);}
+    document.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key==="Backspace"||/^[a-zA-Z]$/.test(e.key))handle(e.key.length===1?e.key.toLowerCase():e.key);});
+    document.getElementById("new").addEventListener("click",newGame);
+    window.__wordle={WORDS,color};
+    newGame();
+  })();
+  </script>
+</body>
+</html>
