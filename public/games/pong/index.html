@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Pong — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🏓</text></svg>" />
+  <style>
+    :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;}
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+      background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.22),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.16),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;}
+    .wrap{max-width:480px;margin:0 auto;padding:16px 16px 30px;display:flex;flex-direction:column;align-items:center;gap:12px}
+    .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
+    .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+    .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+    h1{margin:0;font-size:1.6rem;background:linear-gradient(120deg,#22d3ee,#7c5cff);-webkit-background-clip:text;background-clip:text;color:transparent}
+    .board-wrap{position:relative;width:100%}
+    canvas{width:100%;height:auto;display:block;background:#070a16;border:1px solid rgba(255,255,255,.08);border-radius:14px;touch-action:none;cursor:pointer}
+    .overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:rgba(15,16,32,.82);border-radius:14px;text-align:center}
+    .overlay.hidden{display:none}
+    .overlay h2{margin:0}.overlay p{margin:0;color:var(--muted)}
+    .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:12px 28px;border-radius:999px;cursor:pointer}
+    .hint{color:var(--muted);font-size:.82rem;text-align:center}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar"><a class="home" href="/">← Home</a><h1>🏓 Pong</h1><span style="width:56px"></span></div>
+    <div class="board-wrap">
+      <canvas id="c" width="440" height="320"></canvas>
+      <div class="overlay" id="ov"><h2 id="ot">🏓 Pong</h2><p id="om">First to 7 wins. Move your paddle to hit.</p><button class="btn" id="start">Play</button></div>
+    </div>
+    <p class="hint">Move your paddle (left) with mouse, touch, or ↑ ↓ keys.</p>
+  </div>
+  <script>
+  (function(){
+    const cv=document.getElementById("c"),ctx=cv.getContext("2d"),W=cv.width,H=cv.height;
+    const ov=document.getElementById("ov"),ot=document.getElementById("ot"),om=document.getElementById("om"),startBtn=document.getElementById("start");
+    const PW=10,PH=64,WIN=7;
+    let you,cpu,ball,sYou,sCpu,running,raf,upKey=false,downKey=false;
+    function reset(serveDir){you=H/2-PH/2;cpu=H/2-PH/2;ball={x:W/2,y:H/2,vx:4*(serveDir||(Math.random()<.5?1:-1)),vy:(Math.random()*4-2),r:7};}
+    function newGame(){sYou=0;sCpu=0;reset();ov.classList.add("hidden");running=true;loop();}
+    function loop(){if(!running)return;update();render();raf=requestAnimationFrame(loop);}
+    function update(){
+      if(upKey)you-=6;if(downKey)you+=6;you=Math.max(0,Math.min(H-PH,you));
+      // cpu AI tracks ball with a speed cap + slight lag
+      const target=ball.y-PH/2;const cs=4.6;if(cpu+PH/2<ball.y-8)cpu+=cs;else if(cpu+PH/2>ball.y+8)cpu-=cs;cpu=Math.max(0,Math.min(H-PH,cpu));
+      ball.x+=ball.vx;ball.y+=ball.vy;
+      if(ball.y<ball.r){ball.y=ball.r;ball.vy*=-1;}if(ball.y>H-ball.r){ball.y=H-ball.r;ball.vy*=-1;}
+      // paddle collisions
+      if(ball.x-ball.r<20+PW&&ball.x>20&&ball.y>you&&ball.y<you+PH&&ball.vx<0){ball.vx*=-1.06;ball.vy+=((ball.y-(you+PH/2))/(PH/2))*3;ball.x=20+PW+ball.r;}
+      if(ball.x+ball.r>W-20-PW&&ball.x<W-20&&ball.y>cpu&&ball.y<cpu+PH&&ball.vx>0){ball.vx*=-1.06;ball.vy+=((ball.y-(cpu+PH/2))/(PH/2))*3;ball.x=W-20-PW-ball.r;}
+      if(ball.x<0){sCpu++;point(1);}else if(ball.x>W){sYou++;point(-1);}
+    }
+    function point(dir){if(sYou>=WIN||sCpu>=WIN){running=false;cancelAnimationFrame(raf);
+      ot.textContent=sYou>=WIN?"🏆 You win!":"CPU wins.";om.textContent=sYou+" – "+sCpu;startBtn.textContent="Play again";ov.classList.remove("hidden");return;}
+      reset(dir);}
+    function render(){
+      ctx.clearRect(0,0,W,H);
+      ctx.strokeStyle="rgba(255,255,255,.15)";ctx.setLineDash([6,10]);ctx.beginPath();ctx.moveTo(W/2,0);ctx.lineTo(W/2,H);ctx.stroke();ctx.setLineDash([]);
+      ctx.fillStyle="#22d3ee";ctx.fillRect(20,you,PW,PH);
+      ctx.fillStyle="#f43f5e";ctx.fillRect(W-20-PW,cpu,PW,PH);
+      ctx.fillStyle="#fff";ctx.beginPath();ctx.arc(ball.x,ball.y,ball.r,0,7);ctx.fill();
+      ctx.font="bold 30px system-ui";ctx.textAlign="center";ctx.fillText(sYou,W/2-40,42);ctx.fillText(sCpu,W/2+40,42);
+    }
+    function moveTo(clientY){const rect=cv.getBoundingClientRect();you=(clientY-rect.top)/rect.height*H-PH/2;you=Math.max(0,Math.min(H-PH,you));}
+    cv.addEventListener("mousemove",e=>{if(running)moveTo(e.clientY);});
+    cv.addEventListener("touchmove",e=>{if(running){moveTo(e.touches[0].clientY);e.preventDefault();}},{passive:false});
+    document.addEventListener("keydown",e=>{if(e.key==="ArrowUp")upKey=true;if(e.key==="ArrowDown")downKey=true;});
+    document.addEventListener("keyup",e=>{if(e.key==="ArrowUp")upKey=false;if(e.key==="ArrowDown")downKey=false;});
+    startBtn.addEventListener("click",newGame);
+    reset();render();
+  })();
+  </script>
+</body>
+</html>
