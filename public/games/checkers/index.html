@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Checkers — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🔴</text></svg>" />
+  <style>
+    :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;--dark:#5b3a1e;--light:#c9a06a;}
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+      background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.22),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.16),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;}
+    .wrap{max-width:430px;margin:0 auto;padding:14px 12px 40px;display:flex;flex-direction:column;align-items:center;gap:12px}
+    .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
+    .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+    .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+    h1{margin:0;font-size:1.5rem;background:linear-gradient(120deg,#f43f5e,#22d3ee);-webkit-background-clip:text;background-clip:text;color:transparent}
+    .board{display:grid;grid-template-columns:repeat(8,1fr);width:100%;aspect-ratio:1;border:2px solid #3a2512;border-radius:8px;overflow:hidden}
+    .sq{display:flex;align-items:center;justify-content:center;position:relative}
+    .sq.d{background:var(--dark)}.sq.l{background:var(--light)}
+    .sq.playable{cursor:pointer}
+    .sq.sel{box-shadow:inset 0 0 0 3px #34d399}
+    .sq.move::after{content:"";position:absolute;width:26%;height:26%;border-radius:50%;background:rgba(52,211,153,.6)}
+    .pc{width:74%;height:74%;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1rem;box-shadow:0 2px 3px rgba(0,0,0,.5)}
+    .pc.r{background:radial-gradient(circle at 35% 30%,#ff7089,#c81e3a)}
+    .pc.b{background:radial-gradient(circle at 35% 30%,#5a5a66,#15151f)}
+    .pc.king::after{content:"♛";color:#fde68a}
+    .status{min-height:1.2em;font-weight:600;color:#fde68a;text-align:center}
+    .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:10px 22px;border-radius:999px;cursor:pointer}
+    .hint{color:var(--muted);font-size:.82rem;text-align:center}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar"><a class="home" href="/">← Home</a><h1>🔴 Checkers</h1><span style="width:56px"></span></div>
+    <div class="board" id="board"></div>
+    <div class="status" id="status">Your move (red). Captures are mandatory.</div>
+    <button class="btn" id="new">New Game</button>
+    <p class="hint">Move diagonally. Jump to capture — captures are forced, and multi-jumps chain. Reach the far row to become a king ♛.</p>
+  </div>
+  <script>
+  (function(){
+    const N=8;
+    // pieces: 1=red(you, moves up, -1 row dir), 2=red king, -1=black(cpu, down), -2=black king. 0 empty. null = light square (unused)
+    const RED=1,BK=-1;
+    const boardEl=document.getElementById("board"),statusEl=document.getElementById("status");
+    let board,turn,sel,over,mustFrom,cells=[];
+
+    function isRed(v){return v>0;}function isBlack(v){return v<0;}function isKing(v){return Math.abs(v)===2;}
+    function newBoard(){const b=Array.from({length:N},()=>Array(N).fill(0));
+      for(let r=0;r<N;r++)for(let c=0;c<N;c++){if((r+c)%2===1){if(r<3)b[r][c]=-1;else if(r>4)b[r][c]=1;}}return b;}
+    function dirs(v){return isKing(v)?[[-1,-1],[-1,1],[1,-1],[1,1]]:(isRed(v)?[[-1,-1],[-1,1]]:[[1,-1],[1,1]]);}
+    function own(v,side){return side>0?isRed(v):isBlack(v);}
+    // generate moves for a side (1=red,-1=black). Returns {moves:[{from,to,cap}], hasCap}
+    function genMoves(b,side){
+      const simple=[],caps=[];
+      for(let r=0;r<N;r++)for(let c=0;c<N;c++){const v=b[r][c];if(v===0||!own(v,side))continue;
+        for(const[dr,dc]of dirs(v)){
+          const r1=r+dr,c1=c+dc;if(r1<0||r1>=N||c1<0||c1>=N)continue;
+          if(b[r1][c1]===0)simple.push({from:[r,c],to:[r1,c1],cap:null});
+          else if(own(b[r1][c1],-side)){const r2=r+2*dr,c2=c+2*dc;if(r2>=0&&r2<N&&c2>=0&&c2<N&&b[r2][c2]===0)caps.push({from:[r,c],to:[r2,c2],cap:[r1,c1]});}
+        }}
+      return caps.length?{moves:caps,hasCap:true}:{moves:simple,hasCap:false};
+    }
+    function capsFrom(b,r,c){const v=b[r][c],out=[];for(const[dr,dc]of dirs(v)){const r1=r+dr,c1=c+dc,r2=r+2*dr,c2=c+2*dc;
+      if(r2>=0&&r2<N&&c2>=0&&c2<N&&b[r2][c2]===0&&b[r1][c1]!==0&&own(b[r1][c1],-Math.sign(v)))out.push({from:[r,c],to:[r2,c2],cap:[r1,c1]});}return out;}
+    function applyMove(b,m){const[fr,fc]=m.from,[tr,tc]=m.to;let v=b[fr][fc];b[fr][fc]=0;
+      if(m.cap)b[m.cap[0]][m.cap[1]]=0;
+      // king promotion
+      if(v===RED&&tr===0)v=2;if(v===BK&&tr===N-1)v=-2;
+      b[tr][tc]=v;return v;}
+
+    function build(){boardEl.innerHTML="";cells=[];for(let r=0;r<N;r++){cells[r]=[];for(let c=0;c<N;c++){const d=document.createElement("div");
+      d.className="sq "+((r+c)%2?"d":"l");d.addEventListener("click",()=>click(r,c));boardEl.appendChild(d);cells[r][c]=d;}}}
+    function legalForHuman(){const g=genMoves(board,1);return g.moves;}
+    function render(){
+      const moves=(turn===1&&!over)?legalForHuman():[];
+      const fromSet=new Set(moves.map(m=>m.from[0]+","+m.from[1]));
+      const selMoves=sel?moves.filter(m=>m.from[0]===sel[0]&&m.from[1]===sel[1]):[];
+      const toSet=new Set(selMoves.map(m=>m.to[0]+","+m.to[1]));
+      for(let r=0;r<N;r++)for(let c=0;c<N;c++){const el=cells[r][c];el.className="sq "+((r+c)%2?"d":"l");el.innerHTML="";
+        const v=board[r][c];
+        if(v!==0){const p=document.createElement("div");p.className="pc "+(isRed(v)?"r":"b")+(isKing(v)?" king":"");el.appendChild(p);}
+        if(turn===1&&!over&&fromSet.has(r+","+c))el.classList.add("playable");
+        if(sel&&sel[0]===r&&sel[1]===c)el.classList.add("sel");
+        if(toSet.has(r+","+c))el.classList.add("move");}
+    }
+    function newGame(){board=newBoard();turn=1;sel=null;over=false;mustFrom=null;statusEl.textContent="Your move (red). Captures are mandatory.";render();}
+    function click(r,c){
+      if(over||turn!==1)return;
+      const moves=legalForHuman().filter(m=>!mustFrom||(m.from[0]===mustFrom[0]&&m.from[1]===mustFrom[1]));
+      if(sel){const mv=moves.find(m=>m.from[0]===sel[0]&&m.from[1]===sel[1]&&m.to[0]===r&&m.to[1]===c);
+        if(mv){doHuman(mv);return;}}
+      if(board[r][c]!==0&&isRed(board[r][c])&&moves.some(m=>m.from[0]===r&&m.from[1]===c)){sel=[r,c];render();return;}
+      sel=null;render();
+    }
+    function doHuman(mv){
+      applyMove(board,mv);
+      if(mv.cap){const chain=capsFrom(board,mv.to[0],mv.to[1]);
+        if(chain.length){sel=[mv.to[0],mv.to[1]];mustFrom=[mv.to[0],mv.to[1]];render();statusEl.textContent="Jump again!";return;}}
+      sel=null;mustFrom=null;turn=-1;render();checkEndThen(cpuTurn);
+    }
+    function checkEndThen(cb){
+      if(genMoves(board,turn).moves.length===0)return finish(turn===1?-1:1);
+      cb&&setTimeout(cb,600);
+    }
+    function cpuTurn(){
+      if(over)return;let g=genMoves(board,-1);if(!g.moves.length)return finish(1);
+      // pick move: prefer captures (forced already), maximize captures via chain + slight center/king bias
+      let best=g.moves[0],bs=-1e9;
+      for(const m of g.moves){let s=m.cap?10:0;s+=chainLen(board,m);s+=(m.to[0])*0.2;s+=Math.random()*0.3;if(s>bs){bs=s;best=m;}}
+      // execute best, following its capture chain greedily
+      let cur=best;
+      applyMove(board,cur);
+      while(cur.cap){const ch=capsFrom(board,cur.to[0],cur.to[1]);if(!ch.length)break;cur=ch[0];applyMove(board,cur);}
+      turn=1;render();
+      if(genMoves(board,1).moves.length===0)return finish(-1);
+      statusEl.textContent="Your move.";
+    }
+    function chainLen(b,m){if(!m.cap)return 0;const nb=b.map(r=>r.slice());applyMove(nb,m);let n=1,cur=m;
+      while(true){const ch=capsFrom(nb,cur.to[0],cur.to[1]);if(!ch.length)break;cur=ch[0];applyMove(nb,cur);n++;}return n;}
+    function finish(winner){over=true;statusEl.textContent=winner===1?"🏆 You win!":"😔 CPU wins.";render();}
+    document.getElementById("new").addEventListener("click",newGame);
+    window.__checkers={newBoard,genMoves,applyMove,capsFrom};
+    build();newGame();
+  })();
+  </script>
+</body>
+</html>

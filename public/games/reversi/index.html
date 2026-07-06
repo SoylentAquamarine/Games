@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Reversi — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>⚫</text></svg>" />
+  <style>
+    :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;--felt:#12351f;}
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+      background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.22),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.16),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;}
+    .wrap{max-width:430px;margin:0 auto;padding:14px 12px 40px;display:flex;flex-direction:column;align-items:center;gap:12px}
+    .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
+    .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+    .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+    h1{margin:0;font-size:1.5rem;background:linear-gradient(120deg,#e6e6f0,#22d3ee);-webkit-background-clip:text;background-clip:text;color:transparent}
+    .scores{display:flex;gap:12px;width:100%}
+    .stat{flex:1;background:var(--panel);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:8px;text-align:center;font-weight:700}
+    .stat.turn{border-color:var(--accent-2)}
+    .disc-ic{display:inline-block;width:16px;height:16px;border-radius:50%;vertical-align:-2px;margin-right:6px}
+    .board{display:grid;grid-template-columns:repeat(8,1fr);gap:3px;background:#0c2a16;padding:6px;border-radius:12px;width:100%;aspect-ratio:1}
+    .cell{background:var(--felt);border-radius:5px;display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative}
+    .disc{width:78%;height:78%;border-radius:50%}
+    .disc.b{background:radial-gradient(circle at 35% 30%,#4a4a55,#111)}
+    .disc.w{background:radial-gradient(circle at 35% 30%,#fff,#c7c7d2)}
+    .cell.legal::after{content:"";width:22%;height:22%;border-radius:50%;background:rgba(52,211,153,.55)}
+    .status{min-height:1.2em;font-weight:600;color:#fde68a;text-align:center}
+    .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:10px 22px;border-radius:999px;cursor:pointer}
+    .hint{color:var(--muted);font-size:.82rem;text-align:center}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar"><a class="home" href="/">← Home</a><h1>⚫ Reversi</h1><span style="width:56px"></span></div>
+    <div class="scores">
+      <div class="stat" id="s1"><span class="disc-ic" style="background:#111"></span>You <span id="b">2</span></div>
+      <div class="stat" id="s2"><span class="disc-ic" style="background:#eee"></span>CPU <span id="w">2</span></div>
+    </div>
+    <div class="board" id="board"></div>
+    <div class="status" id="status">Your move (black).</div>
+    <button class="btn" id="new">New Game</button>
+    <p class="hint">Flank the CPU's discs between two of yours to flip them. Most discs when the board fills wins.</p>
+  </div>
+  <script>
+  (function(){
+    const N=8,B=1,W=2;
+    const DIRS=[[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
+    const WEIGHTS=[[120,-20,20,5,5,20,-20,120],[-20,-40,-5,-5,-5,-5,-40,-20],[20,-5,15,3,3,15,-5,20],[5,-5,3,3,3,3,-5,5],[5,-5,3,3,3,3,-5,5],[20,-5,15,3,3,15,-5,20],[-20,-40,-5,-5,-5,-5,-40,-20],[120,-20,20,5,5,20,-20,120]];
+    const boardEl=document.getElementById("board"),statusEl=document.getElementById("status");
+    let board,turn,over,cells=[];
+
+    function initBoard(){const b=Array.from({length:N},()=>Array(N).fill(0));b[3][3]=W;b[3][4]=B;b[4][3]=B;b[4][4]=W;return b;}
+    function opp(p){return p===B?W:B;}
+    function flipsFor(b,p,r,c){if(b[r][c]!==0)return[];const out=[];
+      for(const[dr,dc]of DIRS){const line=[];let nr=r+dr,nc=c+dc;
+        while(nr>=0&&nr<N&&nc>=0&&nc<N&&b[nr][nc]===opp(p)){line.push([nr,nc]);nr+=dr;nc+=dc;}
+        if(line.length&&nr>=0&&nr<N&&nc>=0&&nc<N&&b[nr][nc]===p)out.push(...line);}
+      return out;}
+    function legalMoves(b,p){const m=[];for(let r=0;r<N;r++)for(let c=0;c<N;c++)if(flipsFor(b,p,r,c).length)m.push([r,c]);return m;}
+    function applyMove(b,p,r,c){const nb=b.map(row=>row.slice());const fl=flipsFor(b,p,r,c);nb[r][c]=p;for(const[fr,fc]of fl)nb[fr][fc]=p;return nb;}
+    function count(b){let x=0,o=0;for(let r=0;r<N;r++)for(let c=0;c<N;c++){if(b[r][c]===B)x++;else if(b[r][c]===W)o++;}return[x,o];}
+    function evalBoard(b,p){let s=0;for(let r=0;r<N;r++)for(let c=0;c<N;c++){if(b[r][c]===p)s+=WEIGHTS[r][c];else if(b[r][c]===opp(p))s-=WEIGHTS[r][c];}return s;}
+
+    function build(){boardEl.innerHTML="";cells=[];for(let r=0;r<N;r++){cells[r]=[];for(let c=0;c<N;c++){const d=document.createElement("div");d.className="cell";
+      d.addEventListener("click",()=>human(r,c));boardEl.appendChild(d);cells[r][c]=d;}}}
+    function render(){const legal=(turn===B&&!over)?legalMoves(board,B):[];const lset=new Set(legal.map(m=>m[0]+","+m[1]));
+      for(let r=0;r<N;r++)for(let c=0;c<N;c++){const el=cells[r][c];el.className="cell"+(lset.has(r+","+c)?" legal":"");el.innerHTML="";
+        if(board[r][c]){const d=document.createElement("div");d.className="disc "+(board[r][c]===B?"b":"w");el.appendChild(d);}}
+      const[x,o]=count(board);document.getElementById("b").textContent=x;document.getElementById("w").textContent=o;
+      document.getElementById("s1").classList.toggle("turn",turn===B&&!over);document.getElementById("s2").classList.toggle("turn",turn===W&&!over);}
+    function newGame(){board=initBoard();turn=B;over=false;statusEl.textContent="Your move (black).";render();}
+    function human(r,c){if(over||turn!==B)return;if(!flipsFor(board,B,r,c).length)return;board=applyMove(board,B,r,c);turn=W;render();next();}
+    function next(){
+      if(over)return;
+      if(!legalMoves(board,turn).length){
+        if(!legalMoves(board,opp(turn)).length)return finish();
+        statusEl.textContent=(turn===B?"You have":"CPU has")+" no move — pass.";turn=opp(turn);render();
+        if(turn===W)return setTimeout(cpu,700);return;
+      }
+      if(turn===W){statusEl.textContent="CPU thinking…";setTimeout(cpu,600);}
+      else statusEl.textContent="Your move.";
+    }
+    function cpu(){
+      if(over)return;const moves=legalMoves(board,W);if(!moves.length)return next();
+      let best=moves[0],bs=-1e9;for(const[r,c]of moves){const s=evalBoard(applyMove(board,W,r,c),W)+Math.random()*0.1;if(s>bs){bs=s;best=[r,c];}}
+      board=applyMove(board,W,best[0],best[1]);turn=B;render();next();
+    }
+    function finish(){over=true;const[x,o]=count(board);statusEl.textContent=x>o?`🏆 You win ${x}–${o}!`:x<o?`CPU wins ${o}–${x}.`:`Tie ${x}–${o}.`;render();}
+    document.getElementById("new").addEventListener("click",newGame);
+    window.__reversi={initBoard,legalMoves,applyMove,flipsFor,count,opp};
+    build();newGame();
+  })();
+  </script>
+</body>
+</html>
