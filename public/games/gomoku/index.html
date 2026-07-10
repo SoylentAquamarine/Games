@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gomoku — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>⚫</text></svg>" />
+  <style>
+    :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;--wood:#c9a06a;}
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+      background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.22),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.16),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;}
+    .wrap{max-width:440px;margin:0 auto;padding:14px 12px 40px;display:flex;flex-direction:column;align-items:center;gap:12px}
+    .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
+    .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+    .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+    h1{margin:0;font-size:1.5rem;background:linear-gradient(120deg,#e6e6f0,#22d3ee);-webkit-background-clip:text;background-clip:text;color:transparent}
+    .status{min-height:1.2em;font-weight:600;color:#fde68a;text-align:center}
+    .board{position:relative;width:100%;aspect-ratio:1;background:var(--wood);border-radius:8px;padding:0;touch-action:manipulation}
+    canvas{width:100%;height:100%;display:block;border-radius:8px}
+    .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:10px 22px;border-radius:999px;cursor:pointer}
+    .hint{color:var(--muted);font-size:.82rem;text-align:center}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar"><a class="home" href="/">← Home</a><h1>⚫ Gomoku</h1><span style="width:56px"></span></div>
+    <div class="status" id="status">Your move (black). Get five in a row!</div>
+    <div class="board"><canvas id="c" width="450" height="450"></canvas></div>
+    <button class="btn" id="new">New Game</button>
+    <p class="hint">Tap an intersection to place a stone. First to five in a row — any direction — wins.</p>
+  </div>
+  <script>
+  (function(){
+    const N=13,B=1,W=2;
+    const cv=document.getElementById("c"),ctx=cv.getContext("2d"),statusEl=document.getElementById("status");
+    const S=cv.width, M=S/(N+1); // margin/spacing
+    let board,turn,over,lastAI=null;
+    const DIRS=[[1,0],[0,1],[1,1],[1,-1]];
+
+    function newGame(){board=Array.from({length:N},()=>Array(N).fill(0));turn=B;over=false;lastAI=null;statusEl.textContent="Your move (black).";draw();}
+    function inb(r,c){return r>=0&&r<N&&c>=0&&c<N;}
+    function win(b,p,r,c){for(const[dr,dc]of DIRS){let cnt=1;
+      for(const s of[1,-1]){let nr=r+dr*s,nc=c+dc*s;while(inb(nr,nc)&&b[nr][nc]===p){cnt++;nr+=dr*s;nc+=dc*s;}}
+      if(cnt>=5)return true;}return false;}
+    // score of placing p at (r,c)
+    function cellScore(b,r,c,p){let total=0;
+      for(const[dr,dc]of DIRS){let line=1,open=0;
+        for(const s of[1,-1]){let nr=r+dr*s,nc=c+dc*s,k=0;while(inb(nr,nc)&&b[nr][nc]===p){k++;nr+=dr*s;nc+=dc*s;}line+=k;
+          if(inb(nr,nc)&&b[nr][nc]===0)open++;}
+        total+=pat(line,open);}
+      return total;}
+    function pat(line,open){if(line>=5)return 1e7;if(line===4)return open===2?1e5:1e4;if(line===3)return open===2?5e3:500;if(line===2)return open===2?200:50;return open===2?10:1;}
+    function aiMove(){
+      let best=null,bs=-1;const cand=[];
+      for(let r=0;r<N;r++)for(let c=0;c<N;c++){if(board[r][c])continue;if(!near(r,c))continue;
+        const s=cellScore(board,r,c,W)+0.95*cellScore(board,r,c,B);if(s>bs){bs=s;best=[r,c];}}
+      if(!best)best=[Math.floor(N/2),Math.floor(N/2)];
+      return best;}
+    function near(r,c){for(let dr=-2;dr<=2;dr++)for(let dc=-2;dc<=2;dc++){const nr=r+dr,nc=c+dc;if(inb(nr,nc)&&board[nr][nc])return true;}return false;}
+    function place(r,c,p){board[r][c]=p;if(win(board,p,r,c)){over=true;return true;}return false;}
+
+    function human(r,c){if(over||turn!==B||board[r][c])return;
+      if(place(r,c,B)){draw();statusEl.textContent="🏆 You win!";return;}
+      turn=W;draw();statusEl.textContent="CPU thinking…";
+      setTimeout(()=>{const[ar,ac]=aiMove();lastAI=[ar,ac];if(place(ar,ac,W)){draw();statusEl.textContent="😔 CPU wins.";return;}
+        turn=B;draw();statusEl.textContent="Your move.";},350);}
+    function draw(){
+      ctx.fillStyle="#c9a06a";ctx.fillRect(0,0,S,S);
+      ctx.strokeStyle="rgba(0,0,0,.55)";ctx.lineWidth=1;
+      for(let i=0;i<N;i++){const p=M*(i+1);ctx.beginPath();ctx.moveTo(M,p);ctx.lineTo(S-M,p);ctx.stroke();ctx.beginPath();ctx.moveTo(p,M);ctx.lineTo(p,S-M);ctx.stroke();}
+      for(let r=0;r<N;r++)for(let c=0;c<N;c++){if(!board[r][c])continue;const x=M*(c+1),y=M*(r+1);
+        ctx.beginPath();ctx.arc(x,y,M*0.42,0,7);ctx.fillStyle=board[r][c]===B?"#15151f":"#f5f5fa";ctx.fill();
+        ctx.strokeStyle="rgba(0,0,0,.4)";ctx.stroke();
+        if(lastAI&&lastAI[0]===r&&lastAI[1]===c){ctx.beginPath();ctx.arc(x,y,M*0.12,0,7);ctx.fillStyle="#f43f5e";ctx.fill();}}
+    }
+    cv.addEventListener("click",e=>{const rect=cv.getBoundingClientRect();const x=(e.clientX-rect.left)/rect.width*S,y=(e.clientY-rect.top)/rect.height*S;
+      const c=Math.round(x/M)-1,r=Math.round(y/M)-1;if(inb(r,c))human(r,c);});
+    document.getElementById("new").addEventListener("click",newGame);
+    window.__gomoku={emptyBoard:()=>Array.from({length:N},()=>Array(N).fill(0)),win,cellScore,aiMoveOn:(b)=>{board=b;return aiMove();},N};
+    newGame();
+  })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sudoku — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='60'>🔢</text></svg>" />
+  <style>
+    :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;--cell:#1b1f3d;--given:#2a3057;--sel:#3a4680;--bad:#7f1d1d;}
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+      background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.22),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.16),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;}
+    .wrap{max-width:420px;margin:0 auto;padding:14px 12px 40px;display:flex;flex-direction:column;align-items:center;gap:12px}
+    .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
+    .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+    .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+    h1{margin:0;font-size:1.5rem;background:linear-gradient(120deg,#22d3ee,#a855f7);-webkit-background-clip:text;background-clip:text;color:transparent}
+    .bar{display:flex;gap:8px;align-items:center;justify-content:space-between;width:100%}
+    .diff{display:flex;gap:5px;background:var(--panel);padding:4px;border-radius:999px}
+    .diff button{background:transparent;border:none;color:var(--muted);padding:6px 10px;border-radius:999px;cursor:pointer;font-weight:600;font-size:.8rem}
+    .diff button.active{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a}
+    .timer{font-weight:700}
+    .grid{display:grid;grid-template-columns:repeat(9,1fr);width:100%;aspect-ratio:1;background:#000;border:2px solid #000;border-radius:6px;overflow:hidden;gap:1px}
+    .c{background:var(--cell);display:flex;align-items:center;justify-content:center;font-size:clamp(1rem,5vw,1.5rem);font-weight:700;cursor:pointer}
+    .c.given{background:var(--given);color:#c7cbf0;cursor:default}
+    .c.sel{background:var(--sel)}
+    .c.bad{background:var(--bad);color:#fff}
+    .c.r3{border-right:2px solid #000}.c.b3{border-bottom:2px solid #000}
+    .pad{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;width:100%;max-width:360px}
+    .pad button{background:var(--panel);border:1px solid rgba(255,255,255,.14);color:var(--text);border-radius:10px;padding:12px 0;font-size:1.1rem;font-weight:700;cursor:pointer}
+    .status{min-height:1.2em;font-weight:600;color:#fde68a;text-align:center}
+    .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:9px 20px;border-radius:999px;cursor:pointer;font-size:.85rem}
+    .hint{color:var(--muted);font-size:.78rem;text-align:center}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar"><a class="home" href="/">← Home</a><h1>🔢 Sudoku</h1><span style="width:56px"></span></div>
+    <div class="bar">
+      <div class="diff" id="diff"><button data-d="40" class="active">Easy</button><button data-d="48">Medium</button><button data-d="54">Hard</button></div>
+      <div class="timer" id="timer">0:00</div>
+    </div>
+    <div class="grid" id="grid"></div>
+    <div class="pad" id="pad"></div>
+    <div class="status" id="status"></div>
+    <button class="btn" id="new">New Puzzle</button>
+    <p class="hint">Tap a cell, then a number. Fill every row, column, and 3×3 box with 1–9. Conflicts turn red.</p>
+  </div>
+  <script>
+  (function(){
+    const gridEl=document.getElementById("grid"),padEl=document.getElementById("pad"),statusEl=document.getElementById("status"),timerEl=document.getElementById("timer");
+    let solution,puzzle,given,sel,cells=[],timer,secs,started,over,removals=40;
+
+    // ---- generator ----
+    function emptyG(){return Array.from({length:9},()=>Array(9).fill(0));}
+    function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+    function valid(g,r,c,v){for(let i=0;i<9;i++){if(g[r][i]===v||g[i][c]===v)return false;}
+      const br=r-r%3,bc=c-c%3;for(let i=0;i<3;i++)for(let j=0;j<3;j++)if(g[br+i][bc+j]===v)return false;return true;}
+    function fill(g){for(let r=0;r<9;r++)for(let c=0;c<9;c++)if(g[r][c]===0){const nums=shuffle([1,2,3,4,5,6,7,8,9]);
+      for(const v of nums)if(valid(g,r,c,v)){g[r][c]=v;if(fill(g))return true;g[r][c]=0;}return false;}return true;}
+    function countSol(g,limit){for(let r=0;r<9;r++)for(let c=0;c<9;c++)if(g[r][c]===0){let n=0;
+      for(let v=1;v<=9;v++)if(valid(g,r,c,v)){g[r][c]=v;n+=countSol(g,limit-n);g[r][c]=0;if(n>=limit)break;}return n;}return 1;}
+    function makePuzzle(sol,remove){const p=sol.map(r=>r.slice());const order=shuffle([...Array(81).keys()]);let removed=0;
+      for(const idx of order){if(removed>=remove)break;const r=Math.floor(idx/9),c=idx%9;const bak=p[r][c];if(bak===0)continue;p[r][c]=0;
+        if(countSol(p.map(x=>x.slice()),2)!==1){p[r][c]=bak;}else removed++;}
+      return p;}
+
+    function newGame(){solution=emptyG();fill(solution);puzzle=makePuzzle(solution,removals);
+      given=puzzle.map(row=>row.map(v=>v!==0));sel=null;over=false;secs=0;started=false;clearInterval(timer);timerEl.textContent="0:00";statusEl.textContent="";
+      render();}
+    function build(){gridEl.innerHTML="";cells=[];for(let r=0;r<9;r++){cells[r]=[];for(let c=0;c<9;c++){const d=document.createElement("div");
+      d.className="c"+((c===2||c===5)?" r3":"")+((r===2||r===5)?" b3":"");d.addEventListener("click",()=>select(r,c));gridEl.appendChild(d);cells[r][c]=d;}}
+      padEl.innerHTML="";for(let n=1;n<=9;n++){const b=document.createElement("button");b.textContent=n;b.addEventListener("click",()=>put(n));padEl.appendChild(b);}
+      const er=document.createElement("button");er.textContent="⌫";er.addEventListener("click",()=>put(0));padEl.appendChild(er);}
+    function render(){for(let r=0;r<9;r++)for(let c=0;c<9;c++){const el=cells[r][c],v=puzzle[r][c];
+      el.textContent=v||"";el.classList.toggle("given",given[r][c]);
+      el.classList.toggle("sel",!!(sel&&sel[0]===r&&sel[1]===c));
+      el.classList.toggle("bad",v!==0&&!given[r][c]&&conflict(r,c));}}
+    function conflict(r,c){const v=puzzle[r][c];if(!v)return false;
+      for(let i=0;i<9;i++){if(i!==c&&puzzle[r][i]===v)return true;if(i!==r&&puzzle[i][c]===v)return true;}
+      const br=r-r%3,bc=c-c%3;for(let i=0;i<3;i++)for(let j=0;j<3;j++){const rr=br+i,cc=bc+j;if((rr!==r||cc!==c)&&puzzle[rr][cc]===v)return true;}return false;}
+    function select(r,c){if(over||given[r][c])return;sel=[r,c];render();}
+    function startTimer(){if(started)return;started=true;timer=setInterval(()=>{secs++;timerEl.textContent=Math.floor(secs/60)+":"+String(secs%60).padStart(2,"0");},1000);}
+    function put(n){if(over||!sel)return;const[r,c]=sel;if(given[r][c])return;startTimer();puzzle[r][c]=n;render();checkWin();}
+    function checkWin(){for(let r=0;r<9;r++)for(let c=0;c<9;c++)if(puzzle[r][c]!==solution[r][c])return;
+      over=true;clearInterval(timer);statusEl.textContent="🎉 Solved in "+timerEl.textContent+"!";}
+    document.addEventListener("keydown",e=>{if(/^[1-9]$/.test(e.key))put(+e.key);else if(e.key==="Backspace"||e.key==="0")put(0);});
+    document.querySelectorAll("#diff button").forEach(b=>b.addEventListener("click",()=>{document.querySelectorAll("#diff button").forEach(x=>x.classList.remove("active"));b.classList.add("active");removals=+b.dataset.d;newGame();}));
+    document.getElementById("new").addEventListener("click",newGame);
+    window.__sudoku={emptyG,fill,countSol,makePuzzle,valid};
+    build();newGame();
+  })();
+  </script>
+</body>
+</html>
