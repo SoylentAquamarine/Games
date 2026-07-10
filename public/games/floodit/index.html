@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Flood It — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='60'>🎨</text></svg>" />
+  <style>
+    :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;}
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+      background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.22),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.16),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;}
+    .wrap{max-width:400px;margin:0 auto;padding:16px 16px 40px;display:flex;flex-direction:column;align-items:center;gap:14px}
+    .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
+    .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+    .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+    h1{margin:0;font-size:1.5rem;background:linear-gradient(120deg,#f472b6,#22d3ee);-webkit-background-clip:text;background-clip:text;color:transparent}
+    .stat{background:var(--panel);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:8px 20px;font-weight:700}
+    .grid{display:grid;gap:0;width:100%;aspect-ratio:1;border-radius:10px;overflow:hidden}
+    .cell{width:100%;height:100%}
+    .palette{display:flex;gap:10px;justify-content:center}
+    .sw{width:44px;height:44px;border-radius:12px;cursor:pointer;border:2px solid transparent;transition:transform .1s}
+    .sw:hover{transform:scale(1.1)}
+    .status{min-height:1.2em;font-weight:600;color:#fde68a;text-align:center}
+    .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:10px 22px;border-radius:999px;cursor:pointer}
+    .hint{color:var(--muted);font-size:.8rem;text-align:center}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar"><a class="home" href="/">← Home</a><h1>🎨 Flood It</h1><span style="width:56px"></span></div>
+    <div class="stat">Moves: <span id="moves">0</span> / <span id="max">25</span></div>
+    <div class="grid" id="grid"></div>
+    <div class="palette" id="palette"></div>
+    <div class="status" id="status">Flood the board to one color!</div>
+    <button class="btn" id="new">New Game</button>
+    <p class="hint">Pick a color to flood from the top-left. Fill the whole board with one color before you run out of moves.</p>
+  </div>
+  <script>
+  (function(){
+    const SIZE=14, NC=6, MAXMOVES=25;
+    const COLORS=["#ef4444","#f97316","#eab308","#22c55e","#3b82f6","#a855f7"];
+    const gridEl=document.getElementById("grid"),paletteEl=document.getElementById("palette"),statusEl=document.getElementById("status"),movesEl=document.getElementById("moves");
+    let grid,moves,over,cells=[];
+    document.getElementById("max").textContent=MAXMOVES;
+
+    function region(){const t=grid[0][0];const seen=Array.from({length:SIZE},()=>Array(SIZE).fill(false));const st=[[0,0]];seen[0][0]=true;const out=[[0,0]];
+      while(st.length){const[r,c]=st.pop();[[1,0],[-1,0],[0,1],[0,-1]].forEach(([dr,dc])=>{const nr=r+dr,nc=c+dc;
+        if(nr>=0&&nr<SIZE&&nc>=0&&nc<SIZE&&!seen[nr][nc]&&grid[nr][nc]===t){seen[nr][nc]=true;st.push([nr,nc]);out.push([nr,nc]);}});}
+      return out;}
+    function newGame(){grid=Array.from({length:SIZE},()=>Array.from({length:SIZE},()=>Math.floor(Math.random()*NC)));
+      moves=0;over=false;movesEl.textContent=0;statusEl.textContent="Flood the board to one color!";render();}
+    function pick(col){if(over||col===grid[0][0])return;const reg=region();reg.forEach(([r,c])=>grid[r][c]=col);moves++;movesEl.textContent=moves;render();
+      if(won()){over=true;statusEl.textContent="🎉 Flooded in "+moves+" moves!";return;}
+      if(moves>=MAXMOVES){over=true;statusEl.textContent="Out of moves! "+coverage()+"% covered.";}}
+    function won(){const t=grid[0][0];for(let r=0;r<SIZE;r++)for(let c=0;c<SIZE;c++)if(grid[r][c]!==t)return false;return true;}
+    function coverage(){return Math.round(region().length/(SIZE*SIZE)*100);}
+    function build(){gridEl.style.gridTemplateColumns=`repeat(${SIZE},1fr)`;gridEl.innerHTML="";cells=[];
+      for(let r=0;r<SIZE;r++){cells[r]=[];for(let c=0;c<SIZE;c++){const d=document.createElement("div");d.className="cell";gridEl.appendChild(d);cells[r][c]=d;}}
+      paletteEl.innerHTML="";COLORS.forEach((col,i)=>{const s=document.createElement("div");s.className="sw";s.style.background=col;s.addEventListener("click",()=>pick(i));paletteEl.appendChild(s);});}
+    function render(){for(let r=0;r<SIZE;r++)for(let c=0;c<SIZE;c++)cells[r][c].style.background=COLORS[grid[r][c]];}
+    document.getElementById("new").addEventListener("click",newGame);
+    window.__flood={region:(g)=>{grid=g;return region();},pickTest:(g,col)=>{grid=g;const reg=region();reg.forEach(([r,c])=>grid[r][c]=col);return grid;},won:(g)=>{grid=g;return won();},SIZE,NC};
+    build();newGame();
+  })();
+  </script>
+</body>
+</html>

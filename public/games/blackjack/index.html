@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Blackjack — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🃏</text></svg>" />
+  <style>
+    :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;--felt:#12351f;--good:#34d399;--bad:#f87171;}
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+      background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.22),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.16),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;}
+    .wrap{max-width:460px;margin:0 auto;padding:14px 12px 40px;display:flex;flex-direction:column;align-items:center;gap:12px}
+    .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
+    .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+    .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+    h1{margin:0;font-size:1.5rem;background:linear-gradient(120deg,#f43f5e,#22d3ee);-webkit-background-clip:text;background-clip:text;color:transparent}
+    .chips{display:flex;gap:12px;width:100%}
+    .stat{flex:1;background:var(--panel);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:8px;text-align:center}
+    .stat .label{font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+    .stat .value{font-size:1.3rem;font-weight:700}
+    .table{width:100%;background:radial-gradient(circle at 50% 30%,#1a4a2b,var(--felt));border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:14px 12px;display:flex;flex-direction:column;gap:12px;min-height:260px}
+    .seat{display:flex;flex-direction:column;gap:6px}
+    .seat .lbl{font-size:.8rem;color:#cfe9d6}
+    .hand{display:flex;gap:6px;min-height:96px;flex-wrap:wrap}
+    .hand .pcard{--cw:60px}
+    .banner{text-align:center;font-weight:800;min-height:1.4em}
+    .banner.win{color:var(--good)}.banner.lose{color:var(--bad)}.banner.push{color:#fde68a}
+    .controls{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+    .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:10px 18px;border-radius:999px;cursor:pointer}
+    .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,.18);color:var(--text)}
+    .btn:disabled{opacity:.4;cursor:default}
+    .bet{display:flex;gap:8px;align-items:center;justify-content:center}
+    .hint{color:var(--muted);font-size:.8rem;text-align:center}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar"><a class="home" href="/">← Home</a><h1>🃏 Blackjack</h1><span style="width:56px"></span></div>
+    <div class="chips">
+      <div class="stat"><div class="label">Chips</div><div class="value" id="chips">100</div></div>
+      <div class="stat"><div class="label">Bet</div><div class="value" id="bet">10</div></div>
+    </div>
+    <div class="table">
+      <div class="seat"><span class="lbl">Dealer <span id="dval"></span></span><div class="hand" id="dhand"></div></div>
+      <div class="banner" id="banner">Place your bet and deal.</div>
+      <div class="seat"><span class="lbl">You <span id="pval"></span></span><div class="hand" id="phand"></div></div>
+    </div>
+    <div class="bet" id="betRow">
+      <button class="btn ghost" id="minus">−10</button>
+      <button class="btn" id="deal">Deal</button>
+      <button class="btn ghost" id="plus">+10</button>
+    </div>
+    <div class="controls" id="actions" style="display:none">
+      <button class="btn" id="hit">Hit</button>
+      <button class="btn" id="stand">Stand</button>
+      <button class="btn ghost" id="double">Double</button>
+    </div>
+    <p class="hint">Beat the dealer without going over 21. Dealer stands on 17. Blackjack pays 3:2.</p>
+  </div>
+
+  <script src="/games/cards/cards.js"></script>
+  <script>
+  (function(){
+    const $=(id)=>document.getElementById(id);
+    let shoe,player,dealer,chips,bet,phase,over;
+    function cardVal(c){if(c.rank>=11&&c.rank<=13)return 10;if(c.rank===14)return 11;return c.rank;}
+    function handValue(cards){let sum=0,aces=0;for(const c of cards){sum+=cardVal(c);if(c.rank===14)aces++;}while(sum>21&&aces>0){sum-=10;aces--;}return sum;}
+    function isBJ(cards){return cards.length===2&&handValue(cards)===21;}
+    function newShoe(){shoe=Cards.shuffle([].concat(...[0,1,2,3].map(()=>Cards.makeDeck())));}
+    function draw(){if(shoe.length<15)newShoe();return shoe.pop();}
+
+    function init(){chips=100;bet=10;newShoe();phase="bet";updateChips();render();}
+    function updateChips(){$("chips").textContent=chips;$("bet").textContent=bet;}
+    function setBet(d){if(phase!=="bet")return;bet=Math.max(10,Math.min(chips,bet+d));updateChips();}
+
+    function deal(){
+      if(phase!=="bet"||chips<bet)return;
+      chips-=bet;updateChips();
+      player=[draw(),draw()];dealer=[draw(),draw()];phase="player";over=false;
+      $("betRow").style.display="none";$("actions").style.display="flex";
+      $("double").disabled=chips<bet;
+      render();
+      if(isBJ(player)||isBJ(dealer)){revealAndSettle();}
+      else $("banner").textContent="Hit or stand?";
+    }
+    function hit(){if(phase!=="player")return;player.push(draw());$("double").disabled=true;render();
+      if(handValue(player)>21){$("banner").textContent="Bust!";$("banner").className="banner lose";settle("dealer");}
+      else if(handValue(player)===21)stand();}
+    function double(){if(phase!=="player"||chips<bet)return;chips-=bet;bet*=2;updateChips();player.push(draw());render();
+      if(handValue(player)>21){$("banner").textContent="Bust!";$("banner").className="banner lose";settle("dealer");}else stand();}
+    function stand(){if(phase!=="player")return;phase="dealer";revealAndSettle();}
+    function revealAndSettle(){
+      phase="dealer";
+      while(handValue(dealer)<17)dealer.push(draw());
+      render(true);
+      const pv=handValue(player),dv=handValue(dealer);
+      const pBJ=isBJ(player),dBJ=isBJ(dealer);
+      if(pBJ&&!dBJ){win(bet*1.5,"Blackjack! 🎉");}
+      else if(pv>21){settle("dealer");}
+      else if(dBJ&&!pBJ){lose("Dealer blackjack.");}
+      else if(dv>21){win(bet,"Dealer busts — you win!");}
+      else if(pv>dv){win(bet,"You win!");}
+      else if(pv<dv){lose("Dealer wins.");}
+      else push();
+    }
+    function win(amount,msg){chips+=bet+amount;$("banner").textContent=msg+" +"+Math.round(bet+amount);$("banner").className="banner win";endRound();}
+    function lose(msg){$("banner").textContent=msg;$("banner").className="banner lose";endRound();}
+    function push(){chips+=bet;$("banner").textContent="Push — bet returned.";$("banner").className="banner push";endRound();}
+    function settle(winner){if(winner==="dealer")lose($("banner").textContent||"Dealer wins.");}
+    function endRound(){phase="bet";over=true;bet=Math.min(10,Math.max(10,chips));updateChips();
+      $("betRow").style.display="flex";$("actions").style.display="none";render(true);
+      if(chips<10){$("banner").textContent+=" — Out of chips! New Game to rebuy.";$("deal").textContent="Rebuy";}
+    }
+    function render(revealDealer){
+      const ph=$("phand");ph.innerHTML="";player&&player.forEach(c=>ph.appendChild(Cards.cardEl(c,true)));
+      const dh=$("dhand");dh.innerHTML="";
+      if(dealer)dealer.forEach((c,i)=>dh.appendChild(Cards.cardEl(c,(revealDealer||phase!=="player")?true:i===0)));
+      $("pval").textContent=player?"("+handValue(player)+")":"";
+      $("dval").textContent=dealer?((revealDealer||phase!=="player")?"("+handValue(dealer)+")":""):"";
+    }
+    $("deal").addEventListener("click",()=>{if($("deal").textContent==="Rebuy"){chips=100;$("deal").textContent="Deal";updateChips();$("banner").textContent="Place your bet and deal.";$("banner").className="banner";return;}deal();});
+    $("plus").addEventListener("click",()=>setBet(10));
+    $("minus").addEventListener("click",()=>setBet(-10));
+    $("hit").addEventListener("click",hit);$("stand").addEventListener("click",stand);$("double").addEventListener("click",double);
+    window.__bj={handValue,isBJ,cardVal};
+    init();
+  })();
+  </script>
+</body>
+</html>
