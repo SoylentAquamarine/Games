@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>15 Puzzle — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='60'>🔢</text></svg>" />
+  <style>
+    :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;--grid:#232752;--tile:#2f3670;}
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+      background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.22),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.16),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;}
+    .wrap{max-width:400px;margin:0 auto;padding:16px 16px 40px;display:flex;flex-direction:column;align-items:center;gap:14px}
+    .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
+    .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+    .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+    h1{margin:0;font-size:1.5rem;background:linear-gradient(120deg,#22d3ee,#7c5cff);-webkit-background-clip:text;background-clip:text;color:transparent}
+    .scores{display:flex;gap:12px}
+    .stat{background:var(--panel);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:8px 18px;text-align:center}
+    .stat .label{font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+    .stat .value{font-size:1.4rem;font-weight:700}
+    .size{display:flex;gap:6px;background:var(--panel);padding:4px;border-radius:999px}
+    .size button{background:transparent;border:none;color:var(--muted);padding:6px 12px;border-radius:999px;cursor:pointer;font-weight:600;font-size:.85rem}
+    .size button.active{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a}
+    .grid{display:grid;gap:6px;background:var(--grid);border-radius:12px;padding:6px;width:100%;aspect-ratio:1}
+    .tile{background:var(--tile);border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:clamp(1.2rem,7vw,2rem);cursor:pointer;transition:transform .08s;border:1px solid rgba(255,255,255,.06)}
+    .tile.blank{background:transparent;border:none;cursor:default}
+    .tile:not(.blank):hover{transform:scale(1.03)}
+    .status{min-height:1.2em;font-weight:600;color:#fde68a;text-align:center}
+    .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:10px 22px;border-radius:999px;cursor:pointer}
+    .hint{color:var(--muted);font-size:.8rem;text-align:center}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar"><a class="home" href="/">← Home</a><h1>🔢 15 Puzzle</h1><span style="width:56px"></span></div>
+    <div class="scores">
+      <div class="stat"><div class="label">Moves</div><div class="value" id="moves">0</div></div>
+      <div class="stat"><div class="label">Time</div><div class="value" id="time">0:00</div></div>
+    </div>
+    <div class="size" id="size"><button data-n="3">3×3</button><button data-n="4" class="active">4×4</button><button data-n="5">5×5</button></div>
+    <div class="grid" id="grid"></div>
+    <div class="status" id="status">Slide tiles into order.</div>
+    <button class="btn" id="new">Shuffle</button>
+    <p class="hint">Tap a tile next to the gap to slide it. Arrange 1…N in order with the gap last.</p>
+  </div>
+  <script>
+  (function(){
+    let N=4;
+    const gridEl=document.getElementById("grid"),statusEl=document.getElementById("status"),movesEl=document.getElementById("moves"),timeEl=document.getElementById("time");
+    let board,blank,moves,over,timer,secs,started,cells=[];
+
+    function solvedBoard(){const b=[];for(let i=0;i<N*N-1;i++)b.push(i+1);b.push(0);return b;}
+    function idx(r,c){return r*N+c;}
+    function neighborsOfBlank(){const r=Math.floor(blank/N),c=blank%N;const out=[];
+      [[1,0],[-1,0],[0,1],[0,-1]].forEach(([dr,dc])=>{const nr=r+dr,nc=c+dc;if(nr>=0&&nr<N&&nc>=0&&nc<N)out.push(idx(nr,nc));});return out;}
+    function shuffle(){board=solvedBoard();blank=N*N-1;
+      // scramble with many random legal slides -> always solvable
+      let last=-1;for(let k=0;k<N*N*80;k++){const opts=neighborsOfBlank().filter(i=>i!==last);const pick=opts[Math.floor(Math.random()*opts.length)];
+        last=blank;board[blank]=board[pick];board[pick]=0;blank=pick;}
+      if(isSolved()){board[0]=board[1];board[1]=0;} // avoid starting solved (swap keeps solvable? re-shuffle safer)
+      if(isSolved())return shuffle();
+      moves=0;over=false;secs=0;started=false;clearInterval(timer);timeEl.textContent="0:00";movesEl.textContent=0;statusEl.textContent="Slide tiles into order.";render();}
+    function isSolved(){for(let i=0;i<N*N-1;i++)if(board[i]!==i+1)return false;return board[N*N-1]===0;}
+    function build(){gridEl.style.gridTemplateColumns=`repeat(${N},1fr)`;gridEl.innerHTML="";cells=[];
+      for(let i=0;i<N*N;i++){const d=document.createElement("div");d.className="tile";d.addEventListener("click",()=>click(i));gridEl.appendChild(d);cells.push(d);}}
+    function render(){for(let i=0;i<N*N;i++){const v=board[i],el=cells[i];el.textContent=v||"";el.classList.toggle("blank",v===0);}}
+    function startTimer(){if(started)return;started=true;timer=setInterval(()=>{secs++;timeEl.textContent=Math.floor(secs/60)+":"+String(secs%60).padStart(2,"0");},1000);}
+    function click(i){
+      if(over)return;
+      if(!neighborsOfBlank().includes(i))return;
+      startTimer();board[blank]=board[i];board[i]=0;blank=i;moves++;movesEl.textContent=moves;render();
+      if(isSolved()){over=true;clearInterval(timer);statusEl.textContent="🎉 Solved in "+moves+" moves · "+timeEl.textContent+"!";}
+    }
+    document.addEventListener("keydown",e=>{const r=Math.floor(blank/N),c=blank%N;let t=-1;
+      if(e.key==="ArrowUp"&&r<N-1)t=idx(r+1,c);else if(e.key==="ArrowDown"&&r>0)t=idx(r-1,c);
+      else if(e.key==="ArrowLeft"&&c<N-1)t=idx(r,c+1);else if(e.key==="ArrowRight"&&c>0)t=idx(r,c-1);
+      if(t>=0){e.preventDefault();click(t);}});
+    document.querySelectorAll("#size button").forEach(b=>b.addEventListener("click",()=>{
+      document.querySelectorAll("#size button").forEach(x=>x.classList.remove("active"));b.classList.add("active");N=+b.dataset.n;build();shuffle();}));
+    document.getElementById("new").addEventListener("click",shuffle);
+    window.__fifteen={solvedBoard:()=>{return solvedBoard();},setN:(n)=>{N=n;},shuffleTest:()=>{shuffle();return{board:board.slice(),solved:isSolved()};},isSolvable:(b)=>{
+      // parity check for solvability
+      let inv=0;const arr=b.filter(v=>v!==0);for(let i=0;i<arr.length;i++)for(let j=i+1;j<arr.length;j++)if(arr[i]>arr[j])inv++;
+      if(N%2===1)return inv%2===0;const blankRowFromBottom=N-Math.floor(b.indexOf(0)/N);return (inv+blankRowFromBottom)%2===1;}};
+    build();shuffle();
+  })();
+  </script>
+</body>
+</html>

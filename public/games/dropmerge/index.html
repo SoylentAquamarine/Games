@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Drop Merge — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='60'>🔽</text></svg>" />
+  <style>
+    :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;--grid:#232752;--empty:#2a2e56;}
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+      background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.22),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.16),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;}
+    .wrap{max-width:400px;margin:0 auto;padding:16px 16px 40px;display:flex;flex-direction:column;align-items:center;gap:12px}
+    .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
+    .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+    .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+    h1{margin:0;font-size:1.5rem;background:linear-gradient(120deg,#22d3ee,#a855f7);-webkit-background-clip:text;background-clip:text;color:transparent}
+    .scores{display:flex;gap:12px;width:100%}
+    .stat{flex:1;background:var(--panel);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:8px;text-align:center}
+    .stat .label{font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+    .stat .value{font-size:1.4rem;font-weight:700}
+    .next{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:.85rem}
+    .nt{width:40px;height:40px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:800;color:#0b0c1a}
+    .grid{display:grid;gap:5px;background:var(--grid);border-radius:12px;padding:6px;width:100%;touch-action:manipulation}
+    .cell{aspect-ratio:1;background:var(--empty);border-radius:7px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:clamp(.85rem,4.5vw,1.3rem);color:#0b0c1a;transition:background .1s}
+    .col{cursor:pointer}
+    .status{min-height:1.2em;font-weight:600;color:#fde68a;text-align:center}
+    .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:10px 24px;border-radius:999px;cursor:pointer}
+    .hint{color:var(--muted);font-size:.8rem;text-align:center}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar"><a class="home" href="/">← Home</a><h1>🔽 Drop Merge</h1><span style="width:56px"></span></div>
+    <div class="scores">
+      <div class="stat"><div class="label">Score</div><div class="value" id="score">0</div></div>
+      <div class="stat"><div class="label">Best</div><div class="value" id="best">0</div></div>
+    </div>
+    <div class="next">Next: <div class="nt" id="next">2</div> — tap a column to drop</div>
+    <div class="grid" id="grid"></div>
+    <div class="status" id="status"></div>
+    <button class="btn" id="new">New Game</button>
+    <p class="hint">Tap a column to drop the next tile. Equal tiles stacked on each other merge and double — chain them for big scores!</p>
+  </div>
+  <script>
+  (function(){
+    const COLS=5,ROWS=8;
+    const HUES=[210,45,140,280,320,190,90,25,260,160,340,0];
+    const gridEl=document.getElementById("grid"),scoreEl=document.getElementById("score"),bestEl=document.getElementById("best"),statusEl=document.getElementById("status"),nextEl=document.getElementById("next");
+    let grid,next,score,over,best=+localStorage.getItem("dropmerge_best")||0,cells=[];
+    bestEl.textContent=best;
+    function color(v){const i=Math.round(Math.log2(v))-1;return `hsl(${HUES[i%HUES.length]} 70% ${66-Math.min(i,9)*2}%)`;}
+    function genNext(){return Math.random()<0.7?2:4;}
+
+    function gravity(){for(let c=0;c<COLS;c++){const col=[];for(let r=ROWS-1;r>=0;r--)if(grid[r][c])col.push(grid[r][c]);
+      for(let r=ROWS-1,i=0;r>=0;r--,i++)grid[r][c]=i<col.length?col[i]:0;}}
+    // cascade: repeatedly collapse gravity + merge one vertical equal pair (lower absorbs), until stable
+    function settle(){let changed=true,gained=0;
+      while(changed){changed=false;gravity();
+        outer:for(let c=0;c<COLS;c++)for(let r=ROWS-2;r>=0;r--){
+          if(grid[r][c]&&grid[r][c]===grid[r+1][c]){grid[r+1][c]*=2;gained+=grid[r+1][c];grid[r][c]=0;changed=true;break outer;}}
+      }
+      return gained;}
+    function drop(c){
+      if(over)return;
+      // lowest empty row in column
+      let r=-1;for(let i=ROWS-1;i>=0;i--)if(!grid[i][c]){r=i;break;}
+      if(r<0)return; // column full
+      grid[r][c]=next;
+      score+=settle();scoreEl.textContent=score;if(score>best){best=score;bestEl.textContent=best;localStorage.setItem("dropmerge_best",best);}
+      next=genNext();nextEl.textContent=next;nextEl.style.background=color(next);
+      render();
+      if(full()){over=true;statusEl.textContent="Board full — game over! Score "+score+".";}
+    }
+    function full(){for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++)if(!grid[r][c])return false;return true;}
+
+    function build(){gridEl.style.gridTemplateColumns=`repeat(${COLS},1fr)`;gridEl.innerHTML="";cells=[];
+      for(let r=0;r<ROWS;r++){cells[r]=[];for(let c=0;c<COLS;c++){const d=document.createElement("div");d.className="cell col";
+        d.addEventListener("click",()=>drop(c));gridEl.appendChild(d);cells[r][c]=d;}}}
+    function render(){for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){const v=grid[r][c],el=cells[r][c];el.textContent=v||"";el.style.background=v?color(v):"var(--empty)";}}
+    function newGame(){grid=Array.from({length:ROWS},()=>Array(COLS).fill(0));score=0;over=false;scoreEl.textContent=0;statusEl.textContent="";
+      next=genNext();nextEl.textContent=next;nextEl.style.background=color(next);render();}
+    document.getElementById("new").addEventListener("click",newGame);
+    window.__drop={settle,gravity,setGrid:(g)=>{grid=g;},getGrid:()=>grid,ROWS,COLS};
+    build();newGame();
+  })();
+  </script>
+</body>
+</html>
