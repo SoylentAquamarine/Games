@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Fibonacci — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='60'>🌀</text></svg>" />
+  <style>
+    :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;--grid:#232752;--empty:#2a2e56;}
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+      background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.22),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.16),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;}
+    .wrap{max-width:420px;margin:0 auto;padding:16px 16px 40px;display:flex;flex-direction:column;align-items:center;gap:14px}
+    .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
+    .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+    .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+    h1{margin:0;font-size:1.5rem;background:linear-gradient(120deg,#f472b6,#22d3ee);-webkit-background-clip:text;background-clip:text;color:transparent}
+    .scores{display:flex;gap:12px;width:100%}
+    .stat{flex:1;background:var(--panel);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:10px;text-align:center}
+    .stat .label{font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+    .stat .value{font-size:1.4rem;font-weight:700}
+    .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;background:var(--grid);border-radius:14px;padding:10px;width:100%;aspect-ratio:1;touch-action:none}
+    .tile{background:var(--empty);border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:clamp(1rem,5.5vw,1.9rem);color:#0b0c1a}
+    .status{min-height:1.2em;font-weight:600;color:#fde68a;text-align:center}
+    .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:10px 24px;border-radius:999px;cursor:pointer}
+    .hint{color:var(--muted);font-size:.8rem;text-align:center}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar"><a class="home" href="/">← Home</a><h1>🌀 Fibonacci</h1><span style="width:56px"></span></div>
+    <div class="scores">
+      <div class="stat"><div class="label">Score</div><div class="value" id="score">0</div></div>
+      <div class="stat"><div class="label">Best</div><div class="value" id="best">0</div></div>
+    </div>
+    <div class="grid" id="grid"></div>
+    <div class="status" id="status"></div>
+    <button class="btn" id="new">New Game</button>
+    <p class="hint">Arrows / WASD / swipe. Merge <b>consecutive</b> Fibonacci numbers: 1+1=2, 1+2=3, 2+3=5, 3+5=8, 5+8=13…</p>
+  </div>
+  <script>
+  (function(){
+    const N=4;
+    const FIBS=[1,2,3,5,8,13,21,34,55,89,144,233,377,610,987,1597,2584];
+    const HUES=[210,0,45,140,280,320,190,90,25,260,160,340];
+    const gridEl=document.getElementById("grid"),scoreEl=document.getElementById("score"),bestEl=document.getElementById("best"),statusEl=document.getElementById("status");
+    let board,score,over,won,best=+localStorage.getItem("fib_best")||0,tiles=[];
+    bestEl.textContent=best;
+    function canMerge(a,b){if(a===1&&b===1)return true;const ia=FIBS.indexOf(a),ib=FIBS.indexOf(b);return ia>=0&&ib>=0&&Math.abs(ia-ib)===1;}
+    function color(v){const i=Math.max(0,FIBS.indexOf(v));return `hsl(${HUES[i%HUES.length]} 70% ${68-Math.min(i,8)*2}%)`;}
+
+    function collapse(line){const a=line.filter(v=>v>0),out=[];let i=0,gained=0;
+      while(i<a.length){if(i+1<a.length&&canMerge(a[i],a[i+1])){const m=a[i]+a[i+1];out.push(m);gained+=m;if(m>=233)won=true;i+=2;}else{out.push(a[i]);i++;}}
+      while(out.length<N)out.push(0);return{out,gained};}
+    function getLine(dir,idx){const l=[];for(let k=0;k<N;k++){if(dir==="left")l.push(board[idx][k]);else if(dir==="right")l.push(board[idx][N-1-k]);else if(dir==="up")l.push(board[k][idx]);else l.push(board[N-1-k][idx]);}return l;}
+    function setLine(dir,idx,line){for(let k=0;k<N;k++){if(dir==="left")board[idx][k]=line[k];else if(dir==="right")board[idx][N-1-k]=line[k];else if(dir==="up")board[k][idx]=line[k];else board[N-1-k][idx]=line[k];}}
+    function move(dir){
+      if(over)return;const before=JSON.stringify(board);let gain=0;
+      for(let idx=0;idx<N;idx++){const {out,gained}=collapse(getLine(dir,idx));setLine(dir,idx,out);gain+=gained;}
+      if(JSON.stringify(board)===before)return;
+      score+=gain;scoreEl.textContent=score;if(score>best){best=score;bestEl.textContent=best;localStorage.setItem("fib_best",best);}
+      addTile();render();
+      if(won){statusEl.textContent="🎉 You reached 233! Keep going.";won=false;}
+      if(!anyMove()){over=true;statusEl.textContent="Game over — final score "+score+".";}
+    }
+    function addTile(){const e=[];for(let r=0;r<N;r++)for(let c=0;c<N;c++)if(!board[r][c])e.push([r,c]);if(!e.length)return;
+      const[r,c]=e[Math.floor(Math.random()*e.length)];board[r][c]=Math.random()<0.85?1:2;}
+    function anyMove(){for(let r=0;r<N;r++)for(let c=0;c<N;c++){const v=board[r][c];
+      if(!v)return true;if(c<N-1&&canMerge(v,board[r][c+1]))return true;if(r<N-1&&canMerge(v,board[r+1][c]))return true;}return false;}
+
+    function build(){gridEl.innerHTML="";tiles=[];for(let i=0;i<16;i++){const d=document.createElement("div");d.className="tile";gridEl.appendChild(d);tiles.push(d);}}
+    function render(){for(let r=0;r<N;r++)for(let c=0;c<N;c++){const v=board[r][c],el=tiles[r*N+c];el.textContent=v||"";el.style.background=v?color(v):"var(--empty)";}}
+    function newGame(){board=Array.from({length:N},()=>Array(N).fill(0));score=0;over=false;won=false;scoreEl.textContent=0;statusEl.textContent="";addTile();addTile();render();}
+    document.addEventListener("keydown",e=>{const m={ArrowLeft:"left",ArrowRight:"right",ArrowUp:"up",ArrowDown:"down",a:"left",d:"right",w:"up",s:"down"}[e.key];if(m){e.preventDefault();move(m);}});
+    let ts=null;gridEl.addEventListener("touchstart",e=>ts={x:e.touches[0].clientX,y:e.touches[0].clientY},{passive:true});
+    gridEl.addEventListener("touchend",e=>{if(!ts)return;const dx=e.changedTouches[0].clientX-ts.x,dy=e.changedTouches[0].clientY-ts.y;if(Math.abs(dx)<20&&Math.abs(dy)<20)return;if(Math.abs(dx)>Math.abs(dy))move(dx>0?"right":"left");else move(dy>0?"down":"up");ts=null;},{passive:true});
+    document.getElementById("new").addEventListener("click",newGame);
+    window.__fib={collapse,canMerge,FIBS};
+    build();newGame();
+  })();
+  </script>
+</body>
+</html>
