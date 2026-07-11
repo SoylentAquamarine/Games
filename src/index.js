@@ -39,6 +39,12 @@ export default {
     if (url.pathname === "/api/comments" && request.method === "POST") {
       return handleCommentsPost(request, env, url);
     }
+    if (url.pathname === "/api/play" && request.method === "POST") {
+      return handlePlay(request, env, url);
+    }
+    if (url.pathname === "/api/admin/data" && request.method === "GET") {
+      return handleAdminData(request, env);
+    }
 
     // Not an API route — serve a static asset.
     return env.ASSETS.fetch(request);
@@ -175,6 +181,65 @@ async function handleCommentsPost(request, env, url) {
   if (list.length > MAX_COMMENTS) list.length = MAX_COMMENTS;
   await env.ACCOUNTS.put(key, JSON.stringify(list));
   return json({ ok: true, comment });
+}
+
+// ---------------------------------------------------------------------------
+// Play analytics (KV key "stats") + admin dashboard data
+// ---------------------------------------------------------------------------
+
+async function handlePlay(request, env, url) {
+  const slug = url.searchParams.get("game") || "";
+  if (!SLUG_RE.test(slug)) return json({ error: "bad_slug" }, 400);
+  const raw = await env.ACCOUNTS.get("stats");
+  const s = raw ? JSON.parse(raw) : { total: 0, games: {}, days: {} };
+  s.total = (s.total || 0) + 1;
+  s.games[slug] = (s.games[slug] || 0) + 1;
+  const day = new Date().toISOString().slice(0, 10);
+  s.days[day] = (s.days[day] || 0) + 1;
+  const days = Object.keys(s.days).sort();
+  while (days.length > 90) delete s.days[days.shift()];
+  await env.ACCOUNTS.put("stats", JSON.stringify(s));
+  return json({ ok: true });
+}
+
+function adminOk(request, env) {
+  if (!env.ADMIN_TOKEN) return false;
+  const auth = request.headers.get("Authorization") || "";
+  let token = auth.replace(/^Bearer\s+/i, "");
+  if (!token) token = new URL(request.url).searchParams.get("token") || "";
+  return token.length > 0 && timingSafeEqual(token, env.ADMIN_TOKEN);
+}
+
+async function handleAdminData(request, env) {
+  if (!adminOk(request, env)) return json({ error: "unauth" }, 401);
+
+  // registered users (KV keys "u:<name>")
+  let users = 0, cursor;
+  do {
+    const r = await env.ACCOUNTS.list({ prefix: "u:", cursor });
+    users += r.keys.length;
+    cursor = r.list_complete ? undefined : r.cursor;
+  } while (cursor);
+
+  const rawStats = await env.ACCOUNTS.get("stats");
+  const stats = rawStats ? JSON.parse(rawStats) : { total: 0, games: {}, days: {} };
+
+  // all comments across games
+  const games = [];
+  let totalComments = 0;
+  cursor = undefined;
+  do {
+    const r = await env.ACCOUNTS.list({ prefix: "comments:", cursor });
+    for (const k of r.keys) {
+      const raw = await env.ACCOUNTS.get(k.name);
+      const arr = raw ? JSON.parse(raw) : [];
+      if (arr.length) { games.push({ game: k.name.slice("comments:".length), count: arr.length, comments: arr }); totalComments += arr.length; }
+    }
+    cursor = r.list_complete ? undefined : r.cursor;
+  } while (cursor);
+  games.sort((a, b) => b.count - a.count);
+
+  return json({ ok: true, users, stats, totalComments, games });
 }
 
 function handleLogout(request) {

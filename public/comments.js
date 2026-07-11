@@ -111,7 +111,9 @@
     load();
   }
 
-  function init() { injectStyles(); build(); }
+  function pingPlay() { try { fetch("/api/play?game=" + encodeURIComponent(GAME), { method: "POST", keepalive: true }); } catch (e) {} }
+
+  function init() { injectStyles(); build(); pingPlay(); }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
   else init();
 })();
