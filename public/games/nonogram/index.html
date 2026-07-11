@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Nonogram — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='60'>🖼️</text></svg>" />
+  <style>
+    :root{--bg:#0f1020;--panel:#1e2140;--panel2:#252a4d;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;--fill:#22d3ee;--empty:#20233f;}
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+      background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.22),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.16),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;}
+    .wrap{max-width:440px;margin:0 auto;padding:14px 12px 40px;display:flex;flex-direction:column;align-items:center;gap:12px}
+    .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
+    .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+    .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+    h1{margin:0;font-size:1.4rem;background:linear-gradient(120deg,#22d3ee,#a855f7);-webkit-background-clip:text;background-clip:text;color:transparent}
+    .bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:center}
+    .size{display:flex;gap:5px;background:var(--panel);padding:4px;border-radius:999px}
+    .size button{background:transparent;border:none;color:var(--muted);padding:6px 12px;border-radius:999px;cursor:pointer;font-weight:600;font-size:.82rem}
+    .size button.active{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a}
+    .mode{background:var(--panel);border:1px solid rgba(255,255,255,.14);color:var(--text);padding:8px 14px;border-radius:999px;cursor:pointer;font-weight:700}
+    .puzzle{display:grid;background:var(--panel);padding:8px;border-radius:12px;gap:2px;overflow:auto;max-width:100%;touch-action:manipulation}
+    .cc{background:var(--panel2);border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:.62rem;font-weight:700;color:var(--muted);min-width:24px;min-height:24px}
+    .cc.col{flex-direction:column;line-height:1.15;padding:2px 0}
+    .cc.row{flex-direction:row;gap:3px;padding:0 4px;justify-content:flex-end}
+    .corner{background:transparent}
+    .cell{background:var(--empty);border-radius:3px;width:26px;height:26px;cursor:pointer}
+    .cell.fill{background:var(--fill)}
+    .cell.mark{position:relative}
+    .cell.mark::after{content:"✕";color:var(--muted);font-size:.8rem;display:flex;align-items:center;justify-content:center;height:100%}
+    .cell.edgeR{margin-right:2px}.cell.edgeB{margin-bottom:2px}
+    .status{min-height:1.2em;font-weight:600;color:#fde68a;text-align:center}
+    .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:9px 18px;border-radius:999px;cursor:pointer;font-size:.85rem}
+    .hint{color:var(--muted);font-size:.78rem;text-align:center}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar"><a class="home" href="/">← Home</a><h1>🖼️ Nonogram</h1><span style="width:56px"></span></div>
+    <div class="bar">
+      <div class="size" id="size"><button data-n="5" class="active">5×5</button><button data-n="10">10×10</button><button data-n="15">15×15</button></div>
+      <button class="mode" id="mode">✏️ Fill</button>
+    </div>
+    <div class="puzzle" id="puzzle"></div>
+    <div class="status" id="status">Fill cells to match the number clues.</div>
+    <button class="btn" id="new">New Puzzle</button>
+    <p class="hint">Numbers show runs of filled cells in each row/column. Toggle ✏️/❌ to fill or mark. Solve every line to win.</p>
+  </div>
+  <script>
+  (function(){
+    let N=5;
+    const puzzleEl=document.getElementById("puzzle"),statusEl=document.getElementById("status"),modeBtn=document.getElementById("mode");
+    let solution,state,rowClues,colClues,over,mode="fill",cells=[];
+
+    function runs(line){const out=[];let c=0;for(const v of line){if(v){c++;}else{if(c){out.push(c);}c=0;}}if(c)out.push(c);return out.length?out:[0];}
+    function genSolution(){const g=[];for(let r=0;r<N;r++){g[r]=[];for(let c=0;c<N;c++)g[r][c]=Math.random()<0.55?1:0;}
+      // avoid fully empty rows/cols (nicer puzzles)
+      for(let r=0;r<N;r++)if(g[r].every(v=>!v))g[r][Math.floor(Math.random()*N)]=1;
+      for(let c=0;c<N;c++){let any=false;for(let r=0;r<N;r++)if(g[r][c])any=true;if(!any)g[Math.floor(Math.random()*N)][c]=1;}
+      return g;}
+    function clues(){rowClues=[];colClues=[];for(let r=0;r<N;r++)rowClues.push(runs(solution[r]));
+      for(let c=0;c<N;c++){const col=[];for(let r=0;r<N;r++)col.push(solution[r][c]);colClues.push(runs(col));}}
+    function solved(){for(let r=0;r<N;r++){const line=state[r].map(v=>v===1?1:0);if(JSON.stringify(runs(line))!==JSON.stringify(rowClues[r]))return false;}
+      for(let c=0;c<N;c++){const line=[];for(let r=0;r<N;r++)line.push(state[r][c]===1?1:0);if(JSON.stringify(runs(line))!==JSON.stringify(colClues[c]))return false;}return true;}
+
+    function newGame(){solution=genSolution();clues();state=Array.from({length:N},()=>Array(N).fill(0));over=false;statusEl.textContent="Fill cells to match the clues.";build();}
+    function build(){
+      const maxRowClue=Math.max(...rowClues.map(r=>r.length));
+      puzzleEl.style.gridTemplateColumns=`auto repeat(${N},1fr)`;
+      puzzleEl.innerHTML="";cells=[];
+      // header row: corner + column clues
+      const corner=document.createElement("div");corner.className="cc corner";puzzleEl.appendChild(corner);
+      for(let c=0;c<N;c++){const cc=document.createElement("div");cc.className="cc col";cc.innerHTML=colClues[c].map(n=>`<span>${n}</span>`).join("");puzzleEl.appendChild(cc);}
+      for(let r=0;r<N;r++){
+        const rc=document.createElement("div");rc.className="cc row";rc.innerHTML=rowClues[r].map(n=>`<span>${n}</span>`).join("");puzzleEl.appendChild(rc);
+        cells[r]=[];
+        for(let c=0;c<N;c++){const d=document.createElement("div");d.className="cell"+((c+1)%5===0?" edgeR":"")+((r+1)%5===0?" edgeB":"");
+          d.addEventListener("click",()=>toggle(r,c));
+          d.addEventListener("contextmenu",e=>{e.preventDefault();markCell(r,c);});
+          puzzleEl.appendChild(d);cells[r][c]=d;}
+      }
+      render();
+    }
+    function toggle(r,c){if(over)return;if(mode==="fill")state[r][c]=state[r][c]===1?0:1;else state[r][c]=state[r][c]===2?0:2;render();check();}
+    function markCell(r,c){if(over)return;state[r][c]=state[r][c]===2?0:2;render();}
+    function render(){for(let r=0;r<N;r++)for(let c=0;c<N;c++){const el=cells[r][c];el.classList.toggle("fill",state[r][c]===1);el.classList.toggle("mark",state[r][c]===2);}}
+    function check(){if(solved()){over=true;statusEl.textContent="🎉 Solved!";}}
+    modeBtn.addEventListener("click",()=>{mode=mode==="fill"?"mark":"fill";modeBtn.textContent=mode==="fill"?"✏️ Fill":"❌ Mark";});
+    document.querySelectorAll("#size button").forEach(b=>b.addEventListener("click",()=>{document.querySelectorAll("#size button").forEach(x=>x.classList.remove("active"));b.classList.add("active");N=+b.dataset.n;newGame();}));
+    document.getElementById("new").addEventListener("click",newGame);
+    window.__nono={runs,setN:(n)=>{N=n;},genTest:()=>{solution=genSolution();clues();state=solution.map(r=>r.slice());return solved();},cluesMatchTest:()=>{solution=genSolution();clues();
+      // verify row clue equals runs of solution row
+      let ok=true;for(let r=0;r<N;r++)if(JSON.stringify(rowClues[r])!==JSON.stringify(runs(solution[r])))ok=false;return ok;}};
+    build0();
+    function build0(){newGame();}
+  })();
+  </script>
+</body>
+</html>
