@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Tron — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🏍️</text></svg>" />
+  <style>
+    :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;--you:#22d3ee;--cpu:#f97316;}
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+      background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.22),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.16),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;}
+    .wrap{max-width:460px;margin:0 auto;padding:16px 16px 30px;display:flex;flex-direction:column;align-items:center;gap:12px}
+    .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
+    .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+    .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+    h1{margin:0;font-size:1.6rem;background:linear-gradient(120deg,var(--you),var(--cpu));-webkit-background-clip:text;background-clip:text;color:transparent}
+    .board-wrap{position:relative;width:100%}
+    canvas{width:100%;height:auto;display:block;background:#05060f;border:1px solid rgba(255,255,255,.08);border-radius:12px;touch-action:none}
+    .overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:rgba(15,16,32,.82);border-radius:12px;text-align:center}
+    .overlay.hidden{display:none}
+    .overlay h2{margin:0}.overlay p{margin:0;color:var(--muted)}
+    .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:12px 28px;border-radius:999px;cursor:pointer}
+    .dpad{display:grid;grid-template-columns:repeat(3,54px);grid-template-rows:repeat(2,44px);gap:6px}
+    .dpad button{background:var(--panel);border:1px solid rgba(255,255,255,.14);color:var(--text);border-radius:10px;font-size:1.1rem;cursor:pointer;user-select:none;touch-action:none}
+    .dpad .u{grid-column:2}
+    .hint{color:var(--muted);font-size:.82rem;text-align:center}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar"><a class="home" href="/">← Home</a><h1>🏍️ Tron</h1><span style="width:56px"></span></div>
+    <div class="board-wrap">
+      <canvas id="c" width="400" height="300"></canvas>
+      <div class="overlay" id="ov"><h2 id="ot">🏍️ Tron</h2><p id="om">Don't crash into the trails or walls!</p><button class="btn" id="start">Play</button></div>
+    </div>
+    <div class="dpad">
+      <button class="u" data-d="up">▲</button><button data-d="left">◀</button>
+      <button data-d="right">▶</button><button data-d="down">▼</button>
+    </div>
+    <p class="hint">Arrows / WASD / d-pad to turn. Outlast the CPU cycle. You can't reverse.</p>
+  </div>
+  <script>
+  (function(){
+    const cv=document.getElementById("c"),ctx=cv.getContext("2d");
+    const CELL=5, COLS=cv.width/CELL, ROWS=cv.height/CELL;
+    const ov=document.getElementById("ov"),ot=document.getElementById("ot"),om=document.getElementById("om"),startBtn=document.getElementById("start");
+    const DIRS={up:[0,-1],down:[0,1],left:[-1,0],right:[1,0]};
+    const OPP={up:"down",down:"up",left:"right",right:"left"};
+    let occ,you,cpu,running,timer,youNext;
+
+    function reset(){occ=Array.from({length:ROWS},()=>Array(COLS).fill(0));
+      you={x:Math.floor(COLS*0.25),y:Math.floor(ROWS/2),dir:"right"};youNext="right";
+      cpu={x:Math.floor(COLS*0.75),y:Math.floor(ROWS/2),dir:"left"};
+      occ[you.y][you.x]=1;occ[cpu.y][cpu.x]=2;render();}
+    function start(){reset();ov.classList.add("hidden");running=true;clearInterval(timer);timer=setInterval(tick,70);}
+    function free(x,y){return x>=0&&x<COLS&&y>=0&&y<ROWS&&!occ[y][x];}
+    function tick(){
+      if(!running)return;
+      if(youNext!==OPP[you.dir])you.dir=youNext;
+      cpu.dir=cpuChoose();
+      const [yd,cd]=[DIRS[you.dir],DIRS[cpu.dir]];
+      const ny={x:you.x+yd[0],y:you.y+yd[1]},nc={x:cpu.x+cd[0],y:cpu.y+cd[1]};
+      const yDead=!free(ny.x,ny.y),cDead=!free(nc.x,nc.y)||(ny.x===nc.x&&ny.y===nc.y);
+      if(yDead||cDead){return end(yDead,cDead);}
+      you.x=ny.x;you.y=ny.y;occ[you.y][you.x]=1;
+      cpu.x=nc.x;cpu.y=nc.y;occ[cpu.y][cpu.x]=2;
+      render();
+    }
+    function cpuChoose(){
+      const opts=Object.keys(DIRS).filter(d=>d!==OPP[cpu.dir]);
+      let best=cpu.dir,bs=-1;
+      for(const d of opts){const[dx,dy]=DIRS[d];const nx=cpu.x+dx,ny=cpu.y+dy;if(!free(nx,ny))continue;
+        const space=floodCount(nx,ny)+Math.random()*3;if(space>bs){bs=space;best=d;}}
+      return best;}
+    function floodCount(sx,sy){ // reachable free cells (capped) from (sx,sy)
+      const seen=new Set();const st=[[sx,sy]];let n=0;
+      while(st.length&&n<160){const[x,y]=st.pop();const k=x+","+y;if(seen.has(k))continue;if(!free(x,y))continue;seen.add(k);n++;
+        st.push([x+1,y],[x-1,y],[x,y+1],[x,y-1]);}
+      return n;}
+    function end(yDead,cDead){running=false;clearInterval(timer);
+      ot.textContent=(yDead&&cDead)?"Draw!":yDead?"💥 You crashed":"🏆 You win!";
+      om.textContent=yDead&&cDead?"Both cycles crashed.":yDead?"The CPU outlasted you.":"You outlasted the CPU!";
+      startBtn.textContent="Play again";ov.classList.remove("hidden");}
+    function render(){
+      ctx.clearRect(0,0,cv.width,cv.height);
+      for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){if(!occ[y][x])continue;ctx.fillStyle=occ[y][x]===1?"rgba(34,211,238,.6)":"rgba(249,115,22,.6)";ctx.fillRect(x*CELL,y*CELL,CELL,CELL);}
+      ctx.fillStyle="#22d3ee";ctx.fillRect(you.x*CELL,you.y*CELL,CELL,CELL);
+      ctx.fillStyle="#f97316";ctx.fillRect(cpu.x*CELL,cpu.y*CELL,CELL,CELL);
+    }
+    function turn(d){youNext=d;}
+    document.addEventListener("keydown",e=>{const m={ArrowUp:"up",ArrowDown:"down",ArrowLeft:"left",ArrowRight:"right",w:"up",s:"down",a:"left",d:"right"}[e.key];if(m){e.preventDefault();turn(m);}});
+    document.querySelectorAll(".dpad button").forEach(b=>b.addEventListener("click",()=>turn(b.dataset.d)));
+    let ts=null;cv.addEventListener("touchstart",e=>ts={x:e.touches[0].clientX,y:e.touches[0].clientY},{passive:true});
+    cv.addEventListener("touchend",e=>{if(!ts)return;const dx=e.changedTouches[0].clientX-ts.x,dy=e.changedTouches[0].clientY-ts.y;if(Math.abs(dx)<16&&Math.abs(dy)<16)return;if(Math.abs(dx)>Math.abs(dy))turn(dx>0?"right":"left");else turn(dy>0?"down":"up");ts=null;},{passive:true});
+    startBtn.addEventListener("click",start);
+    reset();
+  })();
+  </script>
+</body>
+</html>

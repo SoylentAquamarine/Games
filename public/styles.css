@@ -221,3 +221,12 @@ footer {
   padding: 6px 12px; border: 1px solid rgba(255,255,255,.12); border-radius: 999px; white-space: nowrap;
 }
 .account-link:hover { color: var(--text); border-color: rgba(124,92,255,.6); }
+
+/* Category sections on the home page */
+.category { margin-top: 34px; text-align: left; }
+.category:first-of-type { margin-top: 18px; }
+.category h3 {
+  font-size: 1.05rem; margin: 0 0 12px; display: flex; align-items: center; gap: 8px;
+  color: var(--text); font-weight: 700; letter-spacing: -0.01em;
+  padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,.08);
+}

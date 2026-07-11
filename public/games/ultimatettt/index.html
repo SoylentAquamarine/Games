@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ultimate Tic-Tac-Toe — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='60'>#️⃣</text></svg>" />
+  <style>
+    :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;--x:#22d3ee;--o:#f472b6;}
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+      background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.22),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.16),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;}
+    .wrap{max-width:420px;margin:0 auto;padding:14px 12px 40px;display:flex;flex-direction:column;align-items:center;gap:12px}
+    .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
+    .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+    .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+    h1{margin:0;font-size:1.3rem;background:linear-gradient(120deg,var(--x),var(--o));-webkit-background-clip:text;background-clip:text;color:transparent}
+    .status{min-height:1.2em;font-weight:600;color:#fde68a;text-align:center}
+    .meta{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;width:100%;aspect-ratio:1;background:#2a2050;border-radius:12px;padding:6px}
+    .mini{position:relative;display:grid;grid-template-columns:repeat(3,1fr);gap:2px;background:#141730;border-radius:8px;padding:3px}
+    .mini.active{box-shadow:0 0 0 2px #34d399}
+    .mini.won{filter:saturate(.6)}
+    .cell{background:#20233f;border-radius:4px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:clamp(.7rem,4vw,1.2rem);cursor:pointer}
+    .cell.x{color:var(--x)}.cell.o{color:var(--o)}
+    .mini .overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:2.6rem;font-weight:900;border-radius:8px}
+    .mini .overlay.x{color:var(--x);background:rgba(34,211,238,.14)}
+    .mini .overlay.o{color:var(--o);background:rgba(244,114,182,.14)}
+    .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:10px 22px;border-radius:999px;cursor:pointer}
+    .hint{color:var(--muted);font-size:.8rem;text-align:center}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar"><a class="home" href="/">← Home</a><h1>#️⃣ Ultimate T-T-T</h1><span style="width:56px"></span></div>
+    <div class="status" id="status">Your move (X). Play anywhere.</div>
+    <div class="meta" id="meta"></div>
+    <button class="btn" id="new">New Game</button>
+    <p class="hint">Your cell decides which board the opponent must play next. Win 3 small boards in a row to win the game.</p>
+  </div>
+  <script>
+  (function(){
+    const X=1,O=2;
+    const LINES=[[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+    const metaEl=document.getElementById("meta"),statusEl=document.getElementById("status");
+    let boards,bigWin,active,turn,over,minis=[];
+
+    function winnerOf(cells){for(const[a,b,c]of LINES)if(cells[a]&&cells[a]===cells[b]&&cells[a]===cells[c])return cells[a];return 0;}
+    function full(cells){return cells.every(v=>v);}
+    function playable(bi){return bigWin[bi]===0&&!full(boards[bi]);}
+    function legalMoves(){const out=[];const boardsToPlay=(active>=0&&playable(active))?[active]:[...Array(9).keys()].filter(playable);
+      for(const bi of boardsToPlay)for(let ci=0;ci<9;ci++)if(!boards[bi][ci])out.push([bi,ci]);return out;}
+
+    function newGame(){boards=Array.from({length:9},()=>Array(9).fill(0));bigWin=Array(9).fill(0);active=-1;turn=X;over=false;
+      statusEl.textContent="Your move (X). Play anywhere.";render();}
+    function place(bi,ci,p){boards[bi][ci]=p;const w=winnerOf(boards[bi]);if(w)bigWin[bi]=w;else if(full(boards[bi]))bigWin[bi]=-1;
+      active=playable(ci)?ci:-1;
+      const mw=winnerOf(bigWin.map(v=>v>0?v:0));if(mw){over=true;return mw;}
+      if(bigWin.every(v=>v!==0)){over=true;return -1;}return 0;}
+
+    function human(bi,ci){if(over||turn!==X)return;if(!legalMoves().some(m=>m[0]===bi&&m[1]===ci))return;
+      const res=place(bi,ci,X);render();
+      if(res){return end(res);}
+      turn=O;statusEl.textContent="CPU thinking…";setTimeout(cpu,400);}
+    function cpu(){if(over)return;const m=aiMove();const res=place(m[0],m[1],O);render();if(res)return end(res);
+      turn=X;statusEl.textContent="Your move.";}
+    function canWinBoard(bi,p){for(let ci=0;ci<9;ci++)if(!boards[bi][ci]){const t=boards[bi].slice();t[ci]=p;if(winnerOf(t)===p)return true;}return false;}
+    function aiMove(){
+      const moves=legalMoves();let best=moves[0],bs=-1e9;
+      for(const[bi,ci]of moves){let s=Math.random()*0.5;
+        const t=boards[bi].slice();t[ci]=O;
+        if(winnerOf(t)===O){s+=40;const bw=bigWin.slice();bw[bi]=O;if(winnerOf(bw.map(v=>v>0?v:0))===O)s+=1e6;}
+        // blocking: opponent had this as a winning cell
+        const tb=boards[bi].slice();tb[ci]=X;if(winnerOf(tb)===X)s+=25;
+        // where we send them (ci): if that board lets opponent win a small board -> bad
+        if(playable(ci)&&canWinBoard(ci,X))s-=22;
+        if(!playable(ci))s-=7; // sends opponent anywhere
+        if(bi===4)s+=3;if(ci===4)s+=2;
+        if(s>bs){bs=s;best=[bi,ci];}
+      }
+      return best;
+    }
+    function end(res){over=true;statusEl.textContent=res===X?"🏆 You win the game!":res===O?"😔 CPU wins the game.":"It's a draw.";render();}
+
+    function build(){metaEl.innerHTML="";minis=[];for(let bi=0;bi<9;bi++){const m=document.createElement("div");m.className="mini";
+      const cellEls=[];for(let ci=0;ci<9;ci++){const c=document.createElement("div");c.className="cell";c.addEventListener("click",()=>human(bi,ci));m.appendChild(c);cellEls.push(c);}
+      const ov=document.createElement("div");ov.className="overlay";m.appendChild(ov);metaEl.appendChild(m);minis.push({el:m,cells:cellEls,ov});}}
+    function render(){
+      const legalBoards=new Set(legalMoves().map(m=>m[0]));
+      for(let bi=0;bi<9;bi++){const mi=minis[bi];
+        for(let ci=0;ci<9;ci++){const v=boards[bi][ci];mi.cells[ci].textContent=v?(v===X?"✕":"◯"):"";mi.cells[ci].className="cell"+(v===X?" x":v===O?" o":"");}
+        mi.el.classList.toggle("active",turn===X&&!over&&legalBoards.has(bi));
+        mi.el.classList.toggle("won",bigWin[bi]!==0);
+        mi.ov.className="overlay"+(bigWin[bi]===X?" x":bigWin[bi]===O?" o":"");mi.ov.textContent=bigWin[bi]===X?"✕":bigWin[bi]===O?"◯":"";
+      }
+    }
+    document.getElementById("new").addEventListener("click",newGame);
+    window.__uttt={winnerOf,full,newGameState:()=>{newGame();return{boards,bigWin};},place:(bi,ci,p)=>place(bi,ci,p),legalCount:()=>legalMoves().length,setActive:(a)=>{active=a;}};
+    build();newGame();
+  })();
+  </script>
+</body>
+</html>

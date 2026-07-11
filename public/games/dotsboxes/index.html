@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dots & Boxes — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>▪️</text></svg>" />
+  <style>
+    :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;--you:#22d3ee;--cpu:#f43f5e;}
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+      background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.22),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.16),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;}
+    .wrap{max-width:420px;margin:0 auto;padding:14px 12px 40px;display:flex;flex-direction:column;align-items:center;gap:12px}
+    .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
+    .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+    .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+    h1{margin:0;font-size:1.4rem;background:linear-gradient(120deg,var(--you),var(--cpu));-webkit-background-clip:text;background-clip:text;color:transparent}
+    .scores{display:flex;gap:12px;width:100%}
+    .stat{flex:1;background:var(--panel);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:8px;text-align:center;font-weight:700}
+    .stat.turn{border-color:var(--accent-2)}
+    svg{width:100%;height:auto;display:block;background:var(--panel);border-radius:14px;touch-action:manipulation}
+    .status{min-height:1.2em;font-weight:600;color:#fde68a;text-align:center}
+    .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:10px 22px;border-radius:999px;cursor:pointer}
+    .hint{color:var(--muted);font-size:.82rem;text-align:center}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar"><a class="home" href="/">← Home</a><h1>▪️ Dots &amp; Boxes</h1><span style="width:56px"></span></div>
+    <div class="scores">
+      <div class="stat" id="sy" style="color:var(--you)">You 0</div>
+      <div class="stat" id="sc" style="color:var(--cpu)">CPU 0</div>
+    </div>
+    <svg id="board" viewBox="0 0 320 320"></svg>
+    <div class="status" id="status">Draw a line. Complete a box to go again.</div>
+    <button class="btn" id="new">New Game</button>
+    <p class="hint">Tap between two dots to draw a line. Close the 4th side of a box to claim it and take another turn.</p>
+  </div>
+  <script>
+  (function(){
+    const D=5, BOX=D-1;
+    const PAD=30, SP=(320-2*PAD)/(D-1);
+    const svg=document.getElementById("board"),statusEl=document.getElementById("status");
+    let h,v,boxes,turn,over,scoreY,scoreC;
+
+    function newGame(){h=Array.from({length:D},()=>Array(D-1).fill(0));v=Array.from({length:D-1},()=>Array(D).fill(0));
+      boxes=Array.from({length:BOX},()=>Array(BOX).fill(0));turn=1;over=false;scoreY=0;scoreC=0;statusEl.textContent="Your move.";render();updateScores();}
+    function boxSides(r,c){return h[r][c]+h[r+1][c]+v[r][c]+v[r][c+1];}
+    function applyEdge(type,r,c,player){
+      if(type==="h")h[r][c]=1;else v[r][c]=1;
+      let made=0;const affected=type==="h"?[[r-1,c],[r,c]]:[[r,c-1],[r,c]];
+      for(const[br,bc]of affected){if(br<0||br>=BOX||bc<0||bc>=BOX)continue;if(!boxes[br][bc]&&boxSides(br,bc)===4){boxes[br][bc]=player;made++;}}
+      return made;}
+    function edgeFree(type,r,c){return type==="h"?h[r][c]===0:v[r][c]===0;}
+    function allEdges(){const e=[];for(let r=0;r<D;r++)for(let c=0;c<D-1;c++)if(h[r][c]===0)e.push(["h",r,c]);
+      for(let r=0;r<D-1;r++)for(let c=0;c<D;c++)if(v[r][c]===0)e.push(["v",r,c]);return e;}
+    function sidesIfAdded(type,r,c){const aff=type==="h"?[[r-1,c],[r,c]]:[[r,c-1],[r,c]];let mx=0;
+      for(const[br,bc]of aff){if(br<0||br>=BOX||bc<0||bc>=BOX)continue;mx=Math.max(mx,boxSides(br,bc)+1);}return mx;}
+    function completesBox(type,r,c){return sidesIfAdded(type,r,c)===4;}
+
+    function human(type,r,c){if(over||turn!==1||!edgeFree(type,r,c))return;
+      const made=applyEdge(type,r,c,1);scoreY+=made;updateScores();render();
+      if(checkEnd())return;
+      if(made>0){statusEl.textContent="Box! Go again.";return;}
+      turn=2;statusEl.textContent="CPU thinking…";setTimeout(cpuTurn,450);}
+    function cpuTurn(){
+      if(over)return;
+      let edges=allEdges();
+      const winning=edges.find(([t,r,c])=>completesBox(t,r,c));
+      if(winning){const[t,r,c]=winning;const made=applyEdge(t,r,c,2);scoreC+=made;updateScores();render();
+        if(checkEnd())return;setTimeout(cpuTurn,300);return;}
+      edges=allEdges();const safe=edges.filter(([t,r,c])=>sidesIfAdded(t,r,c)<3);
+      let pick;
+      if(safe.length)pick=safe[Math.floor(Math.random()*safe.length)];
+      else{edges.sort((a,b)=>opens(a)-opens(b));pick=edges[0];}
+      const[t,r,c]=pick;const made=applyEdge(t,r,c,2);scoreC+=made;updateScores();render();
+      if(checkEnd())return;
+      if(made>0){setTimeout(cpuTurn,300);return;}
+      turn=1;statusEl.textContent="Your move.";}
+    function opens(e){const[t,r,c]=e;const aff=t==="h"?[[r-1,c],[r,c]]:[[r,c-1],[r,c]];let n=0;
+      for(const[br,bc]of aff){if(br<0||br>=BOX||bc<0||bc>=BOX)continue;if(boxSides(br,bc)+1===3)n++;}return n;}
+    function checkEnd(){const total=scoreY+scoreC;if(total>=BOX*BOX){over=true;statusEl.textContent=scoreY>scoreC?`🏆 You win ${scoreY}–${scoreC}!`:scoreY<scoreC?`CPU wins ${scoreC}–${scoreY}.`:`Tie ${scoreY}–${scoreC}.`;return true;}return false;}
+    function updateScores(){document.getElementById("sy").textContent="You "+scoreY;document.getElementById("sc").textContent="CPU "+scoreC;
+      document.getElementById("sy").classList.toggle("turn",turn===1&&!over);document.getElementById("sc").classList.toggle("turn",turn===2&&!over);}
+    function px(c){return PAD+c*SP;}
+    function render(){
+      let s="";
+      for(let r=0;r<BOX;r++)for(let c=0;c<BOX;c++)if(boxes[r][c]){const col=boxes[r][c]===1?"var(--you)":"var(--cpu)";
+        s+=`<rect x="${px(c)+3}" y="${px(r)+3}" width="${SP-6}" height="${SP-6}" rx="4" fill="${col}" opacity=".28"/>`+
+           `<text x="${px(c)+SP/2}" y="${px(r)+SP/2+5}" text-anchor="middle" fill="${col}" font-weight="800" font-size="14">${boxes[r][c]===1?"Y":"C"}</text>`;}
+      for(let r=0;r<D;r++)for(let c=0;c<D-1;c++){const on=h[r][c];const col=on?"#e6e6f0":"rgba(255,255,255,.12)";
+        s+=`<line x1="${px(c)}" y1="${px(r)}" x2="${px(c+1)}" y2="${px(r)}" stroke="${col}" stroke-width="${on?4:3}" stroke-linecap="round"/>`+
+           (on?"":`<line x1="${px(c)}" y1="${px(r)}" x2="${px(c+1)}" y2="${px(r)}" stroke="transparent" stroke-width="18" data-t="h" data-r="${r}" data-c="${c}" class="hit"/>`);}
+      for(let r=0;r<D-1;r++)for(let c=0;c<D;c++){const on=v[r][c];const col=on?"#e6e6f0":"rgba(255,255,255,.12)";
+        s+=`<line x1="${px(c)}" y1="${px(r)}" x2="${px(c)}" y2="${px(r+1)}" stroke="${col}" stroke-width="${on?4:3}" stroke-linecap="round"/>`+
+           (on?"":`<line x1="${px(c)}" y1="${px(r)}" x2="${px(c)}" y2="${px(r+1)}" stroke="transparent" stroke-width="18" data-t="v" data-r="${r}" data-c="${c}" class="hit"/>`);}
+      for(let r=0;r<D;r++)for(let c=0;c<D;c++)s+=`<circle cx="${px(c)}" cy="${px(r)}" r="4" fill="#9aa4d0"/>`;
+      svg.innerHTML=s;
+      svg.querySelectorAll(".hit").forEach(el=>el.addEventListener("click",()=>human(el.dataset.t,+el.dataset.r,+el.dataset.c)));
+    }
+    document.getElementById("new").addEventListener("click",newGame);
+    window.__db={newGame:()=>{newGame();},applyEdge,boxSides,completesBox,sidesIfAdded,state:()=>({h,v,boxes})};
+    newGame();
+  })();
+  </script>
+</body>
+</html>
