@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Bubble Shooter — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🫧</text></svg>" />
+  <style>
+    :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;}
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+      background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.22),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.16),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;}
+    .wrap{max-width:400px;margin:0 auto;padding:16px 16px 30px;display:flex;flex-direction:column;align-items:center;gap:12px}
+    .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
+    .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+    .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+    h1{margin:0;font-size:1.5rem;background:linear-gradient(120deg,#22d3ee,#f472b6);-webkit-background-clip:text;background-clip:text;color:transparent}
+    .stat{background:var(--panel);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:6px 16px;font-weight:700}
+    .board-wrap{position:relative;width:100%}
+    canvas{width:100%;height:auto;display:block;background:#070a16;border:1px solid rgba(255,255,255,.08);border-radius:14px;touch-action:none;cursor:crosshair}
+    .overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:rgba(15,16,32,.85);border-radius:14px;text-align:center}
+    .overlay.hidden{display:none}
+    .overlay h2{margin:0}.overlay p{margin:0;color:var(--muted)}
+    .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:12px 28px;border-radius:999px;cursor:pointer}
+    .hint{color:var(--muted);font-size:.82rem;text-align:center}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar"><a class="home" href="/">← Home</a><h1>🫧 Bubble Shooter</h1><span style="width:56px"></span></div>
+    <div class="stat">Score: <span id="score">0</span></div>
+    <div class="board-wrap">
+      <canvas id="c" width="360" height="440"></canvas>
+      <div class="overlay" id="ov"><h2 id="ot">🫧 Bubble Shooter</h2><p id="om">Aim and pop groups of 3+ same color.</p><button class="btn" id="start">Play</button></div>
+    </div>
+    <p class="hint">Move to aim, tap/click to shoot. Match 3+ same-color bubbles to pop them. Clear the board!</p>
+  </div>
+  <script>
+  (function(){
+    const cv=document.getElementById("c"),ctx=cv.getContext("2d"),W=cv.width,H=cv.height;
+    const scoreEl=document.getElementById("score");
+    const ov=document.getElementById("ov"),ot=document.getElementById("ot"),om=document.getElementById("om"),startBtn=document.getElementById("start");
+    const R=18, COLS=9, ROWH=R*1.74, LOSE=H-64;
+    const COLORS=["#ef4444","#eab308","#22c55e","#22d3ee","#a855f7"];
+    let grid,rows,shooter,cur,nextC,fly,aim,running,raf,score;
+
+    function colsInRow(r){return r%2?COLS-1:COLS;}
+    function cellXY(r,c){return {x:R+ c*2*R + (r%2?R:0), y:R+2 + r*ROWH};}
+    function newGame(){rows=14;grid=Array.from({length:rows},(_,r)=>Array(colsInRow(r)).fill(null));
+      for(let r=0;r<5;r++)for(let c=0;c<colsInRow(r);c++)grid[r][c]=COLORS[Math.floor(Math.random()*COLORS.length)];
+      shooter={x:W/2,y:H-28};cur=randColor();nextC=randColor();fly=null;aim={x:W/2,y:0};score=0;scoreEl.textContent=0;
+      ov.classList.add("hidden");running=true;draw();}
+    function randColor(){const present=new Set();for(const row of grid)for(const v of row)if(v)present.add(v);
+      const pool=present.size?[...present]:COLORS;return pool[Math.floor(Math.random()*pool.length)];}
+    function shoot(){if(fly||!running)return;const dx=aim.x-shooter.x,dy=aim.y-shooter.y;const len=Math.hypot(dx,dy)||1;
+      if(dy>-4)return;const sp=8;fly={x:shooter.x,y:shooter.y,vx:dx/len*sp,vy:dy/len*sp,color:cur};loop();}
+    function loop(){if(!running){return;}update();draw();raf=requestAnimationFrame(loop);}
+    function update(){
+      if(!fly)return;
+      fly.x+=fly.vx;fly.y+=fly.vy;
+      if(fly.x<R){fly.x=R;fly.vx*=-1;}if(fly.x>W-R){fly.x=W-R;fly.vx*=-1;}
+      let hit=fly.y<=R+2;
+      if(!hit){outer:for(let r=0;r<rows;r++)for(let c=0;c<colsInRow(r);c++)if(grid[r][c]){const p=cellXY(r,c);
+        if((fly.x-p.x)**2+(fly.y-p.y)**2<(2*R-3)**2){hit=true;break outer;}}}
+      if(hit)snap();
+    }
+    function neighbors(r,c){const odd=r%2;const nb=odd?[[0,-1],[0,1],[-1,0],[-1,1],[1,0],[1,1]]:[[0,-1],[0,1],[-1,-1],[-1,0],[1,-1],[1,0]];
+      return nb.map(([dr,dc])=>[r+dr,c+dc]).filter(([nr,nc])=>nr>=0&&nr<rows&&nc>=0&&nc<colsInRow(nr));}
+    function snap(){
+      // nearest empty cell that is in row 0 or adjacent to a filled cell
+      let best=null,bd=1e9;
+      for(let r=0;r<rows;r++)for(let c=0;c<colsInRow(r);c++){if(grid[r][c])continue;
+        const connected=r===0||neighbors(r,c).some(([nr,nc])=>grid[nr][nc]);if(!connected)continue;
+        const p=cellXY(r,c);const d=(fly.x-p.x)**2+(fly.y-p.y)**2;if(d<bd){bd=d;best=[r,c];}}
+      if(!best){fly=null;afterShot();return;}
+      const[r,c]=best;grid[r][c]=fly.color;fly=null;
+      resolve(r,c);afterShot();
+    }
+    function resolve(r,c){
+      const color=grid[r][c];const cluster=flood(r,c,color);
+      if(cluster.length>=3){cluster.forEach(([rr,cc])=>grid[rr][cc]=null);score+=cluster.length*10;
+        // drop floating
+        const keep=new Set();const st=[];for(let cc=0;cc<colsInRow(0);cc++)if(grid[0][cc]){st.push([0,cc]);keep.add("0,"+cc);}
+        while(st.length){const[rr,ccc]=st.pop();for(const[nr,nc]of neighbors(rr,ccc))if(grid[nr][nc]&&!keep.has(nr+","+nc)){keep.add(nr+","+nc);st.push([nr,nc]);}}
+        let dropped=0;for(let rr=0;rr<rows;rr++)for(let cc=0;cc<colsInRow(rr);cc++)if(grid[rr][cc]&&!keep.has(rr+","+cc)){grid[rr][cc]=null;dropped++;}
+        score+=dropped*20;}
+      scoreEl.textContent=score;
+    }
+    function flood(r,c,color){const seen=new Set([r+","+c]),st=[[r,c]],out=[[r,c]];
+      while(st.length){const[rr,cc]=st.pop();for(const[nr,nc]of neighbors(rr,cc)){const k=nr+","+nc;if(!seen.has(k)&&grid[nr][nc]===color){seen.add(k);st.push([nr,nc]);out.push([nr,nc]);}}}
+      return out;}
+    function afterShot(){
+      cur=nextC;nextC=randColor();
+      // win / lose
+      let any=false,low=0;for(let r=0;r<rows;r++)for(let c=0;c<colsInRow(r);c++)if(grid[r][c]){any=true;low=Math.max(low,cellXY(r,c).y);}
+      if(!any)return end(true);
+      if(low>LOSE)return end(false);
+    }
+    function end(win){running=false;cancelAnimationFrame(raf);ot.textContent=win?"🎉 Board cleared!":"Bubbles reached the bottom!";om.textContent="Score "+score;startBtn.textContent="Play again";ov.classList.remove("hidden");}
+    function draw(){
+      ctx.clearRect(0,0,W,H);
+      ctx.strokeStyle="rgba(244,63,94,.35)";ctx.setLineDash([6,6]);ctx.beginPath();ctx.moveTo(0,LOSE);ctx.lineTo(W,LOSE);ctx.stroke();ctx.setLineDash([]);
+      for(let r=0;r<rows;r++)for(let c=0;c<colsInRow(r);c++)if(grid[r][c]){const p=cellXY(r,c);bubble(p.x,p.y,grid[r][c]);}
+      // aim guide
+      if(running&&!fly){ctx.strokeStyle="rgba(255,255,255,.25)";ctx.beginPath();ctx.moveTo(shooter.x,shooter.y);ctx.lineTo(aim.x,aim.y);ctx.stroke();}
+      if(fly)bubble(fly.x,fly.y,fly.color);
+      bubble(shooter.x,shooter.y,cur);
+      ctx.globalAlpha=.6;bubble(W-26,H-24,nextC,12);ctx.globalAlpha=1;
+    }
+    function bubble(x,y,color,r){r=r||R;ctx.fillStyle=color;ctx.beginPath();ctx.arc(x,y,r-1,0,7);ctx.fill();
+      ctx.fillStyle="rgba(255,255,255,.3)";ctx.beginPath();ctx.arc(x-r*0.3,y-r*0.3,r*0.28,0,7);ctx.fill();}
+    function setAim(clientX,clientY){const rect=cv.getBoundingClientRect();aim.x=(clientX-rect.left)/rect.width*W;aim.y=(clientY-rect.top)/rect.height*H;}
+    cv.addEventListener("mousemove",e=>{if(running)setAim(e.clientX,e.clientY);draw();});
+    cv.addEventListener("touchmove",e=>{if(running){setAim(e.touches[0].clientX,e.touches[0].clientY);e.preventDefault();draw();}},{passive:false});
+    cv.addEventListener("click",e=>{if(running){setAim(e.clientX,e.clientY);shoot();}});
+    startBtn.addEventListener("click",newGame);
+    window.__bubble={neighbors,colsInRow,flood:(g,r,c,col)=>{grid=g;rows=g.length;return flood(r,c,col);},COLS};
+    // static preview
+    rows=14;grid=Array.from({length:rows},(_,r)=>Array(colsInRow(r)).fill(null));for(let r=0;r<5;r++)for(let c=0;c<colsInRow(r);c++)grid[r][c]=COLORS[(r+c)%COLORS.length];shooter={x:W/2,y:H-28};cur=COLORS[0];nextC=COLORS[1];aim={x:W/2,y:0};score=0;draw();
+  })();
+  </script>
+</body>
+</html>

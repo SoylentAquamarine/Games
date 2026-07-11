@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Word Search — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='60'>🔎</text></svg>" />
+  <style>
+    :root{--bg:#0f1020;--panel:#1e2140;--panel2:#252a4d;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;}
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+      background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.22),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.16),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;}
+    .wrap{max-width:440px;margin:0 auto;padding:14px 12px 40px;display:flex;flex-direction:column;align-items:center;gap:12px}
+    .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
+    .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+    .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+    h1{margin:0;font-size:1.5rem;background:linear-gradient(120deg,#22d3ee,#a855f7);-webkit-background-clip:text;background-clip:text;color:transparent}
+    .grid{display:grid;gap:2px;background:var(--panel);padding:6px;border-radius:12px;width:100%;touch-action:manipulation}
+    .cell{aspect-ratio:1;background:var(--panel2);border-radius:4px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:clamp(.7rem,3.6vw,1rem);cursor:pointer;text-transform:uppercase;user-select:none}
+    .cell.sel{background:rgba(124,92,255,.6);color:#fff}
+    .cell.found{background:rgba(52,211,153,.5);color:#fff}
+    .words{display:flex;flex-wrap:wrap;gap:6px 12px;justify-content:center}
+    .word{font-weight:700;color:var(--muted);text-transform:uppercase;font-size:.85rem}
+    .word.done{color:#34d399;text-decoration:line-through}
+    .status{min-height:1.2em;font-weight:600;color:#fde68a;text-align:center}
+    .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:9px 20px;border-radius:999px;cursor:pointer;font-size:.85rem}
+    .hint{color:var(--muted);font-size:.78rem;text-align:center}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar"><a class="home" href="/">← Home</a><h1>🔎 Word Search</h1><span style="width:56px"></span></div>
+    <div class="grid" id="grid"></div>
+    <div class="words" id="words"></div>
+    <div class="status" id="status">Tap the first and last letter of a word.</div>
+    <button class="btn" id="new">New Puzzle</button>
+    <p class="hint">Words go across, down, and diagonally — forwards or backwards. Tap start, then end.</p>
+  </div>
+  <script>
+  (function(){
+    const N=12;
+    const POOL="PYTHON ROCKET PLANET GARDEN DRAGON WIZARD FALCON JUNGLE ISLAND CASTLE THUNDER DIAMOND VOLCANO PENGUIN GALAXY MAGNET ORANGE PURPLE SILVER GUITAR".split(" ");
+    const DIRS=[[0,1],[1,0],[1,1],[1,-1],[0,-1],[-1,0],[-1,-1],[-1,1]];
+    const gridEl=document.getElementById("grid"),wordsEl=document.getElementById("words"),statusEl=document.getElementById("status");
+    let grid,words,placed,found,sel,cells=[];
+
+    function inb(r,c){return r>=0&&r<N&&c>=0&&c<N;}
+    function tryPlace(word){for(let t=0;t<200;t++){const[dr,dc]=DIRS[Math.floor(Math.random()*8)];
+      const r0=Math.floor(Math.random()*N),c0=Math.floor(Math.random()*N);let ok=true;const path=[];
+      for(let i=0;i<word.length;i++){const r=r0+dr*i,c=c0+dc*i;if(!inb(r,c)){ok=false;break;}
+        const cur=grid[r][c];if(cur&&cur!==word[i]){ok=false;break;}path.push([r,c]);}
+      if(ok){path.forEach(([r,c],i)=>grid[r][c]=word[i]);return path;}}
+      return null;}
+    function newGame(){
+      grid=Array.from({length:N},()=>Array(N).fill(""));placed=[];words=[];found=new Set();sel=null;
+      const shuffled=POOL.slice().sort(()=>Math.random()-0.5);
+      for(const w of shuffled){if(placed.length>=8)break;const path=tryPlace(w);if(path){placed.push({word:w,path});words.push(w);}}
+      for(let r=0;r<N;r++)for(let c=0;c<N;c++)if(!grid[r][c])grid[r][c]="ABCDEFGHIJKLMNOPQRSTUVWXYZ"[Math.floor(Math.random()*26)];
+      statusEl.textContent="Tap the first and last letter of a word.";build();renderWords();
+    }
+    function build(){gridEl.style.gridTemplateColumns=`repeat(${N},1fr)`;gridEl.innerHTML="";cells=[];
+      for(let r=0;r<N;r++){cells[r]=[];for(let c=0;c<N;c++){const d=document.createElement("div");d.className="cell";d.textContent=grid[r][c];
+        d.addEventListener("click",()=>click(r,c));gridEl.appendChild(d);cells[r][c]=d;}}
+      markFound();}
+    function renderWords(){wordsEl.innerHTML="";words.forEach(w=>{const s=document.createElement("span");s.className="word"+(found.has(w)?" done":"");s.textContent=w;s.dataset.w=w;wordsEl.appendChild(s);});}
+    function lineCells(r1,c1,r2,c2){const dr=Math.sign(r2-r1),dc=Math.sign(c2-c1);const len=Math.max(Math.abs(r2-r1),Math.abs(c2-c1));
+      if((r2-r1)!==dr*len||(c2-c1)!==dc*len)return null; // must be straight (row/col/45deg)
+      const path=[];for(let i=0;i<=len;i++)path.push([r1+dr*i,c1+dc*i]);return path;}
+    function click(r,c){
+      if(!sel){sel=[r,c];cells[r][c].classList.add("sel");return;}
+      const[sr,sc]=sel;cells[sr][sc].classList.remove("sel");
+      if(sr===r&&sc===c){sel=null;return;}
+      const path=lineCells(sr,sc,r,c);sel=null;
+      if(!path){statusEl.textContent="Lines must be straight (across, down, or diagonal).";return;}
+      const letters=path.map(([r,c])=>grid[r][c]).join("");const rev=letters.split("").reverse().join("");
+      const hit=placed.find(p=>!found.has(p.word)&&(p.word===letters||p.word===rev));
+      if(hit){found.add(hit.word);path.forEach(([r,c])=>cells[r][c].classList.add("found"));renderWords();
+        if(found.size===placed.length){statusEl.textContent="🎉 You found them all!";}else statusEl.textContent="Found "+hit.word+"!";}
+      else statusEl.textContent="Not a word — try again.";
+    }
+    function markFound(){for(const p of placed)if(found.has(p.word))p.path.forEach(([r,c])=>cells[r][c].classList.add("found"));}
+    document.getElementById("new").addEventListener("click",newGame);
+    window.__ws={buildTest:()=>{newGame();return placed.map(p=>({word:p.word,spelled:p.path.map(([r,c])=>grid[r][c]).join("")}));},N};
+    newGame();
+  })();
+  </script>
+</body>
+</html>
