@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Maze — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='60'>🌀</text></svg>" />
+  <style>
+    :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;}
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+      background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.22),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.16),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;}
+    .wrap{max-width:420px;margin:0 auto;padding:16px 16px 30px;display:flex;flex-direction:column;align-items:center;gap:12px}
+    .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
+    .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+    .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+    h1{margin:0;font-size:1.5rem;background:linear-gradient(120deg,#22d3ee,#a855f7);-webkit-background-clip:text;background-clip:text;color:transparent}
+    .bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:center}
+    .size{display:flex;gap:5px;background:var(--panel);padding:4px;border-radius:999px}
+    .size button{background:transparent;border:none;color:var(--muted);padding:6px 12px;border-radius:999px;cursor:pointer;font-weight:600;font-size:.82rem}
+    .size button.active{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a}
+    .stat{background:var(--panel);border:1px solid rgba(255,255,255,.06);border-radius:10px;padding:6px 12px;font-weight:700}
+    canvas{width:100%;max-width:360px;height:auto;display:block;background:#0a0e1c;border:1px solid rgba(255,255,255,.08);border-radius:10px;touch-action:none}
+    .status{min-height:1.2em;font-weight:600;color:#fde68a;text-align:center}
+    .dpad{display:grid;grid-template-columns:repeat(3,50px);grid-template-rows:repeat(2,42px);gap:5px}
+    .dpad button{background:var(--panel);border:1px solid rgba(255,255,255,.14);color:var(--text);border-radius:9px;font-size:1.1rem;cursor:pointer;user-select:none;touch-action:none}
+    .dpad .u{grid-column:2}
+    .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:9px 18px;border-radius:999px;cursor:pointer;font-size:.85rem}
+    .row{display:flex;gap:10px;align-items:center}
+    .hint{color:var(--muted);font-size:.8rem;text-align:center}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar"><a class="home" href="/">← Home</a><h1>🌀 Maze</h1><span style="width:56px"></span></div>
+    <div class="bar">
+      <div class="size" id="size"><button data-n="10" class="active">Easy</button><button data-n="16">Medium</button><button data-n="24">Hard</button></div>
+      <div class="stat">Moves <span id="moves">0</span></div>
+    </div>
+    <canvas id="c" width="360" height="360"></canvas>
+    <div class="status" id="status">Reach the green exit!</div>
+    <div class="row">
+      <div class="dpad">
+        <button class="u" data-d="up">▲</button><button data-d="left">◀</button>
+        <button data-d="right">▶</button><button data-d="down">▼</button>
+      </div>
+      <button class="btn" id="new">New Maze</button>
+    </div>
+    <p class="hint">Arrows / WASD / swipe / d-pad. Find the path from the top-left to the exit.</p>
+  </div>
+  <script>
+  (function(){
+    let N=10;
+    const cv=document.getElementById("c"),ctx=cv.getContext("2d"),statusEl=document.getElementById("status"),movesEl=document.getElementById("moves");
+    let cells,player,moves,over,CELL;
+    function gen(){
+      cells=Array.from({length:N},()=>Array.from({length:N},()=>({n:true,e:true,s:true,w:true,v:false})));
+      const stack=[[0,0]];cells[0][0].v=true;
+      while(stack.length){const[x,y]=stack[stack.length-1];
+        const nbrs=[];
+        if(y>0&&!cells[y-1][x].v)nbrs.push([x,y-1,"n"]);
+        if(x<N-1&&!cells[y][x+1].v)nbrs.push([x+1,y,"e"]);
+        if(y<N-1&&!cells[y+1][x].v)nbrs.push([x,y+1,"s"]);
+        if(x>0&&!cells[y][x-1].v)nbrs.push([x-1,y,"w"]);
+        if(nbrs.length){const[nx,ny,dir]=nbrs[Math.floor(Math.random()*nbrs.length)];
+          const opp={n:"s",e:"w",s:"n",w:"e"};cells[y][x][dir]=false;cells[ny][nx][opp[dir]]=false;cells[ny][nx].v=true;stack.push([nx,ny]);}
+        else stack.pop();}
+    }
+    function newGame(){CELL=cv.width/N;gen();player={x:0,y:0};moves=0;over=false;movesEl.textContent=0;statusEl.textContent="Reach the green exit!";draw();}
+    function move(dir){
+      if(over)return;const c=cells[player.y][player.x];
+      if(dir==="up"&&!c.n)player.y--;else if(dir==="down"&&!c.s)player.y++;
+      else if(dir==="left"&&!c.w)player.x--;else if(dir==="right"&&!c.e)player.x++;else return;
+      moves++;movesEl.textContent=moves;draw();
+      if(player.x===N-1&&player.y===N-1){over=true;statusEl.textContent="🎉 Solved in "+moves+" moves!";draw();}
+    }
+    function draw(){
+      ctx.clearRect(0,0,cv.width,cv.height);
+      ctx.fillStyle="rgba(52,211,153,.35)";ctx.fillRect((N-1)*CELL,(N-1)*CELL,CELL,CELL);
+      ctx.strokeStyle="#9aa4d0";ctx.lineWidth=2;ctx.lineCap="round";
+      for(let y=0;y<N;y++)for(let x=0;x<N;x++){const c=cells[y][x],px=x*CELL,py=y*CELL;
+        ctx.beginPath();
+        if(c.n){ctx.moveTo(px,py);ctx.lineTo(px+CELL,py);}
+        if(c.e){ctx.moveTo(px+CELL,py);ctx.lineTo(px+CELL,py+CELL);}
+        if(c.s){ctx.moveTo(px,py+CELL);ctx.lineTo(px+CELL,py+CELL);}
+        if(c.w){ctx.moveTo(px,py);ctx.lineTo(px,py+CELL);}
+        ctx.stroke();}
+      ctx.fillStyle="#22d3ee";ctx.beginPath();ctx.arc(player.x*CELL+CELL/2,player.y*CELL+CELL/2,CELL*0.3,0,7);ctx.fill();
+    }
+    document.addEventListener("keydown",e=>{const m={ArrowUp:"up",ArrowDown:"down",ArrowLeft:"left",ArrowRight:"right",w:"up",s:"down",a:"left",d:"right"}[e.key];if(m){e.preventDefault();move(m);}});
+    document.querySelectorAll(".dpad button").forEach(b=>b.addEventListener("click",()=>move(b.dataset.d)));
+    let ts=null;cv.addEventListener("touchstart",e=>ts={x:e.touches[0].clientX,y:e.touches[0].clientY},{passive:true});
+    cv.addEventListener("touchend",e=>{if(!ts)return;const dx=e.changedTouches[0].clientX-ts.x,dy=e.changedTouches[0].clientY-ts.y;if(Math.abs(dx)<16&&Math.abs(dy)<16)return;if(Math.abs(dx)>Math.abs(dy))move(dx>0?"right":"left");else move(dy>0?"down":"up");ts=null;},{passive:true});
+    document.querySelectorAll("#size button").forEach(b=>b.addEventListener("click",()=>{document.querySelectorAll("#size button").forEach(x=>x.classList.remove("active"));b.classList.add("active");N=+b.dataset.n;newGame();}));
+    document.getElementById("new").addEventListener("click",newGame);
+    window.__maze={setN:(n)=>{N=n;},genTest:()=>{gen();return cells;},N:()=>N};
+    newGame();
+  })();
+  </script>
+  <script src="/comments.js" defer></script>
+</body>
+</html>

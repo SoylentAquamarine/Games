@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mancala — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='60'>🫘</text></svg>" />
+  <style>
+    :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;--wood:#5b3a1e;--pit:#3a2512;--you:#22d3ee;--cpu:#f43f5e;}
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+      background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.22),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.16),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;}
+    .wrap{max-width:480px;margin:0 auto;padding:14px 12px 40px;display:flex;flex-direction:column;align-items:center;gap:12px}
+    .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
+    .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+    .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+    h1{margin:0;font-size:1.5rem;background:linear-gradient(120deg,var(--you),var(--cpu));-webkit-background-clip:text;background-clip:text;color:transparent}
+    .status{min-height:1.2em;font-weight:600;color:#fde68a;text-align:center}
+    .board{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;width:100%;background:var(--wood);border-radius:20px;padding:14px}
+    .store{width:52px;height:150px;background:var(--pit);border-radius:26px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:#fff;font-weight:800}
+    .store.you{box-shadow:inset 0 0 0 2px var(--you)}.store.cpu{box-shadow:inset 0 0 0 2px var(--cpu)}
+    .store .lbl{font-size:.6rem;color:var(--muted)}
+    .rows{display:flex;flex-direction:column;gap:10px}
+    .row{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}
+    .pit{aspect-ratio:1;background:var(--pit);border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1.1rem;color:#fff;position:relative}
+    .pit.you{cursor:pointer;box-shadow:inset 0 0 0 2px rgba(34,211,238,.4)}
+    .pit.you.playable{box-shadow:inset 0 0 0 2px #34d399}
+    .pit.you.playable:hover{background:#4a3018}
+    .pit.cpu{box-shadow:inset 0 0 0 2px rgba(244,63,94,.3)}
+    .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:10px 22px;border-radius:999px;cursor:pointer}
+    .hint{color:var(--muted);font-size:.8rem;text-align:center}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar"><a class="home" href="/">← Home</a><h1>🫘 Mancala</h1><span style="width:56px"></span></div>
+    <div class="status" id="status">Your turn — pick a pit on your row.</div>
+    <div class="board">
+      <div class="store cpu" id="s13"><span class="lbl">CPU</span><span id="s13n">0</span></div>
+      <div class="rows">
+        <div class="row" id="cpurow"></div>
+        <div class="row" id="yourow"></div>
+      </div>
+      <div class="store you" id="s6"><span class="lbl">You</span><span id="s6n">0</span></div>
+    </div>
+    <button class="btn" id="new">New Game</button>
+    <p class="hint">Sow stones counter-clockwise. Land your last stone in your store to go again; land in an empty pit on your side to capture the pit across from it.</p>
+  </div>
+  <script>
+  (function(){
+    // board[0..5]=your pits, 6=your store, 7..12=cpu pits, 13=cpu store
+    const statusEl=document.getElementById("status");
+    let board,turn,over;
+    function fresh(){const b=Array(14).fill(4);b[6]=0;b[13]=0;return b;}
+    function myPits(p){return p===0?[0,1,2,3,4,5]:[7,8,9,10,11,12];}
+    function store(p){return p===0?6:13;}
+    function legal(b,p){return myPits(p).filter(i=>b[i]>0);}
+    function move(b0,pit,p){const b=b0.slice();let s=b[pit];b[pit]=0;let i=pit;const opp=store(1-p);
+      while(s>0){i=(i+1)%14;if(i===opp)continue;b[i]++;s--;}
+      let extra=(i===store(p));
+      if(!extra&&myPits(p).includes(i)&&b[i]===1){const o=12-i;if(b[o]>0){b[store(p)]+=b[o]+1;b[i]=0;b[o]=0;}}
+      return {b,extra};}
+    function ended(b){const e0=myPits(0).every(i=>b[i]===0),e1=myPits(1).every(i=>b[i]===0);return e0||e1;}
+    function sweep(b0){const b=b0.slice();myPits(0).forEach(i=>{b[6]+=b[i];b[i]=0;});myPits(1).forEach(i=>{b[13]+=b[i];b[i]=0;});return b;}
+
+    function render(){
+      const cr=document.getElementById("cpurow");cr.innerHTML="";
+      for(let i=12;i>=7;i--){const d=document.createElement("div");d.className="pit cpu";d.textContent=board[i];cr.appendChild(d);}
+      const yr=document.getElementById("yourow");yr.innerHTML="";
+      const canPlay=turn===0&&!over;
+      for(let i=0;i<=5;i++){const d=document.createElement("div");d.className="pit you"+(canPlay&&board[i]>0?" playable":"");d.textContent=board[i];
+        if(canPlay&&board[i]>0)d.addEventListener("click",()=>human(i));yr.appendChild(d);}
+      document.getElementById("s6n").textContent=board[6];document.getElementById("s13n").textContent=board[13];
+    }
+    function newGame(){board=fresh();turn=0;over=false;statusEl.textContent="Your turn — pick a pit.";render();}
+    function human(pit){if(over||turn!==0||board[pit]===0)return;doMove(pit,0);}
+    function doMove(pit,p){
+      const {b,extra}=move(board,pit,p);board=b;
+      if(ended(board)){board=sweep(board);return finish();}
+      if(extra){render();statusEl.textContent=p===0?"Free turn — go again!":"CPU earned another turn…";
+        if(p===1)setTimeout(cpuTurn,650);else{turn=0;}return;}
+      turn=1-p;render();
+      if(turn===1){statusEl.textContent="CPU thinking…";setTimeout(cpuTurn,650);}
+      else statusEl.textContent="Your turn.";
+    }
+    function cpuTurn(){
+      if(over)return;const moves=legal(board,1);if(!moves.length){board=sweep(board);return finish();}
+      let best=moves[0],bs=-1e9;
+      for(const m of moves){const {b,extra}=move(board,m,1);let s=(b[13]-b[6])+(extra?6:0);
+        // discourage leaving a capture for the human next turn (light)
+        if(s>bs){bs=s;best=m;}}
+      doMove(best,1);
+    }
+    function finish(){over=true;render();statusEl.textContent=board[6]>board[13]?`🏆 You win ${board[6]}–${board[13]}!`:board[6]<board[13]?`CPU wins ${board[13]}–${board[6]}.`:`Tie ${board[6]}–${board[13]}.`;}
+    document.getElementById("new").addEventListener("click",newGame);
+    window.__mancala={fresh,move,legal,ended,sweep,myPits,store};
+    newGame();
+  })();
+  </script>
+  <script src="/comments.js" defer></script>
+</body>
+</html>
