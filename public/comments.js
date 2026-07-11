@@ -73,6 +73,13 @@
     const textEl = wrap.querySelector("#cmt-text");
     const sendEl = wrap.querySelector("#cmt-send");
 
+    // Keep typing here from reaching game key handlers (WASD, arrows, Space, etc.).
+    // Games listen on document; stopping propagation from these fields isolates them.
+    [nameEl, textEl].forEach((el) => {
+      ["keydown", "keyup", "keypress"].forEach((evt) =>
+        el.addEventListener(evt, (e) => e.stopPropagation()));
+    });
+
     function render(comments) {
       if (!comments.length) { listEl.innerHTML = '<div class="cmt-empty">No comments yet — be the first!</div>'; return; }
       listEl.innerHTML = comments.map((c) =>
