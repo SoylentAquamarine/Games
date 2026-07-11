@@ -230,3 +230,14 @@ footer {
   color: var(--text); font-weight: 700; letter-spacing: -0.01em;
   padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,.08);
 }
+
+/* Feedback callout on the home page */
+.feedback-callout {
+  display: flex; gap: 12px; align-items: flex-start; text-align: left;
+  max-width: 620px; margin: 22px auto 0; padding: 14px 18px;
+  background: rgba(52, 211, 153, 0.08); border: 1px solid rgba(52, 211, 153, 0.35);
+  border-radius: 14px;
+}
+.feedback-callout .fc-icon { font-size: 1.6rem; line-height: 1; }
+.feedback-callout p { margin: 0; font-size: 0.92rem; line-height: 1.55; color: var(--text); }
+.feedback-callout b { color: var(--live); }

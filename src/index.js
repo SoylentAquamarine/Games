@@ -33,6 +33,12 @@ export default {
     if (url.pathname === "/api/saves" && request.method === "PUT") {
       return handleSavePut(request, env, url);
     }
+    if (url.pathname === "/api/comments" && request.method === "GET") {
+      return handleCommentsGet(request, env, url);
+    }
+    if (url.pathname === "/api/comments" && request.method === "POST") {
+      return handleCommentsPost(request, env, url);
+    }
 
     // Not an API route — serve a static asset.
     return env.ASSETS.fetch(request);
@@ -136,6 +142,39 @@ async function handleSavePut(request, env, url) {
   try { JSON.parse(text); } catch { return json({ error: "invalid_json" }, 400); }
   await env.ACCOUNTS.put("s:" + accountId(payload) + ":" + ns, text);
   return json({ ok: true });
+}
+
+// ---------------------------------------------------------------------------
+// Per-game comments / feedback (public; KV keys "comments:<slug>")
+// ---------------------------------------------------------------------------
+
+const SLUG_RE = /^[a-zA-Z0-9/_-]{1,60}$/;
+const MAX_COMMENTS = 200;
+
+async function handleCommentsGet(request, env, url) {
+  const slug = url.searchParams.get("game") || "";
+  if (!SLUG_RE.test(slug)) return json({ error: "bad_slug" }, 400);
+  const raw = await env.ACCOUNTS.get("comments:" + slug);
+  return json({ ok: true, comments: raw ? JSON.parse(raw) : [] });
+}
+
+async function handleCommentsPost(request, env, url) {
+  const slug = url.searchParams.get("game") || "";
+  if (!SLUG_RE.test(slug)) return json({ error: "bad_slug" }, 400);
+  let body;
+  try { body = await request.json(); } catch { return json({ error: "invalid_body" }, 400); }
+  let text = (body.text || "").toString().trim();
+  let name = (body.name || "").toString().trim().slice(0, 40) || "Anonymous";
+  if (!text) return json({ error: "empty" }, 400);
+  if (text.length > 1000) text = text.slice(0, 1000);
+  const comment = { name, text, ts: Date.now() };
+  const key = "comments:" + slug;
+  const raw = await env.ACCOUNTS.get(key);
+  const list = raw ? JSON.parse(raw) : [];
+  list.unshift(comment);
+  if (list.length > MAX_COMMENTS) list.length = MAX_COMMENTS;
+  await env.ACCOUNTS.put(key, JSON.stringify(list));
+  return json({ ok: true, comment });
 }
 
 function handleLogout(request) {
