@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Play Online — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🌐</text></svg>" />
+  <style>
+    :root{--bg:#0f1020;--panel:#1e2140;--panel2:#252a4d;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;--good:#34d399;}
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+      background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.2),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.14),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;}
+    .wrap{max-width:520px;margin:0 auto;padding:18px 16px 50px;display:flex;flex-direction:column;gap:16px}
+    .topbar{display:flex;align-items:center;justify-content:space-between}
+    .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+    .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+    h1{margin:0;font-size:1.5rem;background:linear-gradient(120deg,var(--accent),var(--accent-2));-webkit-background-clip:text;background-clip:text;color:transparent}
+    .card{background:var(--panel);border:1px solid rgba(255,255,255,.07);border-radius:16px;padding:16px}
+    h2{margin:0 0 12px;font-size:1.05rem}
+    .me{font-size:.85rem;color:var(--muted)}
+    .me b{color:var(--good)}
+    .plist{display:flex;flex-direction:column;gap:8px}
+    .p{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--panel2);border-radius:10px;padding:9px 12px}
+    .p .nm{font-weight:700;display:flex;align-items:center;gap:8px}
+    .dot{width:9px;height:9px;border-radius:50%;background:var(--good)}
+    .dot.busy{background:#f59e0b}
+    .p .st{font-size:.72rem;color:var(--muted)}
+    .row{display:flex;gap:6px;align-items:center}
+    select{background:#1a1d38;color:var(--text);border:1px solid rgba(255,255,255,.14);border-radius:8px;padding:6px 8px;font-size:.82rem}
+    .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:8px 14px;border-radius:999px;cursor:pointer;font-size:.82rem}
+    .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,.18);color:var(--text)}
+    .btn:disabled{opacity:.4;cursor:default}
+    .chal{background:rgba(52,211,153,.1);border:1px solid rgba(52,211,153,.35);border-radius:10px;padding:10px 12px;display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+    .muted{color:var(--muted);font-size:.86rem}
+    .banner{background:rgba(124,92,255,.14);border:1px solid rgba(124,92,255,.4);border-radius:12px;padding:14px;text-align:center}
+    .hidden{display:none}
+    a.link{color:var(--accent-2)}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar"><a class="home" href="/">← Home</a><h1>🌐 Play Online</h1><a class="home" href="/account/">Account</a></div>
+
+    <div class="card hidden" id="needlogin">
+      <h2>Log in to play online</h2>
+      <p class="muted">Multiplayer needs an account so people can find and challenge you. It's free.</p>
+      <a class="btn" href="/account/">Log in / Register</a>
+    </div>
+
+    <div id="lobby" class="hidden" style="display:flex;flex-direction:column;gap:16px">
+      <div class="banner hidden" id="activeBanner">
+        <b>You're in a game!</b><br><a class="btn" id="resumeBtn" href="#">Resume match →</a>
+      </div>
+
+      <div class="card" id="challengesCard" style="display:none">
+        <h2>⚔️ Challenges for you</h2>
+        <div id="challenges"></div>
+      </div>
+
+      <div class="card">
+        <h2>Players online <span class="me" id="meLine"></span></h2>
+        <div class="plist" id="players"><div class="muted">Looking for players…</div></div>
+        <p class="muted" style="margin-top:12px">Open this page on another device (or share it with a friend) and log into a second account to play each other. Challenges appear here in real time.</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  (function(){
+    const $=(id)=>document.getElementById(id);
+    let me=null, games={}, pollTimer, pingTimer;
+    async function jget(u){const r=await fetch(u);return r.json();}
+    async function jpost(u,b){const r=await fetch(u,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(b||{})});return r.json();}
+
+    async function init(){
+      const meRes=await jget("/api/me");
+      if(!meRes.loggedIn){$("needlogin").classList.remove("hidden");return;}
+      me=meRes.user.username;$("lobby").classList.remove("hidden");$("meLine").textContent="(you are "+me+")";
+      ping();pingTimer=setInterval(ping,4000);
+      poll();pollTimer=setInterval(poll,3000);
+    }
+    async function ping(){try{await jpost("/api/mp/ping");}catch(e){}}
+    async function poll(){
+      let d;try{d=await jget("/api/mp/lobby");}catch(e){return;}
+      if(!d.ok)return;games=d.games||games;
+      if(d.myMatch){location.href="/play/match/?id="+encodeURIComponent(d.myMatch);return;}
+      renderPlayers(d.players);renderChallenges(d.challenges);
+    }
+    function gameOptions(){return Object.entries(games).map(([k,n])=>`<option value="${k}">${n}</option>`).join("");}
+    function renderPlayers(players){
+      const others=players.filter(p=>p.name.toLowerCase()!==me.toLowerCase());
+      const el=$("players");
+      if(!others.length){el.innerHTML='<div class="muted">No one else is online right now. Invite a friend!</div>';return;}
+      el.innerHTML=others.map(p=>`<div class="p"><span class="nm"><span class="dot ${p.status==="playing"?"busy":""}"></span>${esc(p.name)}</span>`+
+        (p.status==="playing"?`<span class="st">in a game</span>`:
+        `<span class="row"><select data-for="${esc(p.name)}">${gameOptions()}</select><button class="btn" data-chal="${esc(p.name)}">Challenge</button></span>`)+`</div>`).join("");
+      el.querySelectorAll("[data-chal]").forEach(b=>b.addEventListener("click",()=>{
+        const name=b.getAttribute("data-chal");const sel=el.querySelector(`select[data-for="${CSS.escape(name)}"]`);
+        b.disabled=true;b.textContent="Sent…";jpost("/api/mp/challenge",{to:name,game:sel.value}).then(()=>{setTimeout(()=>{b.disabled=false;b.textContent="Challenge";},2500);});
+      }));
+    }
+    function renderChallenges(challenges){
+      const card=$("challengesCard");
+      if(!challenges||!challenges.length){card.style.display="none";return;}
+      card.style.display="";
+      $("challenges").innerHTML=challenges.map(c=>`<div class="chal"><span><b>${esc(c.from)}</b> challenges you to <b>${esc(games[c.game]||c.game)}</b></span>`+
+        `<span class="row"><button class="btn" data-acc="${c.id}">Accept</button><button class="btn ghost" data-dec="${c.id}">Decline</button></span></div>`).join("");
+      $("challenges").querySelectorAll("[data-acc]").forEach(b=>b.addEventListener("click",async()=>{
+        b.disabled=true;const r=await jpost("/api/mp/respond",{id:b.getAttribute("data-acc"),accept:true});
+        if(r.matchId)location.href="/play/match/?id="+encodeURIComponent(r.matchId);else poll();}));
+      $("challenges").querySelectorAll("[data-dec]").forEach(b=>b.addEventListener("click",async()=>{
+        await jpost("/api/mp/respond",{id:b.getAttribute("data-dec"),accept:false});poll();}));
+    }
+    function esc(s){const d=document.createElement("div");d.textContent=s;return d.innerHTML;}
+    init();
+  })();
+  </script>
+</body>
+</html>

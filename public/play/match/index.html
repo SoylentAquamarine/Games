@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Online Match — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🎮</text></svg>" />
+  <style>
+    :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;--x:#22d3ee;--o:#f43f5e;--good:#34d399;}
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+      background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.2),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.14),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;}
+    .wrap{max-width:440px;margin:0 auto;padding:16px 14px 40px;display:flex;flex-direction:column;align-items:center;gap:14px}
+    .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
+    .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+    .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+    h1{margin:0;font-size:1.3rem;background:linear-gradient(120deg,var(--x),var(--o));-webkit-background-clip:text;background-clip:text;color:transparent}
+    .players{display:flex;gap:10px;width:100%}
+    .pl{flex:1;background:var(--panel);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:8px;text-align:center;font-weight:700}
+    .pl.x{border-color:rgba(34,211,238,.5)}.pl.o{border-color:rgba(244,63,94,.5)}
+    .pl.turn{box-shadow:0 0 0 2px var(--good)}
+    .pl .sym{font-size:.7rem;color:var(--muted)}
+    .status{min-height:1.3em;font-weight:700;text-align:center;color:#fde68a}
+    /* ttt */
+    .ttt{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;width:100%;max-width:300px;aspect-ratio:1}
+    .ttt .cell{background:var(--panel);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:2.6rem;font-weight:800;cursor:pointer}
+    .ttt .cell.x{color:var(--x)}.ttt .cell.o{color:var(--o)}
+    .ttt .cell.can{box-shadow:inset 0 0 0 2px rgba(52,211,153,.4);cursor:pointer}
+    /* c4 */
+    .c4{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;background:#232752;padding:6px;border-radius:12px;width:100%}
+    .c4 .col{display:contents}
+    .c4 .slot{aspect-ratio:1;background:#0f1224;border-radius:50%;display:flex;align-items:center;justify-content:center}
+    .c4 .disc{width:82%;height:82%;border-radius:50%}
+    .c4 .disc.x{background:radial-gradient(circle at 35% 30%,#7de8ff,var(--x))}
+    .c4 .disc.o{background:radial-gradient(circle at 35% 30%,#ff8aa0,var(--o))}
+    .c4btns{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;width:100%;padding:0 6px}
+    .c4btns button{background:transparent;border:none;color:var(--muted);font-size:1.1rem;cursor:pointer;padding:2px 0;border-radius:6px}
+    .c4btns button:hover:not(:disabled){color:var(--text);background:rgba(124,92,255,.15)}
+    .c4btns button:disabled{opacity:.25;cursor:default}
+    .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:10px 22px;border-radius:999px;cursor:pointer}
+    .hidden{display:none}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar"><a class="home" href="/play/">← Lobby</a><h1 id="title">Online Match</h1><span style="width:56px"></span></div>
+    <div class="players" id="players"></div>
+    <div class="status" id="status">Loading…</div>
+    <div id="board"></div>
+    <div class="c4btns hidden" id="c4btns"></div>
+    <a class="btn hidden" id="back" href="/play/">Back to Lobby</a>
+  </div>
+  <script>
+  (function(){
+    const $=(id)=>document.getElementById(id);
+    const id=new URLSearchParams(location.search).get("id");
+    let me=null,mySym=null,match=null,ver=-1,timer;
+    async function jget(u){const r=await fetch(u);return r.json();}
+    async function jpost(u,b){const r=await fetch(u,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(b||{})});return r.json();}
+
+    async function init(){
+      const meRes=await jget("/api/me");if(!meRes.loggedIn){location.href="/account/";return;}
+      me=meRes.user.username;poll();timer=setInterval(poll,1200);
+    }
+    async function poll(){
+      let d;try{d=await jget("/api/mp/match?id="+encodeURIComponent(id));}catch(e){return;}
+      if(!d.ok){$("status").textContent="Match not found.";$("back").classList.remove("hidden");clearInterval(timer);return;}
+      match=d.match;
+      mySym=eqi(match.players.X,me)?"X":(eqi(match.players.O,me)?"O":null);
+      if(match.version!==ver){ver=match.version;render();}
+    }
+    function eqi(a,b){return a&&b&&a.toLowerCase()===b.toLowerCase();}
+    function render(){
+      $("title").textContent=match.gameName||"Match";
+      const over=match.winner||match.draw;
+      $("players").innerHTML=
+        `<div class="pl x ${!over&&match.turn==="X"?"turn":""}"><div class="sym">✕ ${mySym==="X"?"(you)":""}</div>${esc(match.players.X)}</div>`+
+        `<div class="pl o ${!over&&match.turn==="O"?"turn":""}"><div class="sym">◯ ${mySym==="O"?"(you)":""}</div>${esc(match.players.O)}</div>`;
+      const myTurn=!over&&match.turn===mySym;
+      if(match.winner)$("status").textContent=match.winner===mySym?"🏆 You win!":"😔 "+esc(match[match.winner==="X"?"players":"players"][match.winner])+" wins.";
+      else if(match.draw)$("status").textContent="🤝 It's a draw.";
+      else $("status").textContent=myTurn?"Your move.":"Waiting for "+esc(match.players[match.turn])+"…";
+      $("back").classList.toggle("hidden",!over);
+      if(match.game==="ttt")renderTTT(myTurn);else if(match.game==="c4")renderC4(myTurn);
+    }
+    function renderTTT(myTurn){
+      $("c4btns").classList.add("hidden");
+      const b=$("board");b.className="ttt";b.innerHTML="";
+      match.state.forEach((v,i)=>{const c=document.createElement("div");c.className="cell"+(v==="X"?" x":v==="O"?" o":"")+((myTurn&&!v)?" can":"");
+        c.textContent=v==="X"?"✕":v==="O"?"◯":"";if(myTurn&&!v)c.addEventListener("click",()=>move(i));b.appendChild(c);});
+    }
+    function renderC4(myTurn){
+      const b=$("board");b.className="c4";b.innerHTML="";
+      for(let r=0;r<6;r++)for(let c=0;c<7;c++){const v=match.state[r*7+c];const slot=document.createElement("div");slot.className="slot";
+        if(v){const d=document.createElement("div");d.className="disc "+(v==="X"?"x":"o");slot.appendChild(d);}b.appendChild(slot);}
+      const bt=$("c4btns");bt.classList.remove("hidden");bt.innerHTML="";
+      for(let c=0;c<7;c++){const btn=document.createElement("button");btn.textContent="▾";
+        const full=match.state[c]!=="";btn.disabled=!myTurn||full;btn.addEventListener("click",()=>move(c));bt.appendChild(btn);}
+    }
+    async function move(m){
+      const r=await jpost("/api/mp/move",{id,move:m});
+      if(r.ok){match=r.match;ver=match.version;render();}
+      else if(r.error==="not_your_turn")poll();
+    }
+    function esc(s){const d=document.createElement("div");d.textContent=s;return d.innerHTML;}
+    if(!id){$("status").textContent="No match specified.";}else init();
+  })();
+  </script>
+</body>
+</html>

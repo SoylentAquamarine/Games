@@ -45,6 +45,12 @@ export default {
     if (url.pathname === "/api/admin/data" && request.method === "GET") {
       return handleAdminData(request, env);
     }
+    if (url.pathname === "/api/mp/ping" && request.method === "POST") return handleMpPing(request, env);
+    if (url.pathname === "/api/mp/lobby" && request.method === "GET") return handleMpLobby(request, env);
+    if (url.pathname === "/api/mp/challenge" && request.method === "POST") return handleMpChallenge(request, env);
+    if (url.pathname === "/api/mp/respond" && request.method === "POST") return handleMpRespond(request, env);
+    if (url.pathname === "/api/mp/match" && request.method === "GET") return handleMpMatch(request, env, url);
+    if (url.pathname === "/api/mp/move" && request.method === "POST") return handleMpMove(request, env);
 
     // Not an API route — serve a static asset.
     return env.ASSETS.fetch(request);
@@ -240,6 +246,131 @@ async function handleAdminData(request, env) {
   games.sort((a, b) => b.count - a.count);
 
   return json({ ok: true, users, stats, totalComments, games });
+}
+
+// ---------------------------------------------------------------------------
+// Multiplayer: presence lobby, challenges, and server-authoritative matches
+// ---------------------------------------------------------------------------
+
+const MP_GAMES = {
+  ttt: {
+    name: "Tic-Tac-Toe",
+    init: () => Array(9).fill(""),
+    move: (state, pl, mv) => { if (typeof mv !== "number" || mv < 0 || mv > 8 || state[mv]) return null; const s = state.slice(); s[mv] = pl; return s; },
+    result: (s) => {
+      const L = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+      for (const [a,b,c] of L) if (s[a] && s[a] === s[b] && s[a] === s[c]) return { winner: s[a] };
+      return s.every((x) => x) ? { draw: true } : null;
+    },
+  },
+  c4: {
+    name: "Connect Four",
+    init: () => Array(42).fill(""), // 6 rows x 7 cols, index = r*7 + c (r0 = top)
+    move: (state, pl, mv) => { if (typeof mv !== "number" || mv < 0 || mv > 6) return null; for (let r = 5; r >= 0; r--) { const i = r*7+mv; if (!state[i]) { const s = state.slice(); s[i] = pl; return s; } } return null; },
+    result: (s) => {
+      const at = (r,c) => (r>=0&&r<6&&c>=0&&c<7) ? s[r*7+c] : "";
+      for (let r=0;r<6;r++) for (let c=0;c<7;c++) { const v=at(r,c); if(!v) continue;
+        for (const [dr,dc] of [[0,1],[1,0],[1,1],[1,-1]]) { let k=1; while(at(r+dr*k,c+dc*k)===v) k++; if(k>=4) return { winner:v }; } }
+      return s.every((x) => x) ? { draw: true } : null;
+    },
+  },
+};
+
+function rid() { return bytesToB64url(crypto.getRandomValues(new Uint8Array(9))); }
+async function mpUser(request, env) { const p = await getSession(request, env); return p && p.u ? p.u : null; }
+const lc = (s) => s.toLowerCase();
+
+async function handleMpPing(request, env) {
+  const u = await mpUser(request, env); if (!u) return json({ error: "unauth" }, 401);
+  const um = await env.ACCOUNTS.get("usermatch:" + lc(u));
+  await env.ACCOUNTS.put("presence:" + lc(u), JSON.stringify({ name: u, ts: Date.now(), match: um || null }), { expirationTtl: 60 });
+  return json({ ok: true });
+}
+
+async function handleMpLobby(request, env) {
+  const u = await mpUser(request, env); if (!u) return json({ error: "unauth" }, 401);
+  const now = Date.now();
+  const players = []; let cursor;
+  do {
+    const r = await env.ACCOUNTS.list({ prefix: "presence:", cursor });
+    for (const k of r.keys) { const raw = await env.ACCOUNTS.get(k.name); if (!raw) continue; const p = JSON.parse(raw);
+      if (now - p.ts > 20000) continue; players.push({ name: p.name, status: p.match ? "playing" : "available" }); }
+    cursor = r.list_complete ? undefined : r.cursor;
+  } while (cursor);
+  const challenges = []; cursor = undefined;
+  do {
+    const r = await env.ACCOUNTS.list({ prefix: "challenge:", cursor });
+    for (const k of r.keys) { const raw = await env.ACCOUNTS.get(k.name); if (!raw) continue; const c = JSON.parse(raw);
+      if (now - c.ts > 120000) { await env.ACCOUNTS.delete(k.name); continue; }
+      if (lc(c.to) === lc(u)) challenges.push(c); }
+    cursor = r.list_complete ? undefined : r.cursor;
+  } while (cursor);
+  const myMatch = await env.ACCOUNTS.get("usermatch:" + lc(u));
+  return json({ ok: true, me: u, players, challenges, myMatch: myMatch || null, games: Object.fromEntries(Object.entries(MP_GAMES).map(([k, v]) => [k, v.name])) });
+}
+
+async function handleMpChallenge(request, env) {
+  const u = await mpUser(request, env); if (!u) return json({ error: "unauth" }, 401);
+  let body; try { body = await request.json(); } catch { return json({ error: "invalid_body" }, 400); }
+  const to = (body.to || "").toString().trim(); const game = (body.game || "").toString();
+  if (!MP_GAMES[game]) return json({ error: "bad_game" }, 400);
+  if (!to || lc(to) === lc(u)) return json({ error: "bad_target" }, 400);
+  const id = rid();
+  await env.ACCOUNTS.put("challenge:" + id, JSON.stringify({ id, from: u, to, game, ts: Date.now() }), { expirationTtl: 180 });
+  return json({ ok: true, id });
+}
+
+async function handleMpRespond(request, env) {
+  const u = await mpUser(request, env); if (!u) return json({ error: "unauth" }, 401);
+  let body; try { body = await request.json(); } catch { return json({ error: "invalid_body" }, 400); }
+  const raw = await env.ACCOUNTS.get("challenge:" + body.id);
+  if (!raw) return json({ error: "gone" }, 404);
+  const c = JSON.parse(raw);
+  if (lc(c.to) !== lc(u)) return json({ error: "not_yours" }, 403);
+  await env.ACCOUNTS.delete("challenge:" + body.id);
+  if (!body.accept) return json({ ok: true });
+  const eng = MP_GAMES[c.game]; const mid = rid();
+  const match = { id: mid, game: c.game, gameName: eng.name, players: { X: c.from, O: c.to }, state: eng.init(), turn: "X", winner: null, draw: false, version: 1, updated: Date.now() };
+  await env.ACCOUNTS.put("match:" + mid, JSON.stringify(match));
+  await env.ACCOUNTS.put("usermatch:" + lc(c.from), mid);
+  await env.ACCOUNTS.put("usermatch:" + lc(c.to), mid);
+  return json({ ok: true, matchId: mid });
+}
+
+async function handleMpMatch(request, env, url) {
+  const u = await mpUser(request, env); if (!u) return json({ error: "unauth" }, 401);
+  const raw = await env.ACCOUNTS.get("match:" + (url.searchParams.get("id") || ""));
+  if (!raw) return json({ error: "gone" }, 404);
+  const match = JSON.parse(raw);
+  if (![lc(match.players.X), lc(match.players.O)].includes(lc(u))) return json({ error: "forbidden" }, 403);
+  return json({ ok: true, match });
+}
+
+async function handleMpMove(request, env) {
+  const u = await mpUser(request, env); if (!u) return json({ error: "unauth" }, 401);
+  let body; try { body = await request.json(); } catch { return json({ error: "invalid_body" }, 400); }
+  const key = "match:" + body.id;
+  const raw = await env.ACCOUNTS.get(key);
+  if (!raw) return json({ error: "gone" }, 404);
+  const match = JSON.parse(raw);
+  if (match.winner || match.draw) return json({ error: "over" }, 400);
+  const sym = lc(match.players.X) === lc(u) ? "X" : (lc(match.players.O) === lc(u) ? "O" : null);
+  if (!sym) return json({ error: "forbidden" }, 403);
+  if (sym !== match.turn) return json({ error: "not_your_turn" }, 400);
+  const eng = MP_GAMES[match.game];
+  const ns = eng.move(match.state, sym, body.move);
+  if (!ns) return json({ error: "illegal" }, 400);
+  match.state = ns;
+  const res = eng.result(ns);
+  if (res) {
+    if (res.winner) match.winner = res.winner;
+    if (res.draw) match.draw = true;
+    await env.ACCOUNTS.delete("usermatch:" + lc(match.players.X));
+    await env.ACCOUNTS.delete("usermatch:" + lc(match.players.O));
+  } else { match.turn = sym === "X" ? "O" : "X"; }
+  match.version++; match.updated = Date.now();
+  await env.ACCOUNTS.put(key, JSON.stringify(match));
+  return json({ ok: true, match });
 }
 
 function handleLogout(request) {
