@@ -64,15 +64,25 @@ move(state, pl, mv)  -> { state, next } | null   // next = "X"|"O" who plays nex
 result(state)        -> { winner } | { draw } | null
 ```
 `move` returning `next` lets games express **extra turns** (Dots & Boxes: same
-player after claiming a box) and **skips** (Reversi: passes back if opponent has
-no move). Players are always symbols `"X"` (challenger) and `"O"`.
-**Live online games:** `ttt`, `c4`, `gomoku`, `reversi`, `uttt`, `dots`.
+player after claiming a box; Checkers: same player mid multi-jump; Wild Cards:
+same player after a Skip/Reverse/Draw-Two/Wild-Draw-Four in heads-up) and
+**skips** (Reversi: passes back if opponent has no move). Players are always
+symbols `"X"` (challenger) and `"O"`.
+**Live online games:** `ttt`, `c4`, `gomoku`, `reversi`, `uttt`, `dots`,
+`checkers`, `wild` (UNO-style "Wild Cards").
 The lobby challenge dropdown auto-lists whatever's in `MP_GAMES`; the match page
 (`public/play/match/index.html`) has a renderer per game key.
 
+**Hidden-information games** (first one: `wild`): an engine may add an optional
+`redact(state, sym) -> safeState` method. `mpView()` in `src/index.js` applies it
+in **both** `handleMpMatch` and `handleMpMove` so each client only ever receives
+its own hand + opponent/deck *counts* — the full `state` (all hands, deck order)
+stays server-side in KV and is what `move`/`result` operate on. Any future
+hidden-info game (Battleship placement, etc.) should follow this pattern.
+
 **To add an online game:** add an engine to `MP_GAMES` + a renderer in the match
-page keyed by the same slug. Checkers (needs multi-jump) and Battleship (needs a
-hidden placement phase) are the natural next ports.
+page keyed by the same slug (+ a `redact` hook if it has hidden state). Battleship
+(needs a hidden placement phase) is the natural next port.
 
 ## 4. Frontend structure
 

@@ -285,6 +285,24 @@ function ckMoves(b, pl, chain) {
   return steps;
 }
 
+// --- UNO-style "Wild Cards" helpers (heads-up, hidden-info; see redact) -----
+// Card: {c:"R"|"G"|"B"|"Y"|"W", v:"0".."9"|"skip"|"rev"|"d2"|"wild"|"wd4"}
+function unoBuildDeck() {
+  const colors = ["R","G","B","Y"], deck = [];
+  for (const c of colors) {
+    deck.push({ c, v: "0" });
+    for (let n=1;n<=9;n++) { deck.push({ c, v: String(n) }); deck.push({ c, v: String(n) }); }
+    for (const a of ["skip","rev","d2"]) { deck.push({ c, v: a }); deck.push({ c, v: a }); }
+  }
+  for (let k=0;k<4;k++) { deck.push({ c:"W", v:"wild" }); deck.push({ c:"W", v:"wd4" }); }
+  return deck;
+}
+function unoShuffle(a) { for (let i=a.length-1;i>0;i--) { const j=Math.floor(Math.random()*(i+1)); const t=a[i]; a[i]=a[j]; a[j]=t; } return a; }
+function unoPlayable(card, color, top) { if (card.c==="W") return true; return card.c===color || card.v===top.v; }
+function unoReshuffle(s) { if (s.discard.length<=1) return; const top=s.discard.pop(); s.deck=unoShuffle(s.discard); s.discard=[top]; }
+function unoDrawN(s, who, n) { for (let k=0;k<n;k++) { if (s.deck.length===0) unoReshuffle(s); if (s.deck.length===0) break; s.hands[who].push(s.deck.pop()); } }
+const unoOther = (p) => (p==="X"?"O":"X");
+
 const MP_GAMES = {
   ttt: { name: "Tic-Tac-Toe",
     init: () => Array(9).fill(""),
@@ -355,7 +373,73 @@ const MP_GAMES = {
       return null;
     },
   },
+  wild: { name: "Wild Cards",
+    init: () => {
+      const deck = unoShuffle(unoBuildDeck());
+      const hands = { X: [], O: [] };
+      for (let k=0;k<7;k++) { hands.X.push(deck.pop()); hands.O.push(deck.pop()); }
+      let start; // first discard must be a plain number card
+      while (true) { const c = deck.pop(); if (/^[0-9]$/.test(c.v)) { start = c; break; } deck.unshift(c); }
+      return { deck, discard: [start], color: start.c, hands, turn: "X", phase: "play", drawnIdx: null, lastAction: null };
+    },
+    move: (st, pl, mv) => {
+      if (st.turn !== pl) return null;
+      const opp = unoOther(pl);
+      const s = JSON.parse(JSON.stringify(st));
+      if (mv && mv.pass) {
+        if (s.phase !== "drew") return null;
+        s.phase="play"; s.drawnIdx=null; s.turn=opp; s.lastAction={ by:pl, type:"pass" };
+        return { state:s, next:opp };
+      }
+      if (mv && mv.draw) {
+        if (s.phase !== "play") return null;
+        unoDrawN(s, pl, 1);
+        const idx = s.hands[pl].length-1, drew = s.hands[pl][idx];
+        if (drew && unoPlayable(drew, s.color, s.discard[s.discard.length-1])) {
+          s.phase="drew"; s.drawnIdx=idx; s.turn=pl; s.lastAction={ by:pl, type:"draw" };
+          return { state:s, next:pl };
+        }
+        s.phase="play"; s.drawnIdx=null; s.turn=opp; s.lastAction={ by:pl, type:"draw-pass" };
+        return { state:s, next:opp };
+      }
+      if (mv && typeof mv.play === "number") {
+        const i = mv.play, hand = s.hands[pl];
+        if (i<0 || i>=hand.length) return null;
+        if (s.phase==="drew" && i!==s.drawnIdx) return null;
+        const card = hand[i], top = s.discard[s.discard.length-1];
+        if (!unoPlayable(card, s.color, top)) return null;
+        let chosen = card.c;
+        if (card.c==="W") { chosen=(mv.color||"").toString().toUpperCase(); if (!["R","G","B","Y"].includes(chosen)) return null; }
+        hand.splice(i,1); s.discard.push(card); s.color = card.c==="W"?chosen:card.c; s.phase="play"; s.drawnIdx=null;
+        let next; const v = card.v;
+        if (v==="d2") { unoDrawN(s, opp, 2); next=pl; }
+        else if (v==="wd4") { unoDrawN(s, opp, 4); next=pl; }
+        else if (v==="skip" || v==="rev") { next=pl; }
+        else { next=opp; }
+        s.turn=next; s.lastAction={ by:pl, type:"play", card, color:s.color };
+        return { state:s, next };
+      }
+      return null;
+    },
+    result: (st) => {
+      if (st.hands.X.length===0) return { winner:"X" };
+      if (st.hands.O.length===0) return { winner:"O" };
+      return null;
+    },
+    redact: (st, sym) => {
+      const opp = unoOther(sym);
+      return { top: st.discard[st.discard.length-1], color: st.color, phase: st.phase, turn: st.turn,
+        hand: st.hands[sym], oppCount: st.hands[opp].length, deckCount: st.deck.length,
+        drawnIdx: (st.phase==="drew" && st.turn===sym) ? st.drawnIdx : null, last: st.lastAction };
+    },
+  },
 };
+
+// Redact hidden-info games (e.g. Wild Cards) per viewer before sending to a client.
+function mpView(match, eng, sym) {
+  if (!eng || !eng.redact) return match;
+  return { ...match, state: eng.redact(match.state, sym) };
+}
 
 function rid() { return bytesToB64url(crypto.getRandomValues(new Uint8Array(9))); }
 async function mpUser(request, env) { const p = await getSession(request, env); return p && p.u ? p.u : null; }
@@ -424,7 +508,8 @@ async function handleMpMatch(request, env, url) {
   if (!raw) return json({ error: "gone" }, 404);
   const match = JSON.parse(raw);
   if (![lc(match.players.X), lc(match.players.O)].includes(lc(u))) return json({ error: "forbidden" }, 403);
-  return json({ ok: true, match });
+  const sym = lc(match.players.X) === lc(u) ? "X" : "O";
+  return json({ ok: true, match: mpView(match, MP_GAMES[match.game], sym) });
 }
 
 async function handleMpMove(request, env) {
@@ -451,7 +536,7 @@ async function handleMpMove(request, env) {
   } else { match.turn = out.next; }
   match.version++; match.updated = Date.now();
   await env.ACCOUNTS.put(key, JSON.stringify(match));
-  return json({ ok: true, match });
+  return json({ ok: true, match: mpView(match, eng, sym) });
 }
 
 function handleLogout(request) {

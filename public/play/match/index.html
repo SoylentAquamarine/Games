@@ -66,6 +66,26 @@
     .ck .pc.o{background:radial-gradient(circle at 35% 30%,#ff8aa0,var(--o))}
     .ck .pc.pick{cursor:pointer}
     .ck .pc.king::after{content:"♚";color:rgba(0,0,0,.6);font-size:1.1rem}
+    .uno{display:flex;flex-direction:column;align-items:center;gap:12px;width:100%}
+    .uhand{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;max-width:100%}
+    .uopp{display:flex;justify-content:center;align-items:center;min-height:56px}
+    .uopp .ucard:not(:first-child){margin-left:-18px}
+    .ucard{width:42px;height:60px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1.1rem;color:#fff;box-shadow:0 2px 4px rgba(0,0,0,.4);border:2px solid rgba(255,255,255,.8);flex:0 0 auto;user-select:none;transition:transform .1s}
+    .ucard.uR{background:#e5484d}.ucard.uG{background:#30a46c}.ucard.uB{background:#3b82f6}.ucard.uY{background:#eab308;color:#3a2a00}
+    .ucard.uW{background:conic-gradient(#e5484d 0 25%,#eab308 0 50%,#30a46c 0 75%,#3b82f6 0);text-shadow:0 1px 2px rgba(0,0,0,.7)}
+    .ucard.back{background:repeating-linear-gradient(45deg,#2a2f55,#2a2f55 6px,#1e2140 6px,#1e2140 12px);border-color:rgba(255,255,255,.25);color:#9b8cff;font-size:1rem}
+    .ucard.play{cursor:pointer}
+    .ucard.play:hover{transform:translateY(-5px)}
+    .ucard.dim{opacity:.4}
+    .ucenter{display:flex;align-items:center;gap:18px}
+    .udeck.can{cursor:pointer}.udeck.can:hover{transform:translateY(-3px)}
+    .ucolor{width:20px;height:20px;border-radius:50%;border:2px solid #fff}
+    .ucolor.uR{background:#e5484d}.ucolor.uG{background:#30a46c}.ucolor.uB{background:#3b82f6}.ucolor.uY{background:#eab308}
+    .uactions{display:flex;gap:10px;align-items:center;min-height:42px;flex-wrap:wrap;justify-content:center}
+    .ubtn{background:#2a2f55;color:#e6e6f0;border:1px solid rgba(255,255,255,.15);border-radius:999px;padding:8px 16px;font-weight:700;cursor:pointer}
+    .ubtn:hover{border-color:var(--accent)}
+    .uswatch{width:34px;height:34px;border-radius:8px;border:2px solid #fff;cursor:pointer}
+    .ulog{font-size:.8rem;color:var(--muted);min-height:1em;text-align:center}
     svg{width:100%;height:auto;display:block}
     .dscore{display:flex;justify-content:space-between;width:100%;max-width:320px;font-weight:700;font-size:.9rem}
     .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:10px 22px;border-radius:999px;cursor:pointer}
@@ -111,7 +131,7 @@
       else $("status").textContent=myTurn?"Your move.":"Waiting for "+esc(match.players[match.turn])+"…";
       $("back").classList.toggle("hidden",!over);
       $("c4btns").classList.add("hidden");$("dscore").classList.add("hidden");
-      ({ttt:renderTTT,c4:renderC4,gomoku:renderGomoku,reversi:renderReversi,uttt:renderUTTT,dots:renderDots,checkers:renderCheckers}[match.game]||(()=>{}))(myTurn);
+      ({ttt:renderTTT,c4:renderC4,gomoku:renderGomoku,reversi:renderReversi,uttt:renderUTTT,dots:renderDots,checkers:renderCheckers,wild:renderUno}[match.game]||(()=>{}))(myTurn);
     }
     function renderTTT(myTurn){const b=$("board");b.className="ttt";b.innerHTML="";
       match.state.forEach((v,i)=>{const c=document.createElement("div");c.className="cell"+(v==="X"?" x":v==="O"?" o":"")+((myTurn&&!v)?" can":"");
@@ -179,6 +199,49 @@
           if(myTurn&&froms.has(i))pc.onclick=(e)=>{e.stopPropagation();ckSel=i;drawCheckers(myTurn);};sq.appendChild(pc);}
         if(targets.has(i))sq.onclick=()=>move({from:ckSel,to:i});
         b.appendChild(sq);}}
+    const UCOL={R:"#e5484d",G:"#30a46c",B:"#3b82f6",Y:"#eab308"};
+    function unoClientPlayable(card,color,top){if(card.c==="W")return true;return card.c===color||card.v===top.v;}
+    function unoFace(card){const el=document.createElement("div");el.className="ucard u"+card.c;
+      el.textContent=({skip:"⊘",rev:"⇄",d2:"+2",wild:"★",wd4:"+4"})[card.v]||card.v;return el;}
+    function unoColorName(c){return({R:"Red",G:"Green",B:"Blue",Y:"Yellow"})[c]||c;}
+    function unoName(card){const v=({skip:"Skip",rev:"Reverse",d2:"Draw Two",wild:"Wild",wd4:"Wild +4"})[card.v]||card.v;
+      return card.c==="W"?v:(unoColorName(card.c)+" "+v);}
+    function unoLog(last){if(!last)return"";const who=(last.by===mySym)?"You":esc(match.players[last.by]);
+      if(last.type==="play")return who+" played "+unoName(last.card)+(last.card.c==="W"?" ("+unoColorName(last.color)+")":"")+".";
+      if(last.type==="draw"||last.type==="draw-pass")return who+" drew a card.";
+      if(last.type==="pass")return who+" passed.";return"";}
+    let unoWild=null;
+    function renderUno(myTurn){unoWild=null;drawUno(myTurn);}
+    function drawUno(myTurn){const st=match.state,b=$("board");b.className="";b.innerHTML="";
+      const wrap=document.createElement("div");wrap.className="uno";
+      const opp=document.createElement("div");opp.className="uopp";
+      for(let k=0;k<st.oppCount;k++){const c=document.createElement("div");c.className="ucard back";c.textContent="🂠";opp.appendChild(c);}
+      if(st.oppCount===1){const u=document.createElement("div");u.style.cssText="color:var(--o);font-weight:800;margin-left:10px";u.textContent="UNO!";opp.appendChild(u);}
+      wrap.appendChild(opp);
+      const center=document.createElement("div");center.className="ucenter";
+      const deck=document.createElement("div");deck.className="ucard back udeck"+((myTurn&&st.phase==="play"&&unoWild==null)?" can":"");deck.textContent=st.deckCount;
+      if(myTurn&&st.phase==="play"&&unoWild==null)deck.onclick=()=>move({draw:true});
+      center.appendChild(deck);center.appendChild(unoFace(st.top));
+      const col=document.createElement("div");col.className="ucolor u"+st.color;center.appendChild(col);
+      wrap.appendChild(center);
+      const log=document.createElement("div");log.className="ulog";log.textContent=unoLog(st.last);wrap.appendChild(log);
+      const hand=document.createElement("div");hand.className="uhand";
+      st.hand.forEach((card,i)=>{const playable=myTurn&&unoWild==null&&(st.phase==="drew"?i===st.drawnIdx:unoClientPlayable(card,st.color,st.top));
+        const el=unoFace(card);if(myTurn)el.classList.add(playable?"play":"dim");
+        if(playable)el.onclick=()=>{if(card.c==="W"){unoWild=i;drawUno(myTurn);}else move({play:i});};
+        hand.appendChild(el);});
+      wrap.appendChild(hand);
+      const act=document.createElement("div");act.className="uactions";
+      if(unoWild!=null){const lbl=document.createElement("span");lbl.style.cssText="color:var(--muted);font-size:.85rem";lbl.textContent="Pick a color:";act.appendChild(lbl);
+        ["R","G","B","Y"].forEach(cc=>{const sw=document.createElement("div");sw.className="uswatch";sw.style.background=UCOL[cc];sw.title=unoColorName(cc);
+          sw.onclick=()=>{const idx=unoWild;unoWild=null;move({play:idx,color:cc});};act.appendChild(sw);});
+        const cx=document.createElement("button");cx.className="ubtn";cx.textContent="Cancel";cx.onclick=()=>{unoWild=null;drawUno(myTurn);};act.appendChild(cx);
+      }else if(myTurn){
+        if(st.phase==="play"){const d=document.createElement("button");d.className="ubtn";d.textContent="Draw";d.onclick=()=>move({draw:true});act.appendChild(d);}
+        else if(st.phase==="drew"){const p=document.createElement("button");p.className="ubtn";p.textContent="Pass";p.onclick=()=>move({pass:true});act.appendChild(p);
+          const n=document.createElement("span");n.style.cssText="color:var(--muted);font-size:.85rem";n.textContent="Play the drawn card or pass";act.appendChild(n);}
+      }
+      wrap.appendChild(act);b.appendChild(wrap);}
     if(!id)$("status").textContent="No match specified.";else init();
   })();
   </script>
