@@ -252,27 +252,58 @@ async function handleAdminData(request, env) {
 // Multiplayer: presence lobby, challenges, and server-authoritative matches
 // ---------------------------------------------------------------------------
 
+// Each engine: move(state,pl,mv) -> {state, next} | null ; result(state) -> {winner}|{draw}|null
+const other = (p) => (p === "X" ? "O" : "X");
+const DIRS8 = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
+function tt3Win(s) { const L = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]]; for (const [a,b,c] of L) if (s[a] && s[a] === s[b] && s[a] === s[c]) return s[a]; return ""; }
+function lineWin(s, rows, cols, need) { const at = (r,c) => (r>=0&&r<rows&&c>=0&&c<cols) ? s[r*cols+c] : ""; for (let r=0;r<rows;r++) for (let c=0;c<cols;c++){ const v=at(r,c); if(!v) continue; for (const [dr,dc] of [[0,1],[1,0],[1,1],[1,-1]]) { let k=1; while(at(r+dr*k,c+dc*k)===v) k++; if(k>=need) return v; } } return ""; }
+function revFlips(s, pl, idx) { if (s[idx]) return []; const opp = other(pl), r = Math.floor(idx/8), c = idx%8, out = [];
+  for (const [dr,dc] of DIRS8) { const line = []; let nr=r+dr, nc=c+dc; while(nr>=0&&nr<8&&nc>=0&&nc<8&&s[nr*8+nc]===opp){ line.push(nr*8+nc); nr+=dr; nc+=dc; } if(line.length&&nr>=0&&nr<8&&nc>=0&&nc<8&&s[nr*8+nc]===pl) out.push(...line); } return out; }
+function revLegal(s, pl) { const m = []; for (let i=0;i<64;i++) if(!s[i]&&revFlips(s,pl,i).length) m.push(i); return m; }
+const boardFull = (b) => b.every((x) => x);
+function dbSides(s, br, bc) { return s.h[br*4+bc] + s.h[(br+1)*4+bc] + s.v[br*5+bc] + s.v[br*5+bc+1]; }
+
 const MP_GAMES = {
-  ttt: {
-    name: "Tic-Tac-Toe",
+  ttt: { name: "Tic-Tac-Toe",
     init: () => Array(9).fill(""),
-    move: (state, pl, mv) => { if (typeof mv !== "number" || mv < 0 || mv > 8 || state[mv]) return null; const s = state.slice(); s[mv] = pl; return s; },
-    result: (s) => {
-      const L = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
-      for (const [a,b,c] of L) if (s[a] && s[a] === s[b] && s[a] === s[c]) return { winner: s[a] };
-      return s.every((x) => x) ? { draw: true } : null;
-    },
+    move: (s, pl, mv) => { if (typeof mv !== "number" || mv < 0 || mv > 8 || s[mv]) return null; const n = s.slice(); n[mv] = pl; return { state: n, next: other(pl) }; },
+    result: (s) => { const w = tt3Win(s); if (w) return { winner: w }; return boardFull(s) ? { draw: true } : null; },
   },
-  c4: {
-    name: "Connect Four",
-    init: () => Array(42).fill(""), // 6 rows x 7 cols, index = r*7 + c (r0 = top)
-    move: (state, pl, mv) => { if (typeof mv !== "number" || mv < 0 || mv > 6) return null; for (let r = 5; r >= 0; r--) { const i = r*7+mv; if (!state[i]) { const s = state.slice(); s[i] = pl; return s; } } return null; },
-    result: (s) => {
-      const at = (r,c) => (r>=0&&r<6&&c>=0&&c<7) ? s[r*7+c] : "";
-      for (let r=0;r<6;r++) for (let c=0;c<7;c++) { const v=at(r,c); if(!v) continue;
-        for (const [dr,dc] of [[0,1],[1,0],[1,1],[1,-1]]) { let k=1; while(at(r+dr*k,c+dc*k)===v) k++; if(k>=4) return { winner:v }; } }
-      return s.every((x) => x) ? { draw: true } : null;
-    },
+  c4: { name: "Connect Four",
+    init: () => Array(42).fill(""),
+    move: (s, pl, mv) => { if (typeof mv !== "number" || mv < 0 || mv > 6) return null; for (let r=5;r>=0;r--){ const i=r*7+mv; if(!s[i]){ const n=s.slice(); n[i]=pl; return { state:n, next:other(pl) }; } } return null; },
+    result: (s) => { const w = lineWin(s, 6, 7, 4); if (w) return { winner: w }; return boardFull(s) ? { draw: true } : null; },
+  },
+  gomoku: { name: "Gomoku",
+    init: () => Array(169).fill(""), // 13x13
+    move: (s, pl, mv) => { if (typeof mv !== "number" || mv < 0 || mv >= 169 || s[mv]) return null; const n = s.slice(); n[mv] = pl; return { state: n, next: other(pl) }; },
+    result: (s) => { const w = lineWin(s, 13, 13, 5); if (w) return { winner: w }; return boardFull(s) ? { draw: true } : null; },
+  },
+  reversi: { name: "Reversi",
+    init: () => { const s = Array(64).fill(""); s[27]="O"; s[28]="X"; s[35]="X"; s[36]="O"; return s; },
+    move: (s, pl, mv) => { const fl = revFlips(s, pl, mv); if (!fl.length) return null; const n = s.slice(); n[mv] = pl; for (const i of fl) n[i] = pl;
+      const opp = other(pl); let next; if (revLegal(n, opp).length) next = opp; else if (revLegal(n, pl).length) next = pl; else next = opp; return { state: n, next }; },
+    result: (s) => { if (revLegal(s,"X").length || revLegal(s,"O").length) return null; let x=0,o=0; for (const v of s){ if(v==="X")x++; else if(v==="O")o++; } return x>o?{winner:"X"}:o>x?{winner:"O"}:{draw:true}; },
+  },
+  uttt: { name: "Ultimate T-T-T",
+    init: () => ({ boards: Array.from({length:9},()=>Array(9).fill("")), big: Array(9).fill(""), active: -1 }),
+    move: (st, pl, mv) => { const bi = Math.floor(mv/9), ci = mv%9; if (bi<0||bi>8||ci<0||ci>8) return null;
+      if (st.active !== -1 && st.active !== bi) return null; if (st.big[bi] || boardFull(st.boards[bi])) return null; if (st.boards[bi][ci]) return null;
+      const boards = st.boards.map((b)=>b.slice()); boards[bi][ci] = pl; const big = st.big.slice();
+      const w = tt3Win(boards[bi]); if (w) big[bi] = w; else if (boardFull(boards[bi])) big[bi] = "D";
+      const active = (big[ci] || boardFull(boards[ci])) ? -1 : ci;
+      return { state: { boards, big, active }, next: other(pl) }; },
+    result: (st) => { const mw = tt3Win(st.big.map((v)=> (v==="X"||v==="O")?v:"")); if (mw) return { winner: mw }; return st.big.every((v)=>v) ? { draw: true } : null; },
+  },
+  dots: { name: "Dots & Boxes",
+    init: () => ({ h: Array(20).fill(0), v: Array(20).fill(0), boxes: Array(16).fill(""), sX: 0, sO: 0 }),
+    move: (st, pl, mv) => { const s = { h: st.h.slice(), v: st.v.slice(), boxes: st.boxes.slice(), sX: st.sX, sO: st.sO };
+      let aff; if (mv>=0&&mv<20){ if(s.h[mv]) return null; s.h[mv]=1; const r=Math.floor(mv/4),c=mv%4; aff=[[r-1,c],[r,c]]; }
+      else if (mv>=20&&mv<40){ const vi=mv-20; if(s.v[vi]) return null; s.v[vi]=1; const r=Math.floor(vi/5),c=vi%5; aff=[[r,c-1],[r,c]]; }
+      else return null;
+      let made=0; for (const [br,bc] of aff){ if(br<0||br>=4||bc<0||bc>=4) continue; const bi=br*4+bc; if(!s.boxes[bi]&&dbSides(s,br,bc)===4){ s.boxes[bi]=pl; made++; if(pl==="X")s.sX++; else s.sO++; } }
+      return { state: s, next: made>0 ? pl : other(pl) }; },
+    result: (s) => { if (!s.boxes.every((v)=>v)) return null; return s.sX>s.sO?{winner:"X"}:s.sO>s.sX?{winner:"O"}:{draw:true}; },
   },
 };
 
@@ -358,16 +389,16 @@ async function handleMpMove(request, env) {
   if (!sym) return json({ error: "forbidden" }, 403);
   if (sym !== match.turn) return json({ error: "not_your_turn" }, 400);
   const eng = MP_GAMES[match.game];
-  const ns = eng.move(match.state, sym, body.move);
-  if (!ns) return json({ error: "illegal" }, 400);
-  match.state = ns;
-  const res = eng.result(ns);
+  const out = eng.move(match.state, sym, body.move);
+  if (!out) return json({ error: "illegal" }, 400);
+  match.state = out.state;
+  const res = eng.result(match.state);
   if (res) {
     if (res.winner) match.winner = res.winner;
     if (res.draw) match.draw = true;
     await env.ACCOUNTS.delete("usermatch:" + lc(match.players.X));
     await env.ACCOUNTS.delete("usermatch:" + lc(match.players.O));
-  } else { match.turn = sym === "X" ? "O" : "X"; }
+  } else { match.turn = out.next; }
   match.version++; match.updated = Date.now();
   await env.ACCOUNTS.put(key, JSON.stringify(match));
   return json({ ok: true, match });

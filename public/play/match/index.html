@@ -21,22 +21,41 @@
     .pl.turn{box-shadow:0 0 0 2px var(--good)}
     .pl .sym{font-size:.7rem;color:var(--muted)}
     .status{min-height:1.3em;font-weight:700;text-align:center;color:#fde68a}
-    /* ttt */
     .ttt{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;width:100%;max-width:300px;aspect-ratio:1}
-    .ttt .cell{background:var(--panel);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:2.6rem;font-weight:800;cursor:pointer}
+    .ttt .cell{background:var(--panel);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:2.6rem;font-weight:800;cursor:default}
     .ttt .cell.x{color:var(--x)}.ttt .cell.o{color:var(--o)}
-    .ttt .cell.can{box-shadow:inset 0 0 0 2px rgba(52,211,153,.4);cursor:pointer}
-    /* c4 */
+    .ttt .cell.can{box-shadow:inset 0 0 0 2px rgba(52,211,153,.5);cursor:pointer}
     .c4{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;background:#232752;padding:6px;border-radius:12px;width:100%}
-    .c4 .col{display:contents}
     .c4 .slot{aspect-ratio:1;background:#0f1224;border-radius:50%;display:flex;align-items:center;justify-content:center}
     .c4 .disc{width:82%;height:82%;border-radius:50%}
-    .c4 .disc.x{background:radial-gradient(circle at 35% 30%,#7de8ff,var(--x))}
-    .c4 .disc.o{background:radial-gradient(circle at 35% 30%,#ff8aa0,var(--o))}
+    .disc.x,.stone.x{background:radial-gradient(circle at 35% 30%,#7de8ff,var(--x))}
+    .disc.o,.stone.o{background:radial-gradient(circle at 35% 30%,#ff8aa0,var(--o))}
     .c4btns{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;width:100%;padding:0 6px}
     .c4btns button{background:transparent;border:none;color:var(--muted);font-size:1.1rem;cursor:pointer;padding:2px 0;border-radius:6px}
     .c4btns button:hover:not(:disabled){color:var(--text);background:rgba(124,92,255,.15)}
     .c4btns button:disabled{opacity:.25;cursor:default}
+    .gomoku{display:grid;background:#c9a06a;padding:4px;border-radius:8px;width:100%;max-width:360px;gap:1px}
+    .gomoku .gc{aspect-ratio:1;background:rgba(0,0,0,.06);display:flex;align-items:center;justify-content:center;position:relative}
+    .gomoku .gc.can{cursor:pointer;box-shadow:inset 0 0 0 1px rgba(52,211,153,.7)}
+    .gomoku .stone{width:80%;height:80%;border-radius:50%}
+    .rev{display:grid;grid-template-columns:repeat(8,1fr);gap:2px;background:#0c2a16;padding:5px;border-radius:10px;width:100%;max-width:340px;aspect-ratio:1}
+    .rev .rc{background:#15402a;border-radius:4px;display:flex;align-items:center;justify-content:center;cursor:default;position:relative}
+    .rev .rc.can{cursor:pointer}
+    .rev .rc.can::after{content:"";width:24%;height:24%;border-radius:50%;background:rgba(52,211,153,.6)}
+    .rev .disc{width:80%;height:80%;border-radius:50%}
+    .rev .disc.x{background:radial-gradient(circle at 35% 30%,#7de8ff,var(--x))}
+    .rev .disc.o{background:radial-gradient(circle at 35% 30%,#ff8aa0,var(--o))}
+    .uttt{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;width:100%;max-width:340px;aspect-ratio:1;background:#2a2050;border-radius:10px;padding:5px}
+    .mini{position:relative;display:grid;grid-template-columns:repeat(3,1fr);gap:2px;background:#141730;border-radius:6px;padding:2px}
+    .mini.active{box-shadow:0 0 0 2px var(--good)}
+    .mini .mc{background:#20233f;border-radius:3px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:clamp(.6rem,3.5vw,1rem);cursor:default}
+    .mini .mc.x{color:var(--x)}.mini .mc.o{color:var(--o)}
+    .mini .mc.can{cursor:pointer;box-shadow:inset 0 0 0 1px rgba(52,211,153,.5)}
+    .mini .ov{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:2rem;font-weight:900;border-radius:6px}
+    .mini .ov.x{color:var(--x);background:rgba(34,211,238,.14)}.mini .ov.o{color:var(--o);background:rgba(244,63,94,.14)}
+    .dotswrap{width:100%;max-width:320px}
+    svg{width:100%;height:auto;display:block}
+    .dscore{display:flex;justify-content:space-between;width:100%;max-width:320px;font-weight:700;font-size:.9rem}
     .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:10px 22px;border-radius:999px;cursor:pointer}
     .hidden{display:none}
   </style>
@@ -46,6 +65,7 @@
     <div class="topbar"><a class="home" href="/play/">← Lobby</a><h1 id="title">Online Match</h1><span style="width:56px"></span></div>
     <div class="players" id="players"></div>
     <div class="status" id="status">Loading…</div>
+    <div class="dscore hidden" id="dscore"></div>
     <div id="board"></div>
     <div class="c4btns hidden" id="c4btns"></div>
     <a class="btn hidden" id="back" href="/play/">Back to Lobby</a>
@@ -54,56 +74,78 @@
   (function(){
     const $=(id)=>document.getElementById(id);
     const id=new URLSearchParams(location.search).get("id");
+    const DIRS8=[[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
     let me=null,mySym=null,match=null,ver=-1,timer;
     async function jget(u){const r=await fetch(u);return r.json();}
     async function jpost(u,b){const r=await fetch(u,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(b||{})});return r.json();}
-
-    async function init(){
-      const meRes=await jget("/api/me");if(!meRes.loggedIn){location.href="/account/";return;}
-      me=meRes.user.username;poll();timer=setInterval(poll,1200);
-    }
-    async function poll(){
-      let d;try{d=await jget("/api/mp/match?id="+encodeURIComponent(id));}catch(e){return;}
-      if(!d.ok){$("status").textContent="Match not found.";$("back").classList.remove("hidden");clearInterval(timer);return;}
-      match=d.match;
-      mySym=eqi(match.players.X,me)?"X":(eqi(match.players.O,me)?"O":null);
-      if(match.version!==ver){ver=match.version;render();}
-    }
+    function esc(s){const d=document.createElement("div");d.textContent=s;return d.innerHTML;}
     function eqi(a,b){return a&&b&&a.toLowerCase()===b.toLowerCase();}
+
+    async function init(){const meRes=await jget("/api/me");if(!meRes.loggedIn){location.href="/account/";return;}me=meRes.user.username;poll();timer=setInterval(poll,1200);}
+    async function poll(){let d;try{d=await jget("/api/mp/match?id="+encodeURIComponent(id));}catch(e){return;}
+      if(!d.ok){$("status").textContent="Match not found.";$("back").classList.remove("hidden");clearInterval(timer);return;}
+      match=d.match;mySym=eqi(match.players.X,me)?"X":(eqi(match.players.O,me)?"O":null);
+      if(match.version!==ver){ver=match.version;render();}}
+    async function move(m){const r=await jpost("/api/mp/move",{id,move:m});if(r.ok){match=r.match;ver=match.version;render();}else if(r.error==="not_your_turn")poll();}
+
     function render(){
       $("title").textContent=match.gameName||"Match";
-      const over=match.winner||match.draw;
+      const over=match.winner||match.draw;const myTurn=!over&&match.turn===mySym;
       $("players").innerHTML=
         `<div class="pl x ${!over&&match.turn==="X"?"turn":""}"><div class="sym">✕ ${mySym==="X"?"(you)":""}</div>${esc(match.players.X)}</div>`+
         `<div class="pl o ${!over&&match.turn==="O"?"turn":""}"><div class="sym">◯ ${mySym==="O"?"(you)":""}</div>${esc(match.players.O)}</div>`;
-      const myTurn=!over&&match.turn===mySym;
-      if(match.winner)$("status").textContent=match.winner===mySym?"🏆 You win!":"😔 "+esc(match[match.winner==="X"?"players":"players"][match.winner])+" wins.";
+      if(match.winner)$("status").textContent=match.winner===mySym?"🏆 You win!":"😔 "+esc(match.players[match.winner])+" wins.";
       else if(match.draw)$("status").textContent="🤝 It's a draw.";
       else $("status").textContent=myTurn?"Your move.":"Waiting for "+esc(match.players[match.turn])+"…";
       $("back").classList.toggle("hidden",!over);
-      if(match.game==="ttt")renderTTT(myTurn);else if(match.game==="c4")renderC4(myTurn);
+      $("c4btns").classList.add("hidden");$("dscore").classList.add("hidden");
+      ({ttt:renderTTT,c4:renderC4,gomoku:renderGomoku,reversi:renderReversi,uttt:renderUTTT,dots:renderDots}[match.game]||(()=>{}))(myTurn);
     }
-    function renderTTT(myTurn){
-      $("c4btns").classList.add("hidden");
-      const b=$("board");b.className="ttt";b.innerHTML="";
+    function renderTTT(myTurn){const b=$("board");b.className="ttt";b.innerHTML="";
       match.state.forEach((v,i)=>{const c=document.createElement("div");c.className="cell"+(v==="X"?" x":v==="O"?" o":"")+((myTurn&&!v)?" can":"");
-        c.textContent=v==="X"?"✕":v==="O"?"◯":"";if(myTurn&&!v)c.addEventListener("click",()=>move(i));b.appendChild(c);});
-    }
-    function renderC4(myTurn){
-      const b=$("board");b.className="c4";b.innerHTML="";
+        c.textContent=v==="X"?"✕":v==="O"?"◯":"";if(myTurn&&!v)c.onclick=()=>move(i);b.appendChild(c);});}
+    function renderC4(myTurn){const b=$("board");b.className="c4";b.innerHTML="";
       for(let r=0;r<6;r++)for(let c=0;c<7;c++){const v=match.state[r*7+c];const slot=document.createElement("div");slot.className="slot";
         if(v){const d=document.createElement("div");d.className="disc "+(v==="X"?"x":"o");slot.appendChild(d);}b.appendChild(slot);}
       const bt=$("c4btns");bt.classList.remove("hidden");bt.innerHTML="";
-      for(let c=0;c<7;c++){const btn=document.createElement("button");btn.textContent="▾";
-        const full=match.state[c]!=="";btn.disabled=!myTurn||full;btn.addEventListener("click",()=>move(c));bt.appendChild(btn);}
-    }
-    async function move(m){
-      const r=await jpost("/api/mp/move",{id,move:m});
-      if(r.ok){match=r.match;ver=match.version;render();}
-      else if(r.error==="not_your_turn")poll();
-    }
-    function esc(s){const d=document.createElement("div");d.textContent=s;return d.innerHTML;}
-    if(!id){$("status").textContent="No match specified.";}else init();
+      for(let c=0;c<7;c++){const btn=document.createElement("button");btn.textContent="▾";btn.disabled=!myTurn||match.state[c]!=="";btn.onclick=()=>move(c);bt.appendChild(btn);}}
+    function renderGomoku(myTurn){const N=13,b=$("board");b.className="gomoku";b.style.gridTemplateColumns=`repeat(${N},1fr)`;b.innerHTML="";
+      match.state.forEach((v,i)=>{const c=document.createElement("div");c.className="gc"+((myTurn&&!v)?" can":"");
+        if(v){const st=document.createElement("div");st.className="stone "+(v==="X"?"x":"o");c.appendChild(st);}
+        if(myTurn&&!v)c.onclick=()=>move(i);b.appendChild(c);});}
+    function revLegal(state,pl){const opp=pl==="X"?"O":"X";const at=(r,c)=>(r>=0&&r<8&&c>=0&&c<8)?state[r*8+c]:null;const set=new Set();
+      for(let i=0;i<64;i++){if(state[i])continue;const r=Math.floor(i/8),c=i%8;let good=false;
+        for(const[dr,dc]of DIRS8){let nr=r+dr,nc=c+dc,cnt=0;while(at(nr,nc)===opp){cnt++;nr+=dr;nc+=dc;}if(cnt>0&&at(nr,nc)===pl){good=true;break;}}
+        if(good)set.add(i);}return set;}
+    function renderReversi(myTurn){const b=$("board");b.className="rev";b.innerHTML="";
+      const legal=myTurn?revLegal(match.state,mySym):new Set();
+      match.state.forEach((v,i)=>{const c=document.createElement("div");c.className="rc"+(legal.has(i)?" can":"");
+        if(v){const d=document.createElement("div");d.className="disc "+(v==="X"?"x":"o");c.appendChild(d);}
+        if(legal.has(i))c.onclick=()=>move(i);b.appendChild(c);});}
+    function renderUTTT(myTurn){const st=match.state,b=$("board");b.className="uttt";b.innerHTML="";
+      const full=(bd)=>bd.every(x=>x);
+      const legalBoards=new Set();
+      if(st.active!==-1&&!st.big[st.active]&&!full(st.boards[st.active]))legalBoards.add(st.active);
+      else for(let bi=0;bi<9;bi++)if(!st.big[bi]&&!full(st.boards[bi]))legalBoards.add(bi);
+      for(let bi=0;bi<9;bi++){const mini=document.createElement("div");mini.className="mini"+((myTurn&&legalBoards.has(bi))?" active":"");
+        for(let ci=0;ci<9;ci++){const v=st.boards[bi][ci];const c=document.createElement("div");
+          const can=myTurn&&legalBoards.has(bi)&&!v;c.className="mc"+(v==="X"?" x":v==="O"?" o":"")+(can?" can":"");
+          c.textContent=v==="X"?"✕":v==="O"?"◯":"";if(can)c.onclick=()=>move(bi*9+ci);mini.appendChild(c);}
+        if(st.big[bi]&&st.big[bi]!=="D"){const ov=document.createElement("div");ov.className="ov "+(st.big[bi]==="X"?"x":"o");ov.textContent=st.big[bi]==="X"?"✕":"◯";mini.appendChild(ov);}
+        b.appendChild(mini);}}
+    function renderDots(myTurn){const st=match.state;const D=5,PAD=22,S=300,SP=(S-2*PAD)/(D-1);const px=(c)=>PAD+c*SP;
+      $("dscore").classList.remove("hidden");$("dscore").innerHTML=`<span style="color:var(--x)">${esc(match.players.X)}: ${st.sX}</span><span style="color:var(--o)">${esc(match.players.O)}: ${st.sO}</span>`;
+      let s="";
+      for(let r=0;r<4;r++)for(let c=0;c<4;c++){const owner=st.boxes[r*4+c];if(owner){const col=owner==="X"?"var(--x)":"var(--o)";
+        s+=`<rect x="${px(c)+2}" y="${px(r)+2}" width="${SP-4}" height="${SP-4}" rx="3" fill="${col}" opacity=".28"/>`;}}
+      const line=(x1,y1,x2,y2,on,mv)=>`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${on?"#e6e6f0":"rgba(255,255,255,.14)"}" stroke-width="${on?4:3}" stroke-linecap="round"/>`+
+        (!on&&myTurn?`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="transparent" stroke-width="16" class="hit" data-mv="${mv}"/>`:"");
+      for(let r=0;r<5;r++)for(let c=0;c<4;c++)s+=line(px(c),px(r),px(c+1),px(r),st.h[r*4+c],r*4+c);
+      for(let r=0;r<4;r++)for(let c=0;c<5;c++)s+=line(px(c),px(r),px(c),px(r+1),st.v[r*5+c],20+r*5+c);
+      for(let r=0;r<5;r++)for(let c=0;c<5;c++)s+=`<circle cx="${px(c)}" cy="${px(r)}" r="3.5" fill="#3a2512"/>`;
+      const b=$("board");b.className="dotswrap";b.innerHTML=`<svg viewBox="0 0 ${S} ${S}" style="background:#5b3a1e;border-radius:12px">${s}</svg>`;
+      b.querySelectorAll(".hit").forEach(el=>el.addEventListener("click",()=>move(+el.getAttribute("data-mv"))));}
+    if(!id)$("status").textContent="No match specified.";else init();
   })();
   </script>
 </body>
