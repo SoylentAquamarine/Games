@@ -140,7 +140,7 @@ bug.
 
 ## 6. Game catalog (home page categories)
 
-- **Arcade & Action:** Snake, Pac-Man, Space Invaders, Asteroids, Breakout, Frogger, Flappy, Doodle Jump, Stack, Pong, Tron, Whack-a-Mole, Quest (Zelda-style), Bubble Shooter
+- **Arcade & Action:** Snake, Pac-Man, Space Invaders, Asteroids, Breakout, Frogger, Flappy, Doodle Jump, Stack, Pong, Tron, Whack-a-Mole, Quest (Zelda-style), Adventure (Atari-2600-style: rooms/dragons/keys/castles/chalice), Bubble Shooter
 - **Puzzle & Merge:** 2048, Threes, Fibonacci, Drop Merge, 15 Puzzle, Tetris, Candy Match, Minesweeper, Sudoku, Lights Out, Flood It, Memory Match, Tower of Hanoi, Sokoban, Nonogram, Maze
 - **Strategy & Classics:** Tic-Tac-Toe, Ultimate T-T-T, Connect Four, Gomoku, Reversi, Checkers, Dots & Boxes, Battleship, War of the Ring (Stratego/LOTR), Mastermind, Simon, Mancala
 - **Word:** Word Guess (Wordle-like), Hangman, Word Search
@@ -154,6 +154,16 @@ titles are described by gameplay rather than named (deliberate framing).
 
 - **More online multiplayer games:** Checkers (multi-jump), Battleship (hidden placement phase), Mancala, Gomoku variants. Add engine to `MP_GAMES` + match-page renderer.
 - **Real-time PvP** (Pong/Tron head-to-head) would need WebSockets/Durable Objects — bigger lift than the current KV+polling.
+- **Adventure co-op multiplayer (planned next):** the single-player Adventure clone
+  (`public/games/adventure/`) was built with its whole world simulation as pure
+  functions exposed on `window.__adventure` (`newGame/tick/drop/respawn`, plus
+  `ROOMS`, wall/collision helpers) specifically so a **Durable Object** can run the
+  *same* sim server-side. Plan: one DO per match holds authoritative state, ticks
+  `__adventure.tick` for each connected hero, and broadcasts snapshots over
+  **WebSockets** (hibernation API) to 2 players for real-time **co-op** (shared maze,
+  bring the Chalice to the Gold Castle together). This needs a `durable_objects`
+  binding + migration in `wrangler.jsonc` — the first DO in this project. The turn-based
+  `MP_GAMES` framework does **not** fit real-time, so this is a separate transport.
 - **Single-player still queued:** Air Hockey, Go Fish (Go Fish can reuse `cards.js`).
 - **Admin test data:** the user count / play stats include a handful of `alice_*`, `bob_*`, `tester_*`, `chk_*` accounts created during API testing. Consider a "clear test data" admin action (delete `u:<test>`, reset `stats`).
 - **Rotate `ADMIN_TOKEN`** (it appeared in chat).

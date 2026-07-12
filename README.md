@@ -45,6 +45,20 @@ It will be served at `/games/<game-name>/`. Then link it from the landing page.
 
 ## Changelog
 
+### 2026-07-12 — More multiplayer + Atari-style Adventure
+
+- **Online Checkers** added to multiplayer (`MP_GAMES`): 8×8 American draughts with
+  mandatory capture, multi-jump chaining, kinging, and loss-on-no-legal-move, plus a
+  two-click match-page renderer.
+- **Online "Wild Cards"** (UNO-style, heads-up): full 108-card deck, action cards, draw
+  pile reshuffle. First **hidden-information** online game — engines can now expose a
+  `redact(state, sym)` hook (applied by `mpView()` in both match handlers) so each client
+  only sees its own hand plus opponent/deck counts; authoritative state stays in KV.
+- **Adventure** (`/games/adventure/`) — single-player Atari-2600-style clone: connected
+  rooms/maze, three roaming dragons, sword/bridge/black-key/chalice items (one carried at a
+  time), Gold + Black castles, and the Chalice quest. World sim is pure/headless-tested and
+  structured for a future Durable-Object **co-op** multiplayer layer.
+
 ### 2026-07-11 — Big build-out (arcade + backend + multiplayer)
 
 - **~50 games** across Arcade, Puzzle, Strategy, Word, Cards, Board, and Create
