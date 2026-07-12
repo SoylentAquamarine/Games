@@ -263,6 +263,28 @@ function revLegal(s, pl) { const m = []; for (let i=0;i<64;i++) if(!s[i]&&revFli
 const boardFull = (b) => b.every((x) => x);
 function dbSides(s, br, bc) { return s.h[br*4+bc] + s.h[(br+1)*4+bc] + s.v[br*5+bc] + s.v[br*5+bc+1]; }
 
+// --- Checkers (8x8 American draughts) helpers -----------------------------
+// Piece codes: "x"/"X" = player X man/king, "o"/"O" = player O man/king.
+// X starts at the bottom (rows 5-7) moving up; O at the top moving down.
+const CK_KING = [[-1,-1],[-1,1],[1,-1],[1,1]];
+function ckOwner(p) { return (p === "x" || p === "X") ? "X" : (p === "o" || p === "O") ? "O" : null; }
+function ckKing(p) { return p === "X" || p === "O"; }
+function ckDirs(p) { if (ckKing(p)) return CK_KING; return ckOwner(p) === "X" ? [[-1,-1],[-1,1]] : [[1,-1],[1,1]]; }
+function ckJumps(b, i) { const p = b[i], own = ckOwner(p); if (!own) return []; const r = Math.floor(i/8), c = i%8, out = [];
+  for (const [dr,dc] of ckDirs(p)) { const mr=r+dr, mc=c+dc, lr=r+2*dr, lc=c+2*dc; if (lr<0||lr>7||lc<0||lc>7) continue;
+    const mi=mr*8+mc, li=lr*8+lc, mid=b[mi]; if (mid && ckOwner(mid) && ckOwner(mid)!==own && !b[li]) out.push({ to: li, over: mi }); }
+  return out; }
+function ckSteps(b, i) { const p = b[i], own = ckOwner(p); if (!own) return []; const r = Math.floor(i/8), c = i%8, out = [];
+  for (const [dr,dc] of ckDirs(p)) { const nr=r+dr, nc=c+dc; if (nr<0||nr>7||nc<0||nc>7) continue; const ni=nr*8+nc; if (!b[ni]) out.push({ to: ni }); }
+  return out; }
+function ckMoves(b, pl, chain) {
+  if (chain != null) return ckJumps(b, chain).map((j) => ({ from: chain, ...j }));
+  const jumps = []; for (let i=0;i<64;i++) if (ckOwner(b[i])===pl) for (const j of ckJumps(b,i)) jumps.push({ from:i, ...j });
+  if (jumps.length) return jumps;
+  const steps = []; for (let i=0;i<64;i++) if (ckOwner(b[i])===pl) for (const s of ckSteps(b,i)) steps.push({ from:i, ...s });
+  return steps;
+}
+
 const MP_GAMES = {
   ttt: { name: "Tic-Tac-Toe",
     init: () => Array(9).fill(""),
@@ -304,6 +326,34 @@ const MP_GAMES = {
       let made=0; for (const [br,bc] of aff){ if(br<0||br>=4||bc<0||bc>=4) continue; const bi=br*4+bc; if(!s.boxes[bi]&&dbSides(s,br,bc)===4){ s.boxes[bi]=pl; made++; if(pl==="X")s.sX++; else s.sO++; } }
       return { state: s, next: made>0 ? pl : other(pl) }; },
     result: (s) => { if (!s.boxes.every((v)=>v)) return null; return s.sX>s.sO?{winner:"X"}:s.sO>s.sX?{winner:"O"}:{draw:true}; },
+  },
+  checkers: { name: "Checkers",
+    init: () => { const b = Array(64).fill("");
+      for (let r=0;r<3;r++) for (let c=0;c<8;c++) if ((r+c)%2===1) b[r*8+c]="o";
+      for (let r=5;r<8;r++) for (let c=0;c<8;c++) if ((r+c)%2===1) b[r*8+c]="x";
+      return { b, turn: "X", chain: null }; },
+    move: (st, pl, mv) => {
+      if (!mv || typeof mv.from !== "number" || typeof mv.to !== "number") return null;
+      if (st.turn && st.turn !== pl) return null;
+      const m = ckMoves(st.b, pl, st.chain).find((x) => x.from === mv.from && x.to === mv.to);
+      if (!m) return null;
+      const b = st.b.slice(); let p = b[m.from]; b[m.from] = "";
+      if (m.over != null) b[m.over] = "";
+      const tr = Math.floor(m.to/8); let kinged = false;
+      if (p === "x" && tr === 0) { p = "X"; kinged = true; } else if (p === "o" && tr === 7) { p = "O"; kinged = true; }
+      b[m.to] = p;
+      let chain = null, next;
+      if (m.over != null && !kinged && ckJumps(b, m.to).length) { chain = m.to; next = pl; } else { next = other(pl); }
+      return { state: { b, turn: next, chain }, next };
+    },
+    result: (st) => {
+      let hasX = false, hasO = false;
+      for (const v of st.b) { const o = ckOwner(v); if (o === "X") hasX = true; else if (o === "O") hasO = true; }
+      if (!hasX) return { winner: "O" };
+      if (!hasO) return { winner: "X" };
+      if (!ckMoves(st.b, st.turn, st.chain).length) return { winner: other(st.turn) };
+      return null;
+    },
   },
 };
 

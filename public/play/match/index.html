@@ -54,6 +54,18 @@
     .mini .ov{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:2rem;font-weight:900;border-radius:6px}
     .mini .ov.x{color:var(--x);background:rgba(34,211,238,.14)}.mini .ov.o{color:var(--o);background:rgba(244,63,94,.14)}
     .dotswrap{width:100%;max-width:320px}
+    .ck{display:grid;grid-template-columns:repeat(8,1fr);width:100%;max-width:360px;aspect-ratio:1;border-radius:10px;overflow:hidden;border:2px solid #3a2512}
+    .ck .sq{position:relative;display:flex;align-items:center;justify-content:center}
+    .ck .sq.light{background:#d8c3a0}
+    .ck .sq.dark{background:#7a4a24}
+    .ck .sq.sel{box-shadow:inset 0 0 0 3px var(--good)}
+    .ck .sq.can{cursor:pointer}
+    .ck .sq.can::after{content:"";position:absolute;width:28%;height:28%;border-radius:50%;background:rgba(52,211,153,.75);z-index:2}
+    .ck .pc{width:74%;height:74%;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 3px rgba(0,0,0,.45);cursor:default;position:relative;z-index:1;line-height:1}
+    .ck .pc.x{background:radial-gradient(circle at 35% 30%,#7de8ff,var(--x))}
+    .ck .pc.o{background:radial-gradient(circle at 35% 30%,#ff8aa0,var(--o))}
+    .ck .pc.pick{cursor:pointer}
+    .ck .pc.king::after{content:"♚";color:rgba(0,0,0,.6);font-size:1.1rem}
     svg{width:100%;height:auto;display:block}
     .dscore{display:flex;justify-content:space-between;width:100%;max-width:320px;font-weight:700;font-size:.9rem}
     .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:10px 22px;border-radius:999px;cursor:pointer}
@@ -99,7 +111,7 @@
       else $("status").textContent=myTurn?"Your move.":"Waiting for "+esc(match.players[match.turn])+"…";
       $("back").classList.toggle("hidden",!over);
       $("c4btns").classList.add("hidden");$("dscore").classList.add("hidden");
-      ({ttt:renderTTT,c4:renderC4,gomoku:renderGomoku,reversi:renderReversi,uttt:renderUTTT,dots:renderDots}[match.game]||(()=>{}))(myTurn);
+      ({ttt:renderTTT,c4:renderC4,gomoku:renderGomoku,reversi:renderReversi,uttt:renderUTTT,dots:renderDots,checkers:renderCheckers}[match.game]||(()=>{}))(myTurn);
     }
     function renderTTT(myTurn){const b=$("board");b.className="ttt";b.innerHTML="";
       match.state.forEach((v,i)=>{const c=document.createElement("div");c.className="cell"+(v==="X"?" x":v==="O"?" o":"")+((myTurn&&!v)?" can":"");
@@ -145,6 +157,28 @@
       for(let r=0;r<5;r++)for(let c=0;c<5;c++)s+=`<circle cx="${px(c)}" cy="${px(r)}" r="3.5" fill="#3a2512"/>`;
       const b=$("board");b.className="dotswrap";b.innerHTML=`<svg viewBox="0 0 ${S} ${S}" style="background:#5b3a1e;border-radius:12px">${s}</svg>`;
       b.querySelectorAll(".hit").forEach(el=>el.addEventListener("click",()=>move(+el.getAttribute("data-mv"))));}
+    function ckClientMoves(st,pl){const b=st.b;
+      const own=p=>(p==="x"||p==="X")?"X":(p==="o"||p==="O")?"O":null;const king=p=>p==="X"||p==="O";
+      const dirs=p=>king(p)?[[-1,-1],[-1,1],[1,-1],[1,1]]:(own(p)==="X"?[[-1,-1],[-1,1]]:[[1,-1],[1,1]]);
+      const jumps=i=>{const p=b[i],o=own(p);if(!o)return[];const r=i>>3,c=i%8,out=[];for(const[dr,dc]of dirs(p)){const lr=r+2*dr,lc=c+2*dc;if(lr<0||lr>7||lc<0||lc>7)continue;const mi=(r+dr)*8+(c+dc),li=lr*8+lc,md=b[mi];if(md&&own(md)&&own(md)!==o&&!b[li])out.push({from:i,to:li});}return out;};
+      const steps=i=>{const p=b[i],o=own(p);if(!o)return[];const r=i>>3,c=i%8,out=[];for(const[dr,dc]of dirs(p)){const nr=r+dr,nc=c+dc;if(nr<0||nr>7||nc<0||nc>7)continue;const ni=nr*8+nc;if(!b[ni])out.push({from:i,to:ni});}return out;};
+      if(st.chain!=null)return jumps(st.chain);
+      let all=[];for(let i=0;i<64;i++)if(own(b[i])===pl)all=all.concat(jumps(i));
+      if(all.length)return all;
+      for(let i=0;i<64;i++)if(own(b[i])===pl)all=all.concat(steps(i));return all;}
+    let ckSel=null;
+    function renderCheckers(myTurn){const st=match.state;ckSel=(myTurn&&st.chain!=null)?st.chain:null;drawCheckers(myTurn);}
+    function drawCheckers(myTurn){const st=match.state,b=$("board");b.className="ck";b.innerHTML="";
+      const legal=myTurn?ckClientMoves(st,mySym):[];
+      const froms=new Set(legal.map(m=>m.from));
+      const targets=ckSel!=null?new Set(legal.filter(m=>m.from===ckSel).map(m=>m.to)):new Set();
+      for(let i=0;i<64;i++){const r=i>>3,c=i%8;const sq=document.createElement("div");
+        sq.className="sq "+((r+c)%2===1?"dark":"light")+(i===ckSel?" sel":"")+(targets.has(i)?" can":"");
+        const v=st.b[i];
+        if(v){const pc=document.createElement("div");pc.className="pc "+((v==="x"||v==="X")?"x":"o")+((v==="X"||v==="O")?" king":"")+((myTurn&&froms.has(i))?" pick":"");
+          if(myTurn&&froms.has(i))pc.onclick=(e)=>{e.stopPropagation();ckSel=i;drawCheckers(myTurn);};sq.appendChild(pc);}
+        if(targets.has(i))sq.onclick=()=>move({from:ckSel,to:i});
+        b.appendChild(sq);}}
     if(!id)$("status").textContent="No match specified.";else init();
   })();
   </script>
