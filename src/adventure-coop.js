@@ -60,7 +60,7 @@ export function newWorld(){
 }
 const START_X={X:84,O:108};
 export function addPlayer(w,slot,name){
-  if(!w.players[slot]) w.players[slot]={name,x:START_X[slot]||96,y:150,room:"commons",dir:"up",carry:null,alive:true,deadT:0,input:null};
+  if(!w.players[slot]) w.players[slot]={name,x:START_X[slot]||96,y:150,room:"commons",dir:"up",carry:null,alive:true,deadT:0,input:null,dropLock:null};
   else w.players[slot].name=name;
   return w.players[slot];
 }
@@ -100,14 +100,17 @@ function castle(w,p){
   }
 }
 function pickup(w,p,slot){
+  // release the drop-lock once this hero has stepped off the item they just dropped
+  if(p.dropLock){ const o=w.objects[p.dropLock];
+    if(!o||o.carried||o.room!==p.room||!overlap(pRect(p),{x:o.x,y:o.y,w:OBJ,h:OBJ})) p.dropLock=null; }
   if(p.carry) return;
-  for(const k in w.objects){ const o=w.objects[k]; if(o.carried||o.room!==p.room) continue;
+  for(const k in w.objects){ if(k===p.dropLock) continue; const o=w.objects[k]; if(o.carried||o.room!==p.room) continue;
     if(overlap(pRect(p),{x:o.x,y:o.y,w:OBJ,h:OBJ})){ p.carry=k; o.carried=true; o.by=slot; break; } }
 }
 function dropAt(w,p,slot){
   if(!p.carry) return;
-  const o=w.objects[p.carry]; o.carried=false; o.by=null; o.room=p.room;
-  o.x=clamp(p.x,BW,SIZE-BW-OBJ); o.y=clamp(p.y,BW,SIZE-BW-OBJ); p.carry=null;
+  const k=p.carry; const o=w.objects[k]; o.carried=false; o.by=null; o.room=p.room;
+  o.x=clamp(p.x,BW,SIZE-BW-OBJ); o.y=clamp(p.y,BW,SIZE-BW-OBJ); p.carry=null; p.dropLock=k;
 }
 export function coopDrop(w,slot){ const p=w.players[slot]; if(p&&p.alive) dropAt(w,p,slot); }
 
@@ -133,7 +136,7 @@ export function coopTick(w, now){
   for(const slot in w.players){
     const p=w.players[slot];
     if(p.alive){ moveHero(w,p); transition(p); castle(w,p); pickup(w,p,slot); }
-    else { p.deadT+=TICK_MS; if(p.deadT>DEATH_MS){ p.alive=true; p.deadT=0; p.room="commons"; p.x=START_X[slot]||96; p.y=150; p.input=null; } }
+    else { p.deadT+=TICK_MS; if(p.deadT>DEATH_MS){ p.alive=true; p.deadT=0; p.room="commons"; p.x=START_X[slot]||96; p.y=150; p.input=null; p.dropLock=null; } }
     if(w.won) break;
   }
   // carried objects ride with their holder

@@ -95,7 +95,7 @@
   function newGame(){
     return {
       room:"commons", hero:{x:96,y:150,dir:"up"}, carry:null, won:false, dead:false,
-      gates:{black:false}, msg:"",
+      gates:{black:false}, msg:"", dropLock:null,
       objects:{
         sword:{room:"north",x:100,y:100,carried:false},
         bridge:{room:"south",x:60,y:150,carried:false},
@@ -143,8 +143,11 @@
     }
   }
   function pickup(s){
+    // release the drop-lock once the hero has stepped off the just-dropped item
+    if(s.dropLock){ const o=s.objects[s.dropLock];
+      if(!o||o.carried||o.room!==s.room||!overlap(heroRect(s),{x:o.x,y:o.y,w:OBJ,h:OBJ})) s.dropLock=null; }
     if(s.carry) return;
-    for(const k in s.objects){ const o=s.objects[k]; if(o.carried||o.room!==s.room) continue;
+    for(const k in s.objects){ if(k===s.dropLock) continue; const o=s.objects[k]; if(o.carried||o.room!==s.room) continue;
       if(overlap(heroRect(s),{x:o.x,y:o.y,w:OBJ,h:OBJ})){ s.carry=k; o.carried=true; s.msg="Picked up the "+LABEL[k]+"."; break; } }
   }
   function dragonStep(s,d){
@@ -159,12 +162,12 @@
   }
   function drop(s){
     if(!s.carry) return;
-    const o=s.objects[s.carry]; o.carried=false; o.room=s.room; o.x=clamp(s.hero.x,BW,SIZE-BW-OBJ); o.y=clamp(s.hero.y,BW,SIZE-BW-OBJ);
-    s.msg="Dropped the "+LABEL[s.carry]+"."; s.carry=null;
+    const k=s.carry; const o=s.objects[k]; o.carried=false; o.room=s.room; o.x=clamp(s.hero.x,BW,SIZE-BW-OBJ); o.y=clamp(s.hero.y,BW,SIZE-BW-OBJ);
+    s.msg="Dropped the "+LABEL[k]+"."; s.carry=null; s.dropLock=k;
   }
   function respawn(s){
     if(s.carry){ const o=s.objects[s.carry]; o.carried=false; o.room=s.room; o.x=clamp(s.hero.x,BW,SIZE-BW-OBJ); o.y=clamp(s.hero.y,BW,SIZE-BW-OBJ); s.carry=null; }
-    s.room="commons"; s.hero.x=96; s.hero.y=150; s.dead=false;
+    s.room="commons"; s.hero.x=96; s.hero.y=150; s.dead=false; s.dropLock=null;
     for(const d of s.dragons){ d.x=d.hx; d.y=d.hy; }
   }
   function tick(s,dir){
