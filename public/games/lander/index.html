@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Lunar Lander — Games</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🚀</text></svg>" />
+<style>
+  :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;--good:#34d399;--bad:#f43f5e;}
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+    background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.2),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.14),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;touch-action:none;}
+  .wrap{max-width:480px;margin:0 auto;padding:14px 12px 30px;display:flex;flex-direction:column;align-items:center;gap:10px}
+  .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
+  .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+  .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+  h1{margin:0;font-size:1.3rem;background:linear-gradient(120deg,var(--accent-2),#c9c9ff);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:9px 16px;border-radius:999px;cursor:pointer}
+  .hud{width:100%;max-width:360px;display:flex;justify-content:space-between;font-size:.8rem;color:var(--muted);gap:6px}
+  .hud b{color:var(--text)}
+  .hud .warn{color:var(--bad)}
+  .fuel{width:100%;max-width:360px;height:8px;background:#20244a;border-radius:6px;overflow:hidden}
+  .fuel > div{height:100%;background:linear-gradient(90deg,var(--good),#a7f3d0);transition:width .1s}
+  canvas{width:min(94vw,360px);height:min(94vw,360px);image-rendering:pixelated;border-radius:10px;border:2px solid #2a2f55;background:#05060f;touch-action:none}
+  .msg{min-height:1.3em;font-weight:800;text-align:center}
+  .controls{display:flex;gap:10px;align-items:center}
+  .cbtn{background:var(--panel);color:var(--text);border:1px solid rgba(255,255,255,.12);border-radius:12px;width:64px;height:56px;font-size:1.3rem;cursor:pointer;user-select:none}
+  .cbtn:active,.cbtn.on{background:var(--accent);color:#0b0c1a}
+  .hint{font-size:.78rem;color:var(--muted);text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar"><a class="home" href="/">← Home</a><h1>Lunar Lander</h1><button class="btn" id="new">New Game</button></div>
+  <div class="hud"><span>Vert: <b id="vy">0.0</b></span><span>Horiz: <b id="vx">0.0</b></span><span>Alt: <b id="alt">0</b></span></div>
+  <div class="fuel"><div id="fuelbar" style="width:100%"></div></div>
+  <canvas id="game" width="300" height="300"></canvas>
+  <div class="msg" id="msg">Land gently on the green pad. Watch your speed!</div>
+  <div class="controls">
+    <button class="cbtn" id="bl">◀</button>
+    <button class="cbtn" id="bu">🔥</button>
+    <button class="cbtn" id="br">▶</button>
+  </div>
+  <div class="hint">↑/Space thrust · ←/→ steer · touch the buttons on mobile</div>
+</div>
+<script>
+(function(){
+  const W=300,H=300, GROUND_Y=278, LW=16, LH=16;
+  const C={ GRAVITY:0.045, THRUST:0.11, LATERAL:0.05, FUEL:100, BURN_UP:0.5, BURN_SIDE:0.28,
+    LAND_VMAX:1.15, LAND_VXMAX:0.7, PAD_W:54, W, H, GROUND_Y, LW, LH };
+
+  function makeState(opts){ opts=opts||{};
+    const padX = opts.padX!=null?opts.padX:(40+Math.floor(Math.random()*(W-80-C.PAD_W)));
+    return { x: opts.x!=null?opts.x:(60+Math.random()*(W-120)), y: opts.y!=null?opts.y:24,
+      vx: opts.vx!=null?opts.vx:(Math.random()*1.2-0.6), vy: opts.vy!=null?opts.vy:0,
+      fuel: opts.fuel!=null?opts.fuel:C.FUEL, padX, padW:C.PAD_W, landed:false, crashed:false, terrain: opts.terrain||buildTerrain(padX) };
+  }
+  function buildTerrain(padX){ // array of ground heights (y) across width; flat with the pad flat
+    const pts=[]; let h=GROUND_Y; for(let x=0;x<=W;x+=20){ if(x>=padX-10&&x<=padX+C.PAD_W+10) h=GROUND_Y; else h=GROUND_Y-8+Math.round(Math.sin(x*0.7)*6+ (x%40?0:4)); pts.push({x,y:h}); } return pts; }
+
+  function step(s, input){
+    if(s.landed||s.crashed) return s;
+    if(s.fuel>0){
+      if(input.up){ s.vy-=C.THRUST; s.fuel-=C.BURN_UP; }
+      if(input.left){ s.vx-=C.LATERAL; s.fuel-=C.BURN_SIDE; }
+      if(input.right){ s.vx+=C.LATERAL; s.fuel-=C.BURN_SIDE; }
+      if(s.fuel<0) s.fuel=0;
+    }
+    s.vy+=C.GRAVITY;
+    s.x+=s.vx; s.y+=s.vy;
+    if(s.x<0){ s.x=0; s.vx=0; } if(s.x>W-LW){ s.x=W-LW; s.vx=0; }
+    if(s.y+LH>=GROUND_Y){
+      s.y=GROUND_Y-LH;
+      const cx=s.x+LW/2, onPad=cx>=s.padX && cx<=s.padX+s.padW;
+      if(onPad && s.vy<=C.LAND_VMAX && Math.abs(s.vx)<=C.LAND_VXMAX){ s.landed=true; s.score=Math.round(s.fuel*10); }
+      else s.crashed=true;
+    }
+    return s;
+  }
+  window.__lander={ makeState, step, buildTerrain, C };
+
+  if(typeof document==="undefined") return;
+  const $=(id)=>document.getElementById(id);
+  const cv=$("game"), ctx=cv.getContext("2d");
+  let s=makeState(), input={up:false,left:false,right:false}, best=null, done=false;
+  try{ best=parseInt(localStorage.getItem("lander_best")||"")||null; }catch(e){}
+
+  function draw(){
+    ctx.clearRect(0,0,W,H); ctx.fillStyle="#05060f"; ctx.fillRect(0,0,W,H);
+    // stars
+    ctx.fillStyle="#233"; for(let i=0;i<40;i++){ const x=(i*73)%W, y=(i*151)%(GROUND_Y-30); ctx.fillRect(x,y,1,1); }
+    // terrain
+    ctx.beginPath(); ctx.moveTo(0,H); ctx.lineTo(0,s.terrain[0].y);
+    for(const p of s.terrain) ctx.lineTo(p.x,p.y); ctx.lineTo(W,H); ctx.closePath();
+    ctx.fillStyle="#2b2f4d"; ctx.fill();
+    // pad
+    ctx.fillStyle="#34d399"; ctx.fillRect(s.padX,GROUND_Y-3,s.padW,4);
+    ctx.fillStyle="rgba(52,211,153,.25)"; ctx.fillRect(s.padX,GROUND_Y-14,s.padW,11);
+    // lander
+    ctx.save(); ctx.translate(s.x,s.y);
+    ctx.fillStyle= s.crashed?"#f43f5e":(s.landed?"#34d399":"#cdd3ff");
+    ctx.fillRect(3,2,LW-6,LH-8); ctx.fillRect(1,LH-8,LW-2,4);
+    ctx.fillStyle="#7c5cff"; ctx.fillRect(5,0,LW-10,3);
+    ctx.fillStyle="#333"; ctx.fillRect(1,LH-4,3,4); ctx.fillRect(LW-4,LH-4,3,4);
+    if(input.up&&s.fuel>0&&!done){ ctx.fillStyle="#ffcf5a"; ctx.beginPath(); ctx.moveTo(4,LH-4); ctx.lineTo(LW/2,LH+7+Math.random()*4); ctx.lineTo(LW-4,LH-4); ctx.fill(); }
+    ctx.restore();
+    if(s.landed){ overlay("#34d399","TOUCHDOWN!","Score "+s.score); }
+    else if(s.crashed){ overlay("#f43f5e","CRASHED","Press New Game"); }
+  }
+  function overlay(col,t1,t2){ ctx.fillStyle="rgba(0,0,0,.5)"; ctx.fillRect(0,0,W,H);
+    ctx.fillStyle=col; ctx.font="bold 26px system-ui"; ctx.textAlign="center"; ctx.fillText(t1,W/2,H/2-6);
+    ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText(t2,W/2,H/2+18); }
+  function hud(){ $("vy").textContent=s.vy.toFixed(1); $("vy").className=s.vy>C.LAND_VMAX?"warn":"";
+    $("vx").textContent=s.vx.toFixed(1); $("vx").className=Math.abs(s.vx)>C.LAND_VXMAX?"warn":"";
+    $("alt").textContent=Math.max(0,Math.round(GROUND_Y-LH-s.y)); $("fuelbar").style.width=(s.fuel/C.FUEL*100)+"%"; }
+
+  function frame(){ if(!done){ step(s,input);
+    if(s.landed){ done=true; if(!best||(s.score>best)){ best=s.score; try{localStorage.setItem("lander_best",String(best));}catch(e){} } $("msg").textContent="🚀 Nice landing! Score "+s.score+(best?"  ·  Best "+best:""); }
+    else if(s.crashed){ done=true; $("msg").textContent="💥 Too fast or off the pad. Try again!"; } }
+    draw(); hud(); requestAnimationFrame(frame); }
+
+  function reset(){ s=makeState(); input={up:false,left:false,right:false}; done=false; $("msg").textContent="Land gently on the green pad. Watch your speed!"; }
+  const set=(k,v)=>{ input[k]=v; };
+  addEventListener("keydown",(e)=>{ if(e.key==="ArrowUp"||e.key===" "||e.key==="w"){e.preventDefault();set("up",true);} else if(e.key==="ArrowLeft"||e.key==="a")set("left",true); else if(e.key==="ArrowRight"||e.key==="d")set("right",true); });
+  addEventListener("keyup",(e)=>{ if(e.key==="ArrowUp"||e.key===" "||e.key==="w")set("up",false); else if(e.key==="ArrowLeft"||e.key==="a")set("left",false); else if(e.key==="ArrowRight"||e.key==="d")set("right",false); });
+  function bindHold(id,k){ const el=$(id); const on=(e)=>{e.preventDefault();set(k,true);el.classList.add("on");}; const off=(e)=>{e.preventDefault();set(k,false);el.classList.remove("on");};
+    el.addEventListener("touchstart",on,{passive:false});el.addEventListener("touchend",off);el.addEventListener("mousedown",on);el.addEventListener("mouseup",off);el.addEventListener("mouseleave",off); }
+  bindHold("bu","up"); bindHold("bl","left"); bindHold("br","right");
+  $("new").addEventListener("click",reset);
+  requestAnimationFrame(frame);
+})();
+</script>
+<script src="/comments.js" defer></script>
+</body>
+</html>

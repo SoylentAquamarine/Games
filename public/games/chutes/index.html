@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Snakes & Ladders — Games</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🐍</text></svg>" />
+<style>
+  :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;--you:#22d3ee;--cpu:#f43f5e;}
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+    background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.2),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.14),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;}
+  .wrap{max-width:460px;margin:0 auto;padding:14px 12px 40px;display:flex;flex-direction:column;align-items:center;gap:12px}
+  .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
+  .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+  .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+  h1{margin:0;font-size:1.25rem;background:linear-gradient(120deg,#38b26a,var(--accent-2));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:9px 16px;border-radius:999px;cursor:pointer}
+  .board{position:relative;width:min(94vw,420px);aspect-ratio:1;display:grid;grid-template-columns:repeat(10,1fr);grid-template-rows:repeat(10,1fr);border-radius:10px;overflow:hidden;border:2px solid #2a2f55}
+  .cell{position:relative;display:flex;align-items:flex-start;justify-content:flex-start;font-size:.5rem;color:rgba(255,255,255,.5);padding:1px 2px;border:1px solid rgba(255,255,255,.04)}
+  .cell.dark{background:#1a1d38}.cell.light{background:#20244a}
+  .cell .j{position:absolute;right:1px;bottom:0;font-size:.7rem}
+  svg.ov{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+  .status{min-height:1.3em;font-weight:700;text-align:center}
+  .status .you{color:var(--you)}.status .cpu{color:var(--cpu)}
+  .controls{display:flex;align-items:center;gap:14px}
+  .die{width:52px;height:52px;border-radius:12px;background:#fff;color:#111;font-weight:900;font-size:1.8rem;display:flex;align-items:center;justify-content:center;box-shadow:0 3px 6px rgba(0,0,0,.4)}
+  .roll{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:800;padding:12px 26px;border-radius:999px;cursor:pointer;font-size:1rem}
+  .roll:disabled{opacity:.4;cursor:default}
+  .legend{display:flex;gap:16px;font-size:.8rem;color:var(--muted)}
+  .banner{min-height:1.3em;font-weight:800;color:#fde68a;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar"><a class="home" href="/">← Home</a><h1>Snakes &amp; Ladders</h1><button class="btn" id="new">New Game</button></div>
+  <div class="board" id="board"><svg class="ov" id="ov" viewBox="0 0 100 100" preserveAspectRatio="none"></svg></div>
+  <div class="status" id="status">Your turn — roll the die!</div>
+  <div class="controls"><div class="die" id="die">🎲</div><button class="roll" id="roll">Roll</button></div>
+  <div class="legend"><span>🪜 ladder up</span><span>🐍 snake down</span></div>
+  <div class="banner" id="banner"></div>
+</div>
+<script>
+(function(){
+  // Ladders (up) and snakes (down): start-cell -> destination-cell.
+  const JUMPS={ 1:38,4:14,9:31,21:42,28:84,36:44,51:67,71:91,80:100,
+    16:6,47:26,49:11,56:53,62:19,64:60,87:24,93:73,95:75,98:78 };
+  function applyJump(pos){ return JUMPS[pos]!=null?JUMPS[pos]:pos; }
+  function move(pos,roll){ let np=pos+roll; if(np>100) np=100-(np-100); return applyJump(np); }
+  window.__chutes={ JUMPS, applyJump, move };
+
+  if(typeof document==="undefined") return;
+  const $=(id)=>document.getElementById(id);
+  const DIE=["","⚀","⚁","⚂","⚃","⚄","⚅"];
+  let you=0,cpu=0,turn="you",over=false,busy=false;
+
+  function numToXY(n){ n=Math.max(1,Math.min(100,n)); const rowFromBottom=Math.floor((n-1)/10), idx=(n-1)%10;
+    const col=(rowFromBottom%2===0)?idx:9-idx; const displayRow=9-rowFromBottom; return {x:col*10+5,y:displayRow*10+5}; }
+
+  function buildBoard(){
+    const b=$("board"); const ov=$("ov");
+    [...b.querySelectorAll(".cell")].forEach(c=>c.remove());
+    for(let p=0;p<100;p++){ const displayRow=Math.floor(p/10), colInRow=p%10;
+      const rowFromBottom=9-displayRow; const n=(rowFromBottom%2===0)?rowFromBottom*10+colInRow+1:rowFromBottom*10+(10-colInRow);
+      const c=document.createElement("div"); c.className="cell "+(( displayRow+colInRow)%2?"dark":"light");
+      c.textContent=n; if(JUMPS[n]!=null){ const j=document.createElement("span"); j.className="j"; j.textContent=JUMPS[n]>n?"🪜":"🐍"; c.appendChild(j); }
+      b.insertBefore(c, ov); }
+    // overlay lines
+    let s="";
+    for(const k in JUMPS){ const a=numToXY(+k), z=numToXY(JUMPS[k]); const up=JUMPS[k]>+k;
+      s+=`<line x1="${a.x}" y1="${a.y}" x2="${z.x}" y2="${z.y}" stroke="${up?'#38b26a':'#f0616e'}" stroke-width="1.1" opacity=".8" stroke-linecap="round"/>`; }
+    ov.innerHTML=s;
+  }
+  function drawTokens(){
+    const ov=$("ov"); ov.querySelectorAll(".tok").forEach(t=>t.remove());
+    const py=numToXY(you||1), pc=numToXY(cpu||1);
+    const mk=(x,y,c)=>{ const el=document.createElementNS("http://www.w3.org/2000/svg","circle"); el.setAttribute("class","tok");
+      el.setAttribute("cx",x);el.setAttribute("cy",y);el.setAttribute("r",2.6);el.setAttribute("fill",c);el.setAttribute("stroke","#0b0c1a");el.setAttribute("stroke-width",".6"); ov.appendChild(el); };
+    mk(py.x-2.2, (you?py.y:98), "#22d3ee"); mk(pc.x+2.2, (cpu?pc.y:98), "#f43f5e");
+  }
+  function status(){ const s=$("status"); if(over) return;
+    s.innerHTML = turn==="you" ? '<span class="you">Your turn</span> — roll!' : '<span class="cpu">CPU\'s turn…</span>'; }
+
+  function doRoll(who){
+    const d=1+Math.floor(Math.random()*6); $("die").textContent=DIE[d];
+    const before=who==="you"?you:cpu; const after=move(before,d);
+    if(who==="you") you=after; else cpu=after;
+    let note=""; const landed=before+d>100?100-((before+d)-100):before+d;
+    if(JUMPS[landed]!=null) note = JUMPS[landed]>landed?" 🪜 up you go!":" 🐍 down you slide!";
+    drawTokens();
+    if(after===100){ over=true; $("banner").textContent = who==="you"?"🏆 You reached 100 — you win!":"💀 CPU reached 100. Try again!"; $("roll").disabled=true; return true; }
+    $("status").innerHTML=(who==="you"?'<span class="you">You</span>':'<span class="cpu">CPU</span>')+" rolled "+d+"."+note;
+    return false;
+  }
+  function nextAfter(who){ if(who==="you"){ turn="cpu"; $("roll").disabled=true; setTimeout(cpuTurn,750); }
+    else { turn="you"; $("roll").disabled=false; setTimeout(status,600); } }
+  function cpuTurn(){ if(over) return; if(!doRoll("cpu")) nextAfter("cpu"); }
+  function youRoll(){ if(over||turn!=="you"||busy) return; busy=true; $("roll").disabled=true;
+    if(!doRoll("you")) nextAfter("you"); busy=false; }
+
+  function reset(){ you=0;cpu=0;turn="you";over=false;busy=false; $("banner").textContent="";$("die").textContent="🎲";$("roll").disabled=false;
+    buildBoard(); drawTokens(); status(); }
+  $("roll").addEventListener("click",youRoll);
+  addEventListener("keydown",(e)=>{ if(e.key===" "||e.key==="Enter"){ e.preventDefault(); youRoll(); } });
+  $("new").addEventListener("click",reset);
+  reset();
+})();
+</script>
+<script src="/comments.js" defer></script>
+</body>
+</html>
