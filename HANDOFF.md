@@ -153,17 +153,41 @@ titles are described by gameplay rather than named (deliberate framing).
 ## 7. Open items / suggested next steps
 
 - **More online multiplayer games:** Checkers (multi-jump), Battleship (hidden placement phase), Mancala, Gomoku variants. Add engine to `MP_GAMES` + match-page renderer.
-- **Real-time PvP** (Pong/Tron head-to-head) would need WebSockets/Durable Objects — bigger lift than the current KV+polling.
-- **Adventure co-op multiplayer (planned next):** the single-player Adventure clone
-  (`public/games/adventure/`) was built with its whole world simulation as pure
-  functions exposed on `window.__adventure` (`newGame/tick/drop/respawn`, plus
-  `ROOMS`, wall/collision helpers) specifically so a **Durable Object** can run the
-  *same* sim server-side. Plan: one DO per match holds authoritative state, ticks
-  `__adventure.tick` for each connected hero, and broadcasts snapshots over
-  **WebSockets** (hibernation API) to 2 players for real-time **co-op** (shared maze,
-  bring the Chalice to the Gold Castle together). This needs a `durable_objects`
-  binding + migration in `wrangler.jsonc` — the first DO in this project. The turn-based
-  `MP_GAMES` framework does **not** fit real-time, so this is a separate transport.
+- **Real-time PvP** (Pong/Tron head-to-head) could reuse the Durable-Object + WebSocket
+  transport built for Adventure co-op (below).
+
+### Adventure real-time co-op (BUILT — first Durable Object in the project)
+
+Separate transport from the turn-based `MP_GAMES` (KV+polling) — real-time needs push.
+
+- **DO:** `AdventureRoom` in `src/adventure-coop.js` (re-exported from `src/index.js`).
+  One instance per match (`env.ADVENTURE.idFromName(matchId)`). Holds the authoritative
+  **shared** co-op world in memory (both heroes, shared objects/dragons/gates), ticks it
+  via a re-arming `storage.setAlarm` loop (`TICK_MS=80` ≈ 12.5 fps) and broadcasts a
+  snapshot to both players each tick over standard (non-hibernation) WebSockets — active
+  sockets keep the DO resident so the in-memory world survives between alarms. Loop stops
+  when no sockets remain or the game is won. (Note: if BOTH players disconnect mid-match
+  the DO can be evicted and the world resets — acceptable for v1; persist to make durable.)
+- **Sim:** `newWorld/addPlayer/setInput/coopTick/coopDrop/snapshot` — pure, headless-tested
+  (28 cases). Room map + movement/collision **mirror** the single-player sim in
+  `public/games/adventure/index.html` (kept in sync by hand; two copies, no build step).
+- **Wire:** client → `{type:"input",dir}` / `{type:"drop"}`; server → `welcome`
+  (`slot`, full `rooms` map, `consts`) once, then `state` snapshots (`players{X,O}`,
+  `objects`, `dragons`, `gates`, `won`). Server is authoritative for everything.
+- **Route:** `GET /api/adv/ws?id=<matchId>` (`handleAdvWs`) authenticates via session
+  cookie, resolves the caller's slot from the `match:` record, and forwards the WS upgrade
+  to the DO with `?slot=&name=`.
+- **Lobby flow:** `advcoop` is injected into the lobby games map + allowed in
+  `handleMpChallenge`; `handleMpRespond` creates a stateless `match:{game:"advcoop"}`
+  record (the DO holds real state) and both `/play/index.html` redirects branch to
+  `/play/adv/?id=` when `game==="advcoop"` (via `myMatchGame` / respond's `game` field).
+- **Client:** `public/play/adv/index.html` — connects, renders at 60fps with **snapshot
+  interpolation** (renders ~160ms in the past, lerps positions, snaps on room change; no
+  client prediction yet — future polish for tighter local feel). Renders the partner hero
+  **only when `partner.room === myRoom`** (the "same screen / different screen" rule);
+  the server always sends both.
+- **Config:** `wrangler.jsonc` has `durable_objects` binding `ADVENTURE` → `AdventureRoom`
+  and migration `v1` (`new_sqlite_classes`, free-plan compatible).
 - **Single-player still queued:** Air Hockey, Go Fish (Go Fish can reuse `cards.js`).
 - **Admin test data:** the user count / play stats include a handful of `alice_*`, `bob_*`, `tester_*`, `chk_*` accounts created during API testing. Consider a "clear test data" admin action (delete `u:<test>`, reset `stats`).
 - **Rotate `ADMIN_TOKEN`** (it appeared in chat).

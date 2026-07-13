@@ -11,6 +11,9 @@
 const SESSION_COOKIE = "games_session";
 const SESSION_TTL = 60 * 60 * 24 * 7; // 7 days
 
+// Durable Object backing real-time co-op Adventure matches.
+export { AdventureRoom } from "./adventure-coop.js";
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -51,6 +54,7 @@ export default {
     if (url.pathname === "/api/mp/respond" && request.method === "POST") return handleMpRespond(request, env);
     if (url.pathname === "/api/mp/match" && request.method === "GET") return handleMpMatch(request, env, url);
     if (url.pathname === "/api/mp/move" && request.method === "POST") return handleMpMove(request, env);
+    if (url.pathname === "/api/adv/ws") return handleAdvWs(request, env, url);
 
     // Not an API route — serve a static asset.
     return env.ASSETS.fetch(request);
@@ -471,14 +475,18 @@ async function handleMpLobby(request, env) {
     cursor = r.list_complete ? undefined : r.cursor;
   } while (cursor);
   const myMatch = await env.ACCOUNTS.get("usermatch:" + lc(u));
-  return json({ ok: true, me: u, players, challenges, myMatch: myMatch || null, games: Object.fromEntries(Object.entries(MP_GAMES).map(([k, v]) => [k, v.name])) });
+  let myMatchGame = null;
+  if (myMatch) { const mr = await env.ACCOUNTS.get("match:" + myMatch); if (mr) { try { myMatchGame = JSON.parse(mr).game; } catch {} } }
+  const games = Object.fromEntries(Object.entries(MP_GAMES).map(([k, v]) => [k, v.name]));
+  games.advcoop = "Adventure (Co-op)";
+  return json({ ok: true, me: u, players, challenges, myMatch: myMatch || null, myMatchGame, games });
 }
 
 async function handleMpChallenge(request, env) {
   const u = await mpUser(request, env); if (!u) return json({ error: "unauth" }, 401);
   let body; try { body = await request.json(); } catch { return json({ error: "invalid_body" }, 400); }
   const to = (body.to || "").toString().trim(); const game = (body.game || "").toString();
-  if (!MP_GAMES[game]) return json({ error: "bad_game" }, 400);
+  if (!MP_GAMES[game] && game !== "advcoop") return json({ error: "bad_game" }, 400);
   if (!to || lc(to) === lc(u)) return json({ error: "bad_target" }, 400);
   const id = rid();
   await env.ACCOUNTS.put("challenge:" + id, JSON.stringify({ id, from: u, to, game, ts: Date.now() }), { expirationTtl: 180 });
@@ -494,6 +502,14 @@ async function handleMpRespond(request, env) {
   if (lc(c.to) !== lc(u)) return json({ error: "not_yours" }, 403);
   await env.ACCOUNTS.delete("challenge:" + body.id);
   if (!body.accept) return json({ ok: true });
+  if (c.game === "advcoop") {
+    const mid = rid();
+    const match = { id: mid, game: "advcoop", gameName: "Adventure (Co-op)", players: { X: c.from, O: c.to }, updated: Date.now() };
+    await env.ACCOUNTS.put("match:" + mid, JSON.stringify(match));
+    await env.ACCOUNTS.put("usermatch:" + lc(c.from), mid);
+    await env.ACCOUNTS.put("usermatch:" + lc(c.to), mid);
+    return json({ ok: true, matchId: mid, game: "advcoop" });
+  }
   const eng = MP_GAMES[c.game]; const mid = rid();
   const match = { id: mid, game: c.game, gameName: eng.name, players: { X: c.from, O: c.to }, state: eng.init(), turn: "X", winner: null, draw: false, version: 1, updated: Date.now() };
   await env.ACCOUNTS.put("match:" + mid, JSON.stringify(match));
@@ -537,6 +553,24 @@ async function handleMpMove(request, env) {
   match.version++; match.updated = Date.now();
   await env.ACCOUNTS.put(key, JSON.stringify(match));
   return json({ ok: true, match: mpView(match, eng, sym) });
+}
+
+// Real-time co-op Adventure: authenticate, resolve the caller's slot from the match
+// record, then hand the WebSocket upgrade to the per-match AdventureRoom Durable Object.
+async function handleAdvWs(request, env, url) {
+  const u = await mpUser(request, env); if (!u) return json({ error: "unauth" }, 401);
+  const mid = url.searchParams.get("id") || "";
+  const raw = await env.ACCOUNTS.get("match:" + mid);
+  if (!raw) return json({ error: "gone" }, 404);
+  const match = JSON.parse(raw);
+  if (match.game !== "advcoop") return json({ error: "bad_game" }, 400);
+  const slot = lc(match.players.X) === lc(u) ? "X" : (lc(match.players.O) === lc(u) ? "O" : null);
+  if (!slot) return json({ error: "forbidden" }, 403);
+  const stub = env.ADVENTURE.get(env.ADVENTURE.idFromName(mid));
+  const fwd = new URL(url.origin + "/ws");
+  fwd.searchParams.set("slot", slot);
+  fwd.searchParams.set("name", u);
+  return stub.fetch(new Request(fwd.toString(), request));
 }
 
 function handleLogout(request) {

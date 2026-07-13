@@ -56,8 +56,13 @@ It will be served at `/games/<game-name>/`. Then link it from the landing page.
   only sees its own hand plus opponent/deck counts; authoritative state stays in KV.
 - **Adventure** (`/games/adventure/`) — single-player Atari-2600-style clone: connected
   rooms/maze, three roaming dragons, sword/bridge/black-key/chalice items (one carried at a
-  time), Gold + Black castles, and the Chalice quest. World sim is pure/headless-tested and
-  structured for a future Durable-Object **co-op** multiplayer layer.
+  time), Gold + Black castles, and the Chalice quest.
+- **Adventure real-time co-op** — challenge a friend to "Adventure (Co-op)" from the lobby
+  to share one live maze (`/play/adv/`). First **Durable Object** in the project: an
+  `AdventureRoom` DO holds the authoritative shared world and streams snapshots to both
+  players over **WebSockets**; the client interpolates and shows your partner only when
+  you're in the same room. Server-authoritative sim is headless-tested (28 cases) and the
+  live WS flow verified end-to-end.
 
 ### 2026-07-11 — Big build-out (arcade + backend + multiplayer)
 

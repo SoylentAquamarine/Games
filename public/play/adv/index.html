@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Adventure Co-op — Games</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🗝️</text></svg>" />
+<style>
+  :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;--good:#34d399;}
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+    background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.2),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.14),transparent 60%),var(--bg);
+    -webkit-tap-highlight-color:transparent;touch-action:none;}
+  .wrap{max-width:520px;margin:0 auto;padding:14px 12px 30px;display:flex;flex-direction:column;align-items:center;gap:10px}
+  .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
+  .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+  h1{margin:0;font-size:1.3rem;background:linear-gradient(120deg,var(--accent-2),#f5d020);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .hud{width:100%;display:flex;justify-content:space-between;gap:8px;font-size:.82rem;color:var(--muted)}
+  .hud b{color:var(--text)}
+  .carry{min-height:1.2em;color:#f5d020;font-weight:700}
+  .partner{min-height:1.1em;font-size:.82rem}
+  .partner .same{color:var(--accent-2)}
+  canvas{width:min(92vw,440px);height:min(92vw,440px);image-rendering:pixelated;border-radius:10px;border:2px solid #2a2f55;background:#000;touch-action:none}
+  .msg{min-height:1.3em;font-weight:700;text-align:center;color:#fde68a}
+  .controls{display:flex;width:100%;justify-content:space-between;align-items:center;gap:14px;margin-top:2px}
+  .dpad{display:grid;grid-template-columns:repeat(3,48px);grid-template-rows:repeat(3,48px);gap:5px}
+  .dpad button{background:var(--panel);color:var(--text);border:1px solid rgba(255,255,255,.1);border-radius:10px;font-size:1.2rem;cursor:pointer;user-select:none}
+  .dpad button:active{background:var(--accent);color:#0b0c1a}
+  .dpad .u{grid-area:1/2}.dpad .l{grid-area:2/1}.dpad .r{grid-area:2/3}.dpad .d{grid-area:3/2}
+  .drop{background:#2a2f55;color:var(--text);border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:14px 18px;font-weight:700;cursor:pointer}
+  .drop:active{background:var(--accent);color:#0b0c1a}
+  .legend{display:flex;gap:16px;font-size:.78rem;color:var(--muted)}
+  .sw{display:inline-block;width:10px;height:10px;border-radius:2px;vertical-align:middle;margin-right:4px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar"><a class="home" href="/play/">← Lobby</a><h1>Adventure Co-op</h1><span style="width:56px"></span></div>
+  <div class="hud"><span>Room: <b id="room">—</b></span><span id="conn">Connecting…</span></div>
+  <div class="carry" id="carry">Carrying: nothing</div>
+  <div class="partner" id="partner"></div>
+  <canvas id="game" width="200" height="200"></canvas>
+  <div class="msg" id="msg">Work together — bring the Chalice to the Gold Castle.</div>
+  <div class="legend"><span><span class="sw" style="background:#f5d020"></span>You</span><span><span class="sw" style="background:#22d3ee"></span>Partner (same room)</span></div>
+  <div class="controls">
+    <div class="dpad">
+      <button class="u" data-dir="up">▲</button><button class="l" data-dir="left">◀</button>
+      <button class="r" data-dir="right">▶</button><button class="d" data-dir="down">▼</button>
+    </div>
+    <button class="drop" id="dropbtn">Drop / Use</button>
+  </div>
+</div>
+<script>
+(function(){
+  const $=(id)=>document.getElementById(id);
+  const id=new URLSearchParams(location.search).get("id");
+  const cv=$("game"), ctx=cv.getContext("2d");
+  let ws=null, slot=null, ROOMS=null, C=null, buffer=[], dir=null, connected=false, retries=0;
+  const LABEL={sword:"Sword",bridge:"Bridge",blackkey:"Black Key",chalice:"Enchanted Chalice"};
+  const DELAY=160; // render this far in the past for smooth interpolation
+
+  async function start(){
+    const me=await fetch("/api/me").then(r=>r.json()).catch(()=>({}));
+    if(!me.loggedIn){ location.href="/account/"; return; }
+    if(!id){ $("conn").textContent="No match id."; return; }
+    connect();
+    requestAnimationFrame(loop);
+  }
+  function connect(){
+    const proto=location.protocol==="https:"?"wss:":"ws:";
+    ws=new WebSocket(proto+"//"+location.host+"/api/adv/ws?id="+encodeURIComponent(id));
+    ws.addEventListener("open",()=>{ connected=true; retries=0; $("conn").textContent="Connected"; if(dir) sendInput(dir); });
+    ws.addEventListener("message",(e)=>{ let m; try{ m=JSON.parse(e.data); }catch(_){ return; }
+      if(m.type==="welcome"){ slot=m.slot; ROOMS=m.rooms; C=m.consts; }
+      else if(m.type==="state"){ buffer.push({recv:performance.now(), data:m}); if(buffer.length>8) buffer.shift(); }
+    });
+    ws.addEventListener("close",()=>{ connected=false; $("conn").textContent="Reconnecting…";
+      if(retries<40){ retries++; setTimeout(connect, Math.min(2000, 300+retries*150)); } else $("conn").textContent="Disconnected"; });
+    ws.addEventListener("error",()=>{ try{ ws.close(); }catch(_){} });
+  }
+  function send(o){ if(ws&&ws.readyState===1) ws.send(JSON.stringify(o)); }
+  function sendInput(d){ send({type:"input",dir:d}); }
+
+  // ---- interpolation ----
+  function stateAt(rt){
+    if(buffer.length===0) return null;
+    if(buffer.length===1||rt>=buffer[buffer.length-1].recv) return buffer[buffer.length-1].data;
+    let s0=buffer[0], s1=buffer[buffer.length-1];
+    for(let i=0;i<buffer.length-1;i++){ if(buffer[i].recv<=rt&&rt<=buffer[i+1].recv){ s0=buffer[i]; s1=buffer[i+1]; break; } }
+    const a=(rt-s0.recv)/Math.max(1,s1.recv-s0.recv);
+    return blend(s0.data,s1.data,a);
+  }
+  function lerpEnt(A,B,a){ const o=Object.assign({},B); if(A&&A.room===B.room){ o.x=A.x+(B.x-A.x)*a; o.y=A.y+(B.y-A.y)*a; } return o; }
+  function blend(A,B,a){
+    const out={players:{},objects:{},dragons:[],gates:B.gates,won:B.won,winner:B.winner};
+    for(const s in B.players) out.players[s]=lerpEnt(A.players&&A.players[s],B.players[s],a);
+    for(const k in B.objects) out.objects[k]=lerpEnt(A.objects&&A.objects[k],B.objects[k],a);
+    out.dragons=B.dragons.map(db=>lerpEnt(A.dragons&&A.dragons.find(x=>x.id===db.id),db,a));
+    return out;
+  }
+
+  // ---- drawing (mirrors the single-player look) ----
+  function rr(x,y,w,h,c){ ctx.fillStyle=c; ctx.fillRect(x,y,w,h); }
+  function borderWalls(rid){
+    const ex=ROOMS[rid].exits||{}, SIZE=C.SIZE, BW=C.BW, g0=80,g1=120, W=[];
+    if(ex.N){ W.push([0,0,g0,BW]); W.push([g1,0,SIZE-g1,BW]); } else W.push([0,0,SIZE,BW]);
+    if(ex.S){ W.push([0,SIZE-BW,g0,BW]); W.push([g1,SIZE-BW,SIZE-g1,BW]); } else W.push([0,SIZE-BW,SIZE,BW]);
+    if(ex.W){ W.push([0,0,BW,g0]); W.push([0,g1,BW,SIZE-g1]); } else W.push([0,0,BW,SIZE]);
+    if(ex.E){ W.push([SIZE-BW,0,BW,g0]); W.push([SIZE-BW,g1,BW,SIZE-g1]); } else W.push([SIZE-BW,0,BW,SIZE]);
+    return W;
+  }
+  function drawObject(k,x,y){
+    if(k==="sword"){ rr(x+2,y-1,4,11,"#d9d9e6"); rr(x,y+8,8,3,"#b8860b"); rr(x+3,y+8,2,4,"#8a6d1a"); }
+    else if(k==="blackkey"){ rr(x,y+1,3,6,"#111"); rr(x+1,y+1,4,2,"#111"); rr(x+3,y,5,3,"#111"); rr(x+6,y,2,5,"#111"); }
+    else if(k==="bridge"){ rr(x-2,y,12,10,"#a9743a"); rr(x-2,y+2,12,2,"#5c3a18"); rr(x-2,y+6,12,2,"#5c3a18"); }
+    else if(k==="chalice"){ ctx.fillStyle="#ffd94a"; ctx.fillRect(x,y,8,2); ctx.fillRect(x+1,y+2,6,3); ctx.fillRect(x+3,y+5,2,4); ctx.fillRect(x+1,y+9,6,2);
+      ctx.fillStyle="#fff7cc"; ctx.fillRect(x+2,y+1,1,1); }
+  }
+  function drawDragon(d){ ctx.save(); if(!d.alive) ctx.globalAlpha=.5; const c=d.color;
+    rr(d.x+2,d.y+4,10,9,c); rr(d.x,d.y,8,7,c); rr(d.x+9,d.y+8,5,4,c);
+    ctx.fillStyle="#000"; ctx.fillRect(d.x+1,d.y+2,2,2);
+    if(d.alive){ ctx.fillStyle="#ffef9f"; ctx.fillRect(d.x-2,d.y+3,3,2); } ctx.restore(); }
+  function drawCastle(c,locked){ const g=c.gate, x=g.x-4, y=g.y-16, w=g.w+8;
+    rr(x,y,w,20,"#8a8a99"); for(let i=0;i<w;i+=8) rr(x+i,y-4,5,5,"#8a8a99");
+    rr(g.x,g.y-2,g.w,g.h+2, locked?"#5a3a12":"#000");
+    if(locked){ ctx.fillStyle="#3a2408"; for(let i=2;i<g.w;i+=6) ctx.fillRect(g.x+i,g.y-1,2,g.h); } }
+  function drawHero(x,y,col,carry,dirf){ rr(x,y,C.HS,C.HS,col);
+    if(carry){ const ox={left:x-9,right:x+9,up:x,down:x}[dirf]!=null?{left:x-9,right:x+9,up:x,down:x}[dirf]:x+9;
+      const oy={up:y-9,down:y+9,left:y,right:y}[dirf]!=null?{up:y-9,down:y+9,left:y,right:y}[dirf]:y; drawObject(carry,ox,oy); } }
+
+  function loop(){
+    requestAnimationFrame(loop);
+    ctx.clearRect(0,0,200,200);
+    if(!ROOMS||!C){ return; }
+    const st=stateAt(performance.now()-DELAY);
+    if(!st||!st.players[slot]){ return; }
+    const me=st.players[slot], myRoom=me.room, room=ROOMS[myRoom];
+    rr(0,0,C.SIZE,C.SIZE,"#000");
+    ctx.fillStyle=room.color; for(const w of borderWalls(myRoom)) ctx.fillRect(w[0],w[1],w[2],w[3]);
+    if(room.inner) for(const w of room.inner) rr(w.x,w.y,w.w,w.h,room.color);
+    if(room.castle) drawCastle(room.castle, room.castle.name==="Black" && !st.gates.black);
+    for(const k in st.objects){ const o=st.objects[k]; if(!o.carried && o.room===myRoom) drawObject(k,o.x,o.y); }
+    for(const d of st.dragons) if(d.room===myRoom) drawDragon(d);
+    // partner (only when in the same room)
+    for(const s in st.players){ if(s===slot) continue; const o=st.players[s];
+      if(o.room===myRoom && o.alive) drawHero(o.x,o.y,"#22d3ee",o.carry,o.dir); }
+    // me
+    if(me.alive) drawHero(me.x,me.y,"#f5d020",me.carry,me.dir);
+    else { ctx.fillStyle="rgba(120,0,0,.4)"; ctx.fillRect(0,0,200,200); }
+    // hud
+    $("room").textContent=room.name;
+    $("carry").textContent="Carrying: "+(me.carry?LABEL[me.carry]:"nothing");
+    const other=Object.keys(st.players).find(s=>s!==slot);
+    if(other){ const o=st.players[other];
+      $("partner").innerHTML = o.room===myRoom ? '<span class="same">'+esc(o.name)+' is here with you.</span>'
+        : esc(o.name)+" is in "+esc(ROOMS[o.room].name)+"."; }
+    else $("partner").textContent="Waiting for your partner to join…";
+    if(st.won){ ctx.fillStyle="rgba(0,0,0,.55)"; ctx.fillRect(0,0,200,200); ctx.fillStyle="#ffd94a"; ctx.font="bold 15px system-ui"; ctx.textAlign="center"; ctx.fillText("YOU WIN — TOGETHER!",100,100);
+      $("msg").textContent="The Chalice is home. Victory!"; }
+  }
+  function esc(s){ const d=document.createElement("div"); d.textContent=s==null?"":s; return d.innerHTML; }
+
+  const KEY={ArrowUp:"up",ArrowDown:"down",ArrowLeft:"left",ArrowRight:"right",w:"up",s:"down",a:"left",d:"right",W:"up",S:"down",A:"left",D:"right"};
+  function setDir(d){ if(dir===d) return; dir=d; sendInput(d); }
+  addEventListener("keydown",(e)=>{ if(e.key===" "){ e.preventDefault(); send({type:"drop"}); return; } const k=KEY[e.key]; if(k){ e.preventDefault(); setDir(k); } });
+  addEventListener("keyup",(e)=>{ const k=KEY[e.key]; if(k&&dir===k) setDir(null); });
+  document.querySelectorAll(".dpad button").forEach((b)=>{ const d=b.getAttribute("data-dir");
+    const on=(e)=>{ e.preventDefault(); setDir(d); }; const off=(e)=>{ e.preventDefault(); if(dir===d) setDir(null); };
+    b.addEventListener("touchstart",on,{passive:false}); b.addEventListener("touchend",off); b.addEventListener("mousedown",on); b.addEventListener("mouseup",off); b.addEventListener("mouseleave",off); });
+  $("dropbtn").addEventListener("click",()=>send({type:"drop"}));
+  start();
+})();
+</script>
+<script src="/comments.js" defer></script>
+</body>
+</html>

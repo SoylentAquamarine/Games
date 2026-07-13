@@ -83,7 +83,7 @@
     async function poll(){
       let d;try{d=await jget("/api/mp/lobby");}catch(e){return;}
       if(!d.ok)return;games=d.games||games;
-      if(d.myMatch){location.href="/play/match/?id="+encodeURIComponent(d.myMatch);return;}
+      if(d.myMatch){const base=d.myMatchGame==="advcoop"?"/play/adv/?id=":"/play/match/?id=";location.href=base+encodeURIComponent(d.myMatch);return;}
       renderPlayers(d.players);renderChallenges(d.challenges);
     }
     function gameOptions(){return Object.entries(games).map(([k,n])=>`<option value="${k}">${n}</option>`).join("");}
@@ -107,7 +107,7 @@
         `<span class="row"><button class="btn" data-acc="${c.id}">Accept</button><button class="btn ghost" data-dec="${c.id}">Decline</button></span></div>`).join("");
       $("challenges").querySelectorAll("[data-acc]").forEach(b=>b.addEventListener("click",async()=>{
         b.disabled=true;const r=await jpost("/api/mp/respond",{id:b.getAttribute("data-acc"),accept:true});
-        if(r.matchId)location.href="/play/match/?id="+encodeURIComponent(r.matchId);else poll();}));
+        if(r.matchId){const base=r.game==="advcoop"?"/play/adv/?id=":"/play/match/?id=";location.href=base+encodeURIComponent(r.matchId);}else poll();}));
       $("challenges").querySelectorAll("[data-dec]").forEach(b=>b.addEventListener("click",async()=>{
         await jpost("/api/mp/respond",{id:b.getAttribute("data-dec"),accept:false});poll();}));
     }
