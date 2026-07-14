@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Color Switch — Games</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🔵</text></svg>" />
+<style>
+  :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;}
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+    background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.2),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.14),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;touch-action:none;}
+  .wrap{max-width:400px;margin:0 auto;padding:14px 12px 30px;display:flex;flex-direction:column;align-items:center;gap:10px}
+  .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
+  .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+  .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+  h1{margin:0;font-size:1.3rem;background:linear-gradient(120deg,#f43f5e,#22d3ee,#8ad48a,#ffcf5a);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:9px 16px;border-radius:999px;cursor:pointer}
+  canvas{width:min(90vw,320px);height:calc(min(90vw,320px)*1.5);border-radius:10px;border:2px solid #2a2f55;background:#0a0c18;cursor:pointer;touch-action:none}
+  .msg{min-height:1.3em;font-weight:800;text-align:center}
+  .hint{font-size:.78rem;color:var(--muted);text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar"><a class="home" href="/">← Home</a><h1>Color Switch</h1><button class="btn" id="new">New Game</button></div>
+  <canvas id="game" width="320" height="480"></canvas>
+  <div class="msg" id="msg">Tap to bounce up. Only pass a ring through the arc that matches your color!</div>
+  <div class="hint">Tap / click / Space to flap · grab stars to change color</div>
+</div>
+<script>
+(function(){
+  const COLORS=["#f43f5e","#22d3ee","#8ad48a","#ffcf5a"];
+  const C={ W:320,H:480, GRAVITY:0.34, FLAP:-6.4, BALL_R:9, RING_GAP:170, RING_R:56 };
+  function perm(){ const a=[0,1,2,3]; for(let i=3;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+  function makeRing(y){ return { y, rot:Math.random()*Math.PI*2, spin:(Math.random()<.5?1:-1)*(0.03+Math.random()*0.02), colors:perm(), passed:false }; }
+  function makeStar(y){ return { y, color:Math.floor(Math.random()*4), taken:false }; }
+  function newState(){ const rings=[], stars=[]; for(let i=1;i<=8;i++){ rings.push(makeRing(-i*C.RING_GAP)); stars.push(makeStar(-i*C.RING_GAP+C.RING_GAP/2)); }
+    return { ball:{y:0,vy:0,color:0}, rings, stars, score:0, floorY:C.RING_GAP*1.7, over:false, started:false }; }
+  function gateColorIndex(r){ return r.colors[((Math.floor(r.rot/(Math.PI/2))%4)+4)%4]; }
+  function step(s, flap){
+    if(s.over) return s;
+    if(flap) s.started=true;
+    if(!s.started) return s;
+    if(flap) s.ball.vy=C.FLAP;
+    s.ball.vy += C.GRAVITY; s.ball.y += s.ball.vy;
+    for(const r of s.rings) r.rot += r.spin;
+    for(const r of s.rings){ if(!r.passed && s.ball.y<=r.y){ if(gateColorIndex(r)===s.ball.color){ r.passed=true; s.score++; s.floorY=r.y+C.RING_GAP*1.7; } else s.over=true; } }
+    for(const st of s.stars){ if(!st.taken && s.ball.y<=st.y){ s.ball.color=st.color; st.taken=true; } }
+    if(s.ball.y>s.floorY) s.over=true;
+    return s;
+  }
+  window.__colorswitch={ newState, step, gateColorIndex, COLORS, C };
+
+  if(typeof document==="undefined") return;
+  const $=(id)=>document.getElementById(id);
+  const cv=$("game"), ctx=cv.getContext("2d"); const W=C.W,H=C.H;
+  let s=newState(), best=0;
+  try{ best=parseInt(localStorage.getItem("colorswitch_best")||"0")||0; }catch(e){}
+
+  function draw(){
+    ctx.clearRect(0,0,W,H); ctx.fillStyle="#0a0c18"; ctx.fillRect(0,0,W,H);
+    const camY = s.ball.y - H*0.62; // world y at top of screen
+    ctx.save(); ctx.translate(0,-camY);
+    for(const r of s.rings){ if(r.y-camY> H+C.RING_R || r.y-camY< -C.RING_R) continue;
+      for(let k=0;k<4;k++){ ctx.beginPath(); ctx.strokeStyle=COLORS[r.colors[k]]; ctx.lineWidth=10;
+        ctx.arc(W/2, r.y, C.RING_R, r.rot+k*Math.PI/2, r.rot+(k+1)*Math.PI/2); ctx.stroke(); } }
+    for(const st of s.stars){ if(st.taken) continue; if(st.y-camY>H||st.y-camY<0) continue; ctx.fillStyle=COLORS[st.color]; ctx.beginPath();
+      for(let i=0;i<5;i++){ const a=-Math.PI/2+i*2*Math.PI/5, r1=9; ctx.lineTo(W/2+Math.cos(a)*r1, st.y+Math.sin(a)*r1); const a2=a+Math.PI/5; ctx.lineTo(W/2+Math.cos(a2)*4, st.y+Math.sin(a2)*4); } ctx.closePath(); ctx.fill(); }
+    ctx.fillStyle=COLORS[s.ball.color]; ctx.beginPath(); ctx.arc(W/2, s.ball.y, C.BALL_R, 0, 7); ctx.fill();
+    ctx.restore();
+    ctx.fillStyle="#e6e6f0"; ctx.font="bold 30px system-ui"; ctx.textAlign="center"; ctx.globalAlpha=.5; ctx.fillText(s.score, W/2, 60); ctx.globalAlpha=1;
+    if(s.over){ ctx.fillStyle="rgba(0,0,0,.6)"; ctx.fillRect(0,0,W,H); ctx.fillStyle="#f43f5e"; ctx.font="bold 24px system-ui"; ctx.fillText("GAME OVER",W/2,H/2-6); ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Score "+s.score+"  ·  Best "+best,W/2,H/2+16); }
+    else if(!s.started){ ctx.fillStyle="#9a9ab5"; ctx.font="14px system-ui"; ctx.fillText("tap to start",W/2,H*0.35); }
+  }
+  let flapReq=false;
+  function frame(){ step(s,flapReq); flapReq=false;
+    if(s.over && s.score>best){ best=s.score; try{localStorage.setItem("colorswitch_best",String(best));}catch(e){} $("msg").textContent="Game over! Score "+s.score+"  ·  Best "+best; }
+    draw(); requestAnimationFrame(frame); }
+  function flap(){ if(s.over) return; flapReq=true; }
+  cv.addEventListener("mousedown",(e)=>{e.preventDefault();flap();});
+  cv.addEventListener("touchstart",(e)=>{e.preventDefault();flap();},{passive:false});
+  addEventListener("keydown",(e)=>{ if(e.key===" "){ e.preventDefault(); flap(); } });
+  $("new").addEventListener("click",()=>{ s=newState(); $("msg").textContent="Tap to bounce up. Match the arc color to pass!"; });
+  requestAnimationFrame(frame);
+})();
+</script>
+<script src="/comments.js" defer></script>
+</body>
+</html>
