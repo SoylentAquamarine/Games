@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Kaboom! — Games</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>💣</text></svg>" />
+<style>
+  :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;--bad:#f43f5e;}
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+    background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.2),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.14),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;touch-action:none;}
+  .wrap{max-width:460px;margin:0 auto;padding:14px 12px 30px;display:flex;flex-direction:column;align-items:center;gap:10px}
+  .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
+  .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+  .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+  h1{margin:0;font-size:1.3rem;background:linear-gradient(120deg,var(--bad),#ffcf5a);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:9px 16px;border-radius:999px;cursor:pointer}
+  .hud{width:100%;max-width:360px;display:flex;justify-content:space-between;font-size:.85rem;color:var(--muted)}
+  .hud b{color:var(--text)}
+  canvas{width:min(94vw,360px);height:min(94vw,360px);image-rendering:pixelated;border-radius:10px;border:2px solid #2a2f55;background:#0a0c18;cursor:pointer;touch-action:none}
+  .msg{min-height:1.3em;font-weight:800;text-align:center}
+  .hint{font-size:.78rem;color:var(--muted);text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar"><a class="home" href="/">← Home</a><h1>Kaboom!</h1><button class="btn" id="new">New Game</button></div>
+  <div class="hud"><span>Score: <b id="score">0</b></span><span>Wave: <b id="wave">1</b></span><span>Buckets: <b id="buckets">3</b></span></div>
+  <canvas id="game" width="300" height="300"></canvas>
+  <div class="msg" id="msg">Catch every bomb the Mad Bomber drops. Miss one and it all blows up!</div>
+  <div class="hint">Move the mouse / drag / ←→ to slide the buckets</div>
+</div>
+<script>
+(function(){
+  const C={ W:300,H:300, CATCH_Y:264, PADDLE_W:46, BOMBER_Y:22, DROP_BASE:44, FALL_BASE:2.4 };
+  const clamp=(v,a,b)=>v<a?a:v>b?b:v;
+  function newState(){ return { paddleX:150, buckets:3, bombs:[], bomberX:150, bomberDir:1, score:0, wave:1, caught:0, dropT:35, fall:C.FALL_BASE, over:false }; }
+  function catchCheck(bomb, paddleX){ return Math.abs(bomb.x-paddleX)<=C.PADDLE_W/2; }
+  function step(s, input){
+    if(s.over) return s;
+    if(input){ if(input.x!=null) s.paddleX=clamp(input.x,C.PADDLE_W/2,C.W-C.PADDLE_W/2);
+      if(input.left) s.paddleX=clamp(s.paddleX-6,C.PADDLE_W/2,C.W-C.PADDLE_W/2);
+      if(input.right) s.paddleX=clamp(s.paddleX+6,C.PADDLE_W/2,C.W-C.PADDLE_W/2); }
+    // bomber
+    const bspeed=1.4+s.wave*0.25; s.bomberX+=s.bomberDir*bspeed;
+    if(s.bomberX<24){ s.bomberX=24; s.bomberDir=1; } if(s.bomberX>C.W-24){ s.bomberX=C.W-24; s.bomberDir=-1; }
+    if(--s.dropT<=0){ s.bombs.push({x:s.bomberX,y:C.BOMBER_Y+8}); s.dropT=Math.max(12,C.DROP_BASE-s.wave*3); }
+    // bombs fall + resolve at the catch line
+    for(const b of s.bombs) b.y+=s.fall;
+    const survivors=[]; let missed=false;
+    for(const b of s.bombs){ if(b.y>=C.CATCH_Y){ if(catchCheck(b,s.paddleX)){ s.score++; s.caught++; } else missed=true; } else survivors.push(b); }
+    s.bombs=survivors;
+    if(missed){ s.buckets--; s.bombs=[]; if(s.buckets<=0) s.over=true; }
+    if(s.caught>=s.wave*10){ s.wave++; s.fall+=0.35; s.caught=0; }
+    return s;
+  }
+  window.__kaboom={ newState, step, catchCheck, C };
+
+  if(typeof document==="undefined") return;
+  const $=(id)=>document.getElementById(id);
+  const cv=$("game"), ctx=cv.getContext("2d");
+  let s=newState(), input={x:null,left:false,right:false}, best=0;
+  try{ best=parseInt(localStorage.getItem("kaboom_best")||"0")||0; }catch(e){}
+
+  function draw(){
+    ctx.clearRect(0,0,C.W,C.H); ctx.fillStyle="#0a0c18"; ctx.fillRect(0,0,C.W,C.H);
+    // bomber
+    ctx.fillStyle="#f0616e"; ctx.fillRect(s.bomberX-10,C.BOMBER_Y-8,20,12); ctx.fillStyle="#ffcf5a"; ctx.fillRect(s.bomberX-4,C.BOMBER_Y-12,8,4);
+    // bombs
+    for(const b of s.bombs){ ctx.fillStyle="#e6e6f0"; ctx.beginPath(); ctx.arc(b.x,b.y,4,0,7); ctx.fill(); ctx.strokeStyle="#ffcf5a"; ctx.beginPath(); ctx.moveTo(b.x,b.y-4); ctx.lineTo(b.x+2,b.y-8); ctx.stroke(); }
+    // buckets (paddle stack)
+    for(let i=0;i<s.buckets;i++){ const y=C.CATCH_Y+i*11; ctx.fillStyle=i===0?"#22d3ee":"#7c5cff"; ctx.fillRect(s.paddleX-C.PADDLE_W/2,y,C.PADDLE_W,8); }
+    ctx.fillStyle="#2b2f4d"; ctx.fillRect(0,C.H-4,C.W,4);
+    if(s.over){ ctx.fillStyle="rgba(0,0,0,.55)"; ctx.fillRect(0,0,C.W,C.H); ctx.fillStyle="#f43f5e"; ctx.font="bold 24px system-ui"; ctx.textAlign="center"; ctx.fillText("KABOOM!",C.W/2,C.H/2-4); ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Score "+s.score+(best?"  ·  Best "+best:""),C.W/2,C.H/2+18); }
+  }
+  function hud(){ $("score").textContent=s.score; $("wave").textContent=s.wave; $("buckets").textContent=Math.max(0,s.buckets); }
+  function frame(){ step(s,input); input.left=input.right=false;
+    if(s.over && s.score>best){ best=s.score; try{localStorage.setItem("kaboom_best",String(best));}catch(e){} }
+    if(s.over) $("msg").textContent="💥 Boom! Final score "+s.score+". New Game to try again.";
+    draw(); hud(); requestAnimationFrame(frame); }
+  function px(ev){ const r=cv.getBoundingClientRect(); const cx=(ev.touches?ev.touches[0].clientX:ev.clientX)-r.left; return cx*(C.W/r.width); }
+  cv.addEventListener("mousemove",(e)=>{ input.x=px(e); });
+  cv.addEventListener("touchmove",(e)=>{ e.preventDefault(); input.x=px(e); },{passive:false});
+  cv.addEventListener("touchstart",(e)=>{ e.preventDefault(); input.x=px(e); },{passive:false});
+  addEventListener("keydown",(e)=>{ if(e.key==="ArrowLeft"){input.left=true;input.x=null;} else if(e.key==="ArrowRight"){input.right=true;input.x=null;} });
+  $("new").addEventListener("click",()=>{ s=newState(); input={x:null,left:false,right:false}; $("msg").textContent="Catch every bomb!"; });
+  requestAnimationFrame(frame);
+})();
+</script>
+<script src="/comments.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Fruit Slice — Games</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🍉</text></svg>" />
+<style>
+  :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;--bad:#f43f5e;}
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+    background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.2),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.14),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;touch-action:none;}
+  .wrap{max-width:460px;margin:0 auto;padding:14px 12px 30px;display:flex;flex-direction:column;align-items:center;gap:10px}
+  .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
+  .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+  .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+  h1{margin:0;font-size:1.3rem;background:linear-gradient(120deg,#f43f5e,#ffcf5a);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:9px 16px;border-radius:999px;cursor:pointer}
+  .hud{width:100%;max-width:400px;display:flex;justify-content:space-between;font-size:.9rem;color:var(--muted)}
+  .hud b{color:var(--text)}
+  canvas{width:min(96vw,400px);height:calc(min(96vw,400px)*0.833);border-radius:10px;border:2px solid #2a2f55;background:#0a0c18;cursor:crosshair;touch-action:none}
+  .msg{min-height:1.3em;font-weight:800;text-align:center}
+  .hint{font-size:.78rem;color:var(--muted);text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar"><a class="home" href="/">← Home</a><h1>Fruit Slice</h1><button class="btn" id="new">New Game</button></div>
+  <div class="hud"><span>Score: <b id="score">0</b></span><span>Lives: <b id="lives">❤❤❤</b></span></div>
+  <canvas id="game" width="360" height="300"></canvas>
+  <div class="msg" id="msg">Swipe to slice the fruit — but never the bombs! Don't drop fruit.</div>
+  <div class="hint">Drag the mouse / finger across fruit to slice</div>
+</div>
+<script>
+(function(){
+  const C={ W:360,H:300, GRAVITY:0.18, LIVES:3, FRUIT_R:17, BOMB_R:16 };
+  const FRUITS=["#f43f5e","#ffcf5a","#8ad48a","#22d3ee","#c77dff"];
+  function newState(){ return { fruits:[], score:0, lives:C.LIVES, spawnT:20, over:false }; }
+  function spawn(s){ const bomb=Math.random()<0.14; const x=40+Math.random()*(C.W-80);
+    s.fruits.push({ x, y:C.H+20, vx:(C.W/2-x)*0.008 + (Math.random()*2-1), vy:-(7.2+Math.random()*2.2), r: bomb?C.BOMB_R:C.FRUIT_R, bomb, color:FRUITS[Math.floor(Math.random()*FRUITS.length)], sliced:false, dead:false }); }
+  function segDist(px,py,x1,y1,x2,y2){ const dx=x2-x1,dy=y2-y1,l2=dx*dx+dy*dy||1; let t=((px-x1)*dx+(py-y1)*dy)/l2; t=t<0?0:t>1?1:t; return Math.hypot(px-(x1+t*dx),py-(y1+t*dy)); }
+  function segHitsFruit(f,x1,y1,x2,y2){ return !f.sliced && !f.dead && segDist(f.x,f.y,x1,y1,x2,y2)<=f.r; }
+  function sliceSegment(s,x1,y1,x2,y2){
+    if(s.over) return [];
+    const hit=[];
+    for(const f of s.fruits){ if(segHitsFruit(f,x1,y1,x2,y2)){ f.sliced=true; f.st=0; hit.push(f);
+      if(f.bomb){ s.over=true; } else s.score++; } }
+    return hit;
+  }
+  function step(s){
+    if(s.over) return s;
+    for(const f of s.fruits){ if(f.sliced){ f.st=(f.st||0)+1; continue; } f.vy+=C.GRAVITY; f.x+=f.vx; f.y+=f.vy;
+      if(f.y>C.H+30){ if(!f.bomb){ s.lives--; if(s.lives<=0) s.over=true; } f.dead=true; } }
+    s.fruits=s.fruits.filter(f=>!f.dead && !(f.sliced && f.st>14));
+    if(--s.spawnT<=0){ spawn(s); if(Math.random()<0.3) spawn(s); s.spawnT=24+Math.floor(Math.random()*26); }
+    return s;
+  }
+  window.__fruitninja={ newState, step, sliceSegment, segHitsFruit, segDist, spawn, C };
+
+  if(typeof document==="undefined") return;
+  const $=(id)=>document.getElementById(id);
+  const cv=$("game"), ctx=cv.getContext("2d");
+  let s=newState(), best=0, trail=[], last=null;
+  try{ best=parseInt(localStorage.getItem("fruit_best")||"0")||0; }catch(e){}
+
+  function draw(){
+    ctx.clearRect(0,0,C.W,C.H); ctx.fillStyle="#0a0c18"; ctx.fillRect(0,0,C.W,C.H);
+    for(const f of s.fruits){
+      if(f.sliced){ const o=1-(f.st||0)/14; ctx.globalAlpha=Math.max(0,o);
+        ctx.fillStyle=f.bomb?"#333":f.color; ctx.beginPath(); ctx.arc(f.x-6,f.y,f.r*0.8,0,7); ctx.fill(); ctx.beginPath(); ctx.arc(f.x+6,f.y,f.r*0.8,0,7); ctx.fill(); ctx.globalAlpha=1; continue; }
+      if(f.bomb){ ctx.fillStyle="#222"; ctx.beginPath(); ctx.arc(f.x,f.y,f.r,0,7); ctx.fill(); ctx.strokeStyle="#f43f5e"; ctx.lineWidth=2; ctx.stroke(); ctx.fillStyle="#ffcf5a"; ctx.fillRect(f.x-1,f.y-f.r-4,2,5); }
+      else { ctx.fillStyle=f.color; ctx.beginPath(); ctx.arc(f.x,f.y,f.r,0,7); ctx.fill(); ctx.fillStyle="rgba(255,255,255,.35)"; ctx.beginPath(); ctx.arc(f.x-f.r*0.35,f.y-f.r*0.35,f.r*0.28,0,7); ctx.fill(); ctx.fillStyle="#5a3a18"; ctx.fillRect(f.x-1,f.y-f.r-3,2,4); }
+    }
+    if(trail.length>1){ ctx.strokeStyle="rgba(255,255,255,.85)"; ctx.lineWidth=3; ctx.lineCap="round"; ctx.beginPath(); ctx.moveTo(trail[0].x,trail[0].y); for(let i=1;i<trail.length;i++) ctx.lineTo(trail[i].x,trail[i].y); ctx.stroke(); }
+    if(s.over){ ctx.fillStyle="rgba(0,0,0,.6)"; ctx.fillRect(0,0,C.W,C.H); ctx.fillStyle="#f43f5e"; ctx.font="bold 24px system-ui"; ctx.textAlign="center"; ctx.fillText("GAME OVER",C.W/2,C.H/2-6); ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Score "+s.score+"  ·  Best "+best,C.W/2,C.H/2+18); }
+  }
+  function frame(){ step(s);
+    if(s.over && s.score>best){ best=s.score; try{localStorage.setItem("fruit_best",String(best));}catch(e){} $("msg").textContent="🍉 Game over! Score "+s.score+"  ·  Best "+best; }
+    if(trail.length){ trail.forEach(p=>p.life--); trail=trail.filter(p=>p.life>0); }
+    $("score").textContent=s.score; $("lives").textContent="❤".repeat(Math.max(0,s.lives))||"—"; draw(); requestAnimationFrame(frame); }
+  function pos(ev){ const r=cv.getBoundingClientRect(); const t=ev.touches?ev.touches[0]:ev; return { x:(t.clientX-r.left)*(C.W/r.width), y:(t.clientY-r.top)*(C.H/r.height) }; }
+  function move(ev){ if(s.over) return; const p=pos(ev); if(last){ sliceSegment(s,last.x,last.y,p.x,p.y); trail.push({x:p.x,y:p.y,life:8}); if(trail.length>12) trail.shift(); } last=p; }
+  cv.addEventListener("mousedown",(e)=>{ last=pos(e); });
+  cv.addEventListener("mousemove",(e)=>{ if(e.buttons) move(e); });
+  cv.addEventListener("mouseup",()=>{ last=null; });
+  cv.addEventListener("mouseleave",()=>{ last=null; });
+  cv.addEventListener("touchstart",(e)=>{ e.preventDefault(); last=pos(e); },{passive:false});
+  cv.addEventListener("touchmove",(e)=>{ e.preventDefault(); move(e); },{passive:false});
+  cv.addEventListener("touchend",()=>{ last=null; });
+  $("new").addEventListener("click",()=>{ s=newState(); trail=[]; last=null; $("msg").textContent="Swipe to slice the fruit — but never the bombs!"; });
+  requestAnimationFrame(frame);
+})();
+</script>
+<script src="/comments.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Piano Tiles — Games</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🎹</text></svg>" />
+<style>
+  :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;}
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+    background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.2),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.14),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;touch-action:none;}
+  .wrap{max-width:360px;margin:0 auto;padding:14px 12px 30px;display:flex;flex-direction:column;align-items:center;gap:10px}
+  .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
+  .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+  .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+  h1{margin:0;font-size:1.25rem;background:linear-gradient(120deg,#e6e6f0,var(--accent));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:9px 16px;border-radius:999px;cursor:pointer}
+  .hud{width:100%;max-width:300px;display:flex;justify-content:space-between;font-size:.9rem;color:var(--muted)}
+  .hud b{color:var(--text)}
+  canvas{width:min(88vw,300px);height:calc(min(88vw,300px)*1.4);border-radius:10px;border:2px solid #2a2f55;background:#f4f4fa;cursor:pointer;touch-action:none}
+  .msg{min-height:1.3em;font-weight:800;text-align:center}
+  .hint{font-size:.78rem;color:var(--muted);text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar"><a class="home" href="/">← Home</a><h1>Piano Tiles</h1><button class="btn" id="new">New Game</button></div>
+  <div class="hud"><span>Score: <b id="score">0</b></span><span>Best: <b id="best">0</b></span></div>
+  <canvas id="game" width="300" height="420"></canvas>
+  <div class="msg" id="msg">Tap only the black tiles — in order, don't miss one!</div>
+  <div class="hint">Tap the tiles or use A · S · D · F</div>
+</div>
+<script>
+(function(){
+  const C={ COLS:4, W:300, H:420, ROW_H:105, START_SPEED:3.2, MAX_SPEED:8 };
+  const NROWS=Math.ceil(C.H/C.ROW_H)+2;
+  function makeRow(y){ return { black:Math.floor(Math.random()*C.COLS), tapped:false, y }; }
+  function newState(){ const rows=[]; for(let i=0;i<NROWS;i++) rows.push(makeRow(C.H-C.ROW_H-i*C.ROW_H)); // fill from bottom up
+    return { rows, score:0, speed:C.START_SPEED, over:false, started:false }; }
+  function lowestUntapped(s){ let t=null; for(const r of s.rows){ if(!r.tapped && (!t||r.y>t.y)) t=r; } return t; }
+  function tapColumn(s, col){
+    if(s.over) return;
+    s.started=true;
+    const t=lowestUntapped(s); if(!t) return;
+    if(col===t.black){ t.tapped=true; s.score++; if(s.speed<C.MAX_SPEED) s.speed+=0.04; }
+    else s.over=true; // tapped a white tile
+  }
+  function step(s){
+    if(s.over||!s.started) return s;
+    for(const r of s.rows) r.y += s.speed;
+    for(const r of s.rows){ if(!r.tapped && r.y>C.H){ s.over=true; } }   // a black tile fell off the bottom
+    // recycle rows that scrolled fully past the bottom
+    const kept=[]; let topY=1e9;
+    for(const r of s.rows){ if(r.y <= C.H+C.ROW_H) { kept.push(r); if(r.y<topY) topY=r.y; } }
+    while(kept.length<NROWS){ topY-=C.ROW_H; kept.push(makeRow(topY)); }
+    s.rows=kept;
+    return s;
+  }
+  window.__pianotiles={ newState, step, tapColumn, lowestUntapped, C };
+
+  if(typeof document==="undefined") return;
+  const $=(id)=>document.getElementById(id);
+  const cv=$("game"), ctx=cv.getContext("2d");
+  let s=newState(), best=0;
+  try{ best=parseInt(localStorage.getItem("piano_best")||"0")||0; }catch(e){}
+  const cw=C.W/C.COLS;
+
+  function draw(){
+    ctx.clearRect(0,0,C.W,C.H); ctx.fillStyle="#f4f4fa"; ctx.fillRect(0,0,C.W,C.H);
+    ctx.strokeStyle="#dcdce6"; for(let i=1;i<C.COLS;i++){ ctx.beginPath(); ctx.moveTo(i*cw,0); ctx.lineTo(i*cw,C.H); ctx.stroke(); }
+    for(const r of s.rows){ const x=r.black*cw; ctx.fillStyle = r.tapped?"#c7c7d8":"#14162b"; ctx.fillRect(x+2,r.y+2,cw-4,C.ROW_H-4); }
+    if(s.over){ ctx.fillStyle="rgba(0,0,0,.6)"; ctx.fillRect(0,0,C.W,C.H); ctx.fillStyle="#f43f5e"; ctx.font="bold 24px system-ui"; ctx.textAlign="center"; ctx.fillText("GAME OVER",C.W/2,C.H/2-6); ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Score "+s.score+"  ·  Best "+best,C.W/2,C.H/2+18); }
+    else if(!s.started){ ctx.fillStyle="rgba(20,22,43,.85)"; ctx.font="bold 16px system-ui"; ctx.textAlign="center"; const t=lowestUntapped(s); if(t) ctx.fillText("TAP",t.black*cw+cw/2,t.y+C.ROW_H/2+5); }
+  }
+  function frame(){ step(s);
+    if(s.over && s.score>best){ best=s.score; try{localStorage.setItem("piano_best",String(best));}catch(e){} $("msg").textContent="🎹 Missed! Score "+s.score+"  ·  Best "+best; }
+    $("score").textContent=s.score; $("best").textContent=best; draw(); requestAnimationFrame(frame); }
+  function tapAt(x){ tapColumn(s, Math.min(C.COLS-1, Math.max(0, Math.floor(x/cw)))); }
+  cv.addEventListener("mousedown",(e)=>{ const r=cv.getBoundingClientRect(); tapAt((e.clientX-r.left)*(C.W/r.width)); });
+  cv.addEventListener("touchstart",(e)=>{ e.preventDefault(); const r=cv.getBoundingClientRect(); for(const t of e.changedTouches) tapAt((t.clientX-r.left)*(C.W/r.width)); },{passive:false});
+  addEventListener("keydown",(e)=>{ const m={a:0,s:1,d:2,f:3}[e.key.toLowerCase()]; if(m!=null) tapColumn(s,m); });
+  $("new").addEventListener("click",()=>{ s=newState(); $("msg").textContent="Tap only the black tiles — in order, don't miss one!"; });
+  requestAnimationFrame(frame);
+})();
+</script>
+<script src="/comments.js" defer></script>
+</body>
+</html>

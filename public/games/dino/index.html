@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Dino Run — Games</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🦖</text></svg>" />
+<style>
+  :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;}
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+    background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.2),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.14),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;touch-action:none;}
+  .wrap{max-width:640px;margin:0 auto;padding:14px 12px 30px;display:flex;flex-direction:column;align-items:center;gap:10px}
+  .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
+  .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+  .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+  h1{margin:0;font-size:1.3rem;background:linear-gradient(120deg,#8ad48a,var(--accent-2));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:9px 16px;border-radius:999px;cursor:pointer}
+  canvas{width:100%;max-width:600px;aspect-ratio:600/180;image-rendering:pixelated;border-radius:10px;border:2px solid #2a2f55;background:#0c0e1c;touch-action:none}
+  .msg{min-height:1.3em;font-weight:800;text-align:center}
+  .hint{font-size:.78rem;color:var(--muted);text-align:center}
+  .ctl{display:flex;gap:10px}
+  .cbtn{background:var(--panel);color:var(--text);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:12px 22px;font-weight:700;font-size:1rem;cursor:pointer;user-select:none}
+  .cbtn:active{background:var(--accent);color:#0b0c1a}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar"><a class="home" href="/">← Home</a><h1>Dino Run</h1><button class="btn" id="new">New Game</button></div>
+  <canvas id="game" width="600" height="180"></canvas>
+  <div class="msg" id="msg">Press Space / ▲ to jump, ▼ to duck. Avoid the cacti and birds!</div>
+  <div class="ctl"><button class="cbtn" id="bjump">▲ Jump</button><button class="cbtn" id="bduck">▼ Duck</button></div>
+  <div class="hint">Space/↑ jump · ↓ duck · tap the canvas to jump on mobile</div>
+</div>
+<script>
+(function(){
+  const C={ W:600,H:180, GROUND:150, DINO_X:52, DINO_W:20, DINO_H:26, DUCK_H:16, GRAVITY:0.72, JUMP_V:-11, START:5, MAX:12.5 };
+  const rov=(a,b)=>a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;
+  function newState(){ return { dino:{y:C.GROUND-C.DINO_H,vy:0,onGround:true,ducking:false}, obs:[], speed:C.START, score:0, over:false, t:0 }; }
+  function dinoRect(d){ const h=d.ducking?C.DUCK_H:C.DINO_H; return {x:C.DINO_X,y:d.y,w:C.DINO_W,h:h}; }
+  function step(s, input){
+    if(s.over) return s;
+    const d=s.dino;
+    if(input.jump && d.onGround){ d.vy=C.JUMP_V; d.onGround=false; }
+    if(d.onGround){ d.ducking=!!input.duck; d.y=C.GROUND-(d.ducking?C.DUCK_H:C.DINO_H); }  // feet stay on the ground
+    else { d.ducking=false; d.vy+=C.GRAVITY; d.y+=d.vy; const floor=C.GROUND-C.DINO_H; if(d.y>=floor){ d.y=floor; d.vy=0; d.onGround=true; } }
+    for(const o of s.obs) o.x -= s.speed;
+    s.obs=s.obs.filter(o=>o.x+o.w>-4);
+    s.score += 1;
+    if(s.speed<C.MAX) s.speed += 0.0022;
+    const dr=dinoRect(d);
+    for(const o of s.obs){ if(rov(dr,o)){ s.over=true; } }
+    return s;
+  }
+  window.__dino={ newState, step, dinoRect, C };
+
+  if(typeof document==="undefined") return;
+  const $=(id)=>document.getElementById(id);
+  const cv=$("game"), ctx=cv.getContext("2d");
+  let s=newState(), input={jump:false,duck:false}, best=0, spawnGap=0, clouds=[], started=false;
+  try{ best=parseInt(localStorage.getItem("dino_best")||"0")||0; }catch(e){}
+  for(let i=0;i<4;i++) clouds.push({x:Math.random()*C.W,y:20+Math.random()*40});
+
+  function spawn(){ if(Math.random()<0.5){ s.obs.push({x:C.W,y:C.GROUND-24,w:12+Math.random()*10|0,h:24,type:"cactus"}); }
+    else s.obs.push({x:C.W,y:C.GROUND-34-(Math.random()<.5?0:14),w:22,h:14,type:"bird"}); }
+  function draw(){
+    ctx.clearRect(0,0,C.W,C.H); ctx.fillStyle="#0c0e1c"; ctx.fillRect(0,0,C.W,C.H);
+    ctx.fillStyle="#20244a"; for(const c of clouds) ctx.fillRect(c.x,c.y,26,7);
+    ctx.strokeStyle="#3a4170"; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(0,C.GROUND+1); ctx.lineTo(C.W,C.GROUND+1); ctx.stroke();
+    for(const o of s.obs){ if(o.type==="cactus"){ ctx.fillStyle="#4caf50"; ctx.fillRect(o.x,o.y,o.w,o.h); ctx.fillRect(o.x-4,o.y+6,4,3); ctx.fillRect(o.x+o.w,o.y+9,4,3); }
+      else { ctx.fillStyle="#c9c9e6"; ctx.fillRect(o.x,o.y,o.w,o.h); ctx.fillRect(o.x+4,o.y-3-(Math.floor(s.t/6)%2?0:3)*0,6,3); } }
+    const d=s.dino, r=dinoRect(d); ctx.fillStyle= s.over?"#f43f5e":"#8ad48a";
+    ctx.fillRect(r.x,r.y,r.w,r.h); ctx.fillStyle="#0c0e1c"; ctx.fillRect(r.x+r.w-6,r.y+4,3,3);
+    if(!d.ducking&&!s.over&&(Math.floor(s.t/6)%2)&&d.onGround){ ctx.fillStyle="#8ad48a"; ctx.fillRect(r.x+3,r.y+r.h,4,3); }
+    ctx.fillStyle="#9a9ab5"; ctx.font="12px monospace"; ctx.textAlign="right"; ctx.fillText("HI "+String(best).padStart(5,"0")+"  "+String(Math.floor(s.score/3)).padStart(5,"0"), C.W-8, 18);
+    if(s.over){ ctx.fillStyle="rgba(0,0,0,.5)"; ctx.fillRect(0,0,C.W,C.H); ctx.fillStyle="#f43f5e"; ctx.font="bold 22px system-ui"; ctx.textAlign="center"; ctx.fillText("GAME OVER",C.W/2,C.H/2+6); }
+  }
+  function frame(){ s.t++;
+    if(!s.over&&started){ if(--spawnGap<=0){ spawn(); spawnGap=Math.max(40, 90 - Math.floor(s.speed*4)); } step(s,input); input.jump=false;
+      if(s.over){ const sc=Math.floor(s.score/3); if(sc>best){ best=sc; try{localStorage.setItem("dino_best",String(best));}catch(e){} } $("msg").textContent="💥 Ouch! Score "+sc+"  ·  Best "+best; } }
+    for(const c of clouds){ c.x-=0.4; if(c.x<-26){ c.x=C.W; c.y=20+Math.random()*40; } }
+    draw(); requestAnimationFrame(frame);
+  }
+  function jump(){ if(!started){ started=true; $("msg").textContent="Run!"; } if(s.over) return; input.jump=true; }
+  addEventListener("keydown",(e)=>{ if(e.key===" "||e.key==="ArrowUp"||e.key==="w"){ e.preventDefault(); jump(); } else if(e.key==="ArrowDown"||e.key==="s"){ e.preventDefault(); input.duck=true; } });
+  addEventListener("keyup",(e)=>{ if(e.key==="ArrowDown"||e.key==="s") input.duck=false; });
+  cv.addEventListener("touchstart",(e)=>{ e.preventDefault(); jump(); },{passive:false});
+  const bindHold=(id,fn,up)=>{ const el=$(id); el.addEventListener("touchstart",(e)=>{e.preventDefault();fn();},{passive:false}); el.addEventListener("mousedown",fn); if(up){ el.addEventListener("touchend",up); el.addEventListener("mouseup",up); el.addEventListener("mouseleave",up);} };
+  bindHold("bjump",jump); bindHold("bduck",()=>{ if(!started){started=true;} input.duck=true; },()=>input.duck=false);
+  $("new").addEventListener("click",()=>{ s=newState(); input={jump:false,duck:false}; spawnGap=30; started=true; $("msg").textContent="Run!"; });
+  requestAnimationFrame(frame);
+})();
+</script>
+<script src="/comments.js" defer></script>
+</body>
+</html>
