@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Joust — Games</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🦅</text></svg>" />
+<style>
+  :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;--bad:#f43f5e;}
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+    background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.2),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.14),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;touch-action:none;}
+  .wrap{max-width:460px;margin:0 auto;padding:14px 12px 30px;display:flex;flex-direction:column;align-items:center;gap:10px}
+  .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
+  .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+  .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+  h1{margin:0;font-size:1.3rem;background:linear-gradient(120deg,#ffcf5a,#f0616e);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:9px 16px;border-radius:999px;cursor:pointer}
+  .hud{width:100%;max-width:400px;display:flex;justify-content:space-between;font-size:.85rem;color:var(--muted)}
+  .hud b{color:var(--text)}
+  canvas{width:100%;max-width:400px;aspect-ratio:400/300;image-rendering:pixelated;border-radius:10px;border:2px solid #2a2f55;background:#08040f;touch-action:none}
+  .msg{min-height:1.3em;font-weight:800;text-align:center}
+  .ctl{display:flex;gap:10px;align-items:center}
+  .cbtn{background:var(--panel);color:var(--text);border:1px solid rgba(255,255,255,.12);border-radius:12px;width:60px;height:52px;font-size:1.3rem;cursor:pointer;user-select:none}
+  .cbtn:active{background:var(--accent);color:#0b0c1a}
+  .flap{background:var(--accent-2);color:#0b0c1a;border:none;border-radius:12px;padding:0 24px;height:52px;font-weight:800;cursor:pointer;user-select:none}
+  .hint{font-size:.78rem;color:var(--muted);text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar"><a class="home" href="/">← Home</a><h1>Joust</h1><button class="btn" id="new">New Game</button></div>
+  <div class="hud"><span>Score: <b id="score">0</b></span><span>Wave: <b id="wave">1</b></span><span>Lives: <b id="lives">3</b></span></div>
+  <canvas id="game" width="400" height="300"></canvas>
+  <div class="msg" id="msg">Flap to fly. Hit an enemy from ABOVE to win the joust!</div>
+  <div class="ctl"><button class="cbtn" id="bl">◀</button><button class="flap" id="bf">FLAP</button><button class="cbtn" id="br">▶</button></div>
+  <div class="hint">Space/↑ flap · ←/→ steer · win when you're higher on contact</div>
+</div>
+<script>
+(function(){
+  const C={ W:400,H:300, GRAV:0.32, FLAP:-5.4, MOVE:0.45, MAXVX:3.6, LAVA:288, PW:20,PH:18, TOL:8 };
+  const rov=(a,b)=>a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;
+  const rect=(o)=>({x:o.x,y:o.y,w:C.PW,h:C.PH});
+  function joustResult(ay, by){ if(ay < by-C.TOL) return "aWins"; if(by < ay-C.TOL) return "bWins"; return "bounce"; }
+  const PLATS=[{x:0,y:250,w:120,h:10},{x:280,y:250,w:120,h:10},{x:150,y:180,w:100,h:10},{x:30,y:110,w:90,h:10},{x:280,y:110,w:90,h:10}];
+  function land(o){ o.onGround=false; for(const p of PLATS){ if(o.x+C.PW>p.x&&o.x<p.x+p.w && o.y+C.PH>=p.y && o.y+C.PH<=p.y+16 && o.vy>=0){ o.y=p.y-C.PH; o.vy=0; o.onGround=true; } } }
+  function physics(o, input){
+    if(input.flap) o.vy=C.FLAP;
+    if(input.left){ o.vx=Math.max(-C.MAXVX,o.vx-C.MOVE); o.facing=-1; } if(input.right){ o.vx=Math.min(C.MAXVX,o.vx+C.MOVE); o.facing=1; }
+    o.vy+=C.GRAV; o.x+=o.vx; o.y+=o.vy;
+    if(o.x<-C.PW) o.x=C.W; if(o.x>C.W) o.x=-C.PW;   // screen wrap
+    land(o);
+    return o;
+  }
+  function makeWave(s){ s.wave++; s.enemies=[]; const n=2+s.wave; for(let i=0;i<n;i++){ s.enemies.push({x:40+Math.random()*(C.W-80),y:40+Math.random()*80,vx:(Math.random()<.5?-1:1)*1.5,vy:0,facing:1,alive:true,flapT:Math.random()*30}); } }
+  function newState(){ const s={ player:{x:60,y:230,vx:0,vy:0,facing:1,onGround:false}, enemies:[], score:0, wave:0, lives:3, over:false }; makeWave(s); return s; }
+  function step(s, input){
+    if(s.over) return s;
+    physics(s.player, input);
+    if(s.player.y+C.PH>=C.LAVA){ die(s); return s; }
+    for(const e of s.enemies){ if(!e.alive) continue;
+      e.flapT--; const ei={flap:e.flapT<=0, left:e.x>s.player.x+30, right:e.x<s.player.x-30}; if(e.flapT<=0) e.flapT=18+Math.random()*22;
+      physics(e, ei);
+      if(e.y+C.PH>=C.LAVA){ e.alive=false; continue; }
+      if(rov(rect(s.player),rect(e))){ const r=joustResult(s.player.y, e.y);
+        if(r==="aWins"){ e.alive=false; s.score+=500; s.player.vy=C.FLAP*0.6; }
+        else if(r==="bWins"){ die(s); return s; }
+        else { s.player.vx=-s.player.vx; e.vx=-e.vx; s.player.x-=s.player.facing*4; } }
+    }
+    s.enemies=s.enemies.filter(e=>e.alive);
+    if(s.enemies.length===0) makeWave(s);
+    return s;
+  }
+  function die(s){ s.lives--; if(s.lives<=0){ s.over=true; } else { s.player.x=60; s.player.y=230; s.player.vx=0; s.player.vy=0; } }
+  window.__joust={ newState, step, physics, joustResult, makeWave, PLATS, C };
+
+  if(typeof document==="undefined") return;
+  const $=(id)=>document.getElementById(id);
+  const cv=$("game"), ctx=cv.getContext("2d"); const W=C.W,H=C.H;
+  let s=newState(), input={flap:false,left:false,right:false}, best=0, flapEdge=false;
+  try{ best=parseInt(localStorage.getItem("joust_best")||"0")||0; }catch(e){}
+
+  function bird(o, col){ const f=o.facing||1; ctx.save(); ctx.translate(o.x+C.PW/2,o.y+C.PH/2); ctx.scale(f,1);
+    ctx.fillStyle=col; ctx.fillRect(-C.PW/2,-2,C.PW,8); ctx.fillRect(C.PW/2-6,-8,7,8);
+    const w=Math.sin(Date.now()/70)*5; ctx.fillStyle=col; ctx.fillRect(-C.PW/2-4,-2+w,8,4);
+    ctx.fillStyle="#ffcf5a"; ctx.fillRect(C.PW/2-2,-6,4,3);
+    ctx.fillStyle="#e6e6f0"; ctx.fillRect(-2,-9,7,6);
+    ctx.restore(); }
+  function draw(){
+    ctx.clearRect(0,0,W,H); ctx.fillStyle="#08040f"; ctx.fillRect(0,0,W,H);
+    ctx.fillStyle="#8a1e1e"; ctx.fillRect(0,C.LAVA,W,H-C.LAVA); ctx.fillStyle="#f0616e"; for(let x=0;x<W;x+=16) ctx.fillRect(x,C.LAVA+(Math.sin(Date.now()/200+x)*2),8,3);
+    for(const p of PLATS){ ctx.fillStyle="#5a4a6a"; ctx.fillRect(p.x,p.y,p.w,p.h); ctx.fillStyle="#7a6a8a"; ctx.fillRect(p.x,p.y,p.w,3); }
+    for(const e of s.enemies) if(e.alive) bird(e,"#f0616e");
+    bird(s.player,"#22d3ee");
+    if(s.over){ ctx.fillStyle="rgba(0,0,0,.6)"; ctx.fillRect(0,0,W,H); ctx.fillStyle="#f43f5e"; ctx.font="bold 24px system-ui"; ctx.textAlign="center"; ctx.fillText("GAME OVER",W/2,H/2-6); ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Score "+s.score+"  ·  Best "+best,W/2,H/2+16); }
+  }
+  function frame(){ input.flap=flapEdge; flapEdge=false;
+    if(!s.over){ step(s,input);
+      if(s.over && s.score>best){ best=s.score; try{localStorage.setItem("joust_best",String(best));}catch(e){} $("msg").textContent="Fell! Score "+s.score+"  ·  Best "+best; } }
+    $("score").textContent=s.score; $("wave").textContent=s.wave; $("lives").textContent=Math.max(0,s.lives); draw(); requestAnimationFrame(frame);
+  }
+  function flap(){ if(!s.over) flapEdge=true; }
+  addEventListener("keydown",(e)=>{ if(e.key===" "||e.key==="ArrowUp"||e.key==="w"){ e.preventDefault(); flap(); } else if(e.key==="ArrowLeft"||e.key==="a") input.left=true; else if(e.key==="ArrowRight"||e.key==="d") input.right=true; });
+  addEventListener("keyup",(e)=>{ if(e.key==="ArrowLeft"||e.key==="a") input.left=false; else if(e.key==="ArrowRight"||e.key==="d") input.right=false; });
+  cv.addEventListener("touchstart",(e)=>{ e.preventDefault(); flap(); },{passive:false});
+  const bindHold=(id,k)=>{ const el=$(id); const on=(e)=>{e.preventDefault();input[k]=true;}; const off=(e)=>{e.preventDefault();input[k]=false;};
+    el.addEventListener("touchstart",on,{passive:false});el.addEventListener("touchend",off);el.addEventListener("mousedown",on);el.addEventListener("mouseup",off);el.addEventListener("mouseleave",off); };
+  bindHold("bl","left"); bindHold("br","right");
+  $("bf").addEventListener("touchstart",(e)=>{e.preventDefault();flap();},{passive:false}); $("bf").addEventListener("mousedown",flap);
+  $("new").addEventListener("click",()=>{ s=newState(); input={flap:false,left:false,right:false}; $("msg").textContent="Flap to fly. Hit enemies from above!"; });
+  requestAnimationFrame(frame);
+})();
+</script>
+<script src="/comments.js" defer></script>
+</body>
+</html>

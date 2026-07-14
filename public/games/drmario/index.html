@@ -61,8 +61,9 @@
       if(grid[r][c]) continue; const color=C.colors[Math.floor(Math.random()*3)];
       const bad=(grid[r][c-1]&&grid[r][c-2]&&grid[r][c-1].color===color&&grid[r][c-2].color===color)||(grid[r-1]&&grid[r-2]&&grid[r-1][c]&&grid[r-2][c]&&grid[r-1][c].color===color&&grid[r-2][c].color===color);
       if(bad) continue; grid[r][c]={color,virus:true}; placed++; } }
-  function newPill(){ return { r:0, c:Math.floor(C.cols/2)-1, o:0, ca:C.colors[Math.floor(Math.random()*3)], cb:C.colors[Math.floor(Math.random()*3)] }; }
-  function cellsOf(p){ const a={r:p.r,c:p.c}; const b = p.o===0?{r:p.r,c:p.c+1} : {r:p.r-1,c:p.c}; return [{...a,color:p.ca},{...b,color:p.cb}]; }
+  function newPill(){ return { r:1, c:Math.floor(C.cols/2)-1, o:0, ca:C.colors[Math.floor(Math.random()*3)], cb:C.colors[Math.floor(Math.random()*3)] }; }
+  // 4 rotation states: the pivot (ca) stays put and the second half (cb) orbits it — right(0) -> up(1) -> left(2) -> down(3)
+  function cellsOf(p){ const off=[[0,1],[-1,0],[0,-1],[1,0]][p.o]; return [ {r:p.r,c:p.c,color:p.ca}, {r:p.r+off[0],c:p.c+off[1],color:p.cb} ]; }
   function canPlace(grid, cells){ for(const cell of cells){ if(cell.c<0||cell.c>=C.cols||cell.r<0||cell.r>=C.rows) return false; if(grid[cell.r][cell.c]) return false; } return true; }
   function newState(){ const grid=emptyGrid(); placeViruses(grid, 8); const s={ grid, pill:newPill(), score:0, over:false, won:false }; return s; }
   window.__drmario={ newState, emptyGrid, clearMatches, settle, resolve, countViruses, cellsOf, canPlace, newPill, C };
@@ -78,7 +79,8 @@
     if(countViruses(s.grid)===0){ s.won=true; return; }
     s.pill=newPill(); if(!canPlace(s.grid, cellsOf(s.pill))){ s.over=true; } }
   function tryMove(np){ const test={...s.pill,...np}; if(canPlace(s.grid, cellsOf(test))){ s.pill=test; return true; } return false; }
-  function rotate(){ const test={...s.pill, o:(s.pill.o+1)%2}; if(canPlace(s.grid,cellsOf(test))){ s.pill=test; } else if(canPlace(s.grid,cellsOf({...test,c:test.c-1}))){ s.pill={...test,c:test.c-1}; } }
+  function rotate(){ const test={...s.pill, o:(s.pill.o+1)%4};
+    for(const dc of [0,-1,1]){ const t={...test,c:test.c+dc}; if(canPlace(s.grid,cellsOf(t))){ s.pill=t; return; } } }
   function drop(){ if(!tryMove({r:s.pill.r+1})){ lock(); } }
   function act(a){ if(s.over||s.won) return; if(a==="left") tryMove({c:s.pill.c-1}); else if(a==="right") tryMove({c:s.pill.c+1}); else if(a==="down") drop(); else if(a==="rotate") rotate(); }
 
