@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Kong Climb — Games</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🦍</text></svg>" />
+<style>
+  :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;--bad:#f43f5e;}
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+    background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.2),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.14),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;touch-action:none;}
+  .wrap{max-width:400px;margin:0 auto;padding:14px 12px 30px;display:flex;flex-direction:column;align-items:center;gap:10px}
+  .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
+  .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+  .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+  h1{margin:0;font-size:1.3rem;background:linear-gradient(120deg,#f0902a,#ffcf5a);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:9px 16px;border-radius:999px;cursor:pointer}
+  .hud{width:100%;max-width:320px;display:flex;justify-content:space-between;font-size:.85rem;color:var(--muted)}
+  .hud b{color:var(--text)}
+  canvas{width:min(90vw,320px);height:calc(min(90vw,320px)*1.25);image-rendering:pixelated;border-radius:10px;border:2px solid #2a2f55;background:#08040f;touch-action:none}
+  .msg{min-height:1.3em;font-weight:800;text-align:center}
+  .ctl{display:flex;gap:8px;align-items:center}
+  .dpad{display:grid;grid-template-columns:repeat(3,44px);grid-template-rows:repeat(3,44px);gap:4px}
+  .dpad button{background:var(--panel);color:var(--text);border:1px solid rgba(255,255,255,.1);border-radius:9px;font-size:1.1rem;cursor:pointer;user-select:none}
+  .dpad button:active{background:var(--accent);color:#0b0c1a}
+  .dpad .u{grid-area:1/2}.dpad .l{grid-area:2/1}.dpad .dn{grid-area:3/2}.dpad .r{grid-area:2/3}
+  .jump{background:var(--accent-2);color:#0b0c1a;border:none;border-radius:14px;padding:18px 16px;font-weight:800;cursor:pointer;user-select:none}
+  .hint{font-size:.78rem;color:var(--muted);text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar"><a class="home" href="/">← Home</a><h1>Kong Climb</h1><button class="btn" id="new">New Game</button></div>
+  <div class="hud"><span>Score: <b id="score">0</b></span><span>Lives: <b id="lives">3</b></span><span>Best: <b id="best">0</b></span></div>
+  <canvas id="game" width="288" height="360"></canvas>
+  <div class="msg" id="msg">Climb to the top — jump the barrels rolling down!</div>
+  <div class="ctl">
+    <div class="dpad"><button class="u" data-d="up">▲</button><button class="l" data-d="left">◀</button><button class="dn" data-d="down">▼</button><button class="r" data-d="right">▶</button></div>
+    <button class="jump" id="jump">JUMP</button>
+  </div>
+  <div class="hint">Arrows/WASD move & climb ladders · Space/JUMP hops barrels</div>
+</div>
+<script>
+(function(){
+  const C={ cols:12, rows:6 };
+  const LADDERS=[{col:9,lower:5,upper:4},{col:2,lower:4,upper:3},{col:9,lower:3,upper:2},{col:4,lower:2,upper:1},{col:8,lower:1,upper:0}];
+  function ladderAt(s,col,row,dir){ if(dir==="up") return s.ladders.find(L=>L.lower===row&&L.col===col)||null; return s.ladders.find(L=>L.upper===row&&L.col===col)||null; }
+  function newState(){ return { ladders:LADDERS.map(l=>({...l})), player:{col:1,row:C.rows-1,jump:0}, barrels:[], score:0, lives:3, over:false, won:false, spawnT:40 }; }
+  function resetPlayer(s){ s.player.col=1; s.player.row=C.rows-1; s.player.jump=0; }
+  function move(s, dir){ if(s.over||s.won) return s; const p=s.player;
+    if(dir==="left") p.col=Math.max(0,p.col-1);
+    else if(dir==="right") p.col=Math.min(C.cols-1,p.col+1);
+    else if(dir==="up"){ const l=ladderAt(s,p.col,p.row,"up"); if(l) p.row=l.upper; }
+    else if(dir==="down"){ const l=ladderAt(s,p.col,p.row,"down"); if(l) p.row=l.lower; }
+    if(p.row===0) s.won=true; return s; }
+  function jump(s){ if(!s.over&&!s.won) s.player.jump=6; return s; }
+  function spawnBarrel(s){ s.barrels.push({col:0,row:0,dir:1,dodged:false}); }
+  function barrelStep(s){ for(const b of s.barrels){
+      const atEnd=(b.dir>0&&b.col>=C.cols-1)||(b.dir<0&&b.col<=0);
+      if(atEnd){ if(b.row<C.rows-1){ b.row++; b.dir=-b.dir; } else b.remove=true; }
+      else { const l=s.ladders.find(L=>L.upper===b.row&&L.col===b.col); if(l&&Math.random()<0.3) b.row=l.lower; else b.col+=b.dir; } }
+    s.barrels=s.barrels.filter(b=>!b.remove); return s; }
+  function collide(s){ for(const b of s.barrels){ if(b.col===s.player.col&&b.row===s.player.row){
+      if(s.player.jump>0){ if(!b.dodged){ b.dodged=true; s.score+=100; } }
+      else { s.lives--; if(s.lives<=0) s.over=true; else resetPlayer(s); return s; } } } return s; }
+  window.__dk={ newState, move, jump, barrelStep, collide, ladderAt, spawnBarrel, C };
+
+  if(typeof document==="undefined") return;
+  const $=(id)=>document.getElementById(id);
+  const cv=$("game"), ctx=cv.getContext("2d"); const W=cv.width,H=cv.height, CW=W/C.cols, RH=H/C.rows;
+  let s=newState(), best=0, barrelT=0, moveT=0, input=null;
+  try{ best=parseInt(localStorage.getItem("dk_best")||"0")||0; }catch(e){}
+  const gy=(row)=>row*RH+RH*0.72; const cx=(col)=>col*CW+CW/2;
+
+  function draw(){
+    ctx.clearRect(0,0,W,H); ctx.fillStyle="#08040f"; ctx.fillRect(0,0,W,H);
+    for(let r=0;r<C.rows;r++){ ctx.fillStyle="#c9558a"; ctx.fillRect(0,gy(r)+6,W,5); ctx.fillStyle="#e07ab0"; for(let x=0;x<W;x+=12) ctx.fillRect(x,gy(r)+6,6,2); }
+    for(const l of s.ladders){ ctx.strokeStyle="#22d3ee"; ctx.lineWidth=2; const x=cx(l.col); ctx.beginPath(); ctx.moveTo(x-6,gy(l.upper)+8); ctx.lineTo(x-6,gy(l.lower)+8); ctx.moveTo(x+6,gy(l.upper)+8); ctx.lineTo(x+6,gy(l.lower)+8); ctx.stroke();
+      for(let y=gy(l.upper)+8;y<gy(l.lower)+8;y+=8){ ctx.beginPath(); ctx.moveTo(x-6,y); ctx.lineTo(x+6,y); ctx.stroke(); } }
+    // goal / kong
+    ctx.font="20px system-ui"; ctx.textAlign="center"; ctx.fillText("🦍",cx(1),gy(0)-2); ctx.fillText("👸",cx(3),gy(0)-4);
+    for(const b of s.barrels){ ctx.fillStyle="#a9743a"; ctx.beginPath(); ctx.arc(cx(b.col),gy(b.row)-4,CW*0.32,0,7); ctx.fill(); ctx.strokeStyle="#7a4a24"; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(cx(b.col),gy(b.row)-4,CW*0.32,0,7); ctx.stroke(); }
+    const p=s.player; const py=gy(p.row)-6-(p.jump>0?8:0); ctx.fillStyle="#f43f5e"; ctx.fillRect(cx(p.col)-6,py-12,12,12); ctx.fillStyle="#ffcf5a"; ctx.fillRect(cx(p.col)-6,py-16,12,4);
+    if(s.won||s.over){ ctx.fillStyle="rgba(0,0,0,.6)"; ctx.fillRect(0,0,W,H); ctx.fillStyle=s.won?"#34d399":"#f43f5e"; ctx.font="bold 22px system-ui"; ctx.fillText(s.won?"YOU MADE IT!":"GAME OVER",W/2,H/2-6); ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Score "+s.score+"  ·  Best "+best,W/2,H/2+16); }
+  }
+  function frame(){
+    if(!s.over&&!s.won){
+      if(s.player.jump>0) s.player.jump--;
+      if(input && ++moveT>=7){ moveT=0; move(s,input); }
+      if(--s.spawnT<=0){ spawnBarrel(s); s.spawnT=45+Math.floor(Math.random()*30); }
+      if(++barrelT>=16){ barrelT=0; barrelStep(s); }
+      collide(s);
+      if(s.won) s.score+=500;
+      if((s.over||s.won) && s.score>best){ best=s.score; try{localStorage.setItem("dk_best",String(best));}catch(e){} }
+      if(s.won) $("msg").textContent="🎉 Rescued! Score "+s.score+". New Game to climb again.";
+      else if(s.over) $("msg").textContent="Squashed! Score "+s.score+"  ·  Best "+best;
+    }
+    $("score").textContent=s.score; $("lives").textContent=Math.max(0,s.lives); $("best").textContent=best; draw(); requestAnimationFrame(frame);
+  }
+  document.querySelectorAll(".dpad button").forEach(b=>{ const d=b.getAttribute("data-d"); const on=(e)=>{e.preventDefault(); if(d==="up"||d==="down"){ move(s,d); } else { input=d; move(s,d); moveT=0; } }; const off=(e)=>{e.preventDefault(); if(input===d)input=null;};
+    b.addEventListener("touchstart",on,{passive:false}); b.addEventListener("touchend",off); b.addEventListener("mousedown",on); b.addEventListener("mouseup",off); b.addEventListener("mouseleave",off); });
+  const jb=$("jump"); const jf=(e)=>{e.preventDefault();jump(s);}; jb.addEventListener("touchstart",jf,{passive:false}); jb.addEventListener("mousedown",jf);
+  addEventListener("keydown",(e)=>{ const m={ArrowLeft:"left",ArrowRight:"right",ArrowUp:"up",ArrowDown:"down",a:"left",d:"right",w:"up",s:"down"}[e.key]; if(m){e.preventDefault(); if(m==="up"||m==="down") move(s,m); else { input=m; move(s,m); moveT=0; } } if(e.key===" "){e.preventDefault(); jump(s);} });
+  addEventListener("keyup",(e)=>{ const m={ArrowLeft:"left",ArrowRight:"right"}[e.key]; if(m&&input===m)input=null; });
+  $("new").addEventListener("click",()=>{ s=newState(); input=null; $("msg").textContent="Climb to the top — jump the barrels!"; });
+  requestAnimationFrame(frame);
+})();
+</script>
+<script src="/comments.js" defer></script>
+</body>
+</html>
