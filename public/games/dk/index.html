@@ -54,7 +54,7 @@
     else if(dir==="up"){ const l=ladderAt(s,p.col,p.row,"up"); if(l) p.row=l.upper; }
     else if(dir==="down"){ const l=ladderAt(s,p.col,p.row,"down"); if(l) p.row=l.lower; }
     if(p.row===0) s.won=true; return s; }
-  function jump(s){ if(!s.over&&!s.won) s.player.jump=6; return s; }
+  function jump(s){ if(!s.over&&!s.won) s.player.jump=16; return s; }
   function spawnBarrel(s){ s.barrels.push({col:0,row:0,dir:1,dodged:false}); }
   function barrelStep(s){ for(const b of s.barrels){
       const atEnd=(b.dir>0&&b.col>=C.cols-1)||(b.dir<0&&b.col<=0);
@@ -81,14 +81,14 @@
     // goal / kong
     ctx.font="20px system-ui"; ctx.textAlign="center"; ctx.fillText("🦍",cx(1),gy(0)-2); ctx.fillText("👸",cx(3),gy(0)-4);
     for(const b of s.barrels){ ctx.fillStyle="#a9743a"; ctx.beginPath(); ctx.arc(cx(b.col),gy(b.row)-4,CW*0.32,0,7); ctx.fill(); ctx.strokeStyle="#7a4a24"; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(cx(b.col),gy(b.row)-4,CW*0.32,0,7); ctx.stroke(); }
-    const p=s.player; const py=gy(p.row)-6-(p.jump>0?8:0); ctx.fillStyle="#f43f5e"; ctx.fillRect(cx(p.col)-6,py-12,12,12); ctx.fillStyle="#ffcf5a"; ctx.fillRect(cx(p.col)-6,py-16,12,4);
+    const p=s.player; const py=gy(p.row)-6-(p.jump>0?16:0); ctx.fillStyle="#f43f5e"; ctx.fillRect(cx(p.col)-6,py-12,12,12); ctx.fillStyle="#ffcf5a"; ctx.fillRect(cx(p.col)-6,py-16,12,4);
     if(s.won||s.over){ ctx.fillStyle="rgba(0,0,0,.6)"; ctx.fillRect(0,0,W,H); ctx.fillStyle=s.won?"#34d399":"#f43f5e"; ctx.font="bold 22px system-ui"; ctx.fillText(s.won?"YOU MADE IT!":"GAME OVER",W/2,H/2-6); ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Score "+s.score+"  ·  Best "+best,W/2,H/2+16); }
   }
   function frame(){
     if(!s.over&&!s.won){
       if(s.player.jump>0) s.player.jump--;
       if(input && ++moveT>=7){ moveT=0; move(s,input); }
-      if(--s.spawnT<=0){ spawnBarrel(s); s.spawnT=45+Math.floor(Math.random()*30); }
+      if(--s.spawnT<=0){ spawnBarrel(s); s.spawnT=100+Math.floor(Math.random()*60); }
       if(++barrelT>=16){ barrelT=0; barrelStep(s); }
       collide(s);
       if(s.won) s.score+=500;

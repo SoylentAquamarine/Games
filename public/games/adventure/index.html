@@ -103,9 +103,9 @@
         chalice:{room:"blackIn",x:96,y:56,carried:false},
       },
       dragons:[
-        {id:"yellow",color:"#d8c020",room:"south",x:100,y:60,hx:100,hy:60,alive:true},
-        {id:"green", color:"#38b038",room:"east", x:120,y:120,hx:120,hy:120,alive:true},
-        {id:"red",   color:"#d03020",room:"blackgate",x:100,y:150,hx:100,hy:150,alive:true},
+        {id:"yellow",color:"#d8c020",room:"south",x:100,y:60,hx:100,hy:60,alive:true,spd:SPEED*0.5},
+        {id:"green", color:"#38b038",room:"east", x:120,y:120,hx:120,hy:120,alive:true,spd:SPEED*0.75},
+        {id:"red",   color:"#d03020",room:"blackgate",x:100,y:150,hx:100,hy:150,alive:true,spd:SPEED*1.0},
       ],
     };
   }
@@ -153,8 +153,9 @@
   function dragonStep(s,d){
     if(!d.alive||d.room!==s.room) return;
     const hx=s.hero.x+HS/2, hy=s.hero.y+HS/2, cx=d.x+DS/2, cy=d.y+DS/2;
-    d.x=clamp(d.x+Math.sign(hx-cx)*DSPEED,0,SIZE-DS);
-    d.y=clamp(d.y+Math.sign(hy-cy)*DSPEED,0,SIZE-DS);
+    const sp=d.spd||DSPEED;
+    d.x=clamp(d.x+Math.sign(hx-cx)*sp,0,SIZE-DS);
+    d.y=clamp(d.y+Math.sign(hy-cy)*sp,0,SIZE-DS);
     if(overlap({x:d.x,y:d.y,w:DS,h:DS},heroRect(s))){
       if(s.carry==="sword"){ d.alive=false; s.msg="You slew the "+d.id+" dragon!"; }
       else { s.dead=true; s.msg="The "+d.id+" dragon caught you!"; }

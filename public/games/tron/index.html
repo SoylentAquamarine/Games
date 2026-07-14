@@ -71,7 +71,7 @@
       const opts=Object.keys(DIRS).filter(d=>d!==OPP[cpu.dir]);
       let best=cpu.dir,bs=-1;
       for(const d of opts){const[dx,dy]=DIRS[d];const nx=cpu.x+dx,ny=cpu.y+dy;if(!free(nx,ny))continue;
-        const space=floodCount(nx,ny)+Math.random()*3;if(space>bs){bs=space;best=d;}}
+        const space=floodCount(nx,ny)+(d===cpu.dir?8:0)+Math.random()*1.2;if(space>bs){bs=space;best=d;}}
       return best;}
     function floodCount(sx,sy){ // reachable free cells (capped) from (sx,sy)
       const seen=new Set();const st=[[sx,sy]];let n=0;

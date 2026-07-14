@@ -67,7 +67,7 @@
     function render(){
       pegsEl.innerHTML="";
       for(let p=0;p<3;p++){const pe=document.createElement("div");pe.className="peg"+(sel===p?" sel":"");pe.addEventListener("click",()=>click(p));
-        pegs[p].forEach(d=>{const dk=document.createElement("div");dk.className="disk";dk.style.width=(30+d/N*65)+"%";dk.style.background=COLORS[(d-1)%COLORS.length];pe.appendChild(dk);});
+        pegs[p].slice().reverse().forEach(d=>{const dk=document.createElement("div");dk.className="disk";dk.style.width=(30+d/N*65)+"%";dk.style.background=COLORS[(d-1)%COLORS.length];pe.appendChild(dk);});
         pegsEl.appendChild(pe);}
     }
     document.querySelectorAll("#size button").forEach(b=>b.addEventListener("click",()=>{document.querySelectorAll("#size button").forEach(x=>x.classList.remove("active"));b.classList.add("active");N=+b.dataset.n;reset();}));

@@ -46,7 +46,7 @@
     const cv=document.getElementById("c"),ctx=cv.getContext("2d"),W=cv.width,H=cv.height;
     const scoreEl=document.getElementById("score"),bestEl=document.getElementById("best");
     const ov=document.getElementById("ov"),ot=document.getElementById("ot"),om=document.getElementById("om"),startBtn=document.getElementById("start");
-    const GAP=130,PIPE_W=52,SPEED=2.2,GRAV=0.45,FLAP=-7.4;
+    const GAP=150,PIPE_W=52,SPEED=2.2,GRAV=0.4,FLAP=-6.4;
     let bird,pipes,score,running,raf,best=+localStorage.getItem("flappy_best")||0;
     bestEl.textContent=best;
     function reset(){bird={x:90,y:H/2,v:0,r:13};pipes=[];score=0;scoreEl.textContent=0;

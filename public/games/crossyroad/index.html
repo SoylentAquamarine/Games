@@ -83,19 +83,20 @@
 
   function draw(){
     ctx.clearRect(0,0,W,H); camRow += (s.player.row - camRow)*0.2;
-    const baseRow=Math.floor(camRow)-2; const off=(camRow-baseRow);
-    for(let vr=-2; vr<C.VIEW+2; vr++){ const r=baseRow+vr; if(r<0||r>=s.rows.length) continue; const row=s.rows[r];
-      const y = H - (vr - off + 1)*RH + RH*3; // higher rows drawn upward
+    const BASE = H - 2.5*RH;                 // screen y of the row the player is on
+    const sy=(r)=> BASE - (r - camRow)*RH;    // higher rows (bigger r) sit higher up
+    const lo=Math.floor(camRow)-2, hi=Math.floor(camRow)+C.VIEW+2;
+    for(let r=lo;r<=hi;r++){ if(r<0||r>=s.rows.length) continue; const row=s.rows[r]; const y=sy(r);
       let col = row.type==="grass"?(r%2?COL.grass:COL.grass2):COL[row.type]; ctx.fillStyle=col; ctx.fillRect(0,y,W,RH);
-      if(row.type==="water"){ for(const l of row.ent){ ctx.fillStyle="#7a4a24"; ctx.fillRect(l.x*cw,y+6,l.len*cw,RH-12); } }
+      if(row.type==="water"){ for(const l of row.ent){ ctx.fillStyle="#7a4a24"; ctx.fillRect(l.x*cw,y+6,l.len*cw,RH-12); ctx.fillStyle="#5c3a18"; ctx.fillRect(l.x*cw,y+6,l.len*cw,2); } }
       if(row.type==="road"){ ctx.strokeStyle="rgba(255,255,255,.25)"; ctx.setLineDash([8,8]); ctx.beginPath(); ctx.moveTo(0,y+RH/2); ctx.lineTo(W,y+RH/2); ctx.stroke(); ctx.setLineDash([]);
-        for(const car of row.ent){ ctx.fillStyle="#f43f5e"; ctx.fillRect(car.x*cw+3,y+7,car.len*cw-6,RH-14); ctx.fillStyle="#ffd0d6"; ctx.fillRect((car.dir>0?car.x+car.len-0.25:car.x)*cw+ (car.dir>0?-3:3),y+11,4,RH-22); } }
+        for(const car of row.ent){ ctx.fillStyle="#f43f5e"; ctx.fillRect(car.x*cw+3,y+7,car.len*cw-6,RH-14); ctx.fillStyle="#ffd0d6"; ctx.fillRect((car.dir>0?(car.x+car.len)*cw-6:car.x*cw+2),y+11,4,RH-22); } }
     }
-    // player
-    const py = H - (s.player.row - camRow + 1)*RH + RH*3 + RH/2;
-    ctx.fillStyle="#ffcf5a"; ctx.beginPath(); ctx.arc(s.player.x*cw+cw/2, py, 13, 0, 7); ctx.fill();
-    ctx.fillStyle="#f43f5e"; ctx.fillRect(s.player.x*cw+cw/2-2, py-14, 4, 4);
-    ctx.fillStyle="#0b0c1a"; ctx.fillRect(s.player.x*cw+cw/2+3, py-4, 2, 2);
+    const py=sy(s.player.row)+RH/2, pcx=s.player.x*cw+cw/2;
+    ctx.fillStyle="#ffcf5a"; ctx.beginPath(); ctx.arc(pcx, py, 13, 0, 7); ctx.fill();
+    ctx.fillStyle="#f0902a"; ctx.fillRect(pcx-2, py-15, 4, 5);        // beak
+    ctx.fillStyle="#f43f5e"; ctx.fillRect(pcx-5, py-14, 10, 3);       // comb
+    ctx.fillStyle="#0b0c1a"; ctx.fillRect(pcx-5, py-4, 2, 2); ctx.fillRect(pcx+3, py-4, 2, 2);
     if(s.over){ ctx.fillStyle="rgba(0,0,0,.55)"; ctx.fillRect(0,0,W,H); ctx.fillStyle="#f43f5e"; ctx.font="bold 24px system-ui"; ctx.textAlign="center"; ctx.fillText("SPLAT!",W/2,H/2-6); ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Score "+s.score+"  ·  Best "+best,W/2,H/2+16); }
   }
   function frame(){ step(s);
