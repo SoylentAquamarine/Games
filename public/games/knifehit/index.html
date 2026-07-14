@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Knife Hit — Games</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🔪</text></svg>" />
+<style>
+  :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;--bad:#f43f5e;}
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+    background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.2),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.14),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;touch-action:none;}
+  .wrap{max-width:400px;margin:0 auto;padding:14px 12px 30px;display:flex;flex-direction:column;align-items:center;gap:10px}
+  .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
+  .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+  .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+  h1{margin:0;font-size:1.3rem;background:linear-gradient(120deg,#c9c9e6,var(--accent-2));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:9px 16px;border-radius:999px;cursor:pointer}
+  .hud{width:100%;max-width:320px;display:flex;justify-content:space-between;font-size:.85rem;color:var(--muted)}
+  .hud b{color:var(--text)}
+  canvas{width:min(90vw,320px);height:calc(min(90vw,320px)*1.15);border-radius:10px;border:2px solid #2a2f55;background:#0a0c18;cursor:pointer;touch-action:none}
+  .msg{min-height:1.3em;font-weight:800;text-align:center}
+  .hint{font-size:.78rem;color:var(--muted);text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar"><a class="home" href="/">← Home</a><h1>Knife Hit</h1><button class="btn" id="new">New Game</button></div>
+  <div class="hud"><span>Score: <b id="score">0</b></span><span>Stage: <b id="level">1</b></span><span>Knives: <b id="left">6</b></span></div>
+  <canvas id="game" width="320" height="368"></canvas>
+  <div class="msg" id="msg">Tap to throw. Don't hit a knife that's already stuck!</div>
+  <div class="hint">Click / tap / Space to throw</div>
+</div>
+<script>
+(function(){
+  const C={ TOL:0.26, KNIVES_PER:6 };
+  const TAU=Math.PI*2;
+  const norm=(a)=>((a%TAU)+TAU)%TAU;
+  const angDist=(a,b)=>{ let d=Math.abs(norm(a)-norm(b))%TAU; return d>Math.PI?TAU-d:d; };
+  function angleCollides(arr, a, tol){ for(const e of arr) if(angDist(e,a)<tol) return true; return false; }
+  const STICK=Math.PI/2; // knife enters at the bottom of the log
+  function newState(){ return { rot:0, spin:0.028, knives:[], toThrow:C.KNIVES_PER, score:0, level:1, over:false }; }
+  function step(s){ if(!s.over) s.rot=norm(s.rot+s.spin); return s; }
+  function throwKnife(s){
+    if(s.over) return "over";
+    const local=norm(STICK - s.rot);
+    if(angleCollides(s.knives, local, C.TOL)){ s.over=true; return "hit"; }
+    s.knives.push(local); s.score++; s.toThrow--;
+    if(s.toThrow<=0) nextLevel(s);
+    return "stuck";
+  }
+  function nextLevel(s){ s.level++; s.knives=[]; s.toThrow=C.KNIVES_PER;
+    s.spin=(s.level%2?1:-1)*(0.028+s.level*0.006);
+    const obs=Math.min(4,Math.floor(s.level/2)); for(let i=0;i<obs;i++){ let a; do{ a=Math.random()*TAU; }while(angleCollides(s.knives,a,C.TOL*1.6)); s.knives.push(a); } }
+  window.__knifehit={ newState, step, throwKnife, nextLevel, angleCollides, angDist, C };
+
+  if(typeof document==="undefined") return;
+  const $=(id)=>document.getElementById(id);
+  const cv=$("game"), ctx=cv.getContext("2d"); const W=cv.width,H=cv.height;
+  const CX=W/2, CY=140, R=62;
+  let s=newState(), best=0, flying=null, shake=0;
+  try{ best=parseInt(localStorage.getItem("knife_best")||"0")||0; }catch(e){}
+
+  function drawKnife(worldAngle, dist){ const dx=Math.cos(worldAngle), dy=Math.sin(worldAngle);
+    const bx=CX+dx*dist, by=CY+dy*dist; // blade tip near this point
+    ctx.save(); ctx.translate(bx,by); ctx.rotate(worldAngle);
+    ctx.fillStyle="#c9c9e6"; ctx.fillRect(-2,-1,16,3); ctx.fillStyle="#7a4a24"; ctx.fillRect(14,-2,10,5); ctx.restore(); }
+  function draw(){
+    ctx.clearRect(0,0,W,H); ctx.fillStyle="#0a0c18"; ctx.fillRect(0,0,W,H);
+    const ox=shake>0?(Math.random()*5-2.5):0; if(shake>0)shake--;
+    // log
+    ctx.fillStyle="#8a5a2a"; ctx.beginPath(); ctx.arc(CX+ox,CY,R,0,TAU); ctx.fill();
+    ctx.strokeStyle="#5c3a18"; ctx.lineWidth=4; for(let i=1;i<=3;i++){ ctx.beginPath(); ctx.arc(CX+ox,CY,R*i/4,0,TAU); ctx.stroke(); }
+    // stuck knives (point inward from surface)
+    for(const local of s.knives){ const wa=norm(local+s.rot); const dx=Math.cos(wa),dy=Math.sin(wa);
+      ctx.save(); ctx.translate(CX+dx*(R-4)+ox, CY+dy*(R-4)); ctx.rotate(wa+Math.PI);
+      ctx.fillStyle="#e6e6f0"; ctx.fillRect(0,-1.5,18,3); ctx.fillStyle="#7a4a24"; ctx.fillRect(18,-2.5,10,5); ctx.restore(); }
+    // flying knife
+    const ky = flying!=null?flying:H-40;
+    ctx.save(); ctx.translate(CX, ky); ctx.rotate(-Math.PI/2);
+    ctx.fillStyle="#e6e6f0"; ctx.fillRect(0,-1.5,18,3); ctx.fillStyle="#7a4a24"; ctx.fillRect(18,-2.5,10,5); ctx.restore();
+    if(s.over){ ctx.fillStyle="rgba(0,0,0,.6)"; ctx.fillRect(0,0,W,H); ctx.fillStyle="#f43f5e"; ctx.font="bold 24px system-ui"; ctx.textAlign="center"; ctx.fillText("CLANG!",W/2,H/2-6); ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Score "+s.score+"  ·  Best "+best,W/2,H/2+16); }
+  }
+  function frame(){ step(s);
+    if(flying!=null){ flying-=26; if(flying<=CY+R){ flying=null; doThrow(); } }
+    draw(); $("score").textContent=s.score; $("level").textContent=s.level; $("left").textContent=s.toThrow; requestAnimationFrame(frame); }
+  function doThrow(){ const r=throwKnife(s); if(r==="hit"){ shake=6; if(s.score>best){ best=s.score; try{localStorage.setItem("knife_best",String(best));}catch(e){} } $("msg").textContent="💥 You hit a knife! Score "+s.score+"  ·  Best "+best; } }
+  function toss(){ if(s.over||flying!=null) return; flying=H-40; }
+  cv.addEventListener("mousedown",(e)=>{e.preventDefault();toss();});
+  cv.addEventListener("touchstart",(e)=>{e.preventDefault();toss();},{passive:false});
+  addEventListener("keydown",(e)=>{ if(e.key===" "){ e.preventDefault(); toss(); } });
+  $("new").addEventListener("click",()=>{ s=newState(); flying=null; $("msg").textContent="Tap to throw. Don't hit a stuck knife!"; });
+  requestAnimationFrame(frame);
+})();
+</script>
+<script src="/comments.js" defer></script>
+</body>
+</html>

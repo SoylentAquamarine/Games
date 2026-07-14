@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Helix Jump — Games</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🌀</text></svg>" />
+<style>
+  :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;--bad:#f43f5e;}
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+    background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.2),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.14),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;touch-action:none;}
+  .wrap{max-width:380px;margin:0 auto;padding:14px 12px 30px;display:flex;flex-direction:column;align-items:center;gap:10px}
+  .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
+  .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+  .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+  h1{margin:0;font-size:1.3rem;background:linear-gradient(120deg,#7c5cff,#22d3ee);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:9px 16px;border-radius:999px;cursor:pointer}
+  .hud{width:100%;max-width:300px;display:flex;justify-content:space-between;font-size:.9rem;color:var(--muted)}
+  .hud b{color:var(--text)}
+  canvas{width:min(90vw,300px);height:calc(min(90vw,300px)*1.4);border-radius:10px;border:2px solid #2a2f55;background:#0a0c18;cursor:grab;touch-action:none}
+  .msg{min-height:1.3em;font-weight:800;text-align:center}
+  .hint{font-size:.78rem;color:var(--muted);text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar"><a class="home" href="/">← Home</a><h1>Helix Jump</h1><button class="btn" id="new">New Game</button></div>
+  <div class="hud"><span>Depth: <b id="score">0</b></span><span>Best: <b id="best">0</b></span></div>
+  <canvas id="game" width="300" height="420"></canvas>
+  <div class="msg" id="msg">Rotate the tower so the ball drops through the gaps — avoid the red zones!</div>
+  <div class="hint">Drag / ← → to rotate · red segments are deadly</div>
+</div>
+<script>
+(function(){
+  const TAU=Math.PI*2;
+  const C={ W:300,H:420, SEG:12, GAP:120, BALL_R:11, GRAVITY:0.5, BOUNCE:9.5, ROT_STEP:0.16 };
+  const norm=(a)=>((a%TAU)+TAU)%TAU;
+  function segIndexUnder(rot){ return Math.floor(norm(rot)/(TAU/C.SEG))%C.SEG; }
+  function genPlatform(i){ const segs=new Array(C.SEG).fill("solid");
+    const gaps=1+Math.floor(Math.random()*2); for(let g=0;g<gaps;g++){ const st=Math.floor(Math.random()*C.SEG); segs[st]="gap"; segs[(st+1)%C.SEG]="gap"; }
+    if(i>2 && Math.random()<0.5){ const d=Math.floor(Math.random()*C.SEG); if(segs[d]==="solid") segs[d]="death"; }
+    return { y:(i+1)*C.GAP, segs, passed:false }; }
+  function newState(){ const platforms=[]; for(let i=0;i<8;i++) platforms.push(genPlatform(i));
+    return { ball:{x:C.W/2,y:0,vy:0}, rot:0, platforms, nextIdx:0, score:0, over:false }; }
+  function step(s, input){
+    if(s.over) return s;
+    if(input){ if(input.left) s.rot-=C.ROT_STEP; if(input.right) s.rot+=C.ROT_STEP; if(input.rot!=null) s.rot+=input.rot; }
+    s.ball.vy += C.GRAVITY; s.ball.y += s.ball.vy;
+    const p=s.platforms[s.nextIdx];
+    if(p && s.ball.y+C.BALL_R>=p.y && s.ball.vy>0){
+      const seg=p.segs[segIndexUnder(s.rot)];
+      if(seg==="death"){ s.over=true; }
+      else if(seg==="gap"){ p.passed=true; s.score++; s.nextIdx++; }
+      else { s.ball.y=p.y-C.BALL_R; s.ball.vy=-C.BOUNCE; }
+    }
+    while(s.platforms.length < s.nextIdx+8) s.platforms.push(genPlatform(s.platforms.length));
+    return s;
+  }
+  window.__helixjump={ newState, step, segIndexUnder, genPlatform, C };
+
+  if(typeof document==="undefined") return;
+  const $=(id)=>document.getElementById(id);
+  const cv=$("game"), ctx=cv.getContext("2d"); const W=C.W,H=C.H;
+  let s=newState(), best=0, input={left:false,right:false,rot:null};
+  try{ best=parseInt(localStorage.getItem("helix_best")||"0")||0; }catch(e){}
+  const cellW=W/C.SEG;
+
+  function draw(){
+    ctx.clearRect(0,0,W,H); ctx.fillStyle="#0a0c18"; ctx.fillRect(0,0,W,H);
+    const camY = s.ball.y - H*0.32;
+    // central pillar
+    ctx.fillStyle="#171a30"; ctx.fillRect(W/2-6,0,12,H);
+    const off = (norm(s.rot)/TAU)*W;
+    for(const p of s.platforms){ const py=p.y-camY; if(py< -20||py>H+20) continue;
+      for(let j=0;j<C.SEG;j++){ const seg=p.segs[j]; if(seg==="gap") continue;
+        let x = j*cellW - (segIndexUnder(s.rot))*cellW + W/2 - cellW/2 - (off%cellW); x=((x%W)+W)%W;
+        ctx.fillStyle = seg==="death"?"#f43f5e":(p.passed?"#3a3f6a":"#7c5cff");
+        ctx.fillRect(x,py,cellW-1,14); if(x>W-cellW) ctx.fillRect(x-W,py,cellW-1,14);
+      } }
+    const by=s.ball.y-camY; ctx.fillStyle="#ffcf5a"; ctx.beginPath(); ctx.arc(W/2,by,C.BALL_R,0,TAU); ctx.fill();
+    ctx.fillStyle="rgba(255,255,255,.4)"; ctx.beginPath(); ctx.arc(W/2-3,by-3,4,0,TAU); ctx.fill();
+    if(s.over){ ctx.fillStyle="rgba(0,0,0,.6)"; ctx.fillRect(0,0,W,H); ctx.fillStyle="#f43f5e"; ctx.font="bold 24px system-ui"; ctx.textAlign="center"; ctx.fillText("SPLAT!",W/2,H/2-6); ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Depth "+s.score+"  ·  Best "+best,W/2,H/2+16); }
+  }
+  function frame(){ step(s,input); input.rot=null;
+    if(s.over && s.score>best){ best=s.score; try{localStorage.setItem("helix_best",String(best));}catch(e){} $("msg").textContent="Ouch! Depth "+s.score+"  ·  Best "+best; }
+    $("score").textContent=s.score; $("best").textContent=best; draw(); requestAnimationFrame(frame); }
+  addEventListener("keydown",(e)=>{ if(e.key==="ArrowLeft"||e.key==="a")input.left=true; else if(e.key==="ArrowRight"||e.key==="d")input.right=true; });
+  addEventListener("keyup",(e)=>{ if(e.key==="ArrowLeft"||e.key==="a")input.left=false; else if(e.key==="ArrowRight"||e.key==="d")input.right=false; });
+  let drag=null;
+  const dxToRot=(dx)=>{ input.rot=(input.rot||0)+dx*0.01; };
+  cv.addEventListener("mousedown",(e)=>{ drag=e.clientX; });
+  cv.addEventListener("mousemove",(e)=>{ if(drag!=null){ dxToRot(e.clientX-drag); drag=e.clientX; } });
+  window.addEventListener("mouseup",()=>{ drag=null; });
+  cv.addEventListener("touchstart",(e)=>{ drag=e.touches[0].clientX; },{passive:true});
+  cv.addEventListener("touchmove",(e)=>{ e.preventDefault(); if(drag!=null){ dxToRot(e.touches[0].clientX-drag); drag=e.touches[0].clientX; } },{passive:false});
+  cv.addEventListener("touchend",()=>{ drag=null; });
+  $("new").addEventListener("click",()=>{ s=newState(); $("msg").textContent="Rotate so the ball drops through the gaps!"; });
+  requestAnimationFrame(frame);
+})();
+</script>
+<script src="/comments.js" defer></script>
+</body>
+</html>
