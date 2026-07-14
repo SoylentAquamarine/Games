@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Bomber — Games</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>💥</text></svg>" />
+<style>
+  :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;--bad:#f43f5e;}
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+    background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.2),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.14),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;touch-action:none;}
+  .wrap{max-width:440px;margin:0 auto;padding:14px 12px 30px;display:flex;flex-direction:column;align-items:center;gap:10px}
+  .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
+  .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+  .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+  h1{margin:0;font-size:1.3rem;background:linear-gradient(120deg,#f0616e,#ffcf5a);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:9px 16px;border-radius:999px;cursor:pointer}
+  .hud{width:100%;max-width:340px;display:flex;justify-content:space-between;font-size:.85rem;color:var(--muted)}
+  .hud b{color:var(--text)}
+  canvas{width:min(94vw,340px);height:calc(min(94vw,340px)*0.846);image-rendering:pixelated;border-radius:10px;border:2px solid #2a2f55;background:#1a5a2a;touch-action:none}
+  .msg{min-height:1.3em;font-weight:800;text-align:center}
+  .ctl{display:flex;gap:10px;align-items:center}
+  .dpad{display:grid;grid-template-columns:repeat(3,46px);grid-template-rows:repeat(3,46px);gap:4px}
+  .dpad button{background:var(--panel);color:var(--text);border:1px solid rgba(255,255,255,.1);border-radius:9px;font-size:1.1rem;cursor:pointer;user-select:none}
+  .dpad button:active{background:var(--accent);color:#0b0c1a}
+  .dpad .u{grid-area:1/2}.dpad .l{grid-area:2/1}.dpad .dn{grid-area:3/2}.dpad .r{grid-area:2/3}
+  .bomb{background:var(--bad);color:#fff;border:none;border-radius:14px;padding:18px 16px;font-weight:800;cursor:pointer;user-select:none}
+  .hint{font-size:.78rem;color:var(--muted);text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar"><a class="home" href="/">← Home</a><h1>Bomber</h1><button class="btn" id="new">New Game</button></div>
+  <div class="hud"><span>Score: <b id="score">0</b></span><span>Enemies: <b id="enemies">3</b></span></div>
+  <canvas id="game" width="312" height="264"></canvas>
+  <div class="msg" id="msg">Blow up bricks and enemies — don't get caught in your own blast!</div>
+  <div class="ctl">
+    <div class="dpad"><button class="u" data-d="up">▲</button><button class="l" data-d="left">◀</button><button class="dn" data-d="down">▼</button><button class="r" data-d="right">▶</button></div>
+    <button class="bomb" id="drop">BOMB</button>
+  </div>
+  <div class="hint">Arrows/WASD move · Space/BOMB to drop a bomb</div>
+</div>
+<script>
+(function(){
+  const C={ cols:13, rows:11, BOMB_TIME:120, range:2, BLAST_LIFE:20 };
+  const DIRS={left:[-1,0],right:[1,0],up:[0,-1],down:[0,1]};
+  function newState(){
+    const grid=[]; for(let r=0;r<C.rows;r++){ const row=[]; for(let c=0;c<C.cols;c++){
+      if(r===0||c===0||r===C.rows-1||c===C.cols-1||(r%2===0&&c%2===0)) row.push("wall"); else row.push("empty"); } grid.push(row); }
+    const safe=new Set(["1,1","2,1","1,2"]);
+    for(let r=1;r<C.rows-1;r++) for(let c=1;c<C.cols-1;c++){ if(grid[r][c]==="empty" && !safe.has(c+","+r) && Math.random()<0.5) grid[r][c]="brick"; }
+    const s={ grid, player:{c:1,r:1,alive:true}, bombs:[], blasts:[], enemies:[], score:0, maxBombs:1, range:C.range, over:false, won:false };
+    const spots=[[11,1],[1,9],[11,9]]; for(const [c,r] of spots){ if(grid[r][c]!=="wall"){ grid[r][c]="empty"; s.enemies.push({c,r,alive:true,dir:"left"}); } }
+    return s;
+  }
+  function explodeCells(grid, c, r, range){
+    const cells=[{c,r}], bricks=[];
+    for(const k in DIRS){ const [dc,dr]=DIRS[k]; for(let i=1;i<=range;i++){ const nc=c+dc*i, nr=r+dr*i;
+      if(nc<0||nc>=C.cols||nr<0||nr>=C.rows) break; const cell=grid[nr][nc]; if(cell==="wall") break;
+      cells.push({c:nc,r:nr}); if(cell==="brick"){ bricks.push({c:nc,r:nr}); break; } } }
+    return { cells, bricks };
+  }
+  function detonate(s, bi){
+    const b=s.bombs[bi]; if(!b) return [];
+    const { cells, bricks } = explodeCells(s.grid, b.c, b.r, s.range);
+    for(const br of bricks){ s.grid[br.r][br.c]="empty"; s.score+=10; }
+    for(const e of s.enemies){ if(e.alive && cells.some(x=>x.c===e.c&&x.r===e.r)){ e.alive=false; s.score+=100; } }
+    if(cells.some(x=>x.c===s.player.c&&x.r===s.player.r)){ s.player.alive=false; s.over=true; }
+    s.bombs.splice(bi,1);
+    for(const cell of cells){ const j=s.bombs.findIndex(bb=>bb.c===cell.c&&bb.r===cell.r); if(j>=0) s.bombs[j].timer=0; }
+    for(const cell of cells) s.blasts.push({c:cell.c,r:cell.r,life:C.BLAST_LIFE});
+    return cells;
+  }
+  function placeBomb(s){ if(s.over) return false; if(s.bombs.length>=s.maxBombs) return false;
+    if(s.bombs.some(b=>b.c===s.player.c&&b.r===s.player.r)) return false;
+    s.bombs.push({c:s.player.c, r:s.player.r, timer:C.BOMB_TIME}); return true; }
+  function canWalk(s, c, r){ if(c<0||c>=C.cols||r<0||r>=C.rows) return false; if(s.grid[r][c]!=="empty") return false;
+    if(s.bombs.some(b=>b.c===c&&b.r===r)) return false; return true; }
+  function movePlayer(s, dir){ if(s.over) return s; const d=DIRS[dir]; if(!d) return s; const nc=s.player.c+d[0], nr=s.player.r+d[1];
+    if(canWalk(s,nc,nr)){ s.player.c=nc; s.player.r=nr; if(s.enemies.some(e=>e.alive&&e.c===nc&&e.r===nr)){ s.player.alive=false; s.over=true; } } return s; }
+  function moveEnemies(s){ if(s.over) return s;
+    for(const e of s.enemies){ if(!e.alive) continue; const opts=Object.keys(DIRS).filter(k=>{ const [dc,dr]=DIRS[k]; return canWalk(s,e.c+dc,e.r+dr); });
+      let move = opts.includes(e.dir)&&Math.random()<0.7 ? e.dir : (opts.length?opts[Math.floor(Math.random()*opts.length)]:null);
+      if(move){ const [dc,dr]=DIRS[move]; e.c+=dc; e.r+=dr; e.dir=move; if(e.c===s.player.c&&e.r===s.player.r){ s.player.alive=false; s.over=true; } } }
+    return s; }
+  function tick(s){ if(s.over) return s;
+    for(let i=s.bombs.length-1;i>=0;i--){ if(--s.bombs[i].timer<=0) detonate(s,i); }
+    for(const bl of s.blasts) bl.life--; s.blasts=s.blasts.filter(b=>b.life>0);
+    if(s.blasts.some(bl=>bl.c===s.player.c&&bl.r===s.player.r)){ s.player.alive=false; s.over=true; }
+    if(!s.over && s.enemies.every(e=>!e.alive)) s.won=true;
+    return s; }
+  window.__bomberman={ newState, explodeCells, detonate, placeBomb, movePlayer, moveEnemies, canWalk, tick, C };
+
+  if(typeof document==="undefined") return;
+  const $=(id)=>document.getElementById(id);
+  const cv=$("game"), ctx=cv.getContext("2d"); const CELL=24, W=cv.width,H=cv.height;
+  let s=newState(), best=0, moveT=0, enemyT=0, input=null;
+  try{ best=parseInt(localStorage.getItem("bomber_best")||"0")||0; }catch(e){}
+
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    for(let r=0;r<C.rows;r++) for(let c=0;c<C.cols;c++){ const cell=s.grid[r][c]; const x=c*CELL,y=r*CELL;
+      if(cell==="wall"){ ctx.fillStyle="#5a5f7a"; ctx.fillRect(x,y,CELL,CELL); ctx.fillStyle="#40445c"; ctx.fillRect(x+2,y+2,CELL-4,CELL-4); }
+      else if(cell==="brick"){ ctx.fillStyle="#a9743a"; ctx.fillRect(x,y,CELL,CELL); ctx.fillStyle="#7a4a24"; ctx.fillRect(x,y+CELL/2-1,CELL,2); ctx.fillRect(x+CELL/2-1,y,2,CELL/2); }
+      else { ctx.fillStyle=(r+c)%2?"#1c5e2c":"#1a5a2a"; ctx.fillRect(x,y,CELL,CELL); } }
+    for(const b of s.bombs){ const p=1+Math.sin(Date.now()/120)*0.12; ctx.fillStyle="#14162b"; ctx.beginPath(); ctx.arc(b.c*CELL+CELL/2,b.r*CELL+CELL/2,CELL/2*0.7*p,0,7); ctx.fill(); ctx.fillStyle="#ffcf5a"; ctx.fillRect(b.c*CELL+CELL/2-1,b.r*CELL+3,2,3); }
+    for(const bl of s.blasts){ ctx.fillStyle="rgba(255,180,60,"+(bl.life/C.BLAST_LIFE*0.85)+")"; ctx.fillRect(bl.c*CELL+2,bl.r*CELL+2,CELL-4,CELL-4); }
+    for(const e of s.enemies){ if(!e.alive) continue; ctx.fillStyle="#f0616e"; ctx.fillRect(e.c*CELL+4,e.r*CELL+4,CELL-8,CELL-8); ctx.fillStyle="#fff"; ctx.fillRect(e.c*CELL+7,e.r*CELL+8,3,3); ctx.fillRect(e.c*CELL+CELL-10,e.r*CELL+8,3,3); }
+    if(s.player.alive){ ctx.fillStyle="#22d3ee"; ctx.fillRect(s.player.c*CELL+4,s.player.r*CELL+3,CELL-8,CELL-6); ctx.fillStyle="#7de8ff"; ctx.fillRect(s.player.c*CELL+CELL/2-3,s.player.r*CELL+2,6,4); }
+    if(s.over||s.won){ ctx.fillStyle="rgba(0,0,0,.6)"; ctx.fillRect(0,0,W,H); ctx.fillStyle=s.won?"#34d399":"#f43f5e"; ctx.font="bold 22px system-ui"; ctx.textAlign="center"; ctx.fillText(s.won?"CLEARED!":"GAME OVER",W/2,H/2-6); ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Score "+s.score+"  ·  Best "+best,W/2,H/2+16); }
+  }
+  function frame(){
+    if(!s.over && !s.won){
+      if(input && ++moveT>=8){ moveT=0; movePlayer(s,input); }
+      if(++enemyT>=22){ enemyT=0; moveEnemies(s); }
+      tick(s);
+      if((s.over||s.won) && s.score>best){ best=s.score; try{localStorage.setItem("bomber_best",String(best));}catch(e){} }
+      if(s.won) $("msg").textContent="🎉 Level cleared! Score "+s.score+". New Game for another.";
+      else if(s.over) $("msg").textContent="💥 Boom! Score "+s.score+"  ·  Best "+best;
+    }
+    $("score").textContent=s.score; $("enemies").textContent=s.enemies.filter(e=>e.alive).length; draw(); requestAnimationFrame(frame);
+  }
+  document.querySelectorAll(".dpad button").forEach(b=>{ const d=b.getAttribute("data-d"); const on=(e)=>{e.preventDefault();input=d;movePlayer(s,d);moveT=0;}; const off=(e)=>{e.preventDefault();if(input===d)input=null;};
+    b.addEventListener("touchstart",on,{passive:false}); b.addEventListener("touchend",off); b.addEventListener("mousedown",on); b.addEventListener("mouseup",off); b.addEventListener("mouseleave",off); });
+  const db=$("drop"); const df=(e)=>{e.preventDefault(); placeBomb(s); }; db.addEventListener("touchstart",df,{passive:false}); db.addEventListener("mousedown",df);
+  addEventListener("keydown",(e)=>{ const m={ArrowLeft:"left",ArrowRight:"right",ArrowUp:"up",ArrowDown:"down",a:"left",d:"right",w:"up",s:"down"}[e.key]; if(m){e.preventDefault(); input=m; movePlayer(s,m); moveT=0;} if(e.key===" "){e.preventDefault(); placeBomb(s);} });
+  addEventListener("keyup",(e)=>{ const m={ArrowLeft:"left",ArrowRight:"right",ArrowUp:"up",ArrowDown:"down",a:"left",d:"right",w:"up",s:"down"}[e.key]; if(m&&input===m)input=null; });
+  $("new").addEventListener("click",()=>{ s=newState(); input=null; $("msg").textContent="Blow up bricks and enemies!"; });
+  requestAnimationFrame(frame);
+})();
+</script>
+<script src="/comments.js" defer></script>
+</body>
+</html>

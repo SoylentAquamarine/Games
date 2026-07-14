@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Dig Dug — Games</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>⛏️</text></svg>" />
+<style>
+  :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;--bad:#f43f5e;}
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+    background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.2),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.14),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;touch-action:none;}
+  .wrap{max-width:420px;margin:0 auto;padding:14px 12px 30px;display:flex;flex-direction:column;align-items:center;gap:10px}
+  .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
+  .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+  .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+  h1{margin:0;font-size:1.3rem;background:linear-gradient(120deg,#e0a060,#f0616e);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:9px 16px;border-radius:999px;cursor:pointer}
+  .hud{width:100%;max-width:300px;display:flex;justify-content:space-between;font-size:.85rem;color:var(--muted)}
+  .hud b{color:var(--text)}
+  canvas{width:min(90vw,300px);height:calc(min(90vw,300px)*1.14);image-rendering:pixelated;border-radius:10px;border:2px solid #2a2f55;background:#3a2418;touch-action:none}
+  .msg{min-height:1.3em;font-weight:800;text-align:center}
+  .ctl{display:flex;gap:8px;align-items:center}
+  .dpad{display:grid;grid-template-columns:repeat(3,44px);grid-template-rows:repeat(3,44px);gap:4px}
+  .dpad button{background:var(--panel);color:var(--text);border:1px solid rgba(255,255,255,.1);border-radius:9px;font-size:1.1rem;cursor:pointer;user-select:none}
+  .dpad button:active{background:var(--accent);color:#0b0c1a}
+  .dpad .u{grid-area:1/2}.dpad .l{grid-area:2/1}.dpad .dn{grid-area:3/2}.dpad .r{grid-area:2/3}
+  .pump{background:var(--bad);color:#fff;border:none;border-radius:14px;padding:18px 18px;font-weight:800;cursor:pointer;user-select:none}
+  .hint{font-size:.78rem;color:var(--muted);text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar"><a class="home" href="/">← Home</a><h1>Dig Dug</h1><button class="btn" id="new">New Game</button></div>
+  <div class="hud"><span>Score: <b id="score">0</b></span><span>Level: <b id="level">1</b></span><span>Lives: <b id="lives">3</b></span></div>
+  <canvas id="game" width="280" height="320"></canvas>
+  <div class="msg" id="msg">Dig tunnels and pump the monsters until they pop!</div>
+  <div class="ctl">
+    <div class="dpad"><button class="u" data-d="up">▲</button><button class="l" data-d="left">◀</button><button class="dn" data-d="down">▼</button><button class="r" data-d="right">▶</button></div>
+    <button class="pump" id="pump">PUMP</button>
+  </div>
+  <div class="hint">Arrows/WASD dig · Space/PUMP to inflate monsters (3 pumps pops)</div>
+</div>
+<script>
+(function(){
+  const C={ cols:14, rows:16, cell:20, reach:3 };
+  const DIRS={left:[-1,0],right:[1,0],up:[0,-1],down:[0,1]};
+  function enemyAt(s,c,r){ return s.enemies.find(e=>e.alive&&e.c===c&&e.r===r)||null; }
+  function newState(){
+    const dirt=[]; for(let r=0;r<C.rows;r++){ dirt.push(new Array(C.cols).fill(r>=2)); } // top 2 rows are open sky
+    const s={ dirt, player:{c:7,r:2,dir:"down"}, enemies:[], rocks:[], score:0, level:1, lives:3, over:false };
+    for(let r=2;r<=4;r++) s.dirt[r][7]=false; // carve a starting shaft
+    s.enemies=[{c:3,r:9,alive:true,inflate:0},{c:10,r:11,alive:true,inflate:0},{c:6,r:13,alive:true,inflate:0}];
+    s.rocks=[{c:4,r:6},{c:9,r:7},{c:11,r:10}];
+    return s;
+  }
+  function dig(s, dir){ if(s.over) return s; const d=DIRS[dir]; if(!d) return s; s.player.dir=dir;
+    const nc=s.player.c+d[0], nr=s.player.r+d[1]; if(nc<0||nc>=C.cols||nr<0||nr>=C.rows) return s;
+    s.player.c=nc; s.player.r=nr; s.dirt[nr][nc]=false; return s; }
+  function pump(s){ if(s.over) return "miss"; const d=DIRS[s.player.dir]; let c=s.player.c, r=s.player.r;
+    for(let i=1;i<=C.reach;i++){ c+=d[0]; r+=d[1]; if(c<0||c>=C.cols||r<0||r>=C.rows||s.dirt[r][c]) break;
+      const e=enemyAt(s,c,r); if(e){ e.inflate++; if(e.inflate>=3){ e.alive=false; s.score+=200; } return "hit"; } }
+    return "miss"; }
+  function respawn(s){ s.player.c=7; s.player.r=2; s.player.dir="down"; }
+  function enemyStep(s){ if(s.over) return s;
+    for(const e of s.enemies){ if(!e.alive) continue; if(e.inflate>0){ e.inflate=Math.max(0,e.inflate-1); continue; }
+      const ddc=s.player.c-e.c, ddr=s.player.r-e.r; let nc=e.c, nr=e.r;
+      if(Math.abs(ddc)>=Math.abs(ddr) && ddc!==0) nc+=Math.sign(ddc); else if(ddr!==0) nr+=Math.sign(ddr);
+      if(nc>=0&&nc<C.cols&&nr>=0&&nr<C.rows){ s.dirt[nr][nc]=false; e.c=nc; e.r=nr;
+        if(nc===s.player.c&&nr===s.player.r){ s.lives--; if(s.lives<=0) s.over=true; else respawn(s); } } }
+    return s; }
+  function rockFall(s){ for(const rk of s.rocks){ if(rk.r+1<C.rows && !s.dirt[rk.r+1][rk.c]){ rk.r++;
+      const e=enemyAt(s,rk.c,rk.r); if(e){ e.alive=false; s.score+=250; }
+      if(rk.c===s.player.c&&rk.r===s.player.r){ s.lives--; if(s.lives<=0) s.over=true; else respawn(s); } } }
+    return s; }
+  function ensureLevel(s){ if(!s.over && s.enemies.every(e=>!e.alive)){ s.level++; const ns=newState(); ns.score=s.score; ns.level=s.level; ns.lives=s.lives; Object.assign(s,ns); } }
+  window.__digdug={ newState, dig, pump, enemyStep, rockFall, enemyAt, ensureLevel, C };
+
+  if(typeof document==="undefined") return;
+  const $=(id)=>document.getElementById(id);
+  const cv=$("game"), ctx=cv.getContext("2d"); const CELL=C.cell, W=cv.width,H=cv.height;
+  let s=newState(), best=0, moveT=0, enemyT=0, rockT=0, input=null;
+  try{ best=parseInt(localStorage.getItem("digdug_best")||"0")||0; }catch(e){}
+
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    for(let r=0;r<C.rows;r++) for(let c=0;c<C.cols;c++){ if(s.dirt[r][c]){ const band=Math.floor(r/4); ctx.fillStyle=["#8a5a2a","#7a4a24","#6a3e1e","#5a3418"][band%4]; ctx.fillRect(c*CELL,r*CELL,CELL,CELL); }
+      else { ctx.fillStyle= r<2?"#12305a":"#1a120c"; ctx.fillRect(c*CELL,r*CELL,CELL,CELL); } }
+    for(const rk of s.rocks){ ctx.fillStyle="#9a9ab5"; ctx.beginPath(); ctx.arc(rk.c*CELL+CELL/2,rk.r*CELL+CELL/2,CELL/2-1,0,7); ctx.fill(); ctx.fillStyle="#6a6a85"; ctx.fillRect(rk.c*CELL+4,rk.r*CELL+5,4,3); }
+    for(const e of s.enemies){ if(!e.alive) continue; const sz=CELL/2-1+e.inflate*2; ctx.fillStyle=e.inflate>0?"#ffcf5a":"#f0616e"; ctx.beginPath(); ctx.arc(e.c*CELL+CELL/2,e.r*CELL+CELL/2,sz,0,7); ctx.fill(); ctx.fillStyle="#fff"; ctx.fillRect(e.c*CELL+5,e.r*CELL+6,3,3); ctx.fillRect(e.c*CELL+CELL-8,e.r*CELL+6,3,3); }
+    ctx.fillStyle="#22d3ee"; ctx.fillRect(s.player.c*CELL+3,s.player.r*CELL+3,CELL-6,CELL-6); ctx.fillStyle="#7de8ff"; const d=DIRS[s.player.dir]; ctx.fillRect(s.player.c*CELL+CELL/2-2+d[0]*5, s.player.r*CELL+CELL/2-2+d[1]*5,4,4);
+    if(s.over){ ctx.fillStyle="rgba(0,0,0,.6)"; ctx.fillRect(0,0,W,H); ctx.fillStyle="#f43f5e"; ctx.font="bold 22px system-ui"; ctx.textAlign="center"; ctx.fillText("GAME OVER",W/2,H/2-6); ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Score "+s.score+"  ·  Best "+best,W/2,H/2+16); }
+  }
+  function frame(){
+    if(!s.over){
+      if(input && ++moveT>=6){ moveT=0; dig(s,input); }
+      if(++enemyT>=26){ enemyT=0; enemyStep(s); }
+      if(++rockT>=10){ rockT=0; rockFall(s); }
+      ensureLevel(s);
+      if(s.over && s.score>best){ best=s.score; try{localStorage.setItem("digdug_best",String(best));}catch(e){} $("msg").textContent="Game over! Score "+s.score+"  ·  Best "+best; }
+    }
+    $("score").textContent=s.score; $("level").textContent=s.level; $("lives").textContent=Math.max(0,s.lives); draw(); requestAnimationFrame(frame);
+  }
+  document.querySelectorAll(".dpad button").forEach(b=>{ const d=b.getAttribute("data-d"); const on=(e)=>{e.preventDefault();input=d;dig(s,d);moveT=0;}; const off=(e)=>{e.preventDefault();if(input===d)input=null;};
+    b.addEventListener("touchstart",on,{passive:false}); b.addEventListener("touchend",off); b.addEventListener("mousedown",on); b.addEventListener("mouseup",off); b.addEventListener("mouseleave",off); });
+  const pb=$("pump"); const pf=(e)=>{e.preventDefault(); const r=pump(s); if(r==="hit") $("msg").textContent="Pump!"; }; pb.addEventListener("touchstart",pf,{passive:false}); pb.addEventListener("mousedown",pf);
+  addEventListener("keydown",(e)=>{ const m={ArrowLeft:"left",ArrowRight:"right",ArrowUp:"up",ArrowDown:"down",a:"left",d:"right",w:"up",s:"down"}[e.key]; if(m){e.preventDefault(); input=m; dig(s,m); moveT=0;} if(e.key===" "){e.preventDefault(); pump(s);} });
+  addEventListener("keyup",(e)=>{ const m={ArrowLeft:"left",ArrowRight:"right",ArrowUp:"up",ArrowDown:"down",a:"left",d:"right",w:"up",s:"down"}[e.key]; if(m&&input===m)input=null; });
+  $("new").addEventListener("click",()=>{ s=newState(); input=null; $("msg").textContent="Dig tunnels and pump the monsters!"; });
+  requestAnimationFrame(frame);
+})();
+</script>
+<script src="/comments.js" defer></script>
+</body>
+</html>
