@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Q*Hop — Games</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🟧</text></svg>" />
+<style>
+  :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;}
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+    background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.2),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.14),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;touch-action:none;}
+  .wrap{max-width:420px;margin:0 auto;padding:14px 12px 30px;display:flex;flex-direction:column;align-items:center;gap:10px}
+  .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
+  .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+  .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+  h1{margin:0;font-size:1.3rem;background:linear-gradient(120deg,#ffcf5a,#f0902a);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:9px 16px;border-radius:999px;cursor:pointer}
+  .hud{width:100%;max-width:340px;display:flex;justify-content:space-between;font-size:.85rem;color:var(--muted)}
+  .hud b{color:var(--text)}
+  canvas{width:min(94vw,340px);height:calc(min(94vw,340px)*1.06);border-radius:10px;border:2px solid #2a2f55;background:#080a14;touch-action:none}
+  .msg{min-height:1.3em;font-weight:800;text-align:center}
+  .pad{display:grid;grid-template-columns:repeat(2,56px);grid-template-rows:repeat(2,56px);gap:8px}
+  .pad button{background:var(--panel);color:var(--text);border:1px solid rgba(255,255,255,.12);border-radius:12px;font-size:1.4rem;cursor:pointer;user-select:none}
+  .pad button:active{background:var(--accent);color:#0b0c1a}
+  .hint{font-size:.78rem;color:var(--muted);text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar"><a class="home" href="/">← Home</a><h1>Q*Hop</h1><button class="btn" id="new">New Game</button></div>
+  <div class="hud"><span>Score: <b id="score">0</b></span><span>Level: <b id="level">1</b></span><span>Lives: <b id="lives">3</b></span></div>
+  <canvas id="game" width="340" height="360"></canvas>
+  <div class="msg" id="msg">Hop on every cube to change its color — don't jump off the edge!</div>
+  <div class="pad"><button data-d="ul">↖</button><button data-d="ur">↗</button><button data-d="dl">↙</button><button data-d="dr">↘</button></div>
+  <div class="hint">↖ Q · ↗ E · ↙ A · ↘ D · or tap the pad</div>
+</div>
+<script>
+(function(){
+  const C={ rows:7 };
+  function emptyGrid(){ const g=[]; for(let r=0;r<C.rows;r++){ g.push(new Array(r+1).fill(false)); } return g; }
+  function onPyramid(r,c){ return r>=0 && r<C.rows && c>=0 && c<=r; }
+  function target(r,c,dir){ if(dir==="dl") return {row:r+1,col:c}; if(dir==="dr") return {row:r+1,col:c+1};
+    if(dir==="ul") return {row:r-1,col:c-1}; return {row:r-1,col:c}; /* ur */ }
+  function allChanged(s){ for(let r=0;r<C.rows;r++) for(let c=0;c<=r;c++) if(!s.colored[r][c]) return false; return true; }
+  function resetBoard(s){ s.colored=emptyGrid(); s.colored[0][0]=true; s.q={row:0,col:0}; }
+  function newState(){ const s={ colored:emptyGrid(), q:{row:0,col:0}, lives:3, score:0, level:1, over:false }; s.colored[0][0]=true; return s; }
+  function hop(s, dir){
+    if(s.over) return s;
+    const t=target(s.q.row,s.q.col,dir);
+    if(!onPyramid(t.row,t.col)){ s.lives--; if(s.lives<=0){ s.over=true; } else { s.q={row:0,col:0}; } return s; }
+    s.q=t;
+    if(!s.colored[t.row][t.col]){ s.colored[t.row][t.col]=true; s.score+=25; }
+    if(allChanged(s)){ s.score+=100; s.level++; resetBoard(s); }
+    return s;
+  }
+  window.__qbert={ newState, hop, target, onPyramid, allChanged, resetBoard, C };
+
+  if(typeof document==="undefined") return;
+  const $=(id)=>document.getElementById(id);
+  const cv=$("game"), ctx=cv.getContext("2d"); const W=cv.width,H=cv.height;
+  const CW=40, TH=22, FH=22, ROWSTEP=34, TOPY=28;
+  let s=newState(), best=0, hopAnim=0;
+  try{ best=parseInt(localStorage.getItem("qbert_best")||"0")||0; }catch(e){}
+  function cubeXY(r,c){ return { x: W/2 + (c - r/2)*CW, y: TOPY + r*ROWSTEP }; }
+  function drawCube(r,c,colored){ const {x,y}=cubeXY(r,c);
+    // left & right faces
+    ctx.fillStyle="#4a2ea8"; ctx.beginPath(); ctx.moveTo(x-CW/2,y+TH/2); ctx.lineTo(x-CW/2,y+TH/2+FH); ctx.lineTo(x,y+TH+FH); ctx.lineTo(x,y+TH); ctx.closePath(); ctx.fill();
+    ctx.fillStyle="#361f80"; ctx.beginPath(); ctx.moveTo(x+CW/2,y+TH/2); ctx.lineTo(x+CW/2,y+TH/2+FH); ctx.lineTo(x,y+TH+FH); ctx.lineTo(x,y+TH); ctx.closePath(); ctx.fill();
+    // top face
+    ctx.fillStyle= colored?"#ffcf5a":"#3b4fd6"; ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x+CW/2,y+TH/2); ctx.lineTo(x,y+TH); ctx.lineTo(x-CW/2,y+TH/2); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle="rgba(0,0,0,.25)"; ctx.stroke();
+  }
+  function draw(){
+    ctx.clearRect(0,0,W,H); ctx.fillStyle="#080a14"; ctx.fillRect(0,0,W,H);
+    for(let r=0;r<C.rows;r++) for(let c=0;c<=r;c++) drawCube(r,c,s.colored[r][c]);
+    const {x,y}=cubeXY(s.q.row,s.q.col); ctx.fillStyle="#f0902a"; ctx.beginPath(); ctx.arc(x,y+TH/2-6,11,0,7); ctx.fill();
+    ctx.fillStyle="#5a2a00"; ctx.fillRect(x-6,y+TH/2-9,4,4); ctx.fillRect(x+2,y+TH/2-9,4,4);
+    ctx.fillStyle="#f0616e"; ctx.fillRect(x-3,y+TH/2-2,6,4);
+    if(s.over){ ctx.fillStyle="rgba(0,0,0,.6)"; ctx.fillRect(0,0,W,H); ctx.fillStyle="#f43f5e"; ctx.font="bold 24px system-ui"; ctx.textAlign="center"; ctx.fillText("GAME OVER",W/2,H/2-6); ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Score "+s.score+"  ·  Best "+best,W/2,H/2+16); }
+  }
+  function go(dir){ if(s.over) return; const lv=s.level; hop(s,dir);
+    if(s.level>lv) $("msg").textContent="Level "+s.level+"! Fresh pyramid.";
+    if(s.over && s.score>best){ best=s.score; try{localStorage.setItem("qbert_best",String(best));}catch(e){} $("msg").textContent="Fell off! Score "+s.score+"  ·  Best "+best; }
+    $("score").textContent=s.score; $("level").textContent=s.level; $("lives").textContent=Math.max(0,s.lives); }
+  function frame(){ draw(); requestAnimationFrame(frame); }
+  document.querySelectorAll(".pad button").forEach(b=>{ const d=b.getAttribute("data-d"); const f=(e)=>{e.preventDefault();go(d);}; b.addEventListener("click",f); b.addEventListener("touchstart",f,{passive:false}); });
+  addEventListener("keydown",(e)=>{ const m={q:"ul",e:"ur",a:"dl",d:"dr"}[e.key.toLowerCase()]; if(m){ e.preventDefault(); go(m); } });
+  $("new").addEventListener("click",()=>{ s=newState(); $("score").textContent=0; $("level").textContent=1; $("lives").textContent=3; $("msg").textContent="Hop on every cube to change its color!"; });
+  $("score").textContent=0; $("level").textContent=1; $("lives").textContent=3;
+  requestAnimationFrame(frame);
+})();
+</script>
+<script src="/comments.js" defer></script>
+</body>
+</html>
