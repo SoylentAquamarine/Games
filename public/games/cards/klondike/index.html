@@ -15,6 +15,10 @@
     .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
     .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
     h1{margin:0;font-size:1.3rem;background:linear-gradient(120deg,var(--accent),var(--accent-2));-webkit-background-clip:text;background-clip:text;color:transparent}
+    .modebar{display:flex;gap:8px;align-items:center;font-size:.85rem;color:var(--muted)}
+    #mode button{background:transparent;border:1px solid rgba(255,255,255,.15);color:var(--muted);padding:5px 12px;border-radius:999px;cursor:pointer;font-weight:600}
+    #mode button.active{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border-color:transparent}
+    .score{font-size:.85rem;color:#fde68a;font-weight:600;min-height:1.1em}
     .table{width:100%;background:radial-gradient(circle at 50% 20%,#1a4a2b,var(--felt));border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:10px 8px 20px}
     .top{display:flex;justify-content:space-between;margin-bottom:12px}
     .foundations,.stockwaste{display:flex;gap:6px}
@@ -29,6 +33,7 @@
     .pcard{cursor:pointer}
     .foundations .pcard,.foundations .slot,.stockwaste .pcard,.stockwaste .slot{--cw:44px}
     .stock,.waste{cursor:pointer}
+    #waste{display:flex}
     .bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center}
     .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:9px 18px;border-radius:999px;cursor:pointer;font-size:.86rem}
     .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,.18);color:var(--muted)}
@@ -39,6 +44,8 @@
 <body>
   <div class="wrap">
     <div class="topbar"><a class="home" href="/games/cards/">← Cards</a><h1>🂡 Klondike</h1><span style="width:56px"></span></div>
+    <div class="modebar">Rules: <span id="mode"><button class="active" data-m="std">Standard</button><button data-m="vegas">Vegas</button></span></div>
+    <div class="score" id="score"></div>
     <div class="table">
       <div class="top">
         <div class="stockwaste"><div id="stock"></div><div id="waste"></div></div>
@@ -51,38 +58,57 @@
       <button class="btn" id="auto">⤴ Auto to foundations</button>
       <button class="btn ghost" id="new">New Deal</button>
     </div>
-    <p class="hint">Tap a card to select, tap a pile/foundation to move. Double-tap sends to a foundation. Build tableau down in alternating colors; foundations up by suit.</p>
+    <p class="hint">Draw 3 at a time (top card plays). Tap a card to select, tap a pile/foundation to move; double-tap sends to a foundation, and you can pull a card back from a foundation. Build tableau down in alternating colors. <b>Vegas:</b> pay $52 for the deck, earn $5 per card to a foundation, 3 passes through the stock.</p>
   </div>
 
   <script src="../cards.js"></script>
   <script>
   (function(){
     const stockEl=document.getElementById("stock"),wasteEl=document.getElementById("waste"),
-      foundEl=document.getElementById("foundations"),tabEl=document.getElementById("tableau"),statusEl=document.getElementById("status");
+      foundEl=document.getElementById("foundations"),tabEl=document.getElementById("tableau"),
+      statusEl=document.getElementById("status"),scoreEl=document.getElementById("score");
     const SUITS=Cards.SUITS;
-    let stock,waste,found,tab,sel;   // found: {S:[],H:[],D:[],C:[]}, tab: array of 7 piles of {card,up}
-    const sv=(r)=>r===14?1:r;        // solitaire value: Ace low
+    const sv=(r)=>r===14?1:r;                     // Ace low
     const isRed=(c)=>!!Cards.RED[c.suit];
+    const DEAL=3, VEGAS_PASSES=2;                  // draw-3, 3 passes total (2 recycles)
+    // pure move predicates (also exported for tests)
+    function foundationOk(card, suit, pile){ if(card.suit!==suit) return false; const okv=pile.length?sv(pile[pile.length-1].rank)+1:1; return sv(card.rank)===okv; }
+    function tableauOk(first, destTop){ if(!destTop) return sv(first.rank)===13; return sv(first.rank)===sv(destTop.rank)-1 && isRed(first)!==isRed(destTop); }
+    window.__klondike={ sv, isRed, foundationOk, tableauOk, DEAL, VEGAS_PASSES };
+
+    let stock,waste,found,tab,sel,mode="std",score=0,passes=0;
+    let bank=0; try{ bank=parseInt(localStorage.getItem("klondike_bank")||"0")||0; }catch(e){}
 
     function newGame(){
       const d=Cards.shuffle(Cards.makeDeck());
       tab=[];for(let i=0;i<7;i++){const pile=[];for(let j=0;j<=i;j++){pile.push({card:d.shift(),up:j===i});}tab.push(pile);}
-      stock=d.map(c=>c);waste=[];found={S:[],H:[],D:[],C:[]};sel=null;statusEl.textContent="";
-      render();
+      stock=d.map(c=>c);waste=[];found={S:[],H:[],D:[],C:[]};sel=null;
+      passes=VEGAS_PASSES; score = mode==="vegas" ? -52 : 0;
+      statusEl.textContent=""; updateScore(); render();
     }
+    function setMode(m){ mode=m; document.querySelectorAll("#mode button").forEach(b=>b.classList.toggle("active",b.dataset.m===m)); newGame(); }
+    function updateScore(){
+      if(mode==="vegas"){ scoreEl.style.display=""; scoreEl.innerHTML="Score: <b>$"+score+"</b> &nbsp;·&nbsp; Bankroll: <b>$"+bank+"</b> &nbsp;·&nbsp; Redeals left: <b>"+passes+"</b>"; }
+      else scoreEl.style.display="none";
+    }
+    function foundScore(delta){ if(mode==="vegas"){ score+=delta*5; updateScore(); } }
+
     function render(){
       // stock
       stockEl.innerHTML="";
+      const stockDead = mode==="vegas" && stock.length===0 && passes<=0;
       if(stock.length){const b=Cards.cardEl(null,false);b.className+=" stock";b.addEventListener("click",drawStock);stockEl.appendChild(b);}
-      else{const s=mkSlot("↻");s.classList.add("stock");s.addEventListener("click",drawStock);stockEl.appendChild(s);}
-      // waste
+      else{const s=mkSlot(stockDead?"✕":"↻");s.classList.add("stock");if(!stockDead)s.addEventListener("click",drawStock);stockEl.appendChild(s);}
+      // waste — draw 3, fanned, only the top card plays
       wasteEl.innerHTML="";
-      if(waste.length){const c=waste[waste.length-1];const el=Cards.cardEl(c,true);markSel(el,{t:"w"});el.addEventListener("click",()=>clickCard({t:"w"}));el.addEventListener("dblclick",()=>autoOne({t:"w"}));wasteEl.appendChild(el);}
+      if(waste.length){ const show=waste.slice(-DEAL); show.forEach((c,i)=>{ const top=i===show.length-1; const el=Cards.cardEl(c,true); if(i>0)el.style.marginLeft="-30px";
+        if(top){ markSel(el,{t:"w"}); el.addEventListener("click",()=>clickCard({t:"w"})); el.addEventListener("dblclick",()=>autoOne({t:"w"})); }
+        wasteEl.appendChild(el); }); }
       else wasteEl.appendChild(mkSlot(""));
-      // foundations
+      // foundations (clickable as source or destination)
       foundEl.innerHTML="";
       SUITS.forEach(s=>{const pile=found[s];
-        if(pile.length){const el=Cards.cardEl(pile[pile.length-1],true);el.addEventListener("click",()=>tryTo({t:"f",suit:s}));foundEl.appendChild(el);}
+        if(pile.length){const el=Cards.cardEl(pile[pile.length-1],true);markSel(el,{t:"f",suit:s});el.addEventListener("click",()=>foundClick(s));foundEl.appendChild(el);}
         else{const sl=mkSlot(Cards.SUIT_SYMBOL[s]);sl.addEventListener("click",()=>tryTo({t:"f",suit:s}));foundEl.appendChild(sl);}
       });
       // tableau
@@ -101,15 +127,16 @@
     }
     function mkSlot(txt){const d=document.createElement("div");d.className="slot";d.textContent=txt;return d;}
     function markSel(el,loc){if(sel&&sameSel(sel,loc))el.classList.add("sel");}
-    function sameSel(a,b){return a.t===b.t&&a.pile===b.pile&&a.idx===b.idx;}
+    function sameSel(a,b){return a.t===b.t&&a.pile===b.pile&&a.idx===b.idx&&a.suit===b.suit;}
 
     function drawStock(){
-      if(stock.length){waste.push(stock.pop());}
-      else{stock=waste.reverse();waste=[];}
-      sel=null;render();
+      if(stock.length){ for(let i=0;i<DEAL&&stock.length;i++) waste.push(stock.pop()); }
+      else { if(mode==="vegas"){ if(passes<=0){ statusEl.textContent="No more redeals in Vegas."; return; } passes--; } stock=waste.reverse(); waste=[]; }
+      sel=null;updateScore();render();
     }
-    function runFrom(loc){ // returns array of cards being moved, or null
+    function runFrom(loc){
       if(loc.t==="w")return waste.length?[waste[waste.length-1]]:null;
+      if(loc.t==="f")return found[loc.suit].length?[found[loc.suit][found[loc.suit].length-1]]:null;
       const pile=tab[loc.pile];const run=pile.slice(loc.idx);
       if(run.some(e=>!e.up))return null;
       for(let i=1;i<run.length;i++){const a=run[i-1].card,b=run[i].card;if(sv(b.rank)!==sv(a.rank)-1||isRed(a)===isRed(b))return null;}
@@ -117,59 +144,69 @@
     }
     function clickCard(loc){
       if(sel&&sameSel(sel,loc)){sel=null;render();return;}
-      // if a selection exists and this is a tableau card, treat as destination pile
       if(sel){tryTo({t:"t",pile:loc.pile});return;}
       const run=runFrom(loc);if(!run){sel=null;render();return;}
       sel=loc;render();
     }
-    function movingCards(){if(!sel)return null;
-      if(sel.t==="w")return waste.length?[waste[waste.length-1]]:null;
-      return runFrom(sel);}
+    function foundClick(s){
+      if(sel&&sameSel(sel,{t:"f",suit:s})){sel=null;render();return;}
+      if(sel){tryTo({t:"f",suit:s});return;}
+      if(found[s].length){sel={t:"f",suit:s};render();}
+    }
+    function movingCards(){return sel?runFrom(sel):null;}
     function tryTo(dest){
       if(!sel){return;}
       const cards=movingCards();if(!cards){sel=null;render();return;}
       if(dest.t==="f"){
         if(cards.length!==1)return bad();
-        const c=cards[0];if(c.suit!==dest.suit)return bad();
-        const f=found[dest.suit];const okv=f.length?sv(f[f.length-1].rank)+1:1;
-        if(sv(c.rank)!==okv)return bad();
-        removeFromSource();found[dest.suit].push(c);postMove();
+        const c=cards[0];const f=found[dest.suit];
+        if(!foundationOk(c,dest.suit,f))return bad();
+        const fromFound = sel.t==="f";
+        removeFromSource();found[dest.suit].push(c);
+        if(!fromFound) foundScore(1);         // moving between foundations is a no-op in score terms
+        postMove();
       }else{ // tableau
-        const pile=tab[dest.pile];const first=cards[0];
-        if(pile.length===0){if(sv(first.rank)!==13)return bad();}
-        else{const top=pile[pile.length-1];if(!top.up)return bad();if(sv(first.rank)!==sv(top.card.rank)-1||isRed(first)===isRed(top.card))return bad();}
-        removeFromSource();cards.forEach(c=>pile.push({card:c,up:true}));postMove();
+        const pile=tab[dest.pile];const first=cards[0];const top=pile.length?pile[pile.length-1]:null;
+        if(top&&!top.up)return bad();
+        if(!tableauOk(first, top?top.card:null))return bad();
+        const fromFound = sel.t==="f";
+        removeFromSource();cards.forEach(c=>pile.push({card:c,up:true}));
+        if(fromFound) foundScore(-1);          // pulled a card back off a foundation
+        postMove();
       }
     }
     function removeFromSource(){
       if(sel.t==="w"){waste.pop();}
+      else if(sel.t==="f"){found[sel.suit].pop();}
       else{const pile=tab[sel.pile];pile.splice(sel.idx);if(pile.length&&!pile[pile.length-1].up)pile[pile.length-1].up=true;}
     }
     function postMove(){sel=null;render();checkWin();}
     function bad(){sel=null;render();}
-    // double-click auto to foundation
     function autoOne(loc){
-      const run=loc.t==="w"?(waste.length?[waste[waste.length-1]]:null):tab[loc.pile].slice(loc.idx).map(e=>e.card);
-      if(!run||run.length!==1)return;
-      const c=run[0];const f=found[c.suit];const okv=f.length?sv(f[f.length-1].rank)+1:1;
-      if(sv(c.rank)===okv){sel=loc;tryTo({t:"f",suit:c.suit});}
-      else{sel=loc;render();}
+      const c=(loc.t==="w")?(waste.length?waste[waste.length-1]:null)
+             :(loc.t==="f")?null
+             :(()=>{const p=tab[loc.pile];return loc.idx===p.length-1?p[loc.idx].card:null;})();
+      if(!c)return;
+      const f=found[c.suit];if(foundationOk(c,c.suit,f)){sel=loc;tryTo({t:"f",suit:c.suit});}else{sel=loc;render();}
     }
     function autoAll(){
-      let moved=true;let any=false;
+      let moved=true,any=false;
       while(moved){moved=false;
-        // from waste
-        const tryCard=(c,src)=>{const f=found[c.suit];const okv=f.length?sv(f[f.length-1].rank)+1:1;
-          if(sv(c.rank)===okv){sel=src;removeFromSource();found[c.suit].push(c);sel=null;moved=true;any=true;return true;}return false;};
+        const tryCard=(c,src)=>{const f=found[c.suit];if(foundationOk(c,c.suit,f)){sel=src;removeFromSource();found[c.suit].push(c);sel=null;foundScore(1);moved=true;any=true;return true;}return false;};
         if(waste.length&&tryCard(waste[waste.length-1],{t:"w"}))continue;
         for(let pi=0;pi<7;pi++){const pile=tab[pi];if(pile.length){const top=pile[pile.length-1];if(top.up&&tryCard(top.card,{t:"t",pile:pi,idx:pile.length-1}))break;}}
       }
       render();checkWin();if(!any)statusEl.textContent="No cards ready for the foundations.";
     }
     function checkWin(){const total=SUITS.reduce((a,s)=>a+found[s].length,0);
-      if(total===52){statusEl.textContent="🏆 You solved it! Well played.";}}
+      if(total===52){
+        if(mode==="vegas"){ bank+=score; try{localStorage.setItem("klondike_bank",String(bank));}catch(e){} updateScore(); statusEl.textContent="🏆 Solved! You cleared $"+score+" this game.";}
+        else statusEl.textContent="🏆 You solved it! Well played.";
+      }
+    }
     document.getElementById("auto").addEventListener("click",autoAll);
     document.getElementById("new").addEventListener("click",newGame);
+    document.querySelectorAll("#mode button").forEach(b=>b.addEventListener("click",()=>setMode(b.dataset.m)));
     newGame();
   })();
   </script>

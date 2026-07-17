@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FreeCell — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🃏</text></svg>" />
+  <style>
+    :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;--felt:#12351f;}
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+      background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.22),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.16),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;}
+    .wrap{max-width:680px;margin:0 auto;padding:14px 6px 40px;display:flex;flex-direction:column;align-items:center;gap:10px}
+    .topbar{width:100%;display:flex;align-items:center;justify-content:space-between;padding:0 6px}
+    .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+    .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+    h1{margin:0;font-size:1.3rem;background:linear-gradient(120deg,var(--accent),var(--accent-2));-webkit-background-clip:text;background-clip:text;color:transparent}
+    .table{width:100%;background:radial-gradient(circle at 50% 20%,#1a4a2b,var(--felt));border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:10px 6px 20px}
+    .top{display:flex;justify-content:space-between;margin-bottom:12px;gap:8px}
+    .cells,.foundations{display:flex;gap:5px}
+    .slot{--cw:40px;width:var(--cw);height:calc(var(--cw)*1.42);border-radius:8px;border:2px dashed rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.25);font-size:1.2rem}
+    .cols{display:flex;justify-content:space-between;gap:3px}
+    .col{flex:1;min-height:220px;display:flex;flex-direction:column;align-items:center}
+    .cells .pcard,.cells .slot,.foundations .pcard,.foundations .slot,.col .pcard,.col .slot{--cw:40px}
+    .col .stackcard{margin-top:-44px}
+    .col .stackcard:first-child{margin-top:0}
+    .pcard.sel{outline:3px solid #34d399;outline-offset:1px;z-index:2}
+    .pcard{cursor:pointer}
+    .bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center}
+    .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:9px 18px;border-radius:999px;cursor:pointer;font-size:.86rem}
+    .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,.18);color:var(--muted)}
+    .status{min-height:1.2em;font-weight:600;color:#fde68a;text-align:center}
+    .hint{color:var(--muted);font-size:.8rem;text-align:center}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar"><a class="home" href="/games/cards/">← Cards</a><h1>🃏 FreeCell</h1><span style="width:56px"></span></div>
+    <div class="table">
+      <div class="top">
+        <div class="cells" id="cells"></div>
+        <div class="foundations" id="foundations"></div>
+      </div>
+      <div class="cols" id="cols"></div>
+    </div>
+    <div class="status" id="status"></div>
+    <div class="bar">
+      <button class="btn" id="auto">⤴ Auto to foundations</button>
+      <button class="btn ghost" id="new">New Deal</button>
+    </div>
+    <p class="hint">Tap a card to select, tap a spot to move. Double-tap sends to a foundation. Build columns down in alternating colors; park cards in the 4 free cells. You can move a run only if enough cells/empty columns are free.</p>
+  </div>
+  <script src="../cards.js"></script>
+  <script>
+  (function(){
+    const cellsEl=document.getElementById("cells"),foundEl=document.getElementById("foundations"),
+      colsEl=document.getElementById("cols"),statusEl=document.getElementById("status");
+    const SUITS=Cards.SUITS;
+    const sv=(r)=>r===14?1:r;
+    const isRed=(c)=>!!Cards.RED[c.suit];
+    let cells,found,cols,sel;
+
+    // ---- pure logic (exposed for tests) ----
+    function validSeq(cards){ for(let i=1;i<cards.length;i++){ const a=cards[i-1],b=cards[i]; if(sv(b.rank)!==sv(a.rank)-1||isRed(a)===isRed(b)) return false; } return true; }
+    function maxMovable(freeCells, emptyCols){ return (freeCells+1)*Math.pow(2,emptyCols); }
+    function canStackTab(mover, destTop){ if(!destTop) return true; return sv(mover.rank)===sv(destTop.rank)-1 && isRed(mover)!==isRed(destTop); }
+    function canFoundation(card, pile){ if(card.suit!==pile.suit) return false; return sv(card.rank)===(pile.cards.length?sv(pile.cards[pile.cards.length-1].rank)+1:1); }
+    window.__freecell={ sv, validSeq, maxMovable, canStackTab, canFoundation };
+
+    function newGame(){
+      const d=Cards.shuffle(Cards.makeDeck());
+      cols=[[],[],[],[],[],[],[],[]]; d.forEach((c,i)=>cols[i%8].push(c));
+      cells=[null,null,null,null]; found={S:[],H:[],D:[],C:[]}; sel=null; statusEl.textContent="";
+      render();
+    }
+    const emptyCells=()=>cells.filter(c=>c===null).length;
+    const emptyCols=()=>cols.filter(c=>c.length===0).length;
+    function foundPile(suit){ return {suit, cards:found[suit]}; }
+
+    function render(){
+      cellsEl.innerHTML="";
+      cells.forEach((c,i)=>{ if(c){const el=Cards.cardEl(c,true);markSel(el,{t:"cell",i});el.addEventListener("click",()=>cellClick(i));el.addEventListener("dblclick",()=>autoOne({t:"cell",i}));cellsEl.appendChild(el);}
+        else{const sl=mkSlot("○");sl.addEventListener("click",()=>cellClick(i));cellsEl.appendChild(sl);} });
+      foundEl.innerHTML="";
+      SUITS.forEach(s=>{ const pile=found[s];
+        if(pile.length){const el=Cards.cardEl(pile[pile.length-1],true);el.addEventListener("click",()=>tryTo({t:"f",suit:s}));foundEl.appendChild(el);}
+        else{const sl=mkSlot(Cards.SUIT_SYMBOL[s]);sl.addEventListener("click",()=>tryTo({t:"f",suit:s}));foundEl.appendChild(sl);} });
+      colsEl.innerHTML="";
+      cols.forEach((pile,ci)=>{ const col=document.createElement("div");col.className="col";
+        if(pile.length===0){const sl=mkSlot("");sl.addEventListener("click",()=>tryTo({t:"c",col:ci}));col.appendChild(sl);}
+        pile.forEach((card,idx)=>{ const el=Cards.cardEl(card,true);el.classList.add("stackcard");markSel(el,{t:"c",col:ci,idx});
+          el.addEventListener("click",()=>colClick(ci,idx));el.addEventListener("dblclick",()=>autoOne({t:"c",col:ci,idx}));col.appendChild(el); });
+        colsEl.appendChild(col); });
+    }
+    function mkSlot(txt){const d=document.createElement("div");d.className="slot";d.textContent=txt;return d;}
+    function sameSel(a,b){return a.t===b.t&&a.col===b.col&&a.idx===b.idx&&a.i===b.i;}
+    function markSel(el,loc){if(sel&&sameSel(sel,loc))el.classList.add("sel");}
+
+    function runFrom(loc){
+      if(loc.t==="cell")return cells[loc.i]?[cells[loc.i]]:null;
+      const pile=cols[loc.col];const run=pile.slice(loc.idx); return validSeq(run)?run:null;
+    }
+    function movingCards(){ if(!sel)return null; return runFrom(sel); }
+    function cellClick(i){ if(sel){ if(cells[i]===null) tryTo({t:"cell",i}); else if(sameSel(sel,{t:"cell",i})){sel=null;render();} return; }
+      if(cells[i]){ sel={t:"cell",i}; render(); } }
+    function colClick(ci,idx){ if(sel){ tryTo({t:"c",col:ci}); return; } const run=runFrom({t:"c",col:ci,idx}); if(!run){sel=null;render();return;} sel={t:"c",col:ci,idx}; render(); }
+
+    function tryTo(dest){
+      if(!sel)return; const cards=movingCards(); if(!cards){sel=null;render();return;}
+      if(dest.t==="cell"){ if(cards.length!==1||cells[dest.i]!==null)return bad(); removeSource(); cells[dest.i]=cards[0]; return postMove(); }
+      if(dest.t==="f"){ if(cards.length!==1)return bad(); if(!canFoundation(cards[0],foundPile(dest.suit)))return bad(); removeSource(); found[dest.suit].push(cards[0]); return postMove(); }
+      // column
+      const pile=cols[dest.col]; const destTop=pile.length?pile[pile.length-1]:null;
+      if(!canStackTab(cards[0],destTop))return bad();
+      const ec=emptyCells(), emptyColsForMove=emptyCols() - (pile.length===0?1:0);
+      if(cards.length>maxMovable(ec, Math.max(0,emptyColsForMove)))return bad("Not enough free cells / empty columns to move that many.");
+      removeSource(); cards.forEach(c=>pile.push(c)); return postMove();
+    }
+    function removeSource(){ if(sel.t==="cell"){cells[sel.i]=null;} else {cols[sel.col].splice(sel.idx);} }
+    function postMove(){sel=null;render();checkWin();}
+    function bad(msg){sel=null;render();if(msg)statusEl.textContent=msg;}
+
+    function autoOne(loc){ const run=runFrom(loc); if(!run||run.length!==1)return; const c=run[0];
+      if(canFoundation(c,foundPile(c.suit))){ sel=loc; tryTo({t:"f",suit:c.suit}); } else { sel=loc; render(); } }
+    function autoAll(){ let moved=true,any=false;
+      while(moved){ moved=false;
+        for(let i=0;i<4;i++){ const c=cells[i]; if(c&&canFoundation(c,foundPile(c.suit))){ cells[i]=null; found[c.suit].push(c); moved=true;any=true; } }
+        for(let ci=0;ci<8;ci++){ const pile=cols[ci]; if(pile.length){ const c=pile[pile.length-1]; if(canFoundation(c,foundPile(c.suit))){ pile.pop(); found[c.suit].push(c); moved=true;any=true; } } }
+      }
+      sel=null;render();checkWin(); if(!any)statusEl.textContent="No cards ready for the foundations.";
+    }
+    function checkWin(){ const total=SUITS.reduce((a,s)=>a+found[s].length,0); if(total===52) statusEl.textContent="🏆 Solved! Nicely done."; }
+    document.getElementById("auto").addEventListener("click",autoAll);
+    document.getElementById("new").addEventListener("click",newGame);
+    newGame();
+  })();
+  </script>
+  <script src="/comments.js" defer></script>
+</body>
+</html>
