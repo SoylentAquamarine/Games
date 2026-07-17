@@ -29,25 +29,34 @@
   <div class="hud"><span>Score: <b id="score">0</b></span><span>Wave: <b id="wave">1</b></span><span>Cities: <b id="cities">6</b></span></div>
   <canvas id="game" width="360" height="300"></canvas>
   <div class="msg" id="msg">Tap to detonate an interceptor and destroy incoming missiles.</div>
-  <div class="hint">Click / tap anywhere above the ground to fire · protect your cities</div>
+  <div class="hint">Tap above the ground — an interceptor flies from the nearest base with ammo. Ammo is limited (shown on each base) and refills each wave.</div>
 </div>
 <script>
 (function(){
-  const C={ W:360,H:300, GROUND_Y:280, N_CITIES:6, EXP_MAX_R:30, EXP_GROW:1.0, EXP_LIFE:55, ENEMY_SPEED:0.55 };
+  const C={ W:360,H:300, GROUND_Y:280, N_CITIES:6, EXP_MAX_R:30, EXP_GROW:1.0, EXP_LIFE:55, ENEMY_SPEED:0.55, INT_SPEED:6, BASE_AMMO:10, BASE_X:[20,180,340] };
   const dist=(ax,ay,bx,by)=>Math.hypot(ax-bx,ay-by);
 
   function newGame(){
     const cities=[]; for(let i=0;i<C.N_CITIES;i++) cities.push({x:(i+0.5)*(C.W/C.N_CITIES),alive:true});
-    const s={cities,enemies:[],explosions:[],score:0,wave:0,waveLeftToSpawn:0,spawnTimer:0,spawnEvery:80,enemySpeed:C.ENEMY_SPEED,over:false};
+    const bases=C.BASE_X.map(x=>({x,ammo:C.BASE_AMMO}));
+    const s={cities,bases,enemies:[],interceptors:[],explosions:[],score:0,wave:0,waveLeftToSpawn:0,spawnTimer:0,spawnEvery:80,enemySpeed:C.ENEMY_SPEED,over:false};
     startWave(s); return s;
   }
-  function startWave(s){ s.wave++; s.waveLeftToSpawn=3+s.wave*2; s.spawnEvery=Math.max(22,90-s.wave*8); s.spawnTimer=25; s.enemySpeed=C.ENEMY_SPEED+s.wave*0.1; }
+  function startWave(s){ s.wave++; s.waveLeftToSpawn=3+s.wave*2; s.spawnEvery=Math.max(22,90-s.wave*8); s.spawnTimer=25; s.enemySpeed=C.ENEMY_SPEED+s.wave*0.1;
+    if(s.bases) for(const b of s.bases) b.ammo=C.BASE_AMMO; }   // ammo replenishes between waves
+  function stepInterceptor(m){ const dx=m.tx-m.x,dy=m.ty-m.y,d=Math.hypot(dx,dy); if(d<=C.INT_SPEED){ m.x=m.tx; m.y=m.ty; return true; } m.x+=dx/d*C.INT_SPEED; m.y+=dy/d*C.INT_SPEED; return false; }
   function spawnEnemy(s){
     const alive=s.cities.filter(c=>c.alive); const target=alive.length?alive[Math.floor(Math.random()*alive.length)]:s.cities[Math.floor(Math.random()*s.cities.length)];
     const x0=10+Math.random()*(C.W-20); s.enemies.push({x:x0,y:0,ox:x0,oy:0,tx:target.x,ty:C.GROUND_Y,alive:true});
   }
   function stepEnemy(m,speed){ const dx=m.tx-m.x,dy=m.ty-m.y,d=Math.hypot(dx,dy)||1; m.x+=dx/d*speed; m.y+=dy/d*speed; }
-  function fire(s,x,y){ if(s.over||y>=C.GROUND_Y) return false; s.explosions.push({x,y,r:1,phase:"grow",life:C.EXP_LIFE}); return true; }
+  function fire(s,x,y){ if(s.over||y>=C.GROUND_Y) return false;
+    let best=-1,bd=1e9; for(let i=0;i<s.bases.length;i++){ const b=s.bases[i]; if(b.ammo<=0) continue; const d=Math.abs(b.x-x); if(d<bd){bd=d;best=i;} }
+    if(best<0) return false;                          // no base has ammo
+    const b=s.bases[best]; b.ammo--;
+    s.interceptors.push({x:b.x,y:C.GROUND_Y-10,ox:b.x,oy:C.GROUND_Y-10,tx:x,ty:y});
+    return true;
+  }
   function stepExplosion(e){ if(e.phase==="grow"){ e.r+=C.EXP_GROW; if(e.r>=C.EXP_MAX_R) e.phase="shrink"; } else { e.r-=C.EXP_GROW*0.8; if(e.r<0)e.r=0; } e.life--; }
   function explosionHits(e,m){ return e.life>0 && e.r>0 && m.alive && dist(e.x,e.y,m.x,m.y)<=e.r; }
   function cityIndexAtX(cities,x){ let best=-1,bd=1e9; for(let i=0;i<cities.length;i++){ const d=Math.abs(x-cities[i].x); if(d<bd){bd=d;best=i;} } return best; }
@@ -57,11 +66,13 @@
     if(s.waveLeftToSpawn>0){ s.spawnTimer--; if(s.spawnTimer<=0){ spawnEnemy(s); s.waveLeftToSpawn--; s.spawnTimer=s.spawnEvery; } }
     for(const m of s.enemies){ if(!m.alive) continue; stepEnemy(m,s.enemySpeed);
       if(m.y>=C.GROUND_Y){ m.alive=false; m.landed=true; const ci=cityIndexAtX(s.cities,m.x); if(ci>=0&&s.cities[ci].alive) s.cities[ci].alive=false; } }
+    for(const it of s.interceptors){ if(stepInterceptor(it)){ it.done=true; s.explosions.push({x:it.tx,y:it.ty,r:1,phase:"grow",life:C.EXP_LIFE}); } }
+    s.interceptors=s.interceptors.filter(it=>!it.done);
     for(const e of s.explosions) stepExplosion(e);
     for(const e of s.explosions){ if(e.life<=0) continue; for(const m of s.enemies){ if(explosionHits(e,m)){ m.alive=false; s.score+=25; } } }
     s.enemies=s.enemies.filter(m=>m.alive);
     s.explosions=s.explosions.filter(e=>e.life>0);
-    if(s.waveLeftToSpawn===0 && s.enemies.length===0 && s.explosions.length===0) startWave(s);
+    if(s.waveLeftToSpawn===0 && s.enemies.length===0 && s.explosions.length===0 && s.interceptors.length===0) startWave(s);
     if(s.cities.every(c=>!c.alive)) s.over=true;
     return s;
   }
@@ -79,6 +90,11 @@
     ctx.fillStyle="#2b2f4d"; ctx.fillRect(0,C.GROUND_Y,C.W,C.H-C.GROUND_Y);
     for(const c of s.cities){ if(c.alive){ ctx.fillStyle="#22d3ee"; ctx.fillRect(c.x-14,C.GROUND_Y-16,28,16); ctx.fillStyle="#7de8ff"; ctx.fillRect(c.x-10,C.GROUND_Y-22,6,6); ctx.fillRect(c.x+4,C.GROUND_Y-22,6,6); }
       else { ctx.fillStyle="#3a2f2f"; ctx.fillRect(c.x-12,C.GROUND_Y-5,24,5); } }
+    // missile bases with ammo count
+    for(const b of s.bases){ ctx.fillStyle=b.ammo>0?"#34d399":"#3a2f2f"; ctx.beginPath(); ctx.moveTo(b.x-12,C.GROUND_Y); ctx.lineTo(b.x+12,C.GROUND_Y); ctx.lineTo(b.x,C.GROUND_Y-14); ctx.closePath(); ctx.fill();
+      ctx.fillStyle=b.ammo>0?"#e6e6f0":"#8a8f9a"; ctx.font="bold 10px system-ui"; ctx.textAlign="center"; ctx.fillText(b.ammo, b.x, C.GROUND_Y-17); }
+    for(const it of s.interceptors){ ctx.strokeStyle="rgba(52,211,153,.6)"; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(it.ox,it.oy); ctx.lineTo(it.x,it.y); ctx.stroke();
+      ctx.fillStyle="#34d399"; ctx.beginPath(); ctx.arc(it.x,it.y,2,0,7); ctx.fill(); ctx.strokeStyle="rgba(52,211,153,.4)"; ctx.strokeRect(it.tx-3,it.ty-3,6,6); }
     for(const m of s.enemies){ ctx.strokeStyle="rgba(244,63,94,.5)"; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(m.ox,m.oy); ctx.lineTo(m.x,m.y); ctx.stroke();
       ctx.fillStyle="#f43f5e"; ctx.beginPath(); ctx.arc(m.x,m.y,2.5,0,7); ctx.fill(); }
     for(const e of s.explosions){ const g=ctx.createRadialGradient(e.x,e.y,0,e.x,e.y,Math.max(1,e.r));
@@ -97,8 +113,9 @@
   function canvasXY(ev){ const r=cv.getBoundingClientRect(); const cx=(ev.touches?ev.touches[0].clientX:ev.clientX)-r.left, cy=(ev.touches?ev.touches[0].clientY:ev.clientY)-r.top;
     return { x:cx*(C.W/r.width), y:cy*(C.H/r.height) }; }
   cv.addEventListener("mousemove",(e)=>{ pointer=canvasXY(e); });
-  cv.addEventListener("mousedown",(e)=>{ e.preventDefault(); const p=canvasXY(e); pointer=p; fire(s,p.x,p.y); });
-  cv.addEventListener("touchstart",(e)=>{ e.preventDefault(); const p=canvasXY(e); pointer=p; fire(s,p.x,p.y); },{passive:false});
+  function shoot(p){ pointer=p; if(!fire(s,p.x,p.y) && !s.over && p.y<C.GROUND_Y && s.bases.every(b=>b.ammo<=0)) $("msg").textContent="Out of ammo — reloads next wave!"; }
+  cv.addEventListener("mousedown",(e)=>{ e.preventDefault(); shoot(canvasXY(e)); });
+  cv.addEventListener("touchstart",(e)=>{ e.preventDefault(); shoot(canvasXY(e)); },{passive:false});
   $("new").addEventListener("click",()=>{ s=newGame(); $("msg").textContent="Tap to detonate an interceptor and destroy incoming missiles."; });
   requestAnimationFrame(frame);
 })();
