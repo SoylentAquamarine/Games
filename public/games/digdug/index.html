@@ -43,7 +43,7 @@
 </div>
 <script>
 (function(){
-  const C={ cols:14, rows:16, cell:20, reach:3 };
+  const C={ cols:14, rows:16, cell:20, reach:3, wobble:3 };
   const DIRS={left:[-1,0],right:[1,0],up:[0,-1],down:[0,1]};
   function enemyAt(s,c,r){ return s.enemies.find(e=>e.alive&&e.c===c&&e.r===r)||null; }
   function newState(){
@@ -69,9 +69,13 @@
       if(nc>=0&&nc<C.cols&&nr>=0&&nr<C.rows){ s.dirt[nr][nc]=false; e.c=nc; e.r=nr;
         if(nc===s.player.c&&nr===s.player.r){ s.lives--; if(s.lives<=0) s.over=true; else respawn(s); } } }
     return s; }
-  function rockFall(s){ for(const rk of s.rocks){ if(rk.r+1<C.rows && !s.dirt[rk.r+1][rk.c]){ rk.r++;
+  function rockFall(s){ for(const rk of s.rocks){
+      const supported = rk.r+1>=C.rows || s.dirt[rk.r+1][rk.c] || s.rocks.some(o=>o!==rk&&o.c===rk.c&&o.r===rk.r+1);
+      if(supported){ rk.wob=0; rk.falling=false; continue; }
+      if(!rk.falling){ rk.wob=(rk.wob||0)+1; if(rk.wob<C.wobble) continue; rk.falling=true; }  // wobble first, then fall
+      rk.r++;
       const e=enemyAt(s,rk.c,rk.r); if(e){ e.alive=false; s.score+=250; }
-      if(rk.c===s.player.c&&rk.r===s.player.r){ s.lives--; if(s.lives<=0) s.over=true; else respawn(s); } } }
+      if(rk.c===s.player.c&&rk.r===s.player.r){ s.lives--; if(s.lives<=0) s.over=true; else respawn(s); } }
     return s; }
   function ensureLevel(s){ if(!s.over && s.enemies.every(e=>!e.alive)){ s.level++; const ns=newState(); ns.score=s.score; ns.level=s.level; ns.lives=s.lives; Object.assign(s,ns); } }
   window.__digdug={ newState, dig, pump, enemyStep, rockFall, enemyAt, ensureLevel, C };
@@ -86,7 +90,7 @@
     ctx.clearRect(0,0,W,H);
     for(let r=0;r<C.rows;r++) for(let c=0;c<C.cols;c++){ if(s.dirt[r][c]){ const band=Math.floor(r/4); ctx.fillStyle=["#8a5a2a","#7a4a24","#6a3e1e","#5a3418"][band%4]; ctx.fillRect(c*CELL,r*CELL,CELL,CELL); }
       else { ctx.fillStyle= r<2?"#12305a":"#1a120c"; ctx.fillRect(c*CELL,r*CELL,CELL,CELL); } }
-    for(const rk of s.rocks){ ctx.fillStyle="#9a9ab5"; ctx.beginPath(); ctx.arc(rk.c*CELL+CELL/2,rk.r*CELL+CELL/2,CELL/2-1,0,7); ctx.fill(); ctx.fillStyle="#6a6a85"; ctx.fillRect(rk.c*CELL+4,rk.r*CELL+5,4,3); }
+    for(const rk of s.rocks){ const wx=(rk.wob>0&&!rk.falling)?(Math.random()*4-2):0; ctx.fillStyle=rk.wob>0?"#b5b5c8":"#9a9ab5"; ctx.beginPath(); ctx.arc(rk.c*CELL+CELL/2+wx,rk.r*CELL+CELL/2,CELL/2-1,0,7); ctx.fill(); ctx.fillStyle="#6a6a85"; ctx.fillRect(rk.c*CELL+4+wx,rk.r*CELL+5,4,3); }
     for(const e of s.enemies){ if(!e.alive) continue; const sz=CELL/2-1+e.inflate*2; ctx.fillStyle=e.inflate>0?"#ffcf5a":"#f0616e"; ctx.beginPath(); ctx.arc(e.c*CELL+CELL/2,e.r*CELL+CELL/2,sz,0,7); ctx.fill(); ctx.fillStyle="#fff"; ctx.fillRect(e.c*CELL+5,e.r*CELL+6,3,3); ctx.fillRect(e.c*CELL+CELL-8,e.r*CELL+6,3,3); }
     ctx.fillStyle="#22d3ee"; ctx.fillRect(s.player.c*CELL+3,s.player.r*CELL+3,CELL-6,CELL-6); ctx.fillStyle="#7de8ff"; const d=DIRS[s.player.dir]; ctx.fillRect(s.player.c*CELL+CELL/2-2+d[0]*5, s.player.r*CELL+CELL/2-2+d[1]*5,4,4);
     if(s.over){ ctx.fillStyle="rgba(0,0,0,.6)"; ctx.fillRect(0,0,W,H); ctx.fillStyle="#f43f5e"; ctx.font="bold 22px system-ui"; ctx.textAlign="center"; ctx.fillText("GAME OVER",W/2,H/2-6); ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Score "+s.score+"  ·  Best "+best,W/2,H/2+16); }
@@ -94,7 +98,7 @@
   function frame(){
     if(!s.over){
       if(input && ++moveT>=6){ moveT=0; dig(s,input); }
-      if(++enemyT>=26){ enemyT=0; enemyStep(s); }
+      if(++enemyT>=44){ enemyT=0; enemyStep(s); }
       if(++rockT>=10){ rockT=0; rockFall(s); }
       ensureLevel(s);
       if(s.over && s.score>best){ best=s.score; try{localStorage.setItem("digdug_best",String(best));}catch(e){} $("msg").textContent="Game over! Score "+s.score+"  ·  Best "+best; }

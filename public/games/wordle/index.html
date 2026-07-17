@@ -40,6 +40,14 @@
     <div class="status" id="status">Guess the 5-letter word.</div>
     <div class="kb" id="kb"></div>
     <button class="btn" id="new">New Word</button>
+    <details style="width:100%;max-width:360px;background:var(--panel);border:1px solid rgba(255,255,255,.06);border-radius:10px;padding:8px 14px;font-size:.9rem;color:var(--muted);margin-top:6px">
+      <summary style="cursor:pointer;color:var(--text);font-weight:600">How to play</summary>
+      <p style="margin:8px 0">Guess the hidden <b>5-letter word</b> in 6 tries. Type a word and press <b>Enter</b>. After each guess the tiles change colour:</p>
+      <p style="margin:8px 0"><span style="display:inline-block;width:22px;height:22px;background:var(--correct);border-radius:4px;vertical-align:middle"></span> <b>Green</b> — right letter, right spot.</p>
+      <p style="margin:8px 0"><span style="display:inline-block;width:22px;height:22px;background:var(--present);border-radius:4px;vertical-align:middle"></span> <b>Yellow</b> — the letter is in the word, but a different spot.</p>
+      <p style="margin:8px 0"><span style="display:inline-block;width:22px;height:22px;background:var(--absent);border-radius:4px;vertical-align:middle"></span> <b>Grey</b> — the letter isn't in the word at all.</p>
+      <p style="margin:8px 0">Use the clues to narrow it down. Tap the on-screen keys or use your keyboard (<b>Backspace</b> deletes).</p>
+    </details>
   </div>
   <script>
   (function(){

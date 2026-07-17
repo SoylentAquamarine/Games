@@ -71,32 +71,48 @@
       s+=`<line x1="${a.x}" y1="${a.y}" x2="${z.x}" y2="${z.y}" stroke="${up?'#38b26a':'#f0616e'}" stroke-width="1.1" opacity=".8" stroke-linecap="round"/>`; }
     ov.innerHTML=s;
   }
-  function drawTokens(){
+  const pixOf=(pos)=> pos?numToXY(pos):{x:5,y:98};
+  function renderTokens(youPix, cpuPix){
     const ov=$("ov"); ov.querySelectorAll(".tok").forEach(t=>t.remove());
-    const py=numToXY(you||1), pc=numToXY(cpu||1);
     const mk=(x,y,c)=>{ const el=document.createElementNS("http://www.w3.org/2000/svg","circle"); el.setAttribute("class","tok");
       el.setAttribute("cx",x);el.setAttribute("cy",y);el.setAttribute("r",2.6);el.setAttribute("fill",c);el.setAttribute("stroke","#0b0c1a");el.setAttribute("stroke-width",".6"); ov.appendChild(el); };
-    mk(py.x-2.2, (you?py.y:98), "#22d3ee"); mk(pc.x+2.2, (cpu?pc.y:98), "#f43f5e");
+    mk(youPix.x-2.2, youPix.y, "#22d3ee"); mk(cpuPix.x+2.2, cpuPix.y, "#f43f5e");
+  }
+  function drawTokens(){ renderTokens(pixOf(you), pixOf(cpu)); }
+  let animating=false;
+  function animateMove(who, before, final, seq, hasSlide, onDone){
+    const pts=[ pixOf(before) ]; for(const p of seq) pts.push(numToXY(p)); if(hasSlide) pts.push(numToXY(final));
+    const durs=[]; for(let i=1;i<pts.length;i++) durs.push((hasSlide&&i===pts.length-1)?460:95);
+    let seg=0, t0=performance.now(); animating=true;
+    (function tick(now){ let el=now-t0;
+      while(seg<durs.length && el>=durs[seg]){ el-=durs[seg]; t0+=durs[seg]; seg++; }
+      let pix; if(seg>=durs.length) pix=pts[pts.length-1];
+      else { const a=el/durs[seg], p0=pts[seg], p1=pts[seg+1]; pix={x:p0.x+(p1.x-p0.x)*a, y:p0.y+(p1.y-p0.y)*a}; }
+      if(who==="you") renderTokens(pix, pixOf(cpu)); else renderTokens(pixOf(you), pix);
+      if(seg>=durs.length){ animating=false; onDone(); return; }
+      requestAnimationFrame(tick);
+    })(performance.now());
   }
   function status(){ const s=$("status"); if(over) return;
     s.innerHTML = turn==="you" ? '<span class="you">Your turn</span> — roll!' : '<span class="cpu">CPU\'s turn…</span>'; }
 
   function doRoll(who){
     const d=1+Math.floor(Math.random()*6); $("die").textContent=DIE[d];
-    const before=who==="you"?you:cpu; const after=move(before,d);
-    if(who==="you") you=after; else cpu=after;
-    let note=""; const landed=before+d>100?100-((before+d)-100):before+d;
-    if(JUMPS[landed]!=null) note = JUMPS[landed]>landed?" 🪜 up you go!":" 🐍 down you slide!";
-    drawTokens();
-    if(after===100){ over=true; $("banner").textContent = who==="you"?"🏆 You reached 100 — you win!":"💀 CPU reached 100. Try again!"; $("roll").disabled=true; return true; }
+    const before=who==="you"?you:cpu; const hopTarget=before+d>100?100-((before+d)-100):before+d; const final=applyJump(hopTarget);
+    if(who==="you") you=final; else cpu=final;
+    const seq=[]; for(let step=1;step<=d;step++){ let p=before+step; if(p>100) p=100-(p-100); seq.push(p); }
+    const hasSlide=final!==hopTarget; const note=hasSlide?(final>hopTarget?" 🪜 up you go!":" 🐍 down you slide!"):"";
     $("status").innerHTML=(who==="you"?'<span class="you">You</span>':'<span class="cpu">CPU</span>')+" rolled "+d+"."+note;
-    return false;
+    $("roll").disabled=true;
+    animateMove(who, before, final, seq, hasSlide, ()=>{
+      if(final===100){ over=true; $("banner").textContent=who==="you"?"🏆 You reached 100 — you win!":"💀 CPU reached 100. Try again!"; $("roll").disabled=true; return; }
+      nextAfter(who);
+    });
   }
-  function nextAfter(who){ if(who==="you"){ turn="cpu"; $("roll").disabled=true; setTimeout(cpuTurn,750); }
-    else { turn="you"; $("roll").disabled=false; setTimeout(status,600); } }
-  function cpuTurn(){ if(over) return; if(!doRoll("cpu")) nextAfter("cpu"); }
-  function youRoll(){ if(over||turn!=="you"||busy) return; busy=true; $("roll").disabled=true;
-    if(!doRoll("you")) nextAfter("you"); busy=false; }
+  function nextAfter(who){ if(who==="you"){ turn="cpu"; $("roll").disabled=true; setTimeout(cpuTurn,650); }
+    else { turn="you"; $("roll").disabled=false; setTimeout(status,300); } }
+  function cpuTurn(){ if(over) return; doRoll("cpu"); }
+  function youRoll(){ if(over||turn!=="you"||animating) return; doRoll("you"); }
 
   function reset(){ you=0;cpu=0;turn="you";over=false;busy=false; $("banner").textContent="";$("die").textContent="🎲";$("roll").disabled=false;
     buildBoard(); drawTokens(); status(); }

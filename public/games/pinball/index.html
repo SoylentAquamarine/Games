@@ -53,9 +53,11 @@
     if(ball.x<C.R){ ball.x=C.R; ball.vx=-ball.vx*C.WALL_DAMP; } if(ball.x>C.W-C.R){ ball.x=C.W-C.R; ball.vx=-ball.vx*C.WALL_DAMP; }
     if(ball.y<C.R){ ball.y=C.R; ball.vy=-ball.vy*C.WALL_DAMP; } return ball; }
   function drainCheck(ball){ return ball.y>C.DRAIN_Y; }
+  function rotateLanes(arr,dir){ if(dir>0) arr.unshift(arr.pop()); else arr.push(arr.shift()); return arr; }
   function newState(){ return { ball:{x:C.W-16,y:C.H-40,vx:0,vy:0,live:false}, balls:3, score:0, over:false,
-    bumpers:[{x:80,y:120,r:20},{x:180,y:150,r:20},{x:130,y:90,r:18}] }; }
-  window.__pinball={ newState, reflect, bumperHit, flipperReflect, stepBall, drainCheck, segClosest, C };
+    lanes:[false,true,false], bonus:0,
+    bumpers:[{x:70,y:120,r:20,lit:0},{x:190,y:112,r:20,lit:0},{x:130,y:172,r:18,lit:0},{x:82,y:216,r:15,lit:0},{x:178,y:226,r:15,lit:0}] }; }
+  window.__pinball={ newState, reflect, bumperHit, flipperReflect, stepBall, drainCheck, segClosest, rotateLanes, C };
 
   if(typeof document==="undefined") return;
   const $=(id)=>document.getElementById(id);
@@ -63,7 +65,8 @@
   let s=newState(), best=0;
   try{ best=parseInt(localStorage.getItem("pinball_best")||"0")||0; }catch(e){}
   // flippers: pivots near bottom, angle animates toward up when pressed
-  const LP={x:W/2-52,y:H-46}, RP={x:W/2+52,y:H-46}, FLEN=46;
+  const LP={x:W/2-58,y:H-46}, RP={x:W/2+58,y:H-46}, FLEN=50;
+  const LANE_X=[70,140,210];
   const fl={pivot:LP, rest:0.42, up:-0.5, angle:0.42, side:1, pressed:false};   // left: tip toward center
   const fr={pivot:RP, rest:Math.PI-0.42, up:Math.PI+0.5, angle:Math.PI-0.42, side:-1, pressed:false};
   function flipSeg(f){ return { x1:f.pivot.x, y1:f.pivot.y, x2:f.pivot.x+Math.cos(f.angle)*FLEN, y2:f.pivot.y+Math.sin(f.angle)*FLEN }; }
@@ -75,7 +78,10 @@
     ctx.clearRect(0,0,W,H); ctx.fillStyle="#0a0c18"; ctx.fillRect(0,0,W,H);
     // right launch lane
     ctx.strokeStyle="#2a2f55"; ctx.beginPath(); ctx.moveTo(W-26,H-70); ctx.lineTo(W-26,180); ctx.stroke();
-    for(const b of s.bumpers){ ctx.fillStyle="#7c5cff"; ctx.beginPath(); ctx.arc(b.x,b.y,b.r,0,7); ctx.fill(); ctx.fillStyle="#c9b8ff"; ctx.beginPath(); ctx.arc(b.x,b.y,b.r*0.55,0,7); ctx.fill(); }
+    // top rollover lanes
+    for(let i=0;i<3;i++){ const x=LANE_X[i]; ctx.fillStyle=s.lanes[i]?"#ffcf5a":"#2a2f55"; ctx.beginPath(); ctx.arc(x,44,7,0,7); ctx.fill();
+      ctx.strokeStyle=s.lanes[i]?"#ffe9a8":"#3a4066"; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(x-9,58); ctx.lineTo(x,30); ctx.lineTo(x+9,58); ctx.stroke(); }
+    for(const b of s.bumpers){ ctx.fillStyle="#7c5cff"; ctx.beginPath(); ctx.arc(b.x,b.y,b.r,0,7); ctx.fill(); ctx.fillStyle=b.lit>0?"#ffcf5a":"#c9b8ff"; ctx.beginPath(); ctx.arc(b.x,b.y,b.r*0.55,0,7); ctx.fill(); if(b.lit>0) b.lit--; }
     for(const f of [fl,fr]){ const sg=flipSeg(f); ctx.strokeStyle="#22d3ee"; ctx.lineWidth=C.THICK*2; ctx.lineCap="round"; ctx.beginPath(); ctx.moveTo(sg.x1,sg.y1); ctx.lineTo(sg.x2,sg.y2); ctx.stroke(); }
     ctx.fillStyle="#e6e6f0"; ctx.beginPath(); ctx.arc(s.ball.x,s.ball.y,C.R,0,7); ctx.fill(); ctx.fillStyle="rgba(255,255,255,.5)"; ctx.beginPath(); ctx.arc(s.ball.x-3,s.ball.y-3,3,0,7); ctx.fill();
     if(s.over){ ctx.fillStyle="rgba(0,0,0,.6)"; ctx.fillRect(0,0,W,H); ctx.fillStyle="#f43f5e"; ctx.font="bold 22px system-ui"; ctx.textAlign="center"; ctx.fillText("GAME OVER",W/2,H/2-6); ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Score "+s.score+"  ·  Best "+best,W/2,H/2+16); }
@@ -85,15 +91,18 @@
     for(const f of [fl,fr]){ const target=f.pressed?f.up:f.rest; f.angle+=(target-f.angle)*0.4; }
     if(!s.over && s.ball.live){
       stepBall(s.ball);
-      for(const b of s.bumpers){ if(bumperHit(s.ball,b)) s.score+=100; }
+      for(const b of s.bumpers){ if(bumperHit(s.ball,b)){ s.score+=100; b.lit=8; } }
       for(const f of [fl,fr]){ if(flipperReflect(s.ball, flipSeg(f), f.pressed && Math.abs(f.angle-f.up)<0.5)) s.score+=5; }
+      // top rollover lanes: light one when the ball passes through it
+      if(s.ball.y<58){ for(let i=0;i<3;i++){ if(Math.abs(s.ball.x-LANE_X[i])<18 && !s.lanes[i]){ s.lanes[i]=true; s.score+=250; } }
+        if(s.lanes.every(l=>l)){ s.score+=5000; s.bonus++; s.lanes=[false,false,false]; if(s.balls<5) s.balls++; $("msg").textContent="LANES COMPLETE! +5000 & an extra ball!"; } }
       // guide walls near the bottom sides funnel toward flippers
       if(s.ball.y>H-120){ if(s.ball.x<40){ s.ball.x=40; s.ball.vx=Math.abs(s.ball.vx)*0.7; } if(s.ball.x>W-40 && s.ball.y>H-90){ s.ball.x=W-40; s.ball.vx=-Math.abs(s.ball.vx)*0.7; } }
       if(drainCheck(s.ball)){ s.balls--; if(s.balls<=0){ s.over=true; if(s.score>best){ best=s.score; try{localStorage.setItem("pinball_best",String(best));}catch(e){} } $("msg").textContent="Game over! Score "+s.score+"  ·  Best "+best; } else { newBall(); $("msg").textContent="Ball drained! "+s.balls+" left — Space to launch."; } }
     }
     $("score").textContent=s.score; $("balls").textContent=Math.max(0,s.balls); draw(); requestAnimationFrame(frame);
   }
-  const press=(f,v)=>{ f.pressed=v; };
+  const press=(f,v)=>{ if(v && !f.pressed && s.ball.live) rotateLanes(s.lanes, f.side); f.pressed=v; };
   $("fl").addEventListener("touchstart",(e)=>{e.preventDefault();press(fl,true);},{passive:false}); $("fl").addEventListener("touchend",()=>press(fl,false)); $("fl").addEventListener("mousedown",()=>press(fl,true)); $("fl").addEventListener("mouseup",()=>press(fl,false)); $("fl").addEventListener("mouseleave",()=>press(fl,false));
   $("fr").addEventListener("touchstart",(e)=>{e.preventDefault();press(fr,true);},{passive:false}); $("fr").addEventListener("touchend",()=>press(fr,false)); $("fr").addEventListener("mousedown",()=>press(fr,true)); $("fr").addEventListener("mouseup",()=>press(fr,false)); $("fr").addEventListener("mouseleave",()=>press(fr,false));
   addEventListener("keydown",(e)=>{ if(e.key==="ArrowLeft"||e.key==="z")press(fl,true); else if(e.key==="ArrowRight"||e.key==="m")press(fr,true); else if(e.key===" "){e.preventDefault();launch();} });
