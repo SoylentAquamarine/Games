@@ -116,8 +116,8 @@
     function loop(){if(!running)return;update();render();raf=requestAnimationFrame(loop);}
 
     function tryTransition(){
-      const cx=player.x+player.size/2,cy=player.y+player.size/2;let dir=null;
-      if(cx<2)dir="W";else if(cx>W-2)dir="E";else if(cy<2)dir="N";else if(cy>H-2)dir="S";
+      const s=player.size;let dir=null;   // trigger when the hero's box reaches a doorway at the room edge
+      if(player.x<=2)dir="W";else if(player.x+s>=W-2)dir="E";else if(player.y<=2)dir="N";else if(player.y+s>=H-2)dir="S";
       if(!dir)return;
       if(!doorOpen(room[0],room[1],dir))return;
       const goingToTri=(room[0]+ (dir==="E"?1:dir==="W"?-1:0)===TRI[0])&&(room[1]+(dir==="S"?1:dir==="N"?-1:0)===TRI[1]);

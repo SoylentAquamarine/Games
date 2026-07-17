@@ -16,7 +16,7 @@
   .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
   h1{margin:0;font-size:1.3rem;background:linear-gradient(120deg,#34d399,#22d3ee);-webkit-background-clip:text;background-clip:text;color:transparent}
   .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:9px 16px;border-radius:999px;cursor:pointer}
-  .hud{width:100%;max-width:320px;display:flex;justify-content:space-between;font-size:.9rem;color:var(--muted)}
+  .hud{width:100%;max-width:320px;display:flex;justify-content:space-between;font-size:.86rem;color:var(--muted)}
   .hud b{color:var(--text)}
   canvas{width:min(90vw,320px);height:calc(min(90vw,320px)*1.3125);border-radius:10px;border:2px solid #2a2f55;background:#1a5a2a;cursor:crosshair;touch-action:none}
   .msg{min-height:1.3em;font-weight:800;text-align:center}
@@ -26,20 +26,37 @@
 <body>
 <div class="wrap">
   <div class="topbar"><a class="home" href="/">← Home</a><h1>Mini Golf</h1><button class="btn" id="new">New Game</button></div>
-  <div class="hud"><span>Hole: <b id="hole">1</b>/<b id="holes">3</b></span><span>Par: <b id="par">3</b></span><span>Strokes: <b id="strokes">0</b></span><span>Total: <b id="total">0</b></span></div>
+  <div class="hud"><span>Hole <b id="hole">1</b>/<b id="holes">18</b></span><span>Par <b id="par">3</b></span><span>Strokes <b id="strokes">0</b></span><span>Total <b id="total">0</b></span></div>
   <canvas id="game" width="320" height="420"></canvas>
   <div class="msg" id="msg">Drag back from the ball to aim & set power, release to putt.</div>
-  <div class="hint">Pull back and release — like a slingshot</div>
+  <div class="hint">Sand slows the ball · water costs a penalty stroke</div>
 </div>
 <script>
 (function(){
-  const C={ W:320,H:420, R:7, FRICTION:0.984, STOP:0.28, MAXPOW:15, HOLE_R:11 };
+  const C={ W:320,H:420, R:7, FRICTION:0.984, SAND_FRICTION:0.9, STOP:0.28, MAXPOW:15, HOLE_R:11 };
   const clamp=(v,a,b)=>v<a?a:v>b?b:v;
   const B=[{x:-30,y:-30,w:C.W+60,h:30},{x:-30,y:C.H,w:C.W+60,h:30},{x:-30,y:-30,w:30,h:C.H+60},{x:C.W,y:-30,w:30,h:C.H+60}];
+  const inRect=(x,y,r)=>x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h;
+  // 18 holes: {walls, sand, water, start, hole, par} — difficulty ramps up
   const LEVELS=[
-    { walls:[], start:{x:160,y:360}, hole:{x:160,y:70}, par:2 },
-    { walls:[{x:60,y:180,w:200,h:20}], start:{x:60,y:360}, hole:{x:260,y:80}, par:3 },
-    { walls:[{x:0,y:150,w:210,h:20},{x:110,y:260,w:210,h:20}], start:{x:40,y:370}, hole:{x:280,y:70}, par:4 },
+    {walls:[],sand:[],water:[],start:{x:160,y:370},hole:{x:160,y:80},par:2},
+    {walls:[{x:80,y:210,w:160,h:16}],sand:[],water:[],start:{x:80,y:370},hole:{x:250,y:90},par:3},
+    {walls:[{x:0,y:170,w:190,h:16}],sand:[],water:[],start:{x:40,y:380},hole:{x:280,y:80},par:3},
+    {walls:[{x:120,y:150,w:16,h:150}],sand:[{x:180,y:250,w:90,h:70}],water:[],start:{x:60,y:380},hole:{x:250,y:90},par:3},
+    {walls:[{x:60,y:230,w:200,h:16}],sand:[{x:60,y:120,w:110,h:70}],water:[],start:{x:160,y:380},hole:{x:230,y:70},par:4},
+    {walls:[{x:0,y:150,w:130,h:16},{x:190,y:250,w:130,h:16}],sand:[],water:[],start:{x:50,y:380},hole:{x:270,y:70},par:4},
+    {walls:[],sand:[{x:110,y:180,w:100,h:110}],water:[],start:{x:160,y:385},hole:{x:160,y:70},par:3},
+    {walls:[{x:150,y:120,w:16,h:120},{x:150,y:290,w:16,h:110}],sand:[],water:[{x:60,y:210,w:70,h:70}],start:{x:60,y:385},hole:{x:250,y:80},par:4},
+    {walls:[{x:70,y:200,w:180,h:16}],sand:[{x:70,y:90,w:80,h:70}],water:[{x:180,y:90,w:90,h:70}],start:{x:160,y:385},hole:{x:110,y:60},par:4},
+    {walls:[{x:0,y:160,w:150,h:16},{x:170,y:280,w:150,h:16}],sand:[],water:[{x:150,y:190,w:70,h:60}],start:{x:50,y:385},hole:{x:270,y:70},par:5},
+    {walls:[{x:100,y:100,w:16,h:180},{x:204,y:130,w:16,h:180}],sand:[{x:120,y:300,w:84,h:60}],water:[],start:{x:160,y:390},hole:{x:160,y:70},par:4},
+    {walls:[{x:60,y:230,w:200,h:16}],sand:[{x:60,y:90,w:90,h:70}],water:[{x:170,y:150,w:100,h:80}],start:{x:150,y:388},hole:{x:250,y:70},par:5},
+    {walls:[{x:0,y:130,w:120,h:16},{x:120,y:130,w:16,h:120},{x:200,y:250,w:120,h:16}],sand:[],water:[{x:140,y:300,w:80,h:60}],start:{x:60,y:388},hole:{x:270,y:70},par:5},
+    {walls:[{x:80,y:180,w:16,h:160},{x:224,y:100,w:16,h:160}],sand:[{x:100,y:110,w:120,h:60}],water:[{x:100,y:300,w:120,h:50}],start:{x:160,y:390},hole:{x:160,y:70},par:5},
+    {walls:[{x:0,y:150,w:110,h:16},{x:210,y:150,w:110,h:16},{x:150,y:250,w:16,h:120}],sand:[],water:[{x:120,y:80,w:80,h:55}],start:{x:60,y:390},hole:{x:160,y:60},par:5},
+    {walls:[{x:60,y:120,w:200,h:16},{x:60,y:270,w:200,h:16}],sand:[{x:130,y:170,w:60,h:90}],water:[{x:60,y:300,w:90,h:50},{x:180,y:300,w:80,h:50}],start:{x:160,y:392},hole:{x:230,y:70},par:6},
+    {walls:[{x:90,y:90,w:16,h:150},{x:200,y:200,w:16,h:150}],sand:[{x:110,y:280,w:90,h:60}],water:[{x:120,y:110,w:90,h:60}],start:{x:60,y:392},hole:{x:260,y:70},par:5},
+    {walls:[{x:0,y:140,w:130,h:16},{x:190,y:140,w:130,h:16},{x:130,y:250,w:16,h:120},{x:174,y:250,w:16,h:120}],sand:[{x:130,y:290,w:60,h:70}],water:[{x:130,y:80,w:60,h:50}],start:{x:160,y:394},hole:{x:160,y:55},par:6},
   ];
   function collideWall(ball, w){
     const cx=clamp(ball.x,w.x,w.x+w.w), cy=clamp(ball.y,w.y,w.y+w.h);
@@ -51,48 +68,54 @@
   }
   function putt(ball, angle, power){ power=clamp(power,0,C.MAXPOW); ball.vx=Math.cos(angle)*power; ball.vy=Math.sin(angle)*power; }
   function moving(ball){ return Math.hypot(ball.vx,ball.vy) >= C.STOP; }
-  function stepBall(ball, walls){
-    ball.x+=ball.vx; ball.y+=ball.vy; ball.vx*=C.FRICTION; ball.vy*=C.FRICTION;
-    for(const w of B) collideWall(ball,w); for(const w of walls) collideWall(ball,w);
+  function inSand(ball, sand){ for(const r of (sand||[])) if(inRect(ball.x,ball.y,r)) return true; return false; }
+  function inWater(ball, water){ for(const r of (water||[])) if(inRect(ball.x,ball.y,r)) return true; return false; }
+  function stepBall(ball, walls, sand){
+    ball.x+=ball.vx; ball.y+=ball.vy;
+    const f = inSand(ball,sand)?C.SAND_FRICTION:C.FRICTION; ball.vx*=f; ball.vy*=f;
+    for(const w of B) collideWall(ball,w); for(const w of (walls||[])) collideWall(ball,w);
     if(!moving(ball)){ ball.vx=0; ball.vy=0; }
     return ball;
   }
   function sunk(ball, hole){ return Math.hypot(ball.x-hole.x,ball.y-hole.y)<C.HOLE_R && Math.hypot(ball.vx,ball.vy)<7; }
   function newState(){ const lv=LEVELS[0]; return { level:0, ball:{x:lv.start.x,y:lv.start.y,vx:0,vy:0}, strokes:0, total:0, done:false }; }
-  window.__minigolf={ newState, putt, stepBall, sunk, collideWall, moving, LEVELS, C };
+  window.__minigolf={ newState, putt, stepBall, sunk, collideWall, moving, inSand, inWater, LEVELS, C };
 
   if(typeof document==="undefined") return;
   const $=(id)=>document.getElementById(id);
   const cv=$("game"), ctx=cv.getContext("2d"); const W=C.W,H=C.H;
-  let s=newState(), aim=null, best=null;
+  let s=newState(), aim=null, best=null, lastRest={x:0,y:0};
   try{ best=parseInt(localStorage.getItem("minigolf_best")||"")||null; }catch(e){}
   function lv(){ return LEVELS[s.level]; }
 
   function draw(){
     ctx.clearRect(0,0,W,H); ctx.fillStyle="#1a5a2a"; ctx.fillRect(0,0,W,H);
     ctx.fillStyle="#176a2c"; for(let y=0;y<H;y+=24) ctx.fillRect(0,y,W,12);
+    for(const r of (lv().sand||[])){ ctx.fillStyle="#d9c48a"; ctx.fillRect(r.x,r.y,r.w,r.h); ctx.fillStyle="#c9b06a"; for(let i=0;i<r.w*r.h/300;i++) ctx.fillRect(r.x+ (i*53)%r.w, r.y+(i*97)%r.h,2,2); }
+    for(const r of (lv().water||[])){ ctx.fillStyle="#1f6fb0"; ctx.fillRect(r.x,r.y,r.w,r.h); ctx.fillStyle="#3a8fd0"; for(let y=r.y+4;y<r.y+r.h;y+=8) ctx.fillRect(r.x+3,y,r.w-6,2); }
     for(const w of lv().walls){ ctx.fillStyle="#6a4a2a"; ctx.fillRect(w.x,w.y,w.w,w.h); ctx.fillStyle="#7a5a3a"; ctx.fillRect(w.x,w.y,w.w,3); }
     const h=lv().hole; ctx.fillStyle="#0a0c18"; ctx.beginPath(); ctx.arc(h.x,h.y,C.HOLE_R,0,7); ctx.fill();
     ctx.strokeStyle="#e6e6f0"; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(h.x,h.y); ctx.lineTo(h.x,h.y-26); ctx.stroke(); ctx.fillStyle="#f43f5e"; ctx.fillRect(h.x,h.y-26,14,9);
     if(aim){ const dx=aim.sx-aim.x, dy=aim.sy-aim.y; const pw=Math.min(Math.hypot(dx,dy),120);
       const ang=Math.atan2(dy,dx); ctx.strokeStyle="rgba(255,255,255,.7)"; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(s.ball.x,s.ball.y); ctx.lineTo(s.ball.x+Math.cos(ang)*pw*0.7,s.ball.y+Math.sin(ang)*pw*0.7); ctx.stroke(); }
     ctx.fillStyle="#fff"; ctx.beginPath(); ctx.arc(s.ball.x,s.ball.y,C.R,0,7); ctx.fill(); ctx.fillStyle="rgba(0,0,0,.15)"; ctx.beginPath(); ctx.arc(s.ball.x+2,s.ball.y+2,C.R*0.6,0,7); ctx.fill();
-    if(s.done){ ctx.fillStyle="rgba(0,0,0,.6)"; ctx.fillRect(0,0,W,H); ctx.fillStyle="#34d399"; ctx.font="bold 22px system-ui"; ctx.textAlign="center"; ctx.fillText("COURSE DONE!",W/2,H/2-6); ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Total "+s.total+(best?"  ·  Best "+best:""),W/2,H/2+16); }
+    if(s.done){ ctx.fillStyle="rgba(0,0,0,.6)"; ctx.fillRect(0,0,W,H); ctx.fillStyle="#34d399"; ctx.font="bold 22px system-ui"; ctx.textAlign="center"; ctx.fillText("18 HOLES DONE!",W/2,H/2-6); ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Total "+s.total+(best?"  ·  Best "+best:""),W/2,H/2+16); }
   }
   function frame(){
-    if(moving(s.ball)){ stepBall(s.ball, lv().walls);
-      if(sunk(s.ball, lv().hole)){ s.ball.vx=0; s.ball.vy=0; s.ball.x=lv().hole.x; s.ball.y=lv().hole.y; nextHole(); } }
+    if(moving(s.ball)){ stepBall(s.ball, lv().walls, lv().sand);
+      if(inWater(s.ball, lv().water)){ s.ball.x=lastRest.x; s.ball.y=lastRest.y; s.ball.vx=0; s.ball.vy=0; s.strokes++; $("msg").textContent="💦 Splash! Penalty stroke."; }
+      else if(sunk(s.ball, lv().hole)){ s.ball.vx=0; s.ball.vy=0; s.ball.x=lv().hole.x; s.ball.y=lv().hole.y; nextHole(); } }
     $("hole").textContent=s.level+1; $("holes").textContent=LEVELS.length; $("par").textContent=lv().par; $("strokes").textContent=s.strokes; $("total").textContent=s.total;
     draw(); requestAnimationFrame(frame);
   }
   function nextHole(){ s.total+=s.strokes; const rel=s.strokes-lv().par;
     if(s.level+1>=LEVELS.length){ s.done=true; if(!best||s.total<best){ best=s.total; try{localStorage.setItem("minigolf_best",String(best));}catch(e){} } $("msg").textContent="Course complete! Total "+s.total+(best?"  ·  Best "+best:""); return; }
-    s.level++; s.strokes=0; const l=lv(); s.ball={x:l.start.x,y:l.start.y,vx:0,vy:0}; $("msg").textContent=(rel===0?"Par!":rel<0?"Under par!":"+"+rel)+" — next hole."; }
+    s.level++; s.strokes=0; const l=lv(); s.ball={x:l.start.x,y:l.start.y,vx:0,vy:0}; $("msg").textContent=(rel<=-2?"Eagle!":rel===-1?"Birdie!":rel===0?"Par!":rel===1?"Bogey.":"+"+rel)+" — next hole."; }
   function pos(ev){ const r=cv.getBoundingClientRect(); const t=ev.touches?ev.touches[0]:ev; return { x:(t.clientX-r.left)*(W/r.width), y:(t.clientY-r.top)*(H/r.height) }; }
   function down(ev){ if(s.done||moving(s.ball)) return; const p=pos(ev); if(Math.hypot(p.x-s.ball.x,p.y-s.ball.y)<40) aim={x:p.x,y:p.y,sx:p.x,sy:p.y}; }
   function move(ev){ if(!aim) return; ev.preventDefault(); const p=pos(ev); aim.x=p.x; aim.y=p.y; }
   function up(){ if(!aim) return; const dx=aim.sx-aim.x, dy=aim.sy-aim.y; const dist=Math.hypot(dx,dy);
-    if(dist>8){ const ang=Math.atan2(dy,dx); putt(s.ball, ang, Math.min(dist,120)/120*C.MAXPOW); s.strokes++; } aim=null; }
+    if(dist>8){ lastRest={x:s.ball.x,y:s.ball.y}; const ang=Math.atan2(dy,dx); putt(s.ball, ang, Math.min(dist,120)/120*C.MAXPOW); s.strokes++; } aim=null; }
   cv.addEventListener("mousedown",down); cv.addEventListener("mousemove",move); window.addEventListener("mouseup",up);
   cv.addEventListener("touchstart",(e)=>{e.preventDefault();down(e);},{passive:false}); cv.addEventListener("touchmove",move,{passive:false}); cv.addEventListener("touchend",up);
   $("new").addEventListener("click",()=>{ s=newState(); aim=null; $("msg").textContent="Drag back from the ball to aim, release to putt."; });
