@@ -53,8 +53,6 @@
   <script src="../cards.js"></script>
   <script>
   (function(){
-    const cellsEl=document.getElementById("cells"),foundEl=document.getElementById("foundations"),
-      colsEl=document.getElementById("cols"),statusEl=document.getElementById("status");
     const SUITS=Cards.SUITS;
     const sv=(r)=>r===14?1:r;
     const isRed=(c)=>!!Cards.RED[c.suit];
@@ -66,6 +64,10 @@
     function canStackTab(mover, destTop){ if(!destTop) return true; return sv(mover.rank)===sv(destTop.rank)-1 && isRed(mover)!==isRed(destTop); }
     function canFoundation(card, pile){ if(card.suit!==pile.suit) return false; return sv(card.rank)===(pile.cards.length?sv(pile.cards[pile.cards.length-1].rank)+1:1); }
     window.__freecell={ sv, validSeq, maxMovable, canStackTab, canFoundation };
+
+    if(typeof document==="undefined"||!document.getElementById) return;
+    const cellsEl=document.getElementById("cells"),foundEl=document.getElementById("foundations"),
+      colsEl=document.getElementById("cols"),statusEl=document.getElementById("status");
 
     function newGame(){
       const d=Cards.shuffle(Cards.makeDeck());
