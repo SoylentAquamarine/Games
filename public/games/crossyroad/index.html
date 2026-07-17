@@ -50,7 +50,7 @@
       let x=rnd(0,2); while(x<C.COLS){ ent.push({x, len, speed:sp, dir}); x+=len+rnd(1.5,2.6); } }
     return { type, ent };
   }
-  function carHit(car, px){ return px+0.42>car.x && px-0.42<car.x+car.len; }
+  function carHit(car, px){ const inset=0.12; return px+0.26>car.x+inset && px-0.26<car.x+car.len-inset; }
   function logUnder(row, px){ for(const l of row.ent){ if(px+0.3>l.x && px-0.3<l.x+l.len) return l; } return null; }
   function ensureRows(s, upto){ while(s.rows.length<=upto) s.rows.push(genRow(s.rows.length)); }
   function newState(){ const s={ rows:[], player:{x:4,row:0}, score:0, over:false }; ensureRows(s,20); return s; }

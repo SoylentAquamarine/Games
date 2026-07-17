@@ -76,14 +76,17 @@
     function tableauOk(first, destTop){ if(!destTop) return sv(first.rank)===13; return sv(first.rank)===sv(destTop.rank)-1 && isRed(first)!==isRed(destTop); }
     window.__klondike={ sv, isRed, foundationOk, tableauOk, DEAL, VEGAS_PASSES };
 
-    let stock,waste,found,tab,sel,mode="std",score=0,passes=0;
+    let stock,waste,found,tab,sel,mode="std",score=0,passes=0,activeVegas=false,committed=true;
     let bank=0; try{ bank=parseInt(localStorage.getItem("klondike_bank")||"0")||0; }catch(e){}
+    function commitScore(){ if(activeVegas&&!committed){ bank+=score; committed=true; try{localStorage.setItem("klondike_bank",String(bank));}catch(e){} } }
 
     function newGame(){
       const d=Cards.shuffle(Cards.makeDeck());
       tab=[];for(let i=0;i<7;i++){const pile=[];for(let j=0;j<=i;j++){pile.push({card:d.shift(),up:j===i});}tab.push(pile);}
+      commitScore();
       stock=d.map(c=>c);waste=[];found={S:[],H:[],D:[],C:[]};sel=null;
       passes=VEGAS_PASSES; score = mode==="vegas" ? -52 : 0;
+      activeVegas=(mode==="vegas"); committed=(mode!=="vegas");
       statusEl.textContent=""; updateScore(); render();
     }
     function setMode(m){ mode=m; document.querySelectorAll("#mode button").forEach(b=>b.classList.toggle("active",b.dataset.m===m)); newGame(); }
@@ -200,7 +203,7 @@
     }
     function checkWin(){const total=SUITS.reduce((a,s)=>a+found[s].length,0);
       if(total===52){
-        if(mode==="vegas"){ bank+=score; try{localStorage.setItem("klondike_bank",String(bank));}catch(e){} updateScore(); statusEl.textContent="🏆 Solved! You cleared $"+score+" this game.";}
+        if(mode==="vegas"){ commitScore(); updateScore(); statusEl.textContent="🏆 Solved! You cleared $"+score+" this game — banked.";}
         else statusEl.textContent="🏆 You solved it! Well played.";
       }
     }
