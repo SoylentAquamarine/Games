@@ -43,7 +43,7 @@
 </div>
 <script>
 (function(){
-  const C={ cols:14, rows:16, cell:20, reach:3, wobble:3 };
+  const C={ cols:14, rows:16, cell:20, reach:3, wobble:9 };
   const DIRS={left:[-1,0],right:[1,0],up:[0,-1],down:[0,1]};
   function enemyAt(s,c,r){ return s.enemies.find(e=>e.alive&&e.c===c&&e.r===r)||null; }
   function newState(){
@@ -62,10 +62,25 @@
       const e=enemyAt(s,c,r); if(e){ e.inflate++; if(e.inflate>=3){ e.alive=false; s.score+=200; } return "hit"; } }
     return "miss"; }
   function respawn(s){ s.player.c=7; s.player.r=2; s.player.dir="down"; }
+  // BFS through already-dug (empty) tunnels toward the player; returns the first step, or null if no tunnel path exists.
+  function pathNext(s, e){
+    const key=(c,r)=>c+","+r; const start=key(e.c,e.r), goal=key(s.player.c,s.player.r);
+    if(start===goal) return null;
+    const q=[[e.c,e.r]], prev={}; prev[start]=null; let head=0, found=false;
+    while(head<q.length){ const [c,r]=q[head++]; if(c===s.player.c&&r===s.player.r){ found=true; break; }
+      for(const [dc,dr] of [[1,0],[-1,0],[0,1],[0,-1]]){ const nc=c+dc, nr=r+dr; if(nc<0||nc>=C.cols||nr<0||nr>=C.rows) continue;
+        const k=key(nc,nr); if(k in prev) continue; if(s.dirt[nr][nc] && !(nc===s.player.c&&nr===s.player.r)) continue; // only walk dug cells
+        prev[k]=key(c,r); q.push([nc,nr]); } }
+    if(!found) return null;
+    let cur=goal, p=prev[cur]; while(p&&p!==start){ cur=p; p=prev[cur]; }
+    const [fc,fr]=cur.split(",").map(Number); return {c:fc,r:fr};
+  }
   function enemyStep(s){ if(s.over) return s;
     for(const e of s.enemies){ if(!e.alive) continue; if(e.inflate>0){ e.inflate=Math.max(0,e.inflate-1); continue; }
-      const ddc=s.player.c-e.c, ddr=s.player.r-e.r; let nc=e.c, nr=e.r;
-      if(Math.abs(ddc)>=Math.abs(ddr) && ddc!==0) nc+=Math.sign(ddc); else if(ddr!==0) nr+=Math.sign(ddr);
+      let nc, nr; const step=pathNext(s,e);
+      if(step){ nc=step.c; nr=step.r; }          // follow the existing tunnel — no digging
+      else { const ddc=s.player.c-e.c, ddr=s.player.r-e.r; nc=e.c; nr=e.r;   // boxed in: dig toward the player
+        if(Math.abs(ddc)>=Math.abs(ddr) && ddc!==0) nc+=Math.sign(ddc); else if(ddr!==0) nr+=Math.sign(ddr); }
       if(nc>=0&&nc<C.cols&&nr>=0&&nr<C.rows){ s.dirt[nr][nc]=false; e.c=nc; e.r=nr;
         if(nc===s.player.c&&nr===s.player.r){ s.lives--; if(s.lives<=0) s.over=true; else respawn(s); } } }
     return s; }
@@ -78,7 +93,7 @@
       if(rk.c===s.player.c&&rk.r===s.player.r){ s.lives--; if(s.lives<=0) s.over=true; else respawn(s); } }
     return s; }
   function ensureLevel(s){ if(!s.over && s.enemies.every(e=>!e.alive)){ s.level++; const ns=newState(); ns.score=s.score; ns.level=s.level; ns.lives=s.lives; Object.assign(s,ns); } }
-  window.__digdug={ newState, dig, pump, enemyStep, rockFall, enemyAt, ensureLevel, C };
+  window.__digdug={ newState, dig, pump, enemyStep, rockFall, enemyAt, ensureLevel, pathNext, C };
 
   if(typeof document==="undefined") return;
   const $=(id)=>document.getElementById(id);
@@ -91,8 +106,11 @@
     for(let r=0;r<C.rows;r++) for(let c=0;c<C.cols;c++){ if(s.dirt[r][c]){ const band=Math.floor(r/4); ctx.fillStyle=["#8a5a2a","#7a4a24","#6a3e1e","#5a3418"][band%4]; ctx.fillRect(c*CELL,r*CELL,CELL,CELL); }
       else { ctx.fillStyle= r<2?"#12305a":"#1a120c"; ctx.fillRect(c*CELL,r*CELL,CELL,CELL); } }
     for(const rk of s.rocks){ const wx=(rk.wob>0&&!rk.falling)?(Math.random()*4-2):0; ctx.fillStyle=rk.wob>0?"#b5b5c8":"#9a9ab5"; ctx.beginPath(); ctx.arc(rk.c*CELL+CELL/2+wx,rk.r*CELL+CELL/2,CELL/2-1,0,7); ctx.fill(); ctx.fillStyle="#6a6a85"; ctx.fillRect(rk.c*CELL+4+wx,rk.r*CELL+5,4,3); }
-    for(const e of s.enemies){ if(!e.alive) continue; const sz=CELL/2-1+e.inflate*2; ctx.fillStyle=e.inflate>0?"#ffcf5a":"#f0616e"; ctx.beginPath(); ctx.arc(e.c*CELL+CELL/2,e.r*CELL+CELL/2,sz,0,7); ctx.fill(); ctx.fillStyle="#fff"; ctx.fillRect(e.c*CELL+5,e.r*CELL+6,3,3); ctx.fillRect(e.c*CELL+CELL-8,e.r*CELL+6,3,3); }
-    ctx.fillStyle="#22d3ee"; ctx.fillRect(s.player.c*CELL+3,s.player.r*CELL+3,CELL-6,CELL-6); ctx.fillStyle="#7de8ff"; const d=DIRS[s.player.dir]; ctx.fillRect(s.player.c*CELL+CELL/2-2+d[0]*5, s.player.r*CELL+CELL/2-2+d[1]*5,4,4);
+    for(const e of s.enemies){ if(!e.alive) continue; const cx=e.c*CELL+CELL/2, cy=e.r*CELL+CELL/2;
+      if(e.ax==null||Math.hypot(cx-e.ax,cy-e.ay)>CELL*2.5){e.ax=cx;e.ay=cy;} e.ax+=(cx-e.ax)*0.3; e.ay+=(cy-e.ay)*0.3;
+      const sz=CELL/2-1+e.inflate*2; ctx.fillStyle=e.inflate>0?"#ffcf5a":"#f0616e"; ctx.beginPath(); ctx.arc(e.ax,e.ay,sz,0,7); ctx.fill(); ctx.fillStyle="#fff"; ctx.fillRect(e.ax-CELL/2+5,e.ay-CELL/2+6,3,3); ctx.fillRect(e.ax+CELL/2-8,e.ay-CELL/2+6,3,3); }
+    { const p=s.player, tx=p.c*CELL, ty=p.r*CELL; if(p.ax==null||Math.hypot(tx-p.ax,ty-p.ay)>CELL*2.5){p.ax=tx;p.ay=ty;} p.ax+=(tx-p.ax)*0.35; p.ay+=(ty-p.ay)*0.35;
+      ctx.fillStyle="#22d3ee"; ctx.fillRect(p.ax+3,p.ay+3,CELL-6,CELL-6); ctx.fillStyle="#7de8ff"; const d=DIRS[p.dir]; ctx.fillRect(p.ax+CELL/2-2+d[0]*5, p.ay+CELL/2-2+d[1]*5,4,4); }
     if(s.over){ ctx.fillStyle="rgba(0,0,0,.6)"; ctx.fillRect(0,0,W,H); ctx.fillStyle="#f43f5e"; ctx.font="bold 22px system-ui"; ctx.textAlign="center"; ctx.fillText("GAME OVER",W/2,H/2-6); ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Score "+s.score+"  ·  Best "+best,W/2,H/2+16); }
   }
   function frame(){

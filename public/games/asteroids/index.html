@@ -47,8 +47,9 @@
       <button data-k="thrust">🔥 Thrust</button>
       <button data-k="right">⟳</button>
       <button data-k="fire">● Fire</button>
+      <button data-k="warp">✦ Warp</button>
     </div>
-    <p class="hint">← → rotate · ↑ thrust · Space fire (or use buttons)</p>
+    <p class="hint">← → rotate · ↑ thrust · hold Space to rapid-fire · ↓ hyperspace warp</p>
   </div>
   <script>
   (function(){
@@ -57,7 +58,9 @@
     const ov=document.getElementById("ov"),ot=document.getElementById("ot"),om=document.getElementById("om"),startBtn=document.getElementById("start");
     let ship,rocks,bullets,score,lives,wave,running,raf,inv,best=+localStorage.getItem("asteroids_best")||0;
     bestEl.textContent=best;
-    const keys={left:false,right:false,thrust:false};
+    const keys={left:false,right:false,thrust:false,fire:false};
+    let lastWarp=0;
+    function hyperspace(){const now=performance.now();if(now-lastWarp<600)return;lastWarp=now;ship.x=Math.random()*W;ship.y=Math.random()*H;ship.vx=0;ship.vy=0;inv=Math.max(inv,45);}
     let lastFire=0;
 
     function newShip(){return {x:W/2,y:H/2,a:-Math.PI/2,vx:0,vy:0};}
@@ -80,6 +83,7 @@
       if(keys.left)ship.a-=0.07;if(keys.right)ship.a+=0.07;
       if(keys.thrust){ship.vx+=Math.cos(ship.a)*0.13;ship.vy+=Math.sin(ship.a)*0.13;}
       ship.vx*=0.99;ship.vy*=0.99;ship.x+=ship.vx;ship.y+=ship.vy;wrap(ship);
+      if(keys.fire)fire();
       if(inv>0)inv--;
       bullets.forEach(b=>{b.x+=b.vx;b.y+=b.vy;b.life--;wrap(b);});
       bullets=bullets.filter(b=>b.life>0);
@@ -124,10 +128,12 @@
       }
     }
     // input
-    function setKey(k,v){if(k==="fire"){if(v)fire();return;}if(k in keys)keys[k]=v;}
+    function setKey(k,v){if(k==="fire"){keys.fire=v;return;}if(k==="warp"){if(v&&running)hyperspace();return;}if(k in keys)keys[k]=v;}
     document.addEventListener("keydown",e=>{const m={ArrowLeft:"left",ArrowRight:"right",ArrowUp:"thrust",a:"left",d:"right",w:"thrust"}[e.key];
-      if(m){e.preventDefault();keys[m]=true;}if(e.key===" "){e.preventDefault();if(running)fire();}});
-    document.addEventListener("keyup",e=>{const m={ArrowLeft:"left",ArrowRight:"right",ArrowUp:"thrust",a:"left",d:"right",w:"thrust"}[e.key];if(m)keys[m]=false;});
+      if(m){e.preventDefault();keys[m]=true;}
+      if(e.key===" "){e.preventDefault();keys.fire=true;}
+      if(e.key==="ArrowDown"||e.key==="s"){e.preventDefault();if(running)hyperspace();}});
+    document.addEventListener("keyup",e=>{const m={ArrowLeft:"left",ArrowRight:"right",ArrowUp:"thrust",a:"left",d:"right",w:"thrust"}[e.key];if(m)keys[m]=false;if(e.key===" ")keys.fire=false;});
     document.querySelectorAll(".pad button").forEach(b=>{const k=b.dataset.k;
       const on=(e)=>{e.preventDefault();setKey(k,true);},off=(e)=>{e.preventDefault();setKey(k,false);};
       b.addEventListener("touchstart",on,{passive:false});b.addEventListener("touchend",off,{passive:false});

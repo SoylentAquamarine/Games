@@ -18,7 +18,7 @@
   .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:9px 16px;border-radius:999px;cursor:pointer}
   .hud{width:100%;max-width:240px;display:flex;justify-content:space-between;font-size:.9rem;color:var(--muted)}
   .hud b{color:var(--text)}
-  canvas{width:min(70vw,240px);height:calc(min(70vw,240px)*2);border-radius:10px;border:2px solid #2a2f55;background:#0a0c18;touch-action:none}
+  canvas{width:min(84vw,280px);height:calc(min(84vw,280px)*2.25);border-radius:10px;border:2px solid #2a2f55;background:#0a0c18;touch-action:none}
   .msg{min-height:1.3em;font-weight:800;text-align:center}
   .ctl{display:flex;gap:8px;align-items:center}
   .dpad{display:grid;grid-template-columns:repeat(3,44px);grid-template-rows:repeat(2,44px);gap:4px}
@@ -33,7 +33,7 @@
 <div class="wrap">
   <div class="topbar"><a class="home" href="/">← Home</a><h1>Dr. Pill</h1><button class="btn" id="new">New Game</button></div>
   <div class="hud"><span>Score: <b id="score">0</b></span><span>Viruses: <b id="viruses">0</b></span></div>
-  <canvas id="game" width="160" height="320"></canvas>
+  <canvas id="game" width="160" height="360"></canvas>
   <div class="msg" id="msg">Line up 4+ of a color to clear the viruses!</div>
   <div class="ctl">
     <div class="dpad"><button class="l" data-a="left">◀</button><button class="dn" data-a="down">▼</button><button class="r" data-a="right">▶</button><button class="rot rotb" data-a="rotate">⟳ ROTATE</button></div>
@@ -42,7 +42,7 @@
 </div>
 <script>
 (function(){
-  const C={ rows:16, cols:8, colors:["R","B","Y"] };
+  const C={ rows:18, cols:8, colors:["R","B","Y"] };
   const COLHEX={R:"#f43f5e",B:"#22d3ee",Y:"#ffcf5a"};
   function emptyGrid(){ const g=[]; for(let r=0;r<C.rows;r++) g.push(new Array(C.cols).fill(null)); return g; }
   function clearMatches(grid){ const rows=grid.length, cols=grid[0].length; const toClear=new Set();
@@ -57,7 +57,7 @@
   function resolve(grid){ let total=0; while(true){ const c=clearMatches(grid); if(c===0) break; total+=c; settle(grid); } return total; }
   function countViruses(grid){ let n=0; for(const row of grid) for(const cell of row) if(cell&&cell.virus) n++; return n; }
   function placeViruses(grid, n){ let placed=0, tries=0; const rows=grid.length, cols=grid[0].length;
-    while(placed<n && tries<500){ tries++; const r=4+Math.floor(Math.random()*(rows-5)), c=Math.floor(Math.random()*cols);
+    while(placed<n && tries<500){ tries++; const r=Math.floor(rows/2)+Math.floor(Math.random()*(rows/2-1)), c=Math.floor(Math.random()*cols);
       if(grid[r][c]) continue; const color=C.colors[Math.floor(Math.random()*3)];
       const bad=(grid[r][c-1]&&grid[r][c-2]&&grid[r][c-1].color===color&&grid[r][c-2].color===color)||(grid[r-1]&&grid[r-2]&&grid[r-1][c]&&grid[r-2][c]&&grid[r-1][c].color===color&&grid[r-2][c].color===color);
       if(bad) continue; grid[r][c]={color,virus:true}; placed++; } }
