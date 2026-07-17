@@ -17,15 +17,22 @@ const overlap=(a,b)=>a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;
 const pRect=(p)=>({x:p.x,y:p.y,w:HS,h:HS});
 
 export const ROOMS={
-  commons:{ name:"The Commons", color:"#3a7d3a", exits:{N:"north",S:"south",E:"east"},
+  commons:{ name:"The Commons", color:"#3a7d3a", exits:{N:"north",S:"south",E:"east",W:"west"},
     castle:{name:"Gold",gate:{x:84,y:66,w:32,h:20},interior:"goldIn"} },
-  north:{ name:"Blue Antechamber", color:"#2b52a0", exits:{S:"commons"} },
-  south:{ name:"Violet Hollow", color:"#6a2d8a", exits:{N:"commons"},
+  north:{ name:"Blue Antechamber", color:"#2b52a0", exits:{S:"commons",N:"belfry"} },
+  south:{ name:"Violet Hollow", color:"#6a2d8a", exits:{N:"commons",S:"catacomb"},
     inner:[{x:40,y:96,w:52,h:12},{x:108,y:96,w:52,h:12}] },
   east:{ name:"Teal Corridor", color:"#1f8a76", exits:{W:"commons",E:"blackgate"} },
   blackgate:{ name:"The Black Gate", color:"#2a2a2a", exits:{W:"east"},
     inner:[{x:36,y:112,w:128,h:12}],
     castle:{name:"Black",gate:{x:84,y:52,w:32,h:20},interior:"blackIn"} },
+  west:{ name:"West Woods", color:"#3a6a2a", exits:{E:"commons",N:"grotto",W:"maze1"} },
+  grotto:{ name:"The Grotto", color:"#1f5a6a", exits:{S:"west"} },
+  maze1:{ name:"Twisting Maze", color:"#6a5a2a", exits:{E:"west",W:"maze2"}, inner:[{x:40,y:60,w:12,h:120},{x:120,y:20,w:12,h:120}] },
+  maze2:{ name:"Deep Maze", color:"#5a3a6a", exits:{E:"maze1"}, inner:[{x:60,y:0,w:12,h:130},{x:132,y:70,w:12,h:130}] },
+  belfry:{ name:"The Belfry", color:"#2b4a8a", exits:{S:"north"} },
+  catacomb:{ name:"The Catacomb", color:"#3a2a3a", exits:{N:"south",E:"crypt"}, inner:[{x:90,y:40,w:12,h:100}] },
+  crypt:{ name:"The Crypt", color:"#242438", exits:{W:"catacomb"} },
   goldIn:{ name:"Inside the Gold Castle", color:"#12101c", exits:{S:"commons"}, exitReturn:{x:96,y:96} },
   blackIn:{ name:"Inside the Black Castle", color:"#12101c", exits:{S:"blackgate"}, exitReturn:{x:96,y:80} },
 };

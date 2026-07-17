@@ -43,18 +43,25 @@
   function target(r,c,dir){ if(dir==="dl") return {row:r+1,col:c}; if(dir==="dr") return {row:r+1,col:c+1};
     if(dir==="ul") return {row:r-1,col:c-1}; return {row:r-1,col:c}; /* ur */ }
   function allChanged(s){ for(let r=0;r<C.rows;r++) for(let c=0;c<=r;c++) if(!s.colored[r][c]) return false; return true; }
-  function resetBoard(s){ s.colored=emptyGrid(); s.colored[0][0]=true; s.q={row:0,col:0}; }
-  function newState(){ const s={ colored:emptyGrid(), q:{row:0,col:0}, lives:3, score:0, level:1, over:false }; s.colored[0][0]=true; return s; }
+  function resetBoard(s){ s.colored=emptyGrid(); s.colored[0][0]=true; s.q={row:0,col:0}; s.enemy=null; }
+  function newState(){ const s={ colored:emptyGrid(), q:{row:0,col:0}, enemy:null, lives:3, score:0, level:1, over:false }; s.colored[0][0]=true; return s; }
   function hop(s, dir){
     if(s.over) return s;
     const t=target(s.q.row,s.q.col,dir);
     if(!onPyramid(t.row,t.col)){ s.lives--; if(s.lives<=0){ s.over=true; } else { s.q={row:0,col:0}; } return s; }
     s.q=t;
     if(!s.colored[t.row][t.col]){ s.colored[t.row][t.col]=true; s.score+=25; }
+    if(s.enemy && s.enemy.row===t.row && s.enemy.col===t.col){ s.lives--; if(s.lives<=0) s.over=true; else { s.q={row:0,col:0}; } s.enemy=null; return s; }
     if(allChanged(s)){ s.score+=100; s.level++; resetBoard(s); }
     return s;
   }
-  window.__qbert={ newState, hop, target, onPyramid, allChanged, resetBoard, C };
+  function spawnEnemy(s){ if(!s.enemy && !(s.q.row===0&&s.q.col===0)) s.enemy={row:0,col:0}; return s; }
+  function enemyStep(s, dir){ if(s.over||!s.enemy) return s; dir=dir||(Math.random()<0.5?"dl":"dr"); const t=target(s.enemy.row,s.enemy.col,dir);
+    if(!onPyramid(t.row,t.col)){ s.enemy=null; return s; }
+    s.enemy=t;
+    if(t.row===s.q.row&&t.col===s.q.col){ s.lives--; if(s.lives<=0) s.over=true; else { s.q={row:0,col:0}; } s.enemy=null; }
+    return s; }
+  window.__qbert={ newState, hop, target, onPyramid, allChanged, resetBoard, spawnEnemy, enemyStep, C };
 
   if(typeof document==="undefined") return;
   const $=(id)=>document.getElementById(id);
@@ -71,19 +78,34 @@
     ctx.fillStyle= colored?"#ffcf5a":"#3b4fd6"; ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x+CW/2,y+TH/2); ctx.lineTo(x,y+TH); ctx.lineTo(x-CW/2,y+TH/2); ctx.closePath(); ctx.fill();
     ctx.strokeStyle="rgba(0,0,0,.25)"; ctx.stroke();
   }
+  let anim=null, enemyT=0, spawnT=0;
   function draw(){
     ctx.clearRect(0,0,W,H); ctx.fillStyle="#080a14"; ctx.fillRect(0,0,W,H);
     for(let r=0;r<C.rows;r++) for(let c=0;c<=r;c++) drawCube(r,c,s.colored[r][c]);
-    const {x,y}=cubeXY(s.q.row,s.q.col); ctx.fillStyle="#f0902a"; ctx.beginPath(); ctx.arc(x,y+TH/2-6,11,0,7); ctx.fill();
-    ctx.fillStyle="#5a2a00"; ctx.fillRect(x-6,y+TH/2-9,4,4); ctx.fillRect(x+2,y+TH/2-9,4,4);
-    ctx.fillStyle="#f0616e"; ctx.fillRect(x-3,y+TH/2-2,6,4);
+    // enemy (Coily-style ball)
+    if(s.enemy){ const e=cubeXY(s.enemy.row,s.enemy.col); ctx.fillStyle="#c026d3"; ctx.beginPath(); ctx.arc(e.x,e.y+TH/2-5,10,0,7); ctx.fill(); ctx.fillStyle="#fff"; ctx.fillRect(e.x-4,e.y+TH/2-8,3,3); ctx.fillRect(e.x+2,e.y+TH/2-8,3,3); }
+    // player (with jump arc)
+    let px, py; const base=cubeXY(s.q.row,s.q.col);
+    if(anim){ const t=Math.min(1,(performance.now()-anim.t0)/170); px=anim.fx+(anim.tx-anim.fx)*t; py=anim.fy+(anim.ty-anim.fy)*t - Math.sin(t*Math.PI)*22; if(t>=1) anim=null; }
+    else { px=base.x; py=base.y; }
+    ctx.fillStyle="#f0902a"; ctx.beginPath(); ctx.arc(px,py+TH/2-6,11,0,7); ctx.fill();
+    ctx.fillStyle="#5a2a00"; ctx.fillRect(px-6,py+TH/2-9,4,4); ctx.fillRect(px+2,py+TH/2-9,4,4);
+    ctx.fillStyle="#f0616e"; ctx.fillRect(px-3,py+TH/2-2,6,4);
     if(s.over){ ctx.fillStyle="rgba(0,0,0,.6)"; ctx.fillRect(0,0,W,H); ctx.fillStyle="#f43f5e"; ctx.font="bold 24px system-ui"; ctx.textAlign="center"; ctx.fillText("GAME OVER",W/2,H/2-6); ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Score "+s.score+"  ·  Best "+best,W/2,H/2+16); }
   }
-  function go(dir){ if(s.over) return; const lv=s.level; hop(s,dir);
+  function go(dir){ if(s.over||anim) return; const lv=s.level; const from=cubeXY(s.q.row,s.q.col); hop(s,dir);
+    const to=cubeXY(s.q.row,s.q.col); anim={fx:from.x,fy:from.y,tx:to.x,ty:to.y,t0:performance.now()};
     if(s.level>lv) $("msg").textContent="Level "+s.level+"! Fresh pyramid.";
     if(s.over && s.score>best){ best=s.score; try{localStorage.setItem("qbert_best",String(best));}catch(e){} $("msg").textContent="Fell off! Score "+s.score+"  ·  Best "+best; }
     $("score").textContent=s.score; $("level").textContent=s.level; $("lives").textContent=Math.max(0,s.lives); }
-  function frame(){ draw(); requestAnimationFrame(frame); }
+  function frame(){
+    if(!s.over){
+      if(++spawnT>=200){ spawnT=0; spawnEnemy(s); }
+      if(s.enemy && ++enemyT>=48){ enemyT=0; enemyStep(s); if(s.over && s.score>best){ best=s.score; try{localStorage.setItem("qbert_best",String(best));}catch(e){} }
+        $("lives").textContent=Math.max(0,s.lives); if(s.over) $("msg").textContent="Caught! Score "+s.score+"  ·  Best "+best; }
+    }
+    draw(); requestAnimationFrame(frame);
+  }
   document.querySelectorAll(".pad button").forEach(b=>{ const d=b.getAttribute("data-d"); const f=(e)=>{e.preventDefault();go(d);}; b.addEventListener("click",f); b.addEventListener("touchstart",f,{passive:false}); });
   addEventListener("keydown",(e)=>{ const m={q:"ul",e:"ur",a:"dl",d:"dr"}[e.key.toLowerCase()]; if(m){ e.preventDefault(); go(m); } });
   $("new").addEventListener("click",()=>{ s=newState(); $("score").textContent=0; $("level").textContent=1; $("lives").textContent=3; $("msg").textContent="Hop on every cube to change its color!"; });
