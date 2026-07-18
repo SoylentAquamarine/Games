@@ -60,8 +60,11 @@
     bestEl.textContent=best;
     const keys={left:false,right:false,thrust:false,fire:false};
     let lastWarp=0;
-    function hyperspace(){const now=performance.now();if(now-lastWarp<600)return;lastWarp=now;ship.x=Math.random()*W;ship.y=Math.random()*H;ship.vx=0;ship.vy=0;inv=Math.max(inv,45);}
+    function hyperspace(){if(!ship)return;const now=performance.now();if(now-lastWarp<600)return;lastWarp=now;ship.x=Math.random()*W;ship.y=Math.random()*H;ship.vx=0;ship.vy=0;inv=Math.max(inv,45);}
     let lastFire=0;
+    // Death sequence: 2s of drifting wreckage, then a clearly-announced new ship.
+    const DEATH_FRAMES=120, RESPAWN_INV=120, RESPAWN_FLASH=90;
+    let dying=0, debris=[], gameOverPending=false, respawnFlash=0;
 
     function newShip(){return {x:W/2,y:H/2,a:-Math.PI/2,vx:0,vy:0};}
     function makeRock(x,y,size){
@@ -73,13 +76,24 @@
     function spawnWave(){rocks=[];const count=3+wave;for(let i=0;i<count;i++){
       let x,y;do{x=Math.random()*W;y=Math.random()*H;}while(Math.hypot(x-ship.x,y-ship.y)<120);
       rocks.push(makeRock(x,y,3));}}
-    function reset(full){if(full){score=0;lives=3;wave=1;}ship=newShip();bullets=[];inv=90;spawnWave();scoreEl.textContent=score;livesEl.textContent=lives;}
+    function reset(full){if(full){score=0;lives=3;wave=1;}dying=0;debris=[];gameOverPending=false;respawnFlash=0;ship=newShip();bullets=[];inv=90;spawnWave();scoreEl.textContent=score;livesEl.textContent=lives;}
     function start(){reset(true);ov.classList.add("hidden");running=true;loop();}
-    function fire(){const now=performance.now();if(now-lastFire<220)return;lastFire=now;
+    function fire(){if(!ship)return;const now=performance.now();if(now-lastFire<220)return;lastFire=now;
       bullets.push({x:ship.x+Math.cos(ship.a)*14,y:ship.y+Math.sin(ship.a)*14,vx:Math.cos(ship.a)*6+ship.vx,vy:Math.sin(ship.a)*6+ship.vy,life:60});}
     function wrap(o){if(o.x<0)o.x+=W;if(o.x>W)o.x-=W;if(o.y<0)o.y+=H;if(o.y>H)o.y-=H;}
     function loop(){if(!running)return;update();render();raf=requestAnimationFrame(loop);}
     function update(){
+      // While the wreck is drifting, the rocks keep moving but you have no ship.
+      if(dying>0){
+        debris.forEach(d=>{d.x+=d.vx;d.y+=d.vy;d.a+=d.va;wrap(d);});
+        rocks.forEach(r=>{r.x+=r.vx;r.y+=r.vy;r.rot+=r.vr;wrap(r);});
+        bullets.forEach(b=>{b.x+=b.vx;b.y+=b.vy;b.life--;wrap(b);});
+        bullets=bullets.filter(b=>b.life>0);
+        if(--dying<=0) afterDeath();
+        return;
+      }
+      if(!ship) return;
+      if(respawnFlash>0)respawnFlash--;
       if(keys.left)ship.a-=0.07;if(keys.right)ship.a+=0.07;
       if(keys.thrust){ship.vx+=Math.cos(ship.a)*0.13;ship.vy+=Math.sin(ship.a)*0.13;}
       ship.vx*=0.99;ship.vy*=0.99;ship.x+=ship.vx;ship.y+=ship.vy;wrap(ship);
@@ -101,12 +115,23 @@
       }
       // ship-rock
       if(inv<=0){for(const r of rocks){if(Math.hypot(ship.x-r.x,ship.y-r.y)<r.r+8){die();break;}}}
-      if(rocks.length===0){wave++;ship=newShip();inv=90;spawnWave();}
+      if(rocks.length===0){wave++;ship=newShip();inv=RESPAWN_INV;spawnWave();}
     }
     function die(){lives--;livesEl.textContent=lives;
-      if(lives<=0){running=false;cancelAnimationFrame(raf);if(score>best){best=score;localStorage.setItem("asteroids_best",best);bestEl.textContent=best;}
-        ot.textContent="Game Over";om.textContent="Score "+score+" · wave "+wave;startBtn.textContent="Play again";ov.classList.remove("hidden");return;}
-      ship=newShip();inv=100;}
+      // Blow the ship apart into drifting shards for ~2s before the next one appears.
+      debris=[]; for(let i=0;i<14;i++){ const a=Math.random()*Math.PI*2, sp=0.6+Math.random()*2.2;
+        debris.push({x:ship.x,y:ship.y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,a:Math.random()*7,va:(Math.random()-.5)*0.3,len:4+Math.random()*7}); }
+      dying=DEATH_FRAMES; ship=null;
+      if(lives<=0){ gameOverPending=true; }
+    }
+    // Called when the death animation finishes.
+    function afterDeath(){
+      dying=0; debris=[];
+      if(gameOverPending){ gameOverPending=false; running=false; cancelAnimationFrame(raf);
+        if(score>best){best=score;localStorage.setItem("asteroids_best",best);bestEl.textContent=best;}
+        ot.textContent="Game Over";om.textContent="Score "+score+" · wave "+wave;startBtn.textContent="Play again";ov.classList.remove("hidden");return; }
+      ship=newShip(); inv=RESPAWN_INV; respawnFlash=RESPAWN_FLASH;
+    }
     function render(){
       ctx.clearRect(0,0,W,H);
       // stars
@@ -126,13 +151,33 @@
         ctx.restore();});
       // bullets
       ctx.fillStyle="#22d3ee";bullets.forEach(b=>{ctx.beginPath();ctx.arc(b.x,b.y,2.2,0,7);ctx.fill();});
+      // wreckage, drifting and fading over the 2s death animation
+      if(dying>0){
+        const fade=Math.min(1,dying/DEATH_FRAMES);
+        ctx.strokeStyle="rgba(250,204,21,"+fade+")"; ctx.lineWidth=2;
+        for(const d of debris){ ctx.save(); ctx.translate(d.x,d.y); ctx.rotate(d.a);
+          ctx.beginPath(); ctx.moveTo(-d.len/2,0); ctx.lineTo(d.len/2,0); ctx.stroke(); ctx.restore(); }
+        ctx.fillStyle="rgba(244,63,94,"+Math.min(1,dying/70)+")";
+        ctx.font="bold 17px system-ui"; ctx.textAlign="center";
+        ctx.fillText(lives>0?"SHIP DESTROYED":"LAST SHIP LOST",W/2,H/2-8);
+        if(lives>0){ ctx.fillStyle="rgba(230,230,240,.85)"; ctx.font="12px system-ui";
+          ctx.fillText(lives+" left · next ship in "+(dying/60).toFixed(1)+"s",W/2,H/2+14); }
+      }
       // ship (blink when invulnerable)
-      if(inv<=0||Math.floor(inv/5)%2===0){
+      if(ship && (inv<=0||Math.floor(inv/5)%2===0)){
         ctx.save();ctx.translate(ship.x,ship.y);ctx.rotate(ship.a);
         ctx.strokeStyle="#facc15";ctx.lineWidth=2;ctx.beginPath();
         ctx.moveTo(14,0);ctx.lineTo(-10,-9);ctx.lineTo(-6,0);ctx.lineTo(-10,9);ctx.closePath();ctx.stroke();
         if(keys.thrust){ctx.strokeStyle="#fb923c";ctx.beginPath();ctx.moveTo(-6,0);ctx.lineTo(-16,0);ctx.stroke();}
         ctx.restore();
+      }
+      // clear marker so you can see exactly where the new ship appeared
+      if(ship && respawnFlash>0){
+        const a=respawnFlash/RESPAWN_FLASH;
+        ctx.strokeStyle="rgba(52,211,153,"+(a*0.9)+")"; ctx.lineWidth=2;
+        ctx.beginPath(); ctx.arc(ship.x,ship.y,18+(1-a)*22,0,7); ctx.stroke();
+        ctx.fillStyle="rgba(52,211,153,"+a+")"; ctx.font="bold 12px system-ui"; ctx.textAlign="center";
+        ctx.fillText("NEW SHIP",ship.x,ship.y-28);
       }
     }
     // input

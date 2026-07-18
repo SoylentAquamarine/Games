@@ -33,13 +33,13 @@
 </div>
 <script>
 (function(){
-  const C={ W:360,H:300, GROUND_Y:280, N_CITIES:6, EXP_MAX_R:30, EXP_GROW:1.0, EXP_LIFE:55, ENEMY_SPEED:0.55, INT_SPEED:6, BASE_AMMO:10, BASE_X:[20,180,340] };
+  const C={ W:360,H:300, GROUND_Y:280, N_CITIES:6, EXP_MAX_R:30, EXP_GROW:1.0, EXP_LIFE:55, ENEMY_SPEED:0.55, INT_SPEED:6, BASE_AMMO:10, BASE_X:[20,180,340], INTERMISSION:120 };   // 2s pause between waves at 60fps
   const dist=(ax,ay,bx,by)=>Math.hypot(ax-bx,ay-by);
 
   function newGame(){
     const cities=[]; for(let i=0;i<C.N_CITIES;i++) cities.push({x:(i+0.5)*(C.W/C.N_CITIES),alive:true});
     const bases=C.BASE_X.map(x=>({x,ammo:C.BASE_AMMO}));
-    const s={cities,bases,enemies:[],interceptors:[],explosions:[],score:0,wave:0,waveLeftToSpawn:0,spawnTimer:0,spawnEvery:80,enemySpeed:C.ENEMY_SPEED,over:false};
+    const s={cities,bases,enemies:[],interceptors:[],explosions:[],score:0,wave:0,waveLeftToSpawn:0,spawnTimer:0,spawnEvery:80,intermission:null,enemySpeed:C.ENEMY_SPEED,over:false};
     startWave(s); return s;
   }
   function startWave(s){ s.wave++; s.waveLeftToSpawn=3+s.wave*2; s.spawnEvery=Math.max(22,90-s.wave*8); s.spawnTimer=25; s.enemySpeed=C.ENEMY_SPEED+s.wave*0.1;
@@ -72,7 +72,12 @@
     for(const e of s.explosions){ if(e.life<=0) continue; for(const m of s.enemies){ if(explosionHits(e,m)){ m.alive=false; s.score+=25; } } }
     s.enemies=s.enemies.filter(m=>m.alive);
     s.explosions=s.explosions.filter(e=>e.life>0);
-    if(s.waveLeftToSpawn===0 && s.enemies.length===0 && s.explosions.length===0 && s.interceptors.length===0) startWave(s);
+    // Breather between waves: hold for 2 seconds and announce the next one.
+    if(s.waveLeftToSpawn===0 && s.enemies.length===0 && s.explosions.length===0 && s.interceptors.length===0){
+      if(s.intermission==null) s.intermission=C.INTERMISSION;
+      if(s.intermission>0){ s.intermission--; }
+      else { s.intermission=null; startWave(s); }
+    }
     if(s.cities.every(c=>!c.alive)) s.over=true;
     return s;
   }
@@ -107,6 +112,15 @@
       ctx.fillStyle=g; ctx.beginPath(); ctx.arc(e.x,e.y,Math.max(1,e.r),0,7); ctx.fill(); }
     if(!s.over){ ctx.strokeStyle="rgba(255,255,255,.5)"; ctx.lineWidth=1; ctx.beginPath();
       ctx.moveTo(pointer.x-6,pointer.y); ctx.lineTo(pointer.x+6,pointer.y); ctx.moveTo(pointer.x,pointer.y-6); ctx.lineTo(pointer.x,pointer.y+6); ctx.stroke(); }
+    // Between-wave announcement, jittering a couple of pixels each frame.
+    if(!s.over && s.intermission>0){
+      const j=()=>(Math.random()-0.5)*5;
+      ctx.font="bold 24px system-ui"; ctx.textAlign="center";
+      ctx.fillStyle="rgba(244,63,94,.55)"; ctx.fillText("NEXT WAVE COMING",C.W/2+j(),C.H/2+j());
+      ctx.fillStyle="#ffcf5a";            ctx.fillText("NEXT WAVE COMING",C.W/2+j(),C.H/2+j());
+      ctx.fillStyle="#e6e6f0"; ctx.font="13px system-ui";
+      ctx.fillText("Wave "+(s.wave+1)+" · ammo reloaded",C.W/2,C.H/2+24);
+    }
     if(s.over){ ctx.fillStyle="rgba(0,0,0,.55)"; ctx.fillRect(0,0,C.W,C.H); ctx.fillStyle="#f43f5e"; ctx.font="bold 26px system-ui"; ctx.textAlign="center"; ctx.fillText("GAME OVER",C.W/2,C.H/2-6);
       ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Score "+s.score+(best?"  ·  Best "+best:""),C.W/2,C.H/2+18); }
   }
