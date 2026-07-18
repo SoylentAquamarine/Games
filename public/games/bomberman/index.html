@@ -10,7 +10,7 @@
   *{box-sizing:border-box}
   html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
     background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.2),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.14),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;touch-action:none;}
-  .wrap{max-width:440px;margin:0 auto;padding:14px 12px 30px;display:flex;flex-direction:column;align-items:center;gap:10px}
+  .wrap{max-width:470px;margin:0 auto;padding:14px 12px 30px;display:flex;flex-direction:column;align-items:center;gap:10px}
   .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
   .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
   .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
@@ -18,7 +18,7 @@
   .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:9px 16px;border-radius:999px;cursor:pointer}
   .hud{width:100%;max-width:340px;display:flex;justify-content:space-between;font-size:.85rem;color:var(--muted)}
   .hud b{color:var(--text)}
-  canvas{width:min(94vw,340px);height:calc(min(94vw,340px)*0.846);image-rendering:pixelated;border-radius:10px;border:2px solid #2a2f55;background:#1a5a2a;touch-action:none}
+  canvas{width:min(96vw,425px);height:calc(min(96vw,425px)*0.846);image-rendering:pixelated;border-radius:10px;border:2px solid #2a2f55;background:#1a5a2a;touch-action:none}
   .msg{min-height:1.3em;font-weight:800;text-align:center}
   .ctl{display:flex;gap:10px;align-items:center}
   .dpad{display:grid;grid-template-columns:repeat(3,46px);grid-template-rows:repeat(3,46px);gap:4px}
@@ -33,7 +33,7 @@
 <div class="wrap">
   <div class="topbar"><a class="home" href="/">← Home</a><h1>Bomber</h1><button class="btn" id="new">New Game</button></div>
   <div class="hud"><span>Score: <b id="score">0</b></span><span>Enemies: <b id="enemies">3</b></span></div>
-  <canvas id="game" width="312" height="264"></canvas>
+  <canvas id="game" width="390" height="330"></canvas>
   <div class="msg" id="msg">Blow up bricks and enemies — don't get caught in your own blast!</div>
   <div class="ctl">
     <div class="dpad"><button class="u" data-d="up">▲</button><button class="l" data-d="left">◀</button><button class="dn" data-d="down">▼</button><button class="r" data-d="right">▶</button></div>
@@ -94,7 +94,7 @@
 
   if(typeof document==="undefined") return;
   const $=(id)=>document.getElementById(id);
-  const cv=$("game"), ctx=cv.getContext("2d"); const CELL=24, W=cv.width,H=cv.height;
+  const cv=$("game"), ctx=cv.getContext("2d"); const CELL=30, W=cv.width,H=cv.height;
   let s=newState(), best=0, moveT=0, enemyT=0, input=null;
   try{ best=parseInt(localStorage.getItem("bomber_best")||"0")||0; }catch(e){}
 

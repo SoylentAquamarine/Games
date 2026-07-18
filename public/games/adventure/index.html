@@ -176,16 +176,27 @@
   function respawn(s){
     if(s.carry){ const o=s.objects[s.carry]; o.carried=false; o.room=s.room; o.x=clamp(s.hero.x,BW,SIZE-BW-OBJ); o.y=clamp(s.hero.y,BW,SIZE-BW-OBJ); s.carry=null; }
     s.room="commons"; s.hero.x=96; s.hero.y=150; s.dead=false; s.dropLock=null;
-    for(const d of s.dragons){ d.x=d.hx; d.y=d.hy; }
+    for(const d of s.dragons){ d.x=d.hx; d.y=d.hy; } placeDragonsAway(s);
   }
   function tick(s,dir){
     if(s.won||s.dead) return s;
     const v={up:[0,-1],down:[0,1],left:[-1,0],right:[1,0]}[dir]||[0,0];
     const dx=v[0]*SPEED, dy=v[1]*SPEED;
     if(dx) s.hero.dir=dx>0?"right":"left"; else if(dy) s.hero.dir=dy>0?"down":"up";
+    const wasRoom=s.room;
     moveHero(s,dx,dy); transition(s); castle(s); pickup(s);
+    if(s.room!==wasRoom) placeDragonsAway(s);   // fresh room: give the hero room to react
     for(const d of s.dragons) dragonStep(s,d);
     return s;
+  }
+  // On entering a room, any dragon waiting in it retreats to the far corner rather
+  // than ambushing the hero right at the doorway.
+  function placeDragonsAway(s){
+    for(const d of s.dragons){
+      if(!d.alive || d.room!==s.room) continue;
+      d.x = s.hero.x < SIZE/2 ? SIZE-DS-BW : BW;
+      d.y = s.hero.y < SIZE/2 ? SIZE-DS-BW : BW;
+    }
   }
 
   window.__adventure={ newGame, tick, drop, respawn, ROOMS, borderWalls, roomWalls, LABEL,

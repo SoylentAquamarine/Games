@@ -150,14 +150,24 @@
       ctx.clearRect(0,0,W,H);
       // chickens — a different breed per row
       const flap=Math.floor(Date.now()/260)%2===0;
-      invaders.forEach(iv=>{if(!iv.alive)return; drawChicken(iv.x,iv.y,IW,IH,iv.row%4,flap);});
+      // the flock faces whichever way it is marching
+      invaders.forEach(iv=>{ if(!iv.alive) return;
+        if(dir<0){ ctx.save(); ctx.translate(iv.x*2+IW,0); ctx.scale(-1,1); drawChicken(iv.x,iv.y,IW,IH,iv.row%4,flap); ctx.restore(); }
+        else drawChicken(iv.x,iv.y,IW,IH,iv.row%4,flap); });
       // shields
       shields.forEach(s=>{if(s.hp<=0)return;ctx.fillStyle=s.hp===2?"#4ade80":"#166534";ctx.fillRect(s.x,s.y,7,7);});
       // player
       ctx.fillStyle="#22d3ee";ctx.fillRect(player.x,player.y,player.w,player.h);ctx.fillRect(player.x+player.w/2-2,player.y-6,4,6);
       // bullets
       if(pBullet){ctx.fillStyle="#facc15";ctx.fillRect(pBullet.x-1.5,pBullet.y-8,3,10);}
-      ctx.fillStyle="#f87171";eBullets.forEach(b=>ctx.fillRect(b.x-1.5,b.y,3,9));
+      // the chickens drop eggs, not bullets
+      eBullets.forEach(b=>{
+        ctx.fillStyle="#f3ead7"; ctx.strokeStyle="#c9bda3"; ctx.lineWidth=1;
+        const ex=b.x, ey=b.y+5, rr=5;
+        ctx.beginPath(); ctx.moveTo(ex,ey-rr);
+        ctx.bezierCurveTo(ex+rr*0.72,ey-rr,ex+rr*0.86,ey+rr*0.34,ex,ey+rr);
+        ctx.bezierCurveTo(ex-rr*0.86,ey+rr*0.34,ex-rr*0.72,ey-rr,ex,ey-rr);
+        ctx.closePath(); ctx.fill(); ctx.stroke(); });
     }
     document.addEventListener("keydown",e=>{const m={ArrowLeft:"left",ArrowRight:"right",a:"left",d:"right"}[e.key];
       if(m){e.preventDefault();keys[m]=true;}if(e.key===" "){e.preventDefault();fire();}});
