@@ -30,6 +30,7 @@
     .bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center}
     .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:9px 18px;border-radius:999px;cursor:pointer;font-size:.86rem}
     .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,.18);color:var(--muted)}
+    .btn:disabled{opacity:.35;cursor:default}
     .status{min-height:1.2em;font-weight:600;color:#fde68a;text-align:center}
     .hint{color:var(--muted);font-size:.8rem;text-align:center}
   </style>
@@ -47,9 +48,10 @@
     <div class="status" id="status"></div>
     <div class="bar">
       <button class="btn" id="auto">⤴ Auto to foundations</button>
+      <button class="btn ghost" id="undo" disabled>↶ Undo</button>
       <button class="btn ghost" id="new">New Deal</button>
     </div>
-    <p class="hint">Tap a card to select, tap a spot to move. Double-tap sends it to a foundation. Build columns down in alternating colors; park cards in the 4 free cells. You can move a run only if enough cells/empty columns are free. Once a card reaches a foundation it stays there — standard FreeCell rules.</p>
+    <p class="hint">Tap a card to select, tap a spot to move. Double-tap sends it to a foundation. Build columns down in alternating colors; park cards in the 4 free cells. You can move a run only if enough cells/empty columns are free. Once a card reaches a foundation it stays there — standard FreeCell rules. <b>Undo</b> (or Ctrl+Z / U) steps back one move at a time, all the way to the deal.</p>
   </div>
   <script src="../cards.js"></script>
   <script>
@@ -93,10 +95,31 @@
     const cellsEl=document.getElementById("cells"),foundEl=document.getElementById("foundations"),
       colsEl=document.getElementById("cols"),statusEl=document.getElementById("status");
 
+    // Undo: every successful move pushes a snapshot of the whole board first, so
+    // you can step all the way back to the deal. "Auto to foundations" records one
+    // snapshot for the whole run, so undoing it puts every card back at once.
+    const undoEl=document.getElementById("undo");
+    let history=[], pending=null;
+    function snapshot(){
+      return { cells:cells.slice(),
+               found:{S:found.S.slice(),H:found.H.slice(),D:found.D.slice(),C:found.C.slice()},
+               cols:cols.map(p=>p.slice()) };
+    }
+    function restore(s){ cells=s.cells; found=s.found; cols=s.cols; sel=null; }
+    function commit(){ if(pending){ history.push(pending); pending=null; } }
+    function undo(){
+      if(!history.length) return;
+      restore(history.pop());
+      pending=null; statusEl.textContent = history.length ? "" : "Back to the original deal.";
+      render();
+    }
+    function updateUndo(){ if(undoEl) undoEl.disabled = history.length===0; }
+
     function newGame(){
       const d=Cards.shuffle(Cards.makeDeck());
       cols=[[],[],[],[],[],[],[],[]]; d.forEach((c,i)=>cols[i%8].push(c));
       cells=[null,null,null,null]; found={S:[],H:[],D:[],C:[]}; sel=null; statusEl.textContent="";
+      history=[]; pending=null;
       render();
     }
     const emptyCells=()=>cells.filter(c=>c===null).length;
@@ -117,6 +140,7 @@
         pile.forEach((card,idx)=>{ const el=Cards.cardEl(card,true);el.classList.add("stackcard");markSel(el,{t:"c",col:ci,idx});
           el.addEventListener("click",()=>colClick(ci,idx));col.appendChild(el); });
         colsEl.appendChild(col); });
+      updateUndo();
     }
     function mkSlot(txt){const d=document.createElement("div");d.className="slot";d.textContent=txt;return d;}
     function sameSel(a,b){return a.t===b.t&&a.col===b.col&&a.idx===b.idx&&a.i===b.i;}
@@ -145,6 +169,7 @@
 
     function tryTo(dest){
       if(!sel)return; const cards=movingCards(); if(!cards){sel=null;render();return;}
+      pending=snapshot();   // kept only if the move actually lands (see postMove/bad)
       if(dest.t==="cell"){ if(cards.length!==1||cells[dest.i]!==null)return bad(); removeSource(); cells[dest.i]=cards[0]; return postMove(); }
       if(dest.t==="f"){ if(cards.length!==1)return bad(); if(!canFoundation(cards[0],foundPile(dest.suit)))return bad(); removeSource(); found[dest.suit].push(cards[0]); return postMove(); }
       // column
@@ -155,22 +180,29 @@
       removeSource(); cards.forEach(c=>pile.push(c)); return postMove();
     }
     function removeSource(){ if(sel.t==="cell"){cells[sel.i]=null;} else {cols[sel.col].splice(sel.idx);} }
-    function postMove(){sel=null;render();checkWin();}
-    function bad(msg){sel=null;render();if(msg)statusEl.textContent=msg;}
+    function postMove(){commit();sel=null;render();checkWin();}
+    function bad(msg){pending=null;sel=null;render();if(msg)statusEl.textContent=msg;}
 
     function autoOne(loc){ const run=runFrom(loc); if(!run||run.length!==1)return; const c=run[0];
       if(canFoundation(c,foundPile(c.suit))){ sel=loc; tryTo({t:"f",suit:c.suit}); } else { sel=loc; render(); } }
     function autoAll(){ let moved=true,any=false;
+      const before=snapshot();          // the whole run undoes as a single step
       while(moved){ moved=false;
         for(let i=0;i<4;i++){ const c=cells[i]; if(c&&canFoundation(c,foundPile(c.suit))){ cells[i]=null; found[c.suit].push(c); moved=true;any=true; } }
         for(let ci=0;ci<8;ci++){ const pile=cols[ci]; if(pile.length){ const c=pile[pile.length-1]; if(canFoundation(c,foundPile(c.suit))){ pile.pop(); found[c.suit].push(c); moved=true;any=true; } } }
       }
+      if(any) history.push(before);
       sel=null;render();checkWin(); if(!any)statusEl.textContent="No cards ready for the foundations.";
     }
     function checkWin(){ const total=SUITS.reduce((a,s)=>a+found[s].length,0);
       if(total===52){ statusEl.textContent="🏆 Solved! Nicely done."; return; }
       if(!anyMove({cells,found,cols})) statusEl.textContent="💀 No legal moves left — that deal is lost. New Deal to try again."; }
     document.getElementById("auto").addEventListener("click",autoAll);
+    if(undoEl) undoEl.addEventListener("click",undo);
+    document.addEventListener("keydown",e=>{
+      if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="z"){ e.preventDefault(); undo(); }
+      else if(e.key==="u"||e.key==="U"){ undo(); }
+    });
     document.getElementById("new").addEventListener("click",newGame);
     newGame();
   })();
