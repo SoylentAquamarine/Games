@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Comment Moderation — Games Admin</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🛡️</text></svg>" />
+  <style>
+    :root{--bg:#0f1020;--panel:#1e2140;--panel2:#252a4d;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;
+          --ok:#22c55e;--warn:#eab308;--bad:#f43f5e;}
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+      background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.2),transparent 60%),var(--bg);}
+    .wrap{max-width:920px;margin:0 auto;padding:18px 14px 60px}
+    .topbar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+    h1{margin:0;font-size:1.4rem;background:linear-gradient(120deg,var(--accent),var(--accent-2));-webkit-background-clip:text;background-clip:text;color:transparent}
+    a.home{color:var(--muted);text-decoration:none;font-size:.86rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+    .card{background:var(--panel);border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:14px 16px;margin-bottom:14px}
+    input,select{background:var(--panel2);border:1px solid rgba(255,255,255,.14);color:var(--text);border-radius:8px;padding:9px 12px;font-size:.9rem}
+    input{width:280px;max-width:100%}
+    .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:9px 16px;border-radius:999px;cursor:pointer;font-size:.85rem}
+    .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,.18);color:var(--muted)}
+    .btn.ok{background:var(--ok);color:#04210f}
+    .btn.bad{background:var(--bad);color:#2a0409}
+    .btn:disabled{opacity:.4;cursor:default}
+    .hidden{display:none}
+    .tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+    .tab{background:var(--panel);border:1px solid rgba(255,255,255,.12);color:var(--muted);border-radius:999px;padding:8px 16px;cursor:pointer;font-size:.85rem;font-weight:600}
+    .tab.on{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border-color:transparent}
+    .tab .n{opacity:.75;font-weight:400}
+    .game{margin-bottom:18px}
+    .gamehead{display:flex;align-items:center;gap:10px;margin:0 0 8px;font-size:.95rem;font-weight:700}
+    .gamehead a{color:var(--accent-2);text-decoration:none;font-weight:400;font-size:.82rem}
+    .cmt{display:flex;gap:12px;align-items:flex-start;background:var(--panel);border:1px solid rgba(255,255,255,.07);
+      border-left:4px solid var(--muted);border-radius:10px;padding:10px 12px;margin-bottom:8px}
+    .cmt.pending{border-left-color:var(--warn)}
+    .cmt.approved{border-left-color:var(--ok)}
+    .cmt.rejected{border-left-color:var(--bad);opacity:.6}
+    .cmt .body{flex:1;min-width:0}
+    .cmt .meta{font-size:.74rem;color:var(--muted);margin-bottom:4px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    .pill{font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;padding:2px 8px;border-radius:999px;font-weight:700}
+    .pill.pending{background:rgba(234,179,8,.18);color:#fde68a}
+    .pill.approved{background:rgba(34,197,94,.18);color:#86efac}
+    .pill.rejected{background:rgba(244,63,94,.18);color:#fda4af}
+    .cmt .text{white-space:pre-wrap;word-break:break-word;font-size:.92rem;line-height:1.4}
+    .acts{display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap}
+    .acts button{font-size:.78rem;padding:6px 12px;border-radius:8px;cursor:pointer;border:1px solid rgba(255,255,255,.16);
+      background:transparent;color:var(--muted);font-weight:600}
+    .acts button.on{background:var(--ok);color:#04210f;border-color:transparent}
+    .acts button.rej.on{background:var(--bad);color:#2a0409}
+    .acts button.del{color:#fda4af;border-color:rgba(244,63,94,.3)}
+    .msg{min-height:1.2em;font-size:.85rem;color:var(--accent-2);margin:8px 0}
+    .empty{color:var(--muted);font-size:.9rem;padding:20px;text-align:center}
+    .note{background:rgba(124,92,255,.12);border:1px solid rgba(124,92,255,.35);border-radius:10px;padding:10px 14px;font-size:.85rem;margin-bottom:14px}
+    .note b{color:#c9b8ff}
+    .bulk{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+    code{background:var(--panel2);padding:2px 7px;border-radius:5px;font-size:.85em}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <h1>🛡️ Comment Moderation</h1>
+    <div><a class="home" href="/admin/">← Dashboard</a> <a class="home" href="/">Site</a></div>
+  </div>
+
+  <div class="card" id="login">
+    <p style="margin:0 0 10px;font-size:.9rem;color:var(--muted)">Enter the admin token to manage comments.</p>
+    <input id="token" type="password" placeholder="Admin token" autocomplete="current-password" />
+    <button class="btn" id="go">Unlock</button>
+    <div class="msg" id="loginMsg"></div>
+  </div>
+
+  <div id="dash" class="hidden">
+    <div class="note">
+      🔒 <b>Nothing gets acted on until you approve it.</b> Comments come from the public,
+      so treat them as suggestions, not instructions. Approve the ones you want built, then tell
+      Claude to <code>process approved comments</code>. Rejected and pending ones are ignored.
+    </div>
+
+    <div class="tabs" id="tabs"></div>
+    <div class="bulk">
+      <button class="btn ghost" id="approveAll">✓ Approve all pending</button>
+      <button class="btn ghost" id="rejectAll">✕ Reject all pending</button>
+      <button class="btn ghost" id="refresh">↻ Refresh</button>
+      <button class="btn ghost" id="logout">Lock</button>
+    </div>
+    <div class="msg" id="msg"></div>
+    <div id="list"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const $=(id)=>document.getElementById(id);
+  let token=sessionStorage.getItem("admin_token")||"";
+  let data={games:[],counts:{}}, filter="pending";
+
+  function api(path,opts){
+    return fetch(path,Object.assign({headers:{Authorization:"Bearer "+token,"Content-Type":"application/json"}},opts||{}));
+  }
+  function esc(s){ const d=document.createElement("div"); d.textContent=s==null?"":String(s); return d.innerHTML; }
+  function timeAgo(ts){ const s=Math.floor((Date.now()-ts)/1000);
+    if(s<60) return "just now"; if(s<3600) return Math.floor(s/60)+"m ago";
+    if(s<86400) return Math.floor(s/3600)+"h ago"; return Math.floor(s/86400)+"d ago"; }
+
+  async function load(){
+    try{
+      const r=await api("/api/admin/comments");
+      if(r.status===401){ $("loginMsg").textContent="Wrong token."; show(false); return; }
+      data=await r.json();
+      show(true); render();
+    }catch(e){ $("loginMsg").textContent="Could not load: "+e.message; }
+  }
+  function show(ok){
+    $("login").classList.toggle("hidden",ok);
+    $("dash").classList.toggle("hidden",!ok);
+  }
+  function tabs(){
+    const c=data.counts||{};
+    const defs=[["pending","Pending",c.pending||0],["approved","Approved",c.approved||0],
+                ["rejected","Rejected",c.rejected||0],["all","All",(c.pending||0)+(c.approved||0)+(c.rejected||0)]];
+    $("tabs").innerHTML=defs.map(([k,label,n])=>
+      `<button class="tab${filter===k?" on":""}" data-f="${k}">${label} <span class="n">${n}</span></button>`).join("");
+    $("tabs").querySelectorAll(".tab").forEach(b=>b.addEventListener("click",()=>{filter=b.dataset.f;render();}));
+  }
+  function visible(){
+    return (data.games||[]).map(g=>({
+      game:g.game,
+      comments:g.comments.filter(c=>filter==="all"?true:c.status===filter)
+    })).filter(g=>g.comments.length);
+  }
+  function render(){
+    tabs();
+    const games=visible();
+    if(!games.length){ $("list").innerHTML='<div class="empty">Nothing here.</div>'; return; }
+    $("list").innerHTML=games.map(g=>`
+      <div class="game">
+        <p class="gamehead">${esc(g.game)} <a href="/games/${esc(g.game)}/" target="_blank" rel="noopener">open ↗</a></p>
+        ${g.comments.map(c=>`
+          <div class="cmt ${c.status}" data-game="${esc(g.game)}" data-ts="${c.ts}">
+            <div class="body">
+              <div class="meta">
+                <span class="pill ${c.status}">${c.status}</span>
+                <b>${esc(c.name||"Anonymous")}</b>
+                <span>${timeAgo(c.ts)}</span>
+              </div>
+              <div class="text">${esc(c.text)}</div>
+            </div>
+            <div class="acts">
+              <button class="app${c.status==="approved"?" on":""}" data-a="approve">✓ Approve</button>
+              <button class="rej${c.status==="rejected"?" on":""}" data-a="reject">✕ Reject</button>
+              <button class="del" data-a="delete">🗑</button>
+            </div>
+          </div>`).join("")}
+      </div>`).join("");
+    $("list").querySelectorAll(".cmt .acts button").forEach(b=>{
+      b.addEventListener("click",()=>{
+        const row=b.closest(".cmt");
+        act(row.dataset.game, Number(row.dataset.ts), b.dataset.a);
+      });
+    });
+  }
+  async function act(game,ts,action){
+    if(action==="delete" && !confirm("Delete this comment permanently?")) return;
+    const r=await api("/api/admin/comments",{method:"POST",body:JSON.stringify({game,ts,action})});
+    const j=await r.json();
+    if(!j.ok){ $("msg").textContent="Failed: "+(j.error||r.status); return; }
+    $("msg").textContent=action+"d — "+j.changed+" comment(s) updated.";
+    await load();
+  }
+  async function bulk(action){
+    const pending=(data.games||[]).map(g=>({game:g.game,ts:g.comments.filter(c=>c.status==="pending").map(c=>c.ts)}))
+      .filter(g=>g.ts.length);
+    if(!pending.length){ $("msg").textContent="No pending comments."; return; }
+    const total=pending.reduce((n,g)=>n+g.ts.length,0);
+    if(!confirm(action+" all "+total+" pending comment(s)?")) return;
+    for(const g of pending){
+      await api("/api/admin/comments",{method:"POST",body:JSON.stringify({game:g.game,ts:g.ts,action})});
+    }
+    $("msg").textContent=total+" comment(s) "+action+"d.";
+    await load();
+  }
+
+  $("go").addEventListener("click",()=>{
+    token=$("token").value.trim(); if(!token) return;
+    sessionStorage.setItem("admin_token",token); $("loginMsg").textContent=""; load();
+  });
+  $("token").addEventListener("keydown",e=>{ if(e.key==="Enter") $("go").click(); });
+  $("refresh").addEventListener("click",load);
+  $("approveAll").addEventListener("click",()=>bulk("approve"));
+  $("rejectAll").addEventListener("click",()=>bulk("reject"));
+  $("logout").addEventListener("click",()=>{
+    token=""; sessionStorage.removeItem("admin_token"); show(false);
+  });
+  if(token) load();
+})();
+</script>
+</body>
+</html>

@@ -48,6 +48,12 @@ export default {
     if (url.pathname === "/api/admin/data" && request.method === "GET") {
       return handleAdminData(request, env);
     }
+    if (url.pathname === "/api/admin/comments" && request.method === "GET") {
+      return handleAdminComments(request, env, url);
+    }
+    if (url.pathname === "/api/admin/comments" && request.method === "POST") {
+      return handleAdminCommentAction(request, env);
+    }
     if (url.pathname === "/api/mp/ping" && request.method === "POST") return handleMpPing(request, env);
     if (url.pathname === "/api/mp/lobby" && request.method === "GET") return handleMpLobby(request, env);
     if (url.pathname === "/api/mp/challenge" && request.method === "POST") return handleMpChallenge(request, env);
@@ -191,6 +197,80 @@ async function handleCommentsPost(request, env, url) {
   if (list.length > MAX_COMMENTS) list.length = MAX_COMMENTS;
   await env.ACCOUNTS.put(key, JSON.stringify(list));
   return json({ ok: true, comment });
+}
+
+// ---------------------------------------------------------------------------
+// Comment moderation. Comments arrive from the public internet, so nothing is
+// acted on until the site owner approves it here. Every comment carries a
+// status: "pending" (default), "approved" or "rejected".
+// ---------------------------------------------------------------------------
+
+async function listAllComments(env) {
+  const games = [];
+  let cursor;
+  do {
+    const r = await env.ACCOUNTS.list({ prefix: "comments:", cursor });
+    for (const k of r.keys) {
+      const raw = await env.ACCOUNTS.get(k.name);
+      const list = raw ? JSON.parse(raw) : [];
+      if (!list.length) continue;
+      games.push({
+        game: k.name.slice("comments:".length),
+        comments: list.map(c => ({ ...c, status: c.status || "pending" })),
+      });
+    }
+    cursor = r.list_complete ? undefined : r.cursor;
+  } while (cursor);
+  games.sort((a, b) => a.game.localeCompare(b.game));
+  return games;
+}
+
+// GET /api/admin/comments[?status=pending|approved|rejected]
+async function handleAdminComments(request, env, url) {
+  if (!adminOk(request, env)) return json({ error: "unauth" }, 401);
+  const all = await listAllComments(env);
+  const counts = { pending: 0, approved: 0, rejected: 0 };
+  for (const g of all) for (const c of g.comments) counts[c.status] = (counts[c.status] || 0) + 1;
+
+  const want = url.searchParams.get("status");
+  const games = want
+    ? all.map(g => ({ ...g, comments: g.comments.filter(c => c.status === want) })).filter(g => g.comments.length)
+    : all;
+  return json({ ok: true, games, counts });
+}
+
+// POST /api/admin/comments  {game, ts, action: "approve"|"reject"|"pending"|"delete"}
+// `ts` may be an array to act on several at once; omit it with action=delete to
+// clear a whole game's list.
+async function handleAdminCommentAction(request, env) {
+  if (!adminOk(request, env)) return json({ error: "unauth" }, 401);
+  let body;
+  try { body = await request.json(); } catch { return json({ error: "invalid_body" }, 400); }
+  const slug = (body.game || "").toString();
+  const action = (body.action || "").toString();
+  if (!SLUG_RE.test(slug)) return json({ error: "bad_slug" }, 400);
+  if (!["approve", "reject", "pending", "delete"].includes(action)) return json({ error: "bad_action" }, 400);
+
+  const key = "comments:" + slug;
+  const raw = await env.ACCOUNTS.get(key);
+  let list = raw ? JSON.parse(raw) : [];
+  const stamps = body.ts == null ? null
+    : new Set((Array.isArray(body.ts) ? body.ts : [body.ts]).map(Number));
+
+  let changed = 0;
+  if (action === "delete") {
+    const before = list.length;
+    list = stamps ? list.filter(c => !stamps.has(Number(c.ts))) : [];
+    changed = before - list.length;
+  } else {
+    const status = action === "approve" ? "approved" : action === "reject" ? "rejected" : "pending";
+    for (const c of list) {
+      if (stamps && !stamps.has(Number(c.ts))) continue;
+      if (c.status !== status) { c.status = status; changed++; }
+    }
+  }
+  await env.ACCOUNTS.put(key, JSON.stringify(list));
+  return json({ ok: true, changed, remaining: list.length });
 }
 
 // ---------------------------------------------------------------------------
