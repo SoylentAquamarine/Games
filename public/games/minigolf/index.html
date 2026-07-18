@@ -61,19 +61,44 @@
   function collideWall(ball, w){
     const cx=clamp(ball.x,w.x,w.x+w.w), cy=clamp(ball.y,w.y,w.y+w.h);
     const dx=ball.x-cx, dy=ball.y-cy; const d2=dx*dx+dy*dy;
-    if(d2<C.R*C.R){ const d=Math.sqrt(d2)||0.0001; const nx=dx/d, ny=dy/d;
+    if(d2>=C.R*C.R) return false;
+    if(d2>1e-9){                                  // normal case: centre outside the wall
+      const d=Math.sqrt(d2); const nx=dx/d, ny=dy/d;
       ball.x=cx+nx*C.R; ball.y=cy+ny*C.R; const dot=ball.vx*nx+ball.vy*ny;
-      ball.vx=(ball.vx-2*dot*nx)*0.78; ball.vy=(ball.vy-2*dot*ny)*0.78; return true; }
-    return false;
+      ball.vx=(ball.vx-2*dot*nx)*0.78; ball.vy=(ball.vy-2*dot*ny)*0.78; return true;
+    }
+    // Centre is INSIDE the wall. dx/dy are both zero here, so there is no usable
+    // normal — the old code left the ball unreflected and it sailed out the far
+    // side. Eject through whichever face is closest and bounce off that axis.
+    const left=ball.x-w.x, right=w.x+w.w-ball.x, top=ball.y-w.y, bot=w.y+w.h-ball.y;
+    const m=Math.min(left,right,top,bot);
+    if(m===left){ ball.x=w.x-C.R; ball.vx=-Math.abs(ball.vx)*0.78; }
+    else if(m===right){ ball.x=w.x+w.w+C.R; ball.vx=Math.abs(ball.vx)*0.78; }
+    else if(m===top){ ball.y=w.y-C.R; ball.vy=-Math.abs(ball.vy)*0.78; }
+    else { ball.y=w.y+w.h+C.R; ball.vy=Math.abs(ball.vy)*0.78; }
+    return true;
   }
   function putt(ball, angle, power){ power=clamp(power,0,C.MAXPOW); ball.vx=Math.cos(angle)*power; ball.vy=Math.sin(angle)*power; }
   function moving(ball){ return Math.hypot(ball.vx,ball.vy) >= C.STOP; }
   function inSand(ball, sand){ for(const r of (sand||[])) if(inRect(ball.x,ball.y,r)) return true; return false; }
   function inWater(ball, water){ for(const r of (water||[])) if(inRect(ball.x,ball.y,r)) return true; return false; }
   function stepBall(ball, walls, sand){
-    ball.x+=ball.vx; ball.y+=ball.vy;
+    // Move in sub-steps no larger than half a radius. A full-power putt travels 15px
+    // per frame, more than a 16px wall is thick, so a single big step could tunnel
+    // straight through one before any collision test ran.
+    const dist=Math.hypot(ball.vx,ball.vy);
+    const steps=Math.max(1,Math.ceil(dist/(C.R*0.5)));
+    for(let i=0;i<steps;i++){
+      ball.x+=ball.vx/steps; ball.y+=ball.vy/steps;
+      for(const w of B) collideWall(ball,w);
+      for(const w of (walls||[])) collideWall(ball,w);
+    }
     const f = inSand(ball,sand)?C.SAND_FRICTION:C.FRICTION; ball.vx*=f; ball.vy*=f;
-    for(const w of B) collideWall(ball,w); for(const w of (walls||[])) collideWall(ball,w);
+    // Backstop: whatever happens above, the ball never leaves the green.
+    if(ball.x<C.R){ ball.x=C.R; ball.vx=Math.abs(ball.vx)*0.78; }
+    if(ball.x>C.W-C.R){ ball.x=C.W-C.R; ball.vx=-Math.abs(ball.vx)*0.78; }
+    if(ball.y<C.R){ ball.y=C.R; ball.vy=Math.abs(ball.vy)*0.78; }
+    if(ball.y>C.H-C.R){ ball.y=C.H-C.R; ball.vy=-Math.abs(ball.vy)*0.78; }
     if(!moving(ball)){ ball.vx=0; ball.vy=0; }
     return ball;
   }

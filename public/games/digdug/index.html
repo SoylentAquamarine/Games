@@ -56,7 +56,12 @@
   }
   function dig(s, dir){ if(s.over) return s; const d=DIRS[dir]; if(!d) return s; s.player.dir=dir;
     const nc=s.player.c+d[0], nr=s.player.r+d[1]; if(nc<0||nc>=C.cols||nr<0||nr>=C.rows) return s;
-    s.player.c=nc; s.player.r=nr; s.dirt[nr][nc]=false; return s; }
+    s.player.c=nc; s.player.r=nr; s.dirt[nr][nc]=false;
+    // A rock only comes loose if YOU dug the square directly beneath it. Enemies
+    // tunnel too, and rocks used to drop on their own whenever anything cleared
+    // the cell below.
+    const above=s.rocks.find(rk=>rk.c===nc && rk.r===nr-1); if(above) above.armed=true;
+    return s; }
   function pump(s){ if(s.over) return "miss"; const d=DIRS[s.player.dir]; let c=s.player.c, r=s.player.r;
     for(let i=1;i<=C.reach;i++){ c+=d[0]; r+=d[1]; if(c<0||c>=C.cols||r<0||r>=C.rows||s.dirt[r][c]) break;
       const e=enemyAt(s,c,r); if(e){ e.inflate++; if(e.inflate>=3){ e.alive=false; s.score+=200; } return "hit"; } }
@@ -86,7 +91,8 @@
     return s; }
   function rockFall(s){ for(const rk of s.rocks){
       const supported = rk.r+1>=C.rows || s.dirt[rk.r+1][rk.c] || s.rocks.some(o=>o!==rk&&o.c===rk.c&&o.r===rk.r+1);
-      if(supported){ rk.wob=0; rk.falling=false; continue; }
+      if(supported){ rk.wob=0; rk.falling=false; rk.armed=false; continue; }  // landed — needs digging under again
+      if(!rk.armed && !rk.falling) continue;                                   // nobody dug under it
       if(!rk.falling){ rk.wob=(rk.wob||0)+1; if(rk.wob<C.wobble) continue; rk.falling=true; }  // wobble first, then fall
       rk.r++;
       const e=enemyAt(s,rk.c,rk.r); if(e){ e.alive=false; s.score+=250; }
