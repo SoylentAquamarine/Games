@@ -80,8 +80,30 @@
   }
   function putt(ball, angle, power){ power=clamp(power,0,C.MAXPOW); ball.vx=Math.cos(angle)*power; ball.vy=Math.sin(angle)*power; }
   function moving(ball){ return Math.hypot(ball.vx,ball.vy) >= C.STOP; }
-  function inSand(ball, sand){ for(const r of (sand||[])) if(inRect(ball.x,ball.y,r)) return true; return false; }
-  function inWater(ball, water){ for(const r of (water||[])) if(inRect(ball.x,ball.y,r)) return true; return false; }
+  // Traps are irregular blobs, not rectangles. The outline is derived
+  // deterministically from the trap's own position so it never shifts between
+  // frames, and the hit test below runs against that same outline — the drawn
+  // shape and the physics shape are always identical.
+  function seeded(n){ const x=Math.sin(n)*10000; return x-Math.floor(x); }
+  function blobPoints(r){
+    if(r._pts) return r._pts;
+    const n=14, cx=r.x+r.w/2, cy=r.y+r.h/2, rx=r.w/2, ry=r.h/2;
+    const seed=r.x*0.37+r.y*0.71+r.w*0.13+r.h*0.29, pts=[];
+    for(let i=0;i<n;i++){
+      const a=i/n*Math.PI*2, wob=0.80+seeded(seed+i*1.7)*0.34;
+      pts.push({x:cx+Math.cos(a)*rx*wob, y:cy+Math.sin(a)*ry*wob});
+    }
+    r._pts=pts; return pts;
+  }
+  function inBlob(x,y,r){
+    const p=blobPoints(r); let inside=false;
+    for(let i=0,j=p.length-1;i<p.length;j=i++){
+      if((p[i].y>y)!==(p[j].y>y) && x < (p[j].x-p[i].x)*(y-p[i].y)/(p[j].y-p[i].y)+p[i].x) inside=!inside;
+    }
+    return inside;
+  }
+  function inSand(ball, sand){ for(const r of (sand||[])) if(inBlob(ball.x,ball.y,r)) return true; return false; }
+  function inWater(ball, water){ for(const r of (water||[])) if(inBlob(ball.x,ball.y,r)) return true; return false; }
   function stepBall(ball, walls, sand){
     // Move in sub-steps no larger than half a radius. A full-power putt travels 15px
     // per frame, more than a 16px wall is thick, so a single big step could tunnel
@@ -116,8 +138,25 @@
   function draw(){
     ctx.clearRect(0,0,W,H); ctx.fillStyle="#1a5a2a"; ctx.fillRect(0,0,W,H);
     ctx.fillStyle="#176a2c"; for(let y=0;y<H;y+=24) ctx.fillRect(0,y,W,12);
-    for(const r of (lv().sand||[])){ ctx.fillStyle="#d9c48a"; ctx.fillRect(r.x,r.y,r.w,r.h); ctx.fillStyle="#c9b06a"; for(let i=0;i<r.w*r.h/300;i++) ctx.fillRect(r.x+ (i*53)%r.w, r.y+(i*97)%r.h,2,2); }
-    for(const r of (lv().water||[])){ ctx.fillStyle="#1f6fb0"; ctx.fillRect(r.x,r.y,r.w,r.h); ctx.fillStyle="#3a8fd0"; for(let y=r.y+4;y<r.y+r.h;y+=8) ctx.fillRect(r.x+3,y,r.w-6,2); }
+    // Trace the blob outline with smooth curves through the midpoints.
+    const tracePath=(r)=>{ const p=blobPoints(r); ctx.beginPath();
+      let mx=(p[p.length-1].x+p[0].x)/2, my=(p[p.length-1].y+p[0].y)/2;
+      ctx.moveTo(mx,my);
+      for(let i=0;i<p.length;i++){ const nx=p[(i+1)%p.length], cur=p[i];
+        ctx.quadraticCurveTo(cur.x,cur.y,(cur.x+nx.x)/2,(cur.y+nx.y)/2); }
+      ctx.closePath(); };
+    for(const r of (lv().sand||[])){
+      tracePath(r); ctx.fillStyle="#d9c48a"; ctx.fill();
+      ctx.strokeStyle="#c2a86a"; ctx.lineWidth=1.5; ctx.stroke();
+      ctx.save(); ctx.clip(); ctx.fillStyle="#c9b06a";
+      for(let i=0;i<r.w*r.h/300;i++) ctx.fillRect(r.x+(i*53)%r.w, r.y+(i*97)%r.h,2,2);
+      ctx.restore(); }
+    for(const r of (lv().water||[])){
+      tracePath(r); ctx.fillStyle="#1f6fb0"; ctx.fill();
+      ctx.strokeStyle="#15558c"; ctx.lineWidth=1.5; ctx.stroke();
+      ctx.save(); ctx.clip(); ctx.fillStyle="#3a8fd0";
+      for(let y=r.y+4;y<r.y+r.h;y+=8) ctx.fillRect(r.x+3,y,r.w-6,2);
+      ctx.restore(); }
     for(const w of lv().walls){ ctx.fillStyle="#6a4a2a"; ctx.fillRect(w.x,w.y,w.w,w.h); ctx.fillStyle="#7a5a3a"; ctx.fillRect(w.x,w.y,w.w,3); }
     const h=lv().hole; ctx.fillStyle="#0a0c18"; ctx.beginPath(); ctx.arc(h.x,h.y,C.HOLE_R,0,7); ctx.fill();
     ctx.strokeStyle="#e6e6f0"; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(h.x,h.y); ctx.lineTo(h.x,h.y-26); ctx.stroke(); ctx.fillStyle="#f43f5e"; ctx.fillRect(h.x,h.y-26,14,9);
