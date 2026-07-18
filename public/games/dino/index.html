@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-<title>Dino Run — Games</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🦖</text></svg>" />
+<title>Chicken Run — Games</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🐔</text></svg>" />
 <style>
   :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;}
   *{box-sizing:border-box}
@@ -26,9 +26,9 @@
 </head>
 <body>
 <div class="wrap">
-  <div class="topbar"><a class="home" href="/">← Home</a><h1>Dino Run</h1><button class="btn" id="new">New Game</button></div>
+  <div class="topbar"><a class="home" href="/">← Home</a><h1>🐔 Chicken Run</h1><button class="btn" id="new">New Game</button></div>
   <canvas id="game" width="600" height="180"></canvas>
-  <div class="msg" id="msg">Press Space / ▲ to jump, ▼ to duck. Avoid the cacti and birds!</div>
+  <div class="msg" id="msg">Press Space / ▲ to jump, ▼ to duck. Avoid the cacti and hawks!</div>
   <div class="ctl"><button class="cbtn" id="bjump">▲ Jump</button><button class="cbtn" id="bduck">▼ Duck</button></div>
   <div class="hint">Space/↑ jump · ↓ duck · tap the canvas to jump on mobile</div>
 </div>
@@ -69,9 +69,21 @@
     ctx.strokeStyle="#3a4170"; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(0,C.GROUND+1); ctx.lineTo(C.W,C.GROUND+1); ctx.stroke();
     for(const o of s.obs){ if(o.type==="cactus"){ ctx.fillStyle="#4caf50"; ctx.fillRect(o.x,o.y,o.w,o.h); ctx.fillRect(o.x-4,o.y+6,4,3); ctx.fillRect(o.x+o.w,o.y+9,4,3); }
       else { ctx.fillStyle="#c9c9e6"; ctx.fillRect(o.x,o.y,o.w,o.h); ctx.fillRect(o.x+4,o.y-3-(Math.floor(s.t/6)%2?0:3)*0,6,3); } }
-    const d=s.dino, r=dinoRect(d); ctx.fillStyle= s.over?"#f43f5e":"#8ad48a";
-    ctx.fillRect(r.x,r.y,r.w,r.h); ctx.fillStyle="#0c0e1c"; ctx.fillRect(r.x+r.w-6,r.y+4,3,3);
-    if(!d.ducking&&!s.over&&(Math.floor(s.t/6)%2)&&d.onGround){ ctx.fillStyle="#8ad48a"; ctx.fillRect(r.x+3,r.y+r.h,4,3); }
+    // running chicken — only the art changed; dinoRect (the hitbox) is untouched
+    const d=s.dino, r=dinoRect(d); const body= s.over?"#f43f5e":"#facc15";
+    const cxm=r.x+r.w/2, run=Math.floor(s.t/5)%2;
+    ctx.fillStyle="#c96f14";                                       // tail
+    ctx.beginPath(); ctx.moveTo(r.x,r.y+r.h*0.35); ctx.lineTo(r.x-7,r.y+r.h*0.05); ctx.lineTo(r.x,r.y+r.h*0.75); ctx.closePath(); ctx.fill();
+    if(!d.ducking){ ctx.fillStyle="#dc2626";                        // comb, tucked away when ducking
+      ctx.fillRect(cxm-3,r.y-5,3,5); ctx.fillRect(cxm+1,r.y-6,3,6); ctx.fillRect(cxm+5,r.y-4,3,4); }
+    ctx.fillStyle=body; ctx.fillRect(r.x,r.y,r.w,r.h);              // body
+    ctx.fillStyle="#fde68a";                                        // wing
+    ctx.fillRect(r.x+3,r.y+r.h*0.35-(run?2:0),r.w-9,Math.max(3,r.h*0.3));
+    ctx.fillStyle="#0c0e1c"; ctx.fillRect(r.x+r.w-6,r.y+4,3,3);     // eye
+    ctx.fillStyle="#fb923c";                                        // beak
+    ctx.beginPath(); ctx.moveTo(r.x+r.w,r.y+5); ctx.lineTo(r.x+r.w+7,r.y+8); ctx.lineTo(r.x+r.w,r.y+11); ctx.closePath(); ctx.fill();
+    if(!d.ducking&&!s.over&&d.onGround){ ctx.fillStyle="#fb923c";   // alternating legs
+      ctx.fillRect(r.x+4,r.y+r.h,3,run?4:2); ctx.fillRect(r.x+r.w-8,r.y+r.h,3,run?2:4); }
     ctx.fillStyle="#9a9ab5"; ctx.font="12px monospace"; ctx.textAlign="right"; ctx.fillText("HI "+String(best).padStart(5,"0")+"  "+String(Math.floor(s.score/3)).padStart(5,"0"), C.W-8, 18);
     if(s.over){ ctx.fillStyle="rgba(0,0,0,.5)"; ctx.fillRect(0,0,C.W,C.H); ctx.fillStyle="#f43f5e"; ctx.font="bold 22px system-ui"; ctx.textAlign="center"; ctx.fillText("GAME OVER",C.W/2,C.H/2+6); }
   }

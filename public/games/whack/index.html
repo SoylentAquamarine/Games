@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Whack-a-Mole — Games</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🐹</text></svg>" />
+  <title>Whack-a-Chicken — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🐔</text></svg>" />
   <style>
     :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;--hole:#1a1c33;--dirt:#3a2a1a;}
     *{box-sizing:border-box}
@@ -34,14 +34,14 @@
 </head>
 <body>
   <div class="wrap">
-    <div class="topbar"><a class="home" href="/">← Home</a><h1>🐹 Whack-a-Mole</h1><span style="width:64px"></span></div>
+    <div class="topbar"><a class="home" href="/">← Home</a><h1>🐔 Whack-a-Chicken</h1><span style="width:64px"></span></div>
     <div class="scores">
       <div class="stat"><div class="label">Score</div><div class="value" id="score">0</div></div>
       <div class="stat"><div class="label">Time</div><div class="value" id="time">30</div></div>
       <div class="stat"><div class="label">Best</div><div class="value" id="best">0</div></div>
     </div>
     <div class="grid" id="grid"></div>
-    <div class="status" id="status">Bonk the moles 🐹 — avoid the bombs 💣!</div>
+    <div class="status" id="status">Bonk the chickens 🐔 — avoid the bombs 💣!</div>
     <button class="btn" id="start">Start</button>
     <p class="hint">30 seconds. Moles = +1, golden mole = +3, bomb = −2.</p>
   </div>
@@ -58,7 +58,7 @@
       const free=holes.filter(h=>!h.type);
       if(free.length){const h=free[Math.floor(Math.random()*free.length)];
         const r=Math.random();const type=r<.15?"bomb":r<.3?"gold":"mole";
-        h.type=type;h.mole.textContent=type==="bomb"?"💣":type==="gold"?"🌟":"🐹";h.el.classList.add("up");
+        h.type=type;h.mole.textContent=type==="bomb"?"💣":type==="gold"?"🌟":"🐔";h.el.classList.add("up");
         const life=Math.max(600,1200-(30-time)*20);
         setTimeout(()=>{if(h.type===type){h.el.classList.remove("up");h.type=null;}},life);
       }
@@ -67,7 +67,7 @@
     function whack(i){if(!running)return;const h=holes[i];if(!h.type)return;
       if(h.type==="bomb"){score=Math.max(0,score-2);statusEl.textContent="💥 Bomb! −2";}
       else if(h.type==="gold"){score+=3;statusEl.textContent="🌟 +3!";}
-      else{score+=1;statusEl.textContent="🐹 +1";}
+      else{score+=1;statusEl.textContent="🐔 +1";}
       scoreEl.textContent=score;h.el.classList.add("bonk");
       const t=h.type;h.type=null;setTimeout(()=>{h.el.classList.remove("up","bonk");},120);
     }

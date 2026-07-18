@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Flappy — Games</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🐤</text></svg>" />
+  <title>Flappy Chicken — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🐔</text></svg>" />
   <style>
     :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;}
     *{box-sizing:border-box}
@@ -30,14 +30,14 @@
 </head>
 <body>
   <div class="wrap">
-    <div class="topbar"><a class="home" href="/">← Home</a><h1>🐤 Flappy</h1><span style="width:56px"></span></div>
+    <div class="topbar"><a class="home" href="/">← Home</a><h1>🐔 Flappy Chicken</h1><span style="width:56px"></span></div>
     <div class="scores">
       <div class="stat"><div class="label">Score</div><div class="value" id="score">0</div></div>
       <div class="stat"><div class="label">Best</div><div class="value" id="best">0</div></div>
     </div>
     <div class="board-wrap">
       <canvas id="c" width="360" height="480"></canvas>
-      <div class="overlay" id="ov"><h2 id="ot">🐤 Flappy</h2><p id="om">Tap / click / Space to flap.</p><button class="btn" id="start">Play</button></div>
+      <div class="overlay" id="ov"><h2 id="ot">🐔 Flappy Chicken</h2><p id="om">Tap / click / Space to flap.</p><button class="btn" id="start">Play</button></div>
     </div>
     <p class="hint">Tap, click, or press Space to flap through the gaps.</p>
   </div>
@@ -53,7 +53,8 @@
       for(let i=0;i<3;i++)pipes.push(mkPipe(W+i*180));}
     function mkPipe(x){const gy=60+Math.random()*(H-120-GAP);return {x,gy,passed:false};}
     function start(){reset();ov.classList.add("hidden");running=true;loop();}
-    function flap(){if(running)bird.v=FLAP;}
+    let flapT=0;   // counts down after each flap to drive the wing animation
+    function flap(){if(running){bird.v=FLAP;flapT=10;}}
     function loop(){if(!running)return;update();render();raf=requestAnimationFrame(loop);}
     function update(){
       bird.v+=GRAV;bird.y+=bird.v;
@@ -73,9 +74,28 @@
       // pipes
       ctx.fillStyle="#22c55e";pipes.forEach(p=>{ctx.fillRect(p.x,0,PIPE_W,p.gy);ctx.fillRect(p.x,p.gy+GAP,PIPE_W,H-p.gy-GAP);
         ctx.fillStyle="#16a34a";ctx.fillRect(p.x-3,p.gy-14,PIPE_W+6,14);ctx.fillRect(p.x-3,p.gy+GAP,PIPE_W+6,14);ctx.fillStyle="#22c55e";});
-      // bird
+      // chicken — drawn facing right, wing driven by the flap timer
       ctx.save();ctx.translate(bird.x,bird.y);ctx.rotate(Math.max(-0.5,Math.min(1,bird.v/12)));
-      ctx.font="26px serif";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText("🐤",0,0);ctx.restore();
+      const r=bird.r;
+      // tail feathers (behind, pointing left)
+      ctx.fillStyle="#c96f14";ctx.beginPath();ctx.moveTo(-r*0.6,-r*0.1);ctx.lineTo(-r*1.7,-r*0.8);ctx.lineTo(-r*0.6,r*0.6);ctx.closePath();ctx.fill();
+      // comb
+      ctx.fillStyle="#dc2626";ctx.beginPath();
+      ctx.arc(-r*0.1,-r*0.95,r*0.22,0,7);ctx.arc(r*0.28,-r*1.02,r*0.24,0,7);ctx.arc(r*0.62,-r*0.88,r*0.20,0,7);ctx.fill();
+      // body
+      ctx.fillStyle="#facc15";ctx.beginPath();ctx.arc(0,0,r,0,7);ctx.fill();
+      // wing: sweeps up right after a flap, settles back down
+      const wing=Math.sin(Math.min(1,flapT/10)*Math.PI)*r*0.95;
+      ctx.fillStyle="#fde68a";ctx.beginPath();
+      ctx.ellipse(-r*0.15,r*0.05-wing*0.5,r*0.62,r*0.34,-wing*0.05,0,7);ctx.fill();
+      ctx.strokeStyle="#e0b83a";ctx.lineWidth=1;ctx.stroke();
+      // eye, beak and wattle on the right-hand side
+      ctx.fillStyle="#0b1030";ctx.beginPath();ctx.arc(r*0.45,-r*0.3,r*0.14,0,7);ctx.fill();
+      ctx.fillStyle="#fb923c";ctx.beginPath();
+      ctx.moveTo(r*0.8,-r*0.18);ctx.lineTo(r*1.5,r*0.02);ctx.lineTo(r*0.8,r*0.2);ctx.closePath();ctx.fill();
+      ctx.fillStyle="#dc2626";ctx.beginPath();ctx.arc(r*0.82,r*0.34,r*0.18,0,7);ctx.fill();
+      ctx.restore();
+      if(flapT>0)flapT--;
       // score
       ctx.fillStyle="#fff";ctx.font="bold 28px system-ui";ctx.textAlign="center";ctx.fillText(score,W/2,44);
     }
