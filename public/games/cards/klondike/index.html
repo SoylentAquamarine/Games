@@ -117,7 +117,7 @@
       // waste — draw 3, fanned, only the top card plays
       wasteEl.innerHTML="";
       if(waste.length){ const show=waste.slice(-DEAL); show.forEach((c,i)=>{ const top=i===show.length-1; const el=Cards.cardEl(c,true); if(i>0)el.style.marginLeft="-34px";
-        if(top){ markSel(el,{t:"w"}); el.addEventListener("click",()=>clickCard({t:"w"})); el.addEventListener("dblclick",()=>autoOne({t:"w"})); }
+        if(top){ markSel(el,{t:"w"}); el.addEventListener("click",()=>clickCard({t:"w"})); }
         wasteEl.appendChild(el); }); }
       else wasteEl.appendChild(mkSlot(""));
       // foundations (clickable as source or destination)
@@ -133,8 +133,7 @@
         pile.forEach((entry,ci)=>{
           const el=Cards.cardEl(entry.card,entry.up);
           el.classList.add("stackcard");if(!entry.up)el.classList.add("down");
-          if(entry.up){markSel(el,{t:"t",pile:pi,idx:ci});el.addEventListener("click",()=>clickCard({t:"t",pile:pi,idx:ci}));
-            el.addEventListener("dblclick",()=>autoOne({t:"t",pile:pi,idx:ci}));}
+          if(entry.up){markSel(el,{t:"t",pile:pi,idx:ci});el.addEventListener("click",()=>clickCard({t:"t",pile:pi,idx:ci}));}
           col.appendChild(el);
         });
         tabEl.appendChild(col);
@@ -157,7 +156,17 @@
       for(let i=1;i<run.length;i++){const a=run[i-1].card,b=run[i].card;if(sv(b.rank)!==sv(a.rank)-1||isRed(a)===isRed(b))return null;}
       return run.map(e=>e.card);
     }
+    // Double-tap is detected from click timing, not a dblclick listener: the first
+    // click re-renders the table, which destroys the very element dblclick would
+    // have fired on, so the listener never ran.
+    let lastTap={key:null,t:0};
+    function tapKey(loc){ return loc.t+":"+(loc.pile!=null?loc.pile:loc.suit||"")+":"+(loc.idx!=null?loc.idx:""); }
+    function isDoubleTap(loc){ const k=tapKey(loc), now=Date.now();
+      const dbl = lastTap.key===k && now-lastTap.t<400;
+      lastTap={key:k,t:now}; return dbl; }
+
     function clickCard(loc){
+      if(isDoubleTap(loc)){ autoOne(loc); return; }
       if(sel&&sameSel(sel,loc)){sel=null;render();return;}
       if(sel){tryTo({t:"t",pile:loc.pile});return;}
       const run=runFrom(loc);if(!run){sel=null;render();return;}
