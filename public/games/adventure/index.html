@@ -38,7 +38,7 @@
 <body>
 <div class="wrap">
   <div class="topbar"><a class="home" href="/">← Home</a><h1>Adventure</h1><button class="btn" id="new">New Game</button></div>
-  <div class="hud"><span>Room: <b id="room">—</b></span><span>Time: <b id="time">0:00</b></span><span>Best: <b id="best">—</b></span></div>
+  <div class="hud"><span>Room: <b id="room">—</b></span><span>Health: <b id="hp">100%</b></span><span>Time: <b id="time">0:00</b></span><span>Best: <b id="best">—</b></span></div>
   <div class="carry" id="carry">Carrying: nothing</div>
   <canvas id="game" width="200" height="200"></canvas>
   <div class="msg" id="msg">Find the Enchanted Chalice and bring it to the Gold Castle.</div>
@@ -62,6 +62,10 @@
 // ===== Adventure — pure world simulation (headless-testable via window.__adventure) =====
 (function(){
   const SIZE=200, HS=8, OBJ=8, BW=14, DS=14, SPEED=3, DSPEED=2;
+  // A dragon bite costs 20% health and leaves the dragon stunned, so you always
+  // get a window to escape. Stun lengths are in frames at ~60fps.
+  const HIT_DMG=20, HIT_INV=45;
+  const STUN={ yellow:120, green:60, red:30 };   // 2s / 1s / 0.5s
   const clamp=(v,a,b)=>v<a?a:v>b?b:v;
   const overlap=(a,b)=>a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;
   const heroRect=(s)=>({x:s.hero.x,y:s.hero.y,w:HS,h:HS});
@@ -103,6 +107,7 @@
     return {
       room:"commons", hero:{x:96,y:150,dir:"up"}, carry:null, won:false, dead:false,
       gates:{black:false}, msg:"", dropLock:null,
+      hp:100, inv:0,
       objects:{
         sword:{room:"north",x:100,y:100,carried:false},
         bridge:{room:"south",x:60,y:150,carried:false},
@@ -110,9 +115,9 @@
         chalice:{room:"blackIn",x:96,y:56,carried:false},
       },
       dragons:[
-        {id:"yellow",color:"#d8c020",room:"south",x:100,y:60,hx:100,hy:60,alive:true,spd:SPEED*0.5},
-        {id:"green", color:"#38b038",room:"east", x:120,y:120,hx:120,hy:120,alive:true,spd:SPEED*0.75},
-        {id:"red",   color:"#d03020",room:"blackgate",x:100,y:150,hx:100,hy:150,alive:true,spd:SPEED*1.0},
+        {id:"yellow",color:"#d8c020",room:"south",x:100,y:60,hx:100,hy:60,alive:true,spd:SPEED*0.45,stunFor:STUN.yellow,stun:0},
+        {id:"green", color:"#38b038",room:"east", x:120,y:120,hx:120,hy:120,alive:true,spd:SPEED*0.60,stunFor:STUN.green,stun:0},
+        {id:"red",   color:"#d03020",room:"blackgate",x:100,y:150,hx:100,hy:150,alive:true,spd:SPEED*0.75,stunFor:STUN.red,stun:0},
       ],
     };
   }
@@ -159,13 +164,25 @@
   }
   function dragonStep(s,d){
     if(!d.alive||d.room!==s.room) return;
+    if(s.inv>0) s.inv--;
+    // A stunned dragon holds still — that pause is your escape window.
+    if(d.stun>0){ d.stun--; return; }
     const hx=s.hero.x+HS/2, hy=s.hero.y+HS/2, cx=d.x+DS/2, cy=d.y+DS/2;
     const sp=d.spd||DSPEED;
-    d.x=clamp(d.x+Math.sign(hx-cx)*sp,0,SIZE-DS);
-    d.y=clamp(d.y+Math.sign(hy-cy)*sp,0,SIZE-DS);
+    // Dragons obey walls just like the hero does. Without this they cut straight
+    // through the maze while you have to go around, which made even the slowest
+    // dragon feel faster than you no matter what its speed was set to.
+    const nx=clamp(d.x+Math.sign(hx-cx)*sp,0,SIZE-DS);
+    const ny=clamp(d.y+Math.sign(hy-cy)*sp,0,SIZE-DS);
+    if(!collide(s.room,{x:nx,y:d.y,w:DS,h:DS},false)) d.x=nx;
+    if(!collide(s.room,{x:d.x,y:ny,w:DS,h:DS},false)) d.y=ny;
     if(overlap({x:d.x,y:d.y,w:DS,h:DS},heroRect(s))){
       if(s.carry==="sword"){ d.alive=false; s.msg="You slew the "+d.id+" dragon!"; }
-      else { s.dead=true; s.msg="The "+d.id+" dragon caught you!"; }
+      else if(s.inv<=0){
+        s.hp-=HIT_DMG; s.inv=HIT_INV; d.stun=d.stunFor;
+        if(s.hp<=0){ s.hp=0; s.dead=true; s.msg="The "+d.id+" dragon finished you off!"; }
+        else s.msg="The "+d.id+" dragon bit you! "+s.hp+"% left — run.";
+      }
     }
   }
   function drop(s){
@@ -199,8 +216,8 @@
     }
   }
 
-  window.__adventure={ newGame, tick, drop, respawn, ROOMS, borderWalls, roomWalls, LABEL,
-    C:{SIZE,HS,OBJ,BW,DS,SPEED,DSPEED} };
+  window.__adventure={ newGame, tick, drop, respawn, dragonStep, collide, ROOMS, borderWalls, roomWalls, LABEL,
+    C:{SIZE,HS,OBJ,BW,DS,SPEED,DSPEED,HIT_DMG,HIT_INV,STUN} };
 
   // ===== Rendering + input (skipped in headless: no #game canvas / no DOMContentLoaded) =====
   function boot(){
@@ -216,6 +233,7 @@
       $("carry").textContent="Carrying: "+(state.carry?LABEL[state.carry]:"nothing");
       $("msg").textContent=state.msg||"";
       $("best").textContent=best?fmt(best):"—";
+      const hp=$("hp"); if(hp) hp.textContent=Math.max(0,state.hp)+"%";
       if(!state.won) $("time").textContent=fmt((Date.now()-start)/1000);
     }
 
@@ -253,8 +271,20 @@
       if(room.castle) drawCastle(room.castle, room.castle.name==="Black" && !state.gates.black);
       for(const k in state.objects){ const o=state.objects[k]; if(!o.carried&&o.room===state.room) drawObject(k,o.x,o.y); }
       for(const d of state.dragons) if(d.room===state.room) drawDragon(d);
-      // hero
-      rr(state.hero.x,state.hero.y,HS,HS,"#f5d020");
+      // hero — a chicken. Blinks while briefly invulnerable after a bite.
+      if(!(state.inv>0 && Math.floor(state.inv/5)%2)){
+        const hx=state.hero.x, hy=state.hero.y, cx=hx+HS/2, cy=hy+HS/2;
+        ctx.fillStyle="#c96f14";                                    // tail
+        ctx.beginPath(); ctx.moveTo(hx,cy); ctx.lineTo(hx-4,cy-3); ctx.lineTo(hx,cy+3); ctx.closePath(); ctx.fill();
+        ctx.fillStyle="#dc2626";                                    // comb
+        ctx.fillRect(cx-2,hy-2,1.5,2); ctx.fillRect(cx,hy-3,1.5,3); ctx.fillRect(cx+2,hy-2,1.5,2);
+        ctx.fillStyle="#f5d020";                                    // body
+        ctx.beginPath(); ctx.arc(cx,cy,HS/2,0,7); ctx.fill();
+        ctx.fillStyle="#fb923c";                                    // beak, pointing where you face
+        const bd={left:[-1,0],right:[1,0],up:[0,-1],down:[0,1]}[state.hero.dir]||[1,0];
+        ctx.fillRect(cx+bd[0]*4-1,cy+bd[1]*4-1,2,2);
+        ctx.fillStyle="#0b0c1a"; ctx.fillRect(cx-2,cy-2,1.5,1.5); ctx.fillRect(cx+1,cy-2,1.5,1.5);
+      }
       if(state.carry){ const hx=state.hero.x, hy=state.hero.y; const ox={left:hx-9,right:hx+9,up:hx,down:hx}[state.hero.dir]||hx+9;
         const oy={up:hy-9,down:hy+9,left:hy,right:hy}[state.hero.dir]||hy; drawObject(state.carry,ox,oy); }
       if(state.won){ ctx.fillStyle="rgba(0,0,0,.55)"; ctx.fillRect(0,0,SIZE,SIZE); ctx.fillStyle="#ffd94a"; ctx.font="bold 16px system-ui"; ctx.textAlign="center"; ctx.fillText("YOU WIN!",100,100); }
