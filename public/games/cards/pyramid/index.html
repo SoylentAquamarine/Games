@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pyramid Solitaire — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🔺</text></svg>" />
+  <style>
+    :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;--felt:#12351f;}
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+      background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.22),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.16),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;}
+    .wrap{max-width:600px;margin:0 auto;padding:14px 6px 40px;display:flex;flex-direction:column;align-items:center;gap:10px}
+    .topbar{width:100%;display:flex;align-items:center;justify-content:space-between;padding:0 6px}
+    .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+    .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+    h1{margin:0;font-size:1.25rem;background:linear-gradient(120deg,#ffcf5a,var(--accent-2));-webkit-background-clip:text;background-clip:text;color:transparent}
+    .table{width:100%;background:radial-gradient(circle at 50% 15%,#1a4a2b,var(--felt));border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:12px 6px 16px}
+    .pyr{position:relative;height:250px;margin-bottom:8px}
+    .pyr .pcard{--cw:46px;position:absolute;cursor:pointer;transition:opacity .15s}
+    .pcard.sel{outline:3px solid #34d399;outline-offset:2px;z-index:5}
+    .pcard.locked{filter:brightness(.55)}
+    .bottom{display:flex;justify-content:center;align-items:center;gap:14px}
+    .slot{--cw:46px;width:var(--cw);height:calc(var(--cw)*1.42);border-radius:8px;border:2px dashed rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.25);font-size:1.2rem}
+    .bottom .pcard{--cw:46px;cursor:pointer}
+    .bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center}
+    .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:9px 18px;border-radius:999px;cursor:pointer;font-size:.86rem}
+    .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,.18);color:var(--muted)}
+    .status{min-height:1.2em;font-weight:600;color:#fde68a;text-align:center}
+    .hint{color:var(--muted);font-size:.8rem;text-align:center}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar"><a class="home" href="/">← Home</a><h1>🔺 Pyramid</h1><span style="width:56px"></span></div>
+    <div class="table">
+      <div class="pyr" id="pyr"></div>
+      <div class="bottom"><div id="stock"></div><div id="waste"></div></div>
+    </div>
+    <div class="status" id="status"></div>
+    <div class="bar"><button class="btn ghost" id="new">New Deal</button></div>
+    <p class="hint">Pair two <b>uncovered</b> cards that add to <b>13</b> to clear them (A=1, J=11, Q=12, K=13). A King clears on its own. Tap the stock for a new card. Clear the pyramid to win.</p>
+  </div>
+
+  <script src="../cards.js"></script>
+  <script>
+  (function(){
+    const ROWS=7;
+    // ---- pure logic (exported for tests) ----
+    const val=(c)=> c.rank===14?1:c.rank;                 // A=1, J=11, Q=12, K=13
+    const idx=(r,c)=> r*(r+1)/2 + c;
+    function childrenOf(r,c){ return [idx(r+1,c), idx(r+1,c+1)]; }
+    function isExposed(pyr,i){ const s=pyr[i]; if(!s||s.removed) return false;
+      if(s.r===ROWS-1) return true;
+      const [a,b]=childrenOf(s.r,s.c); return pyr[a].removed && pyr[b].removed; }
+    const sums13=(a,b)=> val(a)+val(b)===13;
+    window.__pyramid={ val, idx, childrenOf, isExposed, sums13, ROWS };
+
+    if(typeof document==="undefined"||!document.getElementById) return;
+    const pyrEl=document.getElementById("pyr"), stockEl=document.getElementById("stock"),
+      wasteEl=document.getElementById("waste"), statusEl=document.getElementById("status");
+    let pyr=[], stock=[], waste=[], sel=null;
+
+    function newGame(){
+      const d=Cards.shuffle(Cards.makeDeck());
+      pyr=[]; for(let r=0;r<ROWS;r++) for(let c=0;c<=r;c++) pyr.push({card:d.shift(), r, c, removed:false});
+      stock=d; waste=[]; sel=null; statusEl.textContent=""; render();
+    }
+    function remove(i){ pyr[i].removed=true; }
+    function tryPair(a,b){ // a,b are {kind:"p",i} or {kind:"w"}
+      const ca = a.kind==="p"?pyr[a.i].card:waste[waste.length-1];
+      const cb = b.kind==="p"?pyr[b.i].card:waste[waste.length-1];
+      if(!sums13(ca,cb)) return false;
+      // remove both (waste pops)
+      const rm=(x)=>{ if(x.kind==="p") remove(x.i); else waste.pop(); };
+      // remove pyramid first so waste index stays valid
+      if(a.kind==="p") remove(a.i); if(b.kind==="p") remove(b.i);
+      if(a.kind==="w"||b.kind==="w") waste.pop();
+      return true;
+    }
+    function clickCard(loc){
+      const card = loc.kind==="p"?pyr[loc.i].card:waste[waste.length-1];
+      if(!card) return;
+      if(val(card)===13){ if(loc.kind==="p") remove(loc.i); else waste.pop(); sel=null; after("King cleared."); return; }
+      if(sel && sel.kind===loc.kind && sel.i===loc.i){ sel=null; render(); return; }
+      if(!sel){ sel=loc; render(); return; }
+      if(tryPair(sel,loc)){ sel=null; after("Nice — 13!"); }
+      else { sel=loc; statusEl.textContent="Those don't add to 13."; render(); }
+    }
+    function after(msg){ statusEl.textContent=msg; render(); checkWin(); }
+    function drawStock(){ if(stock.length){ waste.push(stock.pop()); } else { stock=waste.reverse(); waste=[]; }
+      sel=null; render(); }
+    function checkWin(){ if(pyr.every(s=>s.removed)) statusEl.textContent="🏆 Pyramid cleared — you win!"; }
+
+    function render(){
+      pyrEl.innerHTML="";
+      const CW=46, GAPX=8, GAPY=30;
+      pyr.forEach((s,i)=>{ if(s.removed) return;
+        const el=Cards.cardEl(s.card,true);
+        const rowW=(s.r+1)*(CW+GAPX)-GAPX;
+        el.style.left=`calc(50% - ${rowW/2}px + ${s.c*(CW+GAPX)}px)`;
+        el.style.top=`${s.r*GAPY}px`;
+        const exposed=isExposed(pyr,i);
+        if(!exposed) el.classList.add("locked");
+        if(sel&&sel.kind==="p"&&sel.i===i) el.classList.add("sel");
+        if(exposed) el.addEventListener("click",()=>clickCard({kind:"p",i}));
+        pyrEl.appendChild(el); });
+      stockEl.innerHTML="";
+      if(stock.length){ const b=Cards.cardEl(null,false); b.addEventListener("click",drawStock); stockEl.appendChild(b); }
+      else { const sl=mkSlot("↻"); sl.addEventListener("click",drawStock); stockEl.appendChild(sl); }
+      wasteEl.innerHTML="";
+      if(waste.length){ const el=Cards.cardEl(waste[waste.length-1],true);
+        if(sel&&sel.kind==="w") el.classList.add("sel");
+        el.addEventListener("click",()=>clickCard({kind:"w"})); wasteEl.appendChild(el); }
+      else wasteEl.appendChild(mkSlot(""));
+    }
+    function mkSlot(t){ const d=document.createElement("div"); d.className="slot"; d.textContent=t; return d; }
+    document.getElementById("new").addEventListener("click",newGame);
+    newGame();
+  })();
+  </script>
+  <script src="/comments.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Go Fish — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🐟</text></svg>" />
+  <style>
+    :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;--felt:#12351f;}
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+      background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.22),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.16),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;}
+    .wrap{max-width:600px;margin:0 auto;padding:14px 8px 40px;display:flex;flex-direction:column;align-items:center;gap:10px}
+    .topbar{width:100%;display:flex;align-items:center;justify-content:space-between;padding:0 6px}
+    .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+    .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+    h1{margin:0;font-size:1.25rem;background:linear-gradient(120deg,#22d3ee,#8ad48a);-webkit-background-clip:text;background-clip:text;color:transparent}
+    .table{width:100%;background:radial-gradient(circle at 50% 15%,#1a4a2b,var(--felt));border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:14px 10px}
+    .row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;font-size:.9rem;color:var(--muted)}
+    .row b{color:var(--text)}
+    .hand{display:flex;flex-wrap:wrap;gap:5px;justify-content:center;min-height:70px}
+    .hand .pcard{--cw:44px}
+    .asks{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-top:10px}
+    .ask{background:var(--panel);color:var(--text);border:1px solid rgba(255,255,255,.15);border-radius:8px;padding:7px 12px;font-weight:800;cursor:pointer;min-width:40px}
+    .ask:hover{border-color:var(--accent);color:#fff}
+    .ask:disabled{opacity:.4;cursor:default}
+    .status{min-height:1.3em;font-weight:700;color:#fde68a;text-align:center}
+    .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:9px 18px;border-radius:999px;cursor:pointer;font-size:.86rem}
+    .hint{color:var(--muted);font-size:.8rem;text-align:center}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar"><a class="home" href="/">← Home</a><h1>🐟 Go Fish</h1><span style="width:56px"></span></div>
+    <div class="table">
+      <div class="row"><span>CPU cards: <b id="cpuCount">7</b></span><span>CPU books: <b id="cpuBooks">0</b></span></div>
+      <div class="row"><span>Pond: <b id="pond">0</b></span><span>Your books: <b id="youBooks">0</b></span></div>
+      <div class="hand" id="hand"></div>
+      <div class="asks" id="asks"></div>
+    </div>
+    <div class="status" id="status">Ask the CPU for a rank you already hold.</div>
+    <button class="btn" id="new">New Game</button>
+    <p class="hint">Ask for a rank you're holding. If the CPU has any, you take them and go again. Otherwise — <b>Go Fish!</b> Collect all four of a rank to make a <b>book</b>. Most books wins.</p>
+  </div>
+
+  <script src="../cards.js"></script>
+  <script>
+  (function(){
+    // ---- pure logic (exported for tests) ----
+    function countOf(hand,rank){ return hand.filter(c=>c.rank===rank).length; }
+    function takeRank(hand,rank){ const got=hand.filter(c=>c.rank===rank);
+      for(let i=hand.length-1;i>=0;i--) if(hand[i].rank===rank) hand.splice(i,1); return got; }
+    function extractBooks(hand){ const counts={}; hand.forEach(c=>counts[c.rank]=(counts[c.rank]||0)+1); let books=0;
+      for(const r in counts) if(counts[r]===4){ takeRank(hand,+r); books++; } return books; }
+    function refill(s){ if(!s.you.length&&s.pond.length) s.you.push(s.pond.pop());
+      if(!s.cpu.length&&s.pond.length) s.cpu.push(s.pond.pop()); }
+    function checkEnd(s){ if(s.youBooks+s.cpuBooks>=13 || (!s.pond.length && (!s.you.length||!s.cpu.length))) s.over=true; }
+    function settle(s){ s.youBooks+=extractBooks(s.you); s.cpuBooks+=extractBooks(s.cpu); refill(s); checkEnd(s); return s; }
+    function newState(deck){
+      const d=deck||Cards.shuffle(Cards.makeDeck());
+      const s={ you:d.splice(0,7), cpu:d.splice(0,7), pond:d, youBooks:0, cpuBooks:0, turn:"you", over:false, msg:"" };
+      return settle(s);
+    }
+    function askRank(s, rank){
+      if(s.over||s.turn!=="you") return s;
+      if(countOf(s.you,rank)===0){ s.msg="You have to hold a rank to ask for it."; return s; }
+      const got=takeRank(s.cpu,rank);
+      if(got.length){ s.you.push(...got); s.msg="The CPU hands over "+got.length+". Go again!"; }
+      else { s.msg="Go Fish!";
+        if(s.pond.length){ const drawn=s.pond.pop(); s.you.push(drawn);
+          if(drawn.rank===rank){ s.msg="Go Fish — you drew it yourself! Go again."; } else s.turn="cpu"; }
+        else s.turn="cpu"; }
+      return settle(s);
+    }
+    function cpuMove(s, forcedRank){
+      if(s.over||s.turn!=="cpu") return s;
+      if(!s.cpu.length){ s.turn="you"; return settle(s); }
+      const rank = forcedRank!=null ? forcedRank : s.cpu[Math.floor(Math.random()*s.cpu.length)].rank;
+      const got=takeRank(s.you,rank);
+      if(got.length){ s.cpu.push(...got); s.msg="CPU asked for "+Cards.rankLabel(rank)+" and took "+got.length+"."; }
+      else { s.msg="CPU asked for "+Cards.rankLabel(rank)+" — Go Fish.";
+        if(s.pond.length){ const drawn=s.pond.pop(); s.cpu.push(drawn); if(drawn.rank!==rank) s.turn="you"; }
+        else s.turn="you"; }
+      return settle(s);
+    }
+    window.__gofish={ newState, askRank, cpuMove, extractBooks, countOf, takeRank, settle };
+
+    if(typeof document==="undefined"||!document.getElementById) return;
+    const handEl=document.getElementById("hand"), asksEl=document.getElementById("asks"), statusEl=document.getElementById("status");
+    let s=newState(), busy=false;
+
+    function render(){
+      handEl.innerHTML=""; s.you.slice().sort((a,b)=>a.rank-b.rank).forEach(c=>handEl.appendChild(Cards.cardEl(c,true)));
+      document.getElementById("cpuCount").textContent=s.cpu.length;
+      document.getElementById("cpuBooks").textContent=s.cpuBooks;
+      document.getElementById("youBooks").textContent=s.youBooks;
+      document.getElementById("pond").textContent=s.pond.length;
+      asksEl.innerHTML="";
+      const ranks=[...new Set(s.you.map(c=>c.rank))].sort((a,b)=>a-b);
+      ranks.forEach(r=>{ const b=document.createElement("button"); b.className="ask"; b.textContent=Cards.rankLabel(r);
+        b.disabled = s.over || s.turn!=="you" || busy;
+        b.addEventListener("click",()=>play(r)); asksEl.appendChild(b); });
+      statusEl.textContent = s.over
+        ? (s.youBooks>s.cpuBooks?`🏆 You win ${s.youBooks}–${s.cpuBooks}!`:s.cpuBooks>s.youBooks?`CPU wins ${s.cpuBooks}–${s.youBooks}.`:`It's a tie ${s.youBooks}–${s.cpuBooks}.`)
+        : (s.msg||"Ask the CPU for a rank you already hold.");
+    }
+    function play(rank){
+      if(busy) return; askRank(s,rank); render();
+      if(!s.over && s.turn==="cpu"){ busy=true; setTimeout(cpuTurns,900); }
+    }
+    function cpuTurns(){
+      cpuMove(s); render();
+      if(!s.over && s.turn==="cpu"){ setTimeout(cpuTurns,900); } else { busy=false; render(); }
+    }
+    document.getElementById("new").addEventListener("click",()=>{ s=newState(); busy=false; render(); });
+    render();
+  })();
+  </script>
+  <script src="/comments.js" defer></script>
+</body>
+</html>
