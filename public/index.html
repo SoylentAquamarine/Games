@@ -27,7 +27,7 @@
 
     <div class="feedback-callout">
       <span class="fc-icon">💬</span>
-      <p><b>Please try the games and leave a comment</b> at the bottom of any game — tell me what you like, what feels off, or anything that doesn't work all the way. I read every comment and adjust the games based on your feedback.</p>
+      <p><b>Please try the games and leave a comment</b> at the bottom of any game — tell me what you like, what feels off, or anything that doesn't work all the way. For feedback about the site as a whole, there is a comment box at the bottom of <i>this</i> page. I read every comment and adjust the games based on your feedback.</p>
     </div>
 
     <section class="lineup" aria-label="Game catalog">
@@ -176,5 +176,8 @@
   <script>
     document.getElementById("year").textContent = new Date().getFullYear();
   </script>
+  <!-- Site-wide comments. The slug resolves to "home" for /, so anything left
+       here is general feedback rather than tied to a single game. -->
+  <script src="/comments.js" defer></script>
 </body>
 </html>
