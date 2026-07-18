@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Tron — Games</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🏍️</text></svg>" />
+  <title>Chicken Tron — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🐔</text></svg>" />
   <style>
     :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;--you:#22d3ee;--cpu:#f97316;}
     *{box-sizing:border-box}
@@ -29,10 +29,10 @@
 </head>
 <body>
   <div class="wrap">
-    <div class="topbar"><a class="home" href="/">← Home</a><h1>🏍️ Tron</h1><span style="width:56px"></span></div>
+    <div class="topbar"><a class="home" href="/">← Home</a><h1>🐔 Chicken Tron</h1><span style="width:56px"></span></div>
     <div class="board-wrap">
       <canvas id="c" width="400" height="300"></canvas>
-      <div class="overlay" id="ov"><h2 id="ot">🏍️ Tron</h2><p id="om">Don't crash into the trails or walls!</p><button class="btn" id="start">Play</button></div>
+      <div class="overlay" id="ov"><h2 id="ot">🐔 Chicken Tron</h2><p id="om">Don't crash into the trails or walls!</p><button class="btn" id="start">Play</button></div>
     </div>
     <div class="dpad">
       <button class="u" data-d="up">▲</button><button data-d="left">◀</button>
@@ -84,9 +84,13 @@
       startBtn.textContent="Play again";ov.classList.remove("hidden");}
     function render(){
       ctx.clearRect(0,0,cv.width,cv.height);
-      for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){if(!occ[y][x])continue;ctx.fillStyle=occ[y][x]===1?"rgba(34,211,238,.6)":"rgba(249,115,22,.6)";ctx.fillRect(x*CELL,y*CELL,CELL,CELL);}
-      ctx.fillStyle="#22d3ee";ctx.fillRect(you.x*CELL,you.y*CELL,CELL,CELL);
-      ctx.fillStyle="#f97316";ctx.fillRect(cpu.x*CELL,cpu.y*CELL,CELL,CELL);
+      // feather trails — hen yellow vs rooster red
+      for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){if(!occ[y][x])continue;ctx.fillStyle=occ[y][x]===1?"rgba(250,204,21,.55)":"rgba(220,38,38,.55)";ctx.fillRect(x*CELL,y*CELL,CELL,CELL);}
+      // heads, each with a comb notch so you can tell which bird is which at 5px
+      ctx.fillStyle="#facc15";ctx.fillRect(you.x*CELL,you.y*CELL,CELL,CELL);
+      ctx.fillStyle="#dc2626";ctx.fillRect(you.x*CELL+1,you.y*CELL-2,CELL-2,2);
+      ctx.fillStyle="#dc2626";ctx.fillRect(cpu.x*CELL,cpu.y*CELL,CELL,CELL);
+      ctx.fillStyle="#7f1d1d";ctx.fillRect(cpu.x*CELL+1,cpu.y*CELL-2,CELL-2,2);
     }
     function turn(d){youNext=d;}
     document.addEventListener("keydown",e=>{const m={ArrowUp:"up",ArrowDown:"down",ArrowLeft:"left",ArrowRight:"right",w:"up",s:"down",a:"left",d:"right"}[e.key];if(m){e.preventDefault();turn(m);}});

@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Mastermind — Games</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🎯</text></svg>" />
+  <title>MasterChicken — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🐔</text></svg>" />
   <style>
     :root{--bg:#0f1020;--panel:#1e2140;--panel2:#252a4d;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;}
     *{box-sizing:border-box}
@@ -20,13 +20,14 @@
     .rowline{display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid rgba(255,255,255,.06);border-radius:10px;padding:6px 10px}
     .rowline.active{border-color:rgba(124,92,255,.6)}
     .pegs{display:flex;gap:8px}
-    .peg{width:30px;height:30px;border-radius:50%;border:1px solid rgba(255,255,255,.15);background:#0e0f1e}
+    /* egg-shaped pegs — narrower at the top, like a real egg */
+    .peg{width:26px;height:33px;border-radius:50% 50% 50% 50% / 62% 62% 38% 38%;border:1px solid rgba(255,255,255,.15);background:#0e0f1e}
     .fb{display:grid;grid-template-columns:repeat(2,10px);grid-template-rows:repeat(2,10px);gap:3px;margin-left:auto}
     .fp{width:10px;height:10px;border-radius:50%;background:#33374f}
     .fp.black{background:#e6e6f0}
     .fp.white{background:#8b8fb0;border:1px solid #cbd0f0}
     .palette{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:6px}
-    .swatch{width:36px;height:36px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:transform .1s}
+    .swatch{width:32px;height:40px;border-radius:50% 50% 50% 50% / 62% 62% 38% 38%;cursor:pointer;border:2px solid transparent;transition:transform .1s}
     .swatch:hover{transform:scale(1.1)}
     .swatch.sel{border-color:#fff}
     .btns{display:flex;gap:10px}
@@ -38,7 +39,7 @@
 </head>
 <body>
   <div class="wrap">
-    <div class="topbar"><a class="home" href="/">← Home</a><h1>🎯 Mastermind</h1><span style="width:64px"></span></div>
+    <div class="topbar"><a class="home" href="/">← Home</a><h1>🐔 MasterChicken</h1><span style="width:64px"></span></div>
     <div class="status" id="status">Crack the 4-color code in 10 tries.</div>
     <div class="board" id="board"></div>
     <div class="palette" id="palette"></div>
