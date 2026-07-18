@@ -10,15 +10,15 @@
   *{box-sizing:border-box}
   html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
     background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.2),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.14),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;touch-action:none;}
-  .wrap{max-width:440px;margin:0 auto;padding:14px 12px 30px;display:flex;flex-direction:column;align-items:center;gap:10px}
+  .wrap{max-width:600px;margin:0 auto;padding:14px 12px 30px;display:flex;flex-direction:column;align-items:center;gap:10px}
   .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
   .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
   .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
   h1{margin:0;font-size:1.3rem;background:linear-gradient(120deg,#ffcf5a,var(--accent-2));-webkit-background-clip:text;background-clip:text;color:transparent}
   .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:9px 16px;border-radius:999px;cursor:pointer;font-size:.85rem}
-  .hud{width:100%;max-width:380px;display:flex;justify-content:space-between;font-size:.85rem;color:var(--muted)}
+  .hud{width:100%;max-width:560px;display:flex;justify-content:space-between;font-size:.85rem;color:var(--muted)}
   .hud b{color:var(--text)}
-  canvas{width:min(94vw,380px);height:calc(min(94vw,380px)*1.15);image-rendering:pixelated;border-radius:10px;border:2px solid #2a2f55;background:#070a16;touch-action:none}
+  canvas{width:min(96vw,560px);aspect-ratio:4/3;height:auto;image-rendering:pixelated;border-radius:10px;border:2px solid #2a2f55;background:#070a16;touch-action:none}
   .msg{min-height:1.3em;font-weight:800;text-align:center}
   .ctl{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:center}
   .pad{background:var(--panel);color:var(--text);border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:14px 20px;font-size:1.2rem;cursor:pointer;user-select:none;touch-action:none}
@@ -27,14 +27,14 @@
   .opt{display:flex;gap:6px;align-items:center;font-size:.8rem;color:var(--muted)}
   .toggle{background:transparent;border:1px solid rgba(255,255,255,.18);color:var(--muted);border-radius:999px;padding:6px 14px;cursor:pointer;font-size:.78rem;font-weight:600}
   .toggle.on{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border-color:transparent}
-  .hint{font-size:.78rem;color:var(--muted);text-align:center;max-width:380px}
+  .hint{font-size:.78rem;color:var(--muted);text-align:center;max-width:560px}
 </style>
 </head>
 <body>
 <div class="wrap">
   <div class="topbar"><a class="home" href="/">← Home</a><h1>🐔 Chickenmania</h1><button class="btn" id="new">New Game</button></div>
   <div class="hud"><span>Score: <b id="score">0</b></span><span>Wave: <b id="wave">1</b></span><span>Lives: <b id="lives">3</b></span><span>Best: <b id="best">0</b></span></div>
-  <canvas id="game" width="320" height="368"></canvas>
+  <canvas id="game" width="480" height="360"></canvas>
   <div class="msg" id="msg">Steer your shot after firing — that's the trick.</div>
   <div class="ctl">
     <button class="pad" data-d="left">◀</button>
@@ -44,12 +44,13 @@
   <div class="opt">Bullets: <button class="toggle on" id="guided">Guided</button><button class="toggle" id="straight">Straight</button></div>
   <p class="hint">← → move · Space fire. With <b>guided</b> bullets your shot keeps following your left/right steering all the way up the screen — one shot at a time, so make it count. Clear the whole flock to move on — no timer, take as long as you like.</p>
 </div>
+<script src="/arcade.js"></script>
 <script>
 (function(){
   // ---- constants -----------------------------------------------------------
   const C = {
-    W:320, H:368,
-    SHIP_W:22, SHIP_H:12, SHIP_Y:344, SHIP_SPEED:3.2,
+    W:480, H:360,
+    SHIP_W:22, SHIP_H:12, SHIP_Y:336, SHIP_SPEED:3.2,
     BULLET_W:3, BULLET_H:8, BULLET_SPEED:5.2, GUIDE_SPEED:2.8,
     E_W:20, E_H:14, COLS:7, ROWS:2,
     WAVE_BONUS:150,
@@ -64,9 +65,12 @@
     { name:"Seed",      shape:"seed",    pattern:"slide",  speed:1.15, drop:0.065 },
     { name:"Buckets",   shape:"bucket",  pattern:"snake",  speed:1.00, drop:0.058 },
     { name:"Worms",     shape:"worm",    pattern:"sine",   speed:1.25, drop:0.062 },
-    { name:"Nests",     shape:"nest",    pattern:"drift",  speed:1.10, drop:0.070 },
-    { name:"Cartons",   shape:"carton",  pattern:"snake",  speed:1.35, drop:0.072 },
+    // "cycle": keeps descending and reappears at the top instead of turning at the wall.
+    // "drops": this formation randomly lobs egg missiles at you.
+    { name:"Nests",     shape:"nest",    pattern:"drift",  speed:1.10, drop:0.070, drops:true },
+    { name:"Cartons",   shape:"carton",  pattern:"cycle",  speed:1.35, drop:0.30 },
   ];
+  const EGG_SPEED=2.3, EGG_W=6, EGG_H=9, EGG_CHANCE=0.006;
 
   const clamp=(v,a,b)=>v<a?a:v>b?b:v;
   function waveDef(w){ return WAVES[(w-1)%WAVES.length]; }
@@ -91,6 +95,7 @@
       enemies:makeEnemies(1),
       wave:1, score:0, lives:C.LIVES,
       dir:1, t:0,
+      eggs:[],
       over:false, cleared:false, msg:"",
       hitFlash:0,
     };
@@ -108,6 +113,17 @@
     const def=waveDef(s.wave);
     s.t++;
     // Horizontal motion depends on the formation's pattern.
+    if(def.pattern==="cycle"){
+      // Never turns at the wall — it just keeps marching down and wraps back in
+      // at the top, so the flock cycles through you.
+      for(const e of s.enemies){
+        e.x+=s.dir*def.speed;
+        if(e.x>C.W) e.x=-C.E_W; else if(e.x<-C.E_W) e.x=C.W;
+        e.y+=def.drop;
+        if(e.y>C.H) e.y=-C.E_H;          // out the bottom, back in at the top
+      }
+      return;
+    }
     if(def.pattern==="slide"||def.pattern==="snake"){
       let hitEdge=false;
       for(const e of s.enemies){ if(!e.alive) continue;
@@ -154,6 +170,23 @@
 
     moveEnemies(s);
 
+    const def=waveDef(s.wave);
+    const cycling = def.pattern==="cycle";
+
+    // Nest formations lob egg missiles at you.
+    if(!s.eggs) s.eggs=[];
+    if(def.drops){
+      for(const e of s.enemies){
+        if(!e.alive) continue;
+        if(Math.random()<EGG_CHANCE) s.eggs.push({x:e.x+C.E_W/2-EGG_W/2, y:e.y+C.E_H});
+      }
+    }
+    for(const g of s.eggs) g.y+=EGG_SPEED;
+    s.eggs=s.eggs.filter(g=>g.y<C.H+12);
+    for(const g of s.eggs){
+      if(overlaps(g.x,g.y,EGG_W,EGG_H, s.ship.x,C.SHIP_Y,C.SHIP_W,C.SHIP_H)){ loseLife(s); return s; }
+    }
+
     // bullet vs flock
     if(s.bullet){
       for(const e of s.enemies){
@@ -168,7 +201,9 @@
     // flock vs ship, and the flock reaching the floor
     for(const e of s.enemies){
       if(!e.alive) continue;
-      if(e.y+C.E_H>=C.H){ loseLife(s); return s; }
+      // A cycling formation is *meant* to run off the bottom and wrap round,
+      // so reaching the floor only ends a life for the other patterns.
+      if(!cycling && e.y+C.E_H>=C.H){ loseLife(s); return s; }
       if(overlaps(e.x,e.y,C.E_W,C.E_H, s.ship.x,C.SHIP_Y,C.SHIP_W,C.SHIP_H)){ loseLife(s); return s; }
     }
 
@@ -177,7 +212,7 @@
       s.score+=C.WAVE_BONUS*s.wave;               // clearing a flock is the bonus
       s.wave++;
       s.enemies=makeEnemies(s.wave);
-      s.bullet=null; s.dir=1; s.t=0; s.cleared=true;
+      s.bullet=null; s.eggs=[]; s.dir=1; s.t=0; s.cleared=true;
     }
     return s;
   }
@@ -186,20 +221,20 @@
     s.lives--; s.hitFlash=18;
     if(s.lives<=0){ s.over=true; return s; }
     s.enemies=makeEnemies(s.wave);
-    s.bullet=null; s.dir=1; s.t=0;
+    s.bullet=null; s.eggs=[]; s.dir=1; s.t=0;
     return s;
   }
 
   function result(s){ return s.over?{score:s.score,wave:s.wave}:null; }
 
-  window.__chickenmania={ newState, step, fire, loseLife, makeEnemies, waveDef, result, overlaps, C, WAVES };
+  window.__chickenmania={ newState, step, fire, loseLife, makeEnemies, moveEnemies, waveDef, result, overlaps, C, WAVES };
 
   // ---- rendering / wiring --------------------------------------------------
   if(typeof document==="undefined"||!document.getElementById) return;
   const $=(id)=>document.getElementById(id);
   const cv=$("game"); if(!cv) return;
   const ctx=cv.getContext("2d");
-  let s=newState(), best=0, started=false;
+  let s=newState(), best=0, started=false, splash=null;
   let input={left:false,right:false,guided:true};
   try{ best=parseInt(localStorage.getItem("chickenmania_best")||"0")||0; }catch(e){}
   try{ const g=localStorage.getItem("chickenmania_guided"); if(g==="0") input.guided=false; }catch(e){}
@@ -283,6 +318,10 @@
     const def=waveDef(s.wave);
     for(const e of s.enemies){ if(e.alive) drawEnemy(e,def.shape); }
 
+    for(const g of s.eggs||[]){
+      ctx.fillStyle="#f3ead7"; ctx.strokeStyle="#c9bda3"; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.ellipse(g.x+EGG_W/2,g.y+EGG_H/2,EGG_W/2,EGG_H/2,0,0,7); ctx.fill(); ctx.stroke();
+    }
     if(s.bullet){
       ctx.fillStyle=input.guided?"#34d399":"#22d3ee";
       ctx.fillRect(s.bullet.x,s.bullet.y,C.BULLET_W,C.BULLET_H);
@@ -319,17 +358,33 @@
   }
 
   function frame(){
-    if(started&&!s.over){
-      const wasWave=s.wave;
+    // A splash freezes play for its 2 seconds — that's the breather.
+    if(splash && Arcade.splash.tick(splash)) splash=null;
+
+    if(started&&!s.over&&!splash){
+      const wasWave=s.wave, wasLives=s.lives, hadBullet=!!s.bullet, aliveBefore=s.enemies.filter(e=>e.alive).length;
       autoFire();                 // holding the fire button re-fires as soon as the shot clears
+      if(!hadBullet && s.bullet) Arcade.sfx.shoot();
       step(s,input);
-      if(s.wave>wasWave) $("msg").textContent="Wave "+s.wave+" — "+waveDef(s.wave).name+"!";
+      if(s.enemies.filter(e=>e.alive).length < aliveBefore) Arcade.sfx.hit();
+      if(s.wave>wasWave){
+        Arcade.sfx.wave();
+        splash=Arcade.splash.wave(s.wave, waveDef(s.wave).name);
+        $("msg").textContent="Wave "+s.wave+" — "+waveDef(s.wave).name+"!";
+      } else if(s.lives<wasLives && !s.over){
+        Arcade.sfx.death();
+        splash=Arcade.splash.death("SHOT DOWN", s.lives+" left");
+      }
       if(s.over){
+        Arcade.sfx.lose();
+        splash=Arcade.splash.death("GAME OVER","Score "+s.score);
         if(s.score>best){ best=s.score; try{localStorage.setItem("chickenmania_best",String(best));}catch(e){} }
         $("msg").textContent="💥 Game over — score "+s.score+" on wave "+s.wave+".";
       }
     }
-    draw(); hud(); requestAnimationFrame(frame);
+    draw();
+    Arcade.splash.draw(ctx,C.W,C.H,splash);
+    hud(); requestAnimationFrame(frame);
   }
 
   // Holding fire auto-repeats. Only one shot can be on screen at a time, so this
@@ -338,11 +393,11 @@
   let holdingFire=false;
   function doFire(){
     if(s.over) return;
-    if(!started){ started=true; $("msg").textContent="Go! Steer the shot as it climbs."; return; }
+    if(!started){ started=true; splash=Arcade.splash.wave(1, waveDef(1).name); Arcade.sfx.wave(); $("msg").textContent="Go! Steer the shot as it climbs."; return; }
     fire(s);
   }
   function autoFire(){ if(holdingFire && started && !s.over) fire(s); }
-  function reset(){ s=newState(); started=false; $("msg").textContent="Steer your shot after firing — that's the trick."; }
+  function reset(){ s=newState(); started=false; splash=null; $("msg").textContent="Steer your shot after firing — that's the trick."; }
 
   // keyboard
   addEventListener("keydown",(e)=>{
