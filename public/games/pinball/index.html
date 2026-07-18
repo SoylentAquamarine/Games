@@ -10,17 +10,17 @@
   *{box-sizing:border-box}
   html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
     background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.2),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.14),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;touch-action:none;}
-  .wrap{max-width:380px;margin:0 auto;padding:14px 12px 30px;display:flex;flex-direction:column;align-items:center;gap:10px}
+  .wrap{max-width:480px;margin:0 auto;padding:14px 12px 30px;display:flex;flex-direction:column;align-items:center;gap:10px}
   .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
   .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
   .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
   h1{margin:0;font-size:1.3rem;background:linear-gradient(120deg,#22d3ee,#ffcf5a);-webkit-background-clip:text;background-clip:text;color:transparent}
   .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:9px 16px;border-radius:999px;cursor:pointer}
-  .hud{width:100%;max-width:280px;display:flex;justify-content:space-between;font-size:.9rem;color:var(--muted)}
+  .hud{width:100%;max-width:420px;display:flex;justify-content:space-between;font-size:.9rem;color:var(--muted)}
   .hud b{color:var(--text)}
-  canvas{width:min(80vw,280px);height:calc(min(80vw,280px)*1.5);border-radius:10px;border:2px solid #2a2f55;background:#0a0c18;touch-action:none}
+  canvas{width:min(92vw,420px);height:calc(min(92vw,420px)*1.5);border-radius:10px;border:2px solid #2a2f55;background:#0a0c18;touch-action:none}
   .msg{min-height:1.3em;font-weight:800;text-align:center}
-  .ctl{display:flex;gap:10px;width:100%;max-width:280px}
+  .ctl{display:flex;gap:10px;width:100%;max-width:420px}
   .flip{flex:1;background:var(--panel);color:var(--text);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:16px 0;font-weight:800;cursor:pointer;user-select:none}
   .flip:active{background:var(--accent);color:#0b0c1a}
   .hint{font-size:.78rem;color:var(--muted);text-align:center}
@@ -30,14 +30,35 @@
 <div class="wrap">
   <div class="topbar"><a class="home" href="/">← Home</a><h1>Pinball</h1><button class="btn" id="new">New Game</button></div>
   <div class="hud"><span>Score: <b id="score">0</b></span><span>Balls: <b id="balls">3</b></span></div>
-  <canvas id="game" width="280" height="420"></canvas>
+  <canvas id="game" width="420" height="630"></canvas>
   <div class="msg" id="msg">Launch with Space, then flip! Keep the ball alive.</div>
   <div class="ctl"><button class="flip" id="fl">◀ FLIP</button><button class="flip" id="fr">FLIP ▶</button></div>
   <div class="hint">← / Z left flipper · → / M right flipper · Space launches</div>
 </div>
 <script>
 (function(){
-  const C={ W:280,H:420, R:8, GRAV:0.24, WALL_DAMP:0.82, BUMP_BOOST:2.6, DRAIN_Y:412, THICK:6, FLIP_IMPULSE:5.5 };
+  const C={ W:420,H:630, R:8, GRAV:0.24, WALL_DAMP:0.82, BUMP_BOOST:2.6, DRAIN_Y:622, THICK:6, FLIP_IMPULSE:5.5,
+            PIVOT_DX:78, PIVOT_Y:46, FLEN:50, LANE_W:26 };
+  // Static rails, as on a real table: angled outlane guides run from the side walls
+  // down to just outside each flipper pivot, so the only way to drain is through the
+  // gap between the flipper tips — the ball can no longer slip down beside them.
+  function tableWalls(){
+    const W=C.W,H=C.H, lp=W/2-C.PIVOT_DX, rp=W/2+C.PIVOT_DX, py=H-C.PIVOT_Y;
+    return [
+      // Sloped guides run from each side wall down to the flipper pivots, and a
+      // vertical closes the gap from each pivot to the bottom. Together they seal
+      // both bottom corners, so the only route to the drain is the gap between
+      // the flipper tips.
+      {x1:0, y1:H-210, x2:lp, y2:py},
+      {x1:lp, y1:py, x2:lp, y2:H},
+      {x1:W-C.LANE_W, y1:H-210, x2:rp, y2:py},
+      {x1:rp, y1:py, x2:rp, y2:H},
+      // launch lane wall on the right — open at the top so the ball feeds in
+      {x1:W-C.LANE_W, y1:180, x2:W-C.LANE_W, y2:H},
+      {x1:60, y1:150, x2:120, y2:96},                       // upper deflectors
+      {x1:W-70, y1:150, x2:W-130, y2:96},
+    ];
+  }
   function reflect(vx,vy,nx,ny){ const d=vx*nx+vy*ny; return { vx:vx-2*d*nx, vy:vy-2*d*ny }; }
   function bumperHit(ball, b){ const dx=ball.x-b.x, dy=ball.y-b.y, d=Math.hypot(dx,dy)||1;
     if(d<C.R+b.r){ const nx=dx/d, ny=dy/d; const rf=reflect(ball.vx,ball.vy,nx,ny);
@@ -54,10 +75,12 @@
     if(ball.y<C.R){ ball.y=C.R; ball.vy=-ball.vy*C.WALL_DAMP; } return ball; }
   function drainCheck(ball){ return ball.y>C.DRAIN_Y; }
   function rotateLanes(arr,dir){ if(dir>0) arr.unshift(arr.pop()); else arr.push(arr.shift()); return arr; }
+  // A static rail behaves like an unpowered flipper segment.
+  function wallReflect(ball, seg){ return flipperReflect(ball, seg, false); }
   function newState(){ return { ball:{x:C.W-16,y:C.H-40,vx:0,vy:0,live:false}, balls:3, score:0, over:false,
     lanes:[false,true,false], bonus:0,
-    bumpers:[{x:70,y:120,r:20,lit:0},{x:190,y:112,r:20,lit:0},{x:130,y:172,r:18,lit:0},{x:82,y:216,r:15,lit:0},{x:178,y:226,r:15,lit:0}] }; }
-  window.__pinball={ newState, reflect, bumperHit, flipperReflect, stepBall, drainCheck, segClosest, rotateLanes, C };
+    bumpers:[{x:105,y:180,r:20,lit:0},{x:285,y:168,r:20,lit:0},{x:195,y:258,r:18,lit:0},{x:123,y:324,r:15,lit:0},{x:267,y:339,r:15,lit:0}] }; }
+  window.__pinball={ newState, reflect, bumperHit, flipperReflect, wallReflect, tableWalls, stepBall, drainCheck, segClosest, rotateLanes, C };
 
   if(typeof document==="undefined") return;
   const $=(id)=>document.getElementById(id);
@@ -65,8 +88,9 @@
   let s=newState(), best=0;
   try{ best=parseInt(localStorage.getItem("pinball_best")||"0")||0; }catch(e){}
   // flippers: pivots near bottom, angle animates toward up when pressed
-  const LP={x:W/2-58,y:H-46}, RP={x:W/2+58,y:H-46}, FLEN=50;
-  const LANE_X=[70,140,210];
+  const LP={x:W/2-C.PIVOT_DX,y:H-C.PIVOT_Y}, RP={x:W/2+C.PIVOT_DX,y:H-C.PIVOT_Y}, FLEN=C.FLEN;
+  const LANE_X=[105,210,315];
+  const WALLS=tableWalls();
   const fl={pivot:LP, rest:0.42, up:-0.5, angle:0.42, side:1, pressed:false};   // left: tip toward center
   const fr={pivot:RP, rest:Math.PI-0.42, up:Math.PI+0.5, angle:Math.PI-0.42, side:-1, pressed:false};
   function flipSeg(f){ return { x1:f.pivot.x, y1:f.pivot.y, x2:f.pivot.x+Math.cos(f.angle)*FLEN, y2:f.pivot.y+Math.sin(f.angle)*FLEN }; }
@@ -83,6 +107,9 @@
       ctx.strokeStyle=s.lanes[i]?"#ffe9a8":"#3a4066"; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(x-9,58); ctx.lineTo(x,30); ctx.lineTo(x+9,58); ctx.stroke(); }
     for(const b of s.bumpers){ ctx.fillStyle="#7c5cff"; ctx.beginPath(); ctx.arc(b.x,b.y,b.r,0,7); ctx.fill(); ctx.fillStyle=b.lit>0?"#ffcf5a":"#c9b8ff"; ctx.beginPath(); ctx.arc(b.x,b.y,b.r*0.55,0,7); ctx.fill(); if(b.lit>0) b.lit--; }
     for(const f of [fl,fr]){ const sg=flipSeg(f); ctx.strokeStyle="#22d3ee"; ctx.lineWidth=C.THICK*2; ctx.lineCap="round"; ctx.beginPath(); ctx.moveTo(sg.x1,sg.y1); ctx.lineTo(sg.x2,sg.y2); ctx.stroke(); }
+    ctx.strokeStyle="#5a5f8a"; ctx.lineWidth=C.THICK; ctx.lineCap="round";
+    for(const w of WALLS){ ctx.beginPath(); ctx.moveTo(w.x1,w.y1); ctx.lineTo(w.x2,w.y2); ctx.stroke(); }
+    ctx.lineCap="butt";
     ctx.fillStyle="#e6e6f0"; ctx.beginPath(); ctx.arc(s.ball.x,s.ball.y,C.R,0,7); ctx.fill(); ctx.fillStyle="rgba(255,255,255,.5)"; ctx.beginPath(); ctx.arc(s.ball.x-3,s.ball.y-3,3,0,7); ctx.fill();
     if(s.over){ ctx.fillStyle="rgba(0,0,0,.6)"; ctx.fillRect(0,0,W,H); ctx.fillStyle="#f43f5e"; ctx.font="bold 22px system-ui"; ctx.textAlign="center"; ctx.fillText("GAME OVER",W/2,H/2-6); ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Score "+s.score+"  ·  Best "+best,W/2,H/2+16); }
   }
@@ -96,8 +123,8 @@
       // top rollover lanes: light one when the ball passes through it
       if(s.ball.y<58){ for(let i=0;i<3;i++){ if(Math.abs(s.ball.x-LANE_X[i])<18 && !s.lanes[i]){ s.lanes[i]=true; s.score+=250; } }
         if(s.lanes.every(l=>l)){ s.score+=5000; s.bonus++; s.lanes=[false,false,false]; if(s.balls<5) s.balls++; $("msg").textContent="LANES COMPLETE! +5000 & an extra ball!"; } }
-      // guide walls near the bottom sides funnel toward flippers
-      if(s.ball.y>H-120){ if(s.ball.x<40){ s.ball.x=40; s.ball.vx=Math.abs(s.ball.vx)*0.7; } if(s.ball.x>W-40 && s.ball.y>H-90){ s.ball.x=W-40; s.ball.vx=-Math.abs(s.ball.vx)*0.7; } }
+      // static rails: outlane guides and upper deflectors
+      for(const w of WALLS) wallReflect(s.ball,w);
       if(drainCheck(s.ball)){ s.balls--; if(s.balls<=0){ s.over=true; if(s.score>best){ best=s.score; try{localStorage.setItem("pinball_best",String(best));}catch(e){} } $("msg").textContent="Game over! Score "+s.score+"  ·  Best "+best; } else { newBall(); $("msg").textContent="Ball drained! "+s.balls+" left — Space to launch."; } }
     }
     $("score").textContent=s.score; $("balls").textContent=Math.max(0,s.balls); draw(); requestAnimationFrame(frame);
