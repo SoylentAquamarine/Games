@@ -10,15 +10,15 @@
   *{box-sizing:border-box}
   html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
     background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.2),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.14),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;touch-action:none;}
-  .wrap{max-width:440px;margin:0 auto;padding:14px 12px 30px;display:flex;flex-direction:column;align-items:center;gap:10px}
+  .wrap{max-width:520px;margin:0 auto;padding:14px 12px 30px;display:flex;flex-direction:column;align-items:center;gap:10px}
   .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
   .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
   .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
   h1{margin:0;font-size:1.3rem;background:linear-gradient(120deg,#22d3ee,#f0616e);-webkit-background-clip:text;background-clip:text;color:transparent}
   .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:9px 16px;border-radius:999px;cursor:pointer}
-  .hud{width:100%;max-width:340px;display:flex;justify-content:space-between;font-size:.85rem;color:var(--muted)}
+  .hud{width:100%;max-width:480px;display:flex;justify-content:space-between;font-size:.85rem;color:var(--muted)}
   .hud b{color:var(--text)}
-  canvas{width:min(94vw,340px);height:calc(min(94vw,340px)*1.24);image-rendering:pixelated;border-radius:10px;border:2px solid #2a2f55;background:#05060f;touch-action:none}
+  canvas{width:min(96vw,480px);height:calc(min(96vw,480px)*1.25);image-rendering:pixelated;border-radius:10px;border:2px solid #2a2f55;background:#05060f;touch-action:none}
   .msg{min-height:1.3em;font-weight:800;text-align:center}
   .ctl{display:flex;gap:8px;align-items:center}
   .cbtn{background:var(--panel);color:var(--text);border:1px solid rgba(255,255,255,.12);border-radius:12px;width:60px;height:52px;font-size:1.3rem;cursor:pointer;user-select:none}
@@ -31,22 +31,33 @@
 <div class="wrap">
   <div class="topbar"><a class="home" href="/">← Home</a><h1>Galaga</h1><button class="btn" id="new">New Game</button></div>
   <div class="hud"><span>Score: <b id="score">0</b></span><span>Wave: <b id="wave">1</b></span><span>Lives: <b id="lives">3</b></span></div>
-  <canvas id="game" width="320" height="400"></canvas>
-  <div class="msg" id="msg">Blast the fleet — watch out, they dive at you!</div>
+  <canvas id="game" width="480" height="600"></canvas>
+  <div class="msg" id="msg">Blast the fleet. Beware the boss tractor beam — shoot the captor to get your ship back!</div>
   <div class="ctl"><button class="cbtn" id="bl">◀</button><button class="fire" id="fire">FIRE</button><button class="cbtn" id="br">▶</button></div>
   <div class="hint">←/→ or A/D move · Space/FIRE shoots · drag on canvas to move</div>
 </div>
 <script>
 (function(){
-  const C={ W:320,H:400, PW:22,PH:14, EW:20,EH:16, PLY:372, BSPEED:7, ESPEED:2.4 };
+  const C={ W:480,H:600, PW:22,PH:14, EW:20,EH:16, PLY:558, BSPEED:7, ESPEED:2.4,
+            BEAM_Y:210, BEAM_W:56, BEAM_OPEN:150, BEAM_HOLD:110 };
   const rov=(a,b)=>a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;
   function bulletHitsEnemy(b, e){ return e.alive && rov({x:b.x,y:b.y,w:3,h:10},{x:e.x-C.EW/2,y:e.y-C.EH/2,w:C.EW,h:C.EH}); }
   function enemyRect(e){ return {x:e.x-C.EW/2,y:e.y-C.EH/2,w:C.EW,h:C.EH}; }
   function makeWave(s){ s.wave++; s.enemies=[]; const cols=6, rows=3;
-    for(let r=0;r<rows;r++) for(let c=0;c<cols;c++){ const fx=40+c*(C.W-80)/(cols-1), fy=50+r*30;
-      s.enemies.push({ x:fx, y:fy, fx, fy, alive:true, state:"form", t:Math.random()*6, color:r===0?"#f0616e":r===1?"#ffcf5a":"#22d3ee" }); }
-    s.diveTimer=90; }
-  function newState(){ const s={ px:C.W/2, bullets:[], enemies:[], score:0, wave:0, lives:3, over:false, sway:0, diveTimer:90 }; makeWave(s); return s; }
+    for(let r=0;r<rows;r++) for(let c=0;c<cols;c++){ const fx=60+c*(C.W-120)/(cols-1), fy=70+r*42;
+      // the top row are bosses — only they can pull the tractor-beam trick
+      s.enemies.push({ x:fx, y:fy, fx, fy, alive:true, state:"form", t:Math.random()*6, boss:r===0, hasShip:false,
+        color:r===0?"#f0616e":r===1?"#ffcf5a":"#22d3ee" }); }
+    s.diveTimer=90; s.beamTimer=340; }
+  function newState(){ const s={ px:C.W/2, bullets:[], enemies:[], score:0, wave:0, lives:3, over:false, sway:0,
+    diveTimer:90, beamTimer:340, dual:false, rescue:null, captured:false }; makeWave(s); return s; }
+  // Width of the beam cone at a given depth below the boss.
+  function beamHalfWidth(e, y){ const d=Math.max(0,y-e.y); return C.BEAM_W*0.25 + d*0.18; }
+  function inBeam(e, px, py){
+    if(e.state!=="beam"||e.beamT<=0) return false;
+    if(py<e.y) return false;
+    return Math.abs(px-e.x) <= beamHalfWidth(e,py);
+  }
   function enemyDiveStep(e, targetX){ e.t+=0.06; e.y+=C.ESPEED; e.x=e.diveX + Math.sin(e.t*3)*40 + (targetX-e.diveX)*0.002*e.y*0;
     e.x=e.diveX + Math.sin(e.t*4)*46; }
   function step(s, input){
@@ -58,22 +69,55 @@
     // formation sway + dives
     for(const e of s.enemies){ if(!e.alive) continue;
       if(e.state==="form"){ e.x=e.fx+Math.sin(s.sway)*10; e.y=e.fy; }
+      else if(e.state==="beam"){
+        // descend to beam height, hold there with the beam open, then climb home
+        if(e.y<C.BEAM_Y && e.beamT<=0 && !e.returning){ e.y+=C.ESPEED; if(e.y>=C.BEAM_Y) e.beamT=C.BEAM_HOLD; }
+        else if(e.beamT>0){
+          e.beamT--;
+          if(!s.captured && !s.dual && inBeam(e,s.px,C.PLY)){   // caught in the beam
+            s.captured=true; e.hasShip=true; e.beamT=0; e.returning=true;
+            s.lives--; if(s.lives<=0){ s.over=true; return s; }
+            s.px=C.W/2;
+          }
+          if(e.beamT<=0 && !e.returning) e.returning=true;
+        }
+        else if(e.returning){ e.y-=C.ESPEED*1.2; if(e.y<=e.fy){ e.y=e.fy; e.state="form"; e.returning=false; s.captured=e.hasShip?true:s.captured; } }
+      }
       else { e.t+=0.05; e.y+=C.ESPEED+s.wave*0.15; e.x=e.diveX+Math.sin(e.t*4)*46;
         if(e.y>C.H+20){ e.y=-10; e.state="form"; } // looped back to formation
         if(rov(enemyRect(e),{x:s.px-C.PW/2,y:C.PLY-C.PH/2,w:C.PW,h:C.PH})){ e.alive=false; s.lives--; if(s.lives<=0) s.over=true; }
       }
     }
     // launch a diver
-    if(--s.diveTimer<=0){ const forms=s.enemies.filter(e=>e.alive&&e.state==="form"); if(forms.length){ const e=forms[Math.floor(Math.random()*forms.length)]; e.state="dive"; e.diveX=e.x; e.t=0; } s.diveTimer=Math.max(30,90-s.wave*8); }
+    if(--s.diveTimer<=0){ const forms=s.enemies.filter(e=>e.alive&&e.state==="form"&&!e.boss); if(forms.length){ const e=forms[Math.floor(Math.random()*forms.length)]; e.state="dive"; e.diveX=e.x; e.t=0; } s.diveTimer=Math.max(30,90-s.wave*8); }
+    // a boss comes down to try the tractor beam
+    if(--s.beamTimer<=0){
+      const bosses=s.enemies.filter(e=>e.alive&&e.boss&&e.state==="form"&&!e.hasShip);
+      if(bosses.length && !s.captured && !s.dual){ const e=bosses[Math.floor(Math.random()*bosses.length)];
+        e.state="beam"; e.beamT=0; e.returning=false; }
+      s.beamTimer=C.BEAM_OPEN+Math.floor(Math.random()*180);
+    }
+    // a freed ship flies back down to you and doubles you up
+    if(s.rescue){ s.rescue.y+=4; if(s.rescue.y>=C.PLY){ s.rescue=null; s.dual=true; s.captured=false; } }
     // bullet hits
-    for(const b of s.bullets){ for(const e of s.enemies){ if(bulletHitsEnemy(b,e)){ e.alive=false; b.y=-99; s.score+= e.state==="dive"?150:100; } } }
+    for(const b of s.bullets){ for(const e of s.enemies){ if(bulletHitsEnemy(b,e)){
+      e.alive=false; b.y=-99; s.score+= e.state==="dive"?150:100;
+      // shooting the boss that stole your ship sets it free
+      if(e.hasShip && !s.dual && !s.rescue){ s.rescue={x:e.x,y:e.y}; s.score+=1000; e.hasShip=false; }
+    } } }
     s.bullets=s.bullets.filter(b=>b.y>-12);
     s.enemies=s.enemies.filter(e=>e.alive);
     if(s.enemies.length===0) makeWave(s);
     return s;
   }
-  function fire(s){ if(s.bullets.length<3 && !s.over) s.bullets.push({x:s.px-1, y:C.PLY-12}); }
-  window.__galaga={ newState, step, fire, makeWave, bulletHitsEnemy, C };
+  // Doubled up, both ships fire — twice the firepower, twice the width to hit.
+  function fire(s){ if(s.over) return;
+    const cap = s.dual?6:3;
+    if(s.bullets.length>=cap) return;
+    if(s.dual){ s.bullets.push({x:s.px-1-14, y:C.PLY-12}); s.bullets.push({x:s.px-1+14, y:C.PLY-12}); }
+    else s.bullets.push({x:s.px-1, y:C.PLY-12});
+  }
+  window.__galaga={ newState, step, fire, makeWave, bulletHitsEnemy, inBeam, beamHalfWidth, C };
 
   if(typeof document==="undefined") return;
   const $=(id)=>document.getElementById(id);
@@ -85,10 +129,31 @@
   function draw(){
     ctx.clearRect(0,0,W,H); ctx.fillStyle="#05060f"; ctx.fillRect(0,0,W,H);
     ctx.fillStyle="#2a2f55"; for(const st of stars){ st.y=(st.y+st.s)%H; ctx.fillRect(st.x,st.y,1,1); }
+    // tractor beams first, so ships draw over them
+    for(const e of s.enemies){ if(!e.alive||e.state!=="beam"||e.beamT<=0) continue;
+      const grd=ctx.createLinearGradient(0,e.y,0,C.PLY);
+      grd.addColorStop(0,"rgba(124,92,255,.55)"); grd.addColorStop(1,"rgba(34,211,238,.05)");
+      ctx.fillStyle=grd; ctx.beginPath();
+      ctx.moveTo(e.x-beamHalfWidth(e,e.y),e.y); ctx.lineTo(e.x+beamHalfWidth(e,e.y),e.y);
+      ctx.lineTo(e.x+beamHalfWidth(e,C.PLY),C.PLY); ctx.lineTo(e.x-beamHalfWidth(e,C.PLY),C.PLY);
+      ctx.closePath(); ctx.fill();
+      // pulsing rungs down the cone
+      ctx.strokeStyle="rgba(199,180,255,.5)";
+      for(let k=0;k<5;k++){ const yy=e.y+((k*46+(Date.now()/8)%46));
+        if(yy>C.PLY) continue; const hw=beamHalfWidth(e,yy);
+        ctx.beginPath(); ctx.moveTo(e.x-hw,yy); ctx.lineTo(e.x+hw,yy); ctx.stroke(); } }
     for(const e of s.enemies){ if(!e.alive) continue; ctx.fillStyle=e.color; ctx.fillRect(e.x-C.EW/2,e.y-C.EH/2,C.EW,C.EH);
-      ctx.fillStyle="#0b0c1a"; ctx.fillRect(e.x-6,e.y-2,4,4); ctx.fillRect(e.x+2,e.y-2,4,4); ctx.fillStyle=e.color; ctx.fillRect(e.x-C.EW/2-3,e.y,3,5); ctx.fillRect(e.x+C.EW/2,e.y,3,5); }
+      ctx.fillStyle="#0b0c1a"; ctx.fillRect(e.x-6,e.y-2,4,4); ctx.fillRect(e.x+2,e.y-2,4,4); ctx.fillStyle=e.color; ctx.fillRect(e.x-C.EW/2-3,e.y,3,5); ctx.fillRect(e.x+C.EW/2,e.y,3,5);
+      // your captured ship, slung underneath the boss that took it
+      if(e.hasShip){ ctx.fillStyle="#22d3ee"; ctx.fillRect(e.x-C.PW/2,e.y+C.EH/2+3,C.PW,C.PH*0.7); ctx.fillRect(e.x-2,e.y+C.EH/2+C.PH*0.7+2,4,4); } }
     ctx.fillStyle="#fff"; for(const b of s.bullets) ctx.fillRect(b.x,b.y,3,10);
-    ctx.fillStyle="#22d3ee"; ctx.fillRect(s.px-C.PW/2,C.PLY-C.PH/2,C.PW,C.PH); ctx.fillRect(s.px-2,C.PLY-C.PH/2-6,4,6);
+    // a freed ship on its way back down
+    if(s.rescue){ ctx.fillStyle="#7de8ff"; ctx.fillRect(s.rescue.x-C.PW/2,s.rescue.y-C.PH/2,C.PW,C.PH); }
+    ctx.fillStyle="#22d3ee";
+    if(s.dual){   // twin fighters
+      ctx.fillRect(s.px-C.PW/2-14,C.PLY-C.PH/2,C.PW,C.PH); ctx.fillRect(s.px-2-14,C.PLY-C.PH/2-6,4,6);
+      ctx.fillRect(s.px-C.PW/2+14,C.PLY-C.PH/2,C.PW,C.PH); ctx.fillRect(s.px-2+14,C.PLY-C.PH/2-6,4,6);
+    } else { ctx.fillRect(s.px-C.PW/2,C.PLY-C.PH/2,C.PW,C.PH); ctx.fillRect(s.px-2,C.PLY-C.PH/2-6,4,6); }
     if(s.over){ ctx.fillStyle="rgba(0,0,0,.6)"; ctx.fillRect(0,0,W,H); ctx.fillStyle="#f43f5e"; ctx.font="bold 24px system-ui"; ctx.textAlign="center"; ctx.fillText("GAME OVER",W/2,H/2-6); ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Score "+s.score+"  ·  Best "+best,W/2,H/2+16); }
   }
   function frame(){ step(s,input);
