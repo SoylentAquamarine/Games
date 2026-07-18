@@ -3,22 +3,22 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-<title>Boulder Dash — Games</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>💎</text></svg>" />
+<title>ChickenDash — Games</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🥚</text></svg>" />
 <style>
   :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;--bad:#f43f5e;--good:#34d399;}
   *{box-sizing:border-box}
   html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
     background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.2),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.14),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;touch-action:none;}
-  .wrap{max-width:420px;margin:0 auto;padding:14px 12px 30px;display:flex;flex-direction:column;align-items:center;gap:10px}
+  .wrap{max-width:660px;margin:0 auto;padding:14px 12px 30px;display:flex;flex-direction:column;align-items:center;gap:10px}
   .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
   .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
   .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
   h1{margin:0;font-size:1.3rem;background:linear-gradient(120deg,#22d3ee,#ffcf5a);-webkit-background-clip:text;background-clip:text;color:transparent}
   .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:9px 16px;border-radius:999px;cursor:pointer}
-  .hud{width:100%;max-width:352px;display:flex;justify-content:space-between;font-size:.85rem;color:var(--muted)}
+  .hud{width:100%;max-width:616px;display:flex;justify-content:space-between;font-size:.85rem;color:var(--muted)}
   .hud b{color:var(--text)}
-  canvas{width:min(94vw,352px);height:calc(min(94vw,352px)*0.75);image-rendering:pixelated;border-radius:10px;border:2px solid #2a2f55;background:#0a0c18;touch-action:none}
+  canvas{width:min(96vw,616px);height:calc(min(96vw,616px)*0.75);image-rendering:pixelated;border-radius:10px;border:2px solid #2a2f55;background:#0a0c18;touch-action:none}
   .msg{min-height:1.3em;font-weight:800;text-align:center}
   .dpad{display:grid;grid-template-columns:repeat(3,50px);grid-template-rows:repeat(3,50px);gap:5px}
   .dpad button{background:var(--panel);color:var(--text);border:1px solid rgba(255,255,255,.1);border-radius:10px;font-size:1.2rem;cursor:pointer;user-select:none}
@@ -29,16 +29,16 @@
 </head>
 <body>
 <div class="wrap">
-  <div class="topbar"><a class="home" href="/">← Home</a><h1>Boulder Dash</h1><button class="btn" id="new">New Game</button></div>
-  <div class="hud"><span>Gems: <b id="gems">0</b>/<b id="need">0</b></span><span>Score: <b id="score">0</b></span><span>Best: <b id="best">0</b></span></div>
-  <canvas id="game" width="352" height="264"></canvas>
-  <div class="msg" id="msg">Dig for gems, dodge falling boulders, then reach the exit!</div>
+  <div class="topbar"><a class="home" href="/">← Home</a><h1>🥚 ChickenDash</h1><button class="btn" id="new">New Game</button></div>
+  <div class="hud"><span>Eggs: <b id="gems">0</b>/<b id="need">0</b></span><span>Score: <b id="score">0</b></span><span>Best: <b id="best">0</b></span></div>
+  <canvas id="game" width="616" height="462"></canvas>
+  <div class="msg" id="msg">Dig for eggs, dodge falling rocks, then reach the exit!</div>
   <div class="dpad"><button class="u" data-d="up">▲</button><button class="l" data-d="left">◀</button><button class="dn" data-d="down">▼</button><button class="r" data-d="right">▶</button></div>
-  <div class="hint">Arrows/WASD move · push boulders sideways · don't stand under them</div>
+  <div class="hint">Arrows/WASD move · push rocks sideways · don't stand under them</div>
 </div>
 <script>
 (function(){
-  const C={ cols:16, rows:12, cell:22 };
+  const C={ cols:28, rows:21, cell:22 };   // board 75% larger; cell size unchanged
   const DIRS={left:[-1,0],right:[1,0],up:[0,-1],down:[0,1]};
   function newState(){
     const g=[]; for(let r=0;r<C.rows;r++){ const row=[]; for(let c=0;c<C.cols;c++){
@@ -46,9 +46,10 @@
     const s={ grid:g, player:{c:1,r:1}, gems:0, need:0, score:0, over:false, won:false };
     g[1][1]="empty";
     // scatter boulders + gems
-    let placed=0; while(placed<24){ const r=2+Math.floor(Math.random()*(C.rows-3)), c=2+Math.floor(Math.random()*(C.cols-3));
+    const TARGET=Math.round(24*(C.cols*C.rows)/(16*12));   // keep the original density
+    let placed=0, tries=0; while(placed<TARGET && ++tries<20000){ const r=2+Math.floor(Math.random()*(C.rows-3)), c=2+Math.floor(Math.random()*(C.cols-3));
       if(g[r][c]==="dirt" && !(r<=2&&c<=2)){ g[r][c]=Math.random()<0.55?"boulder":"gem"; if(g[r][c]==="gem") s.need++; placed++; } }
-    s.need=Math.max(6,Math.min(s.need, 10));
+    s.need=Math.max(6,Math.min(s.need, 14));
     g[C.rows-2][C.cols-2]="exit";
     return s;
   }
@@ -90,19 +91,39 @@
       else if(t==="dirt"){ ctx.fillStyle="#4a3420"; ctx.fillRect(x,y,CELL,CELL); ctx.fillStyle="#5a4028"; for(let i=0;i<3;i++) ctx.fillRect(x+3+i*6,y+4+((i*7)%12),2,2); }
       else if(t==="empty"){ ctx.fillStyle="#12141f"; ctx.fillRect(x,y,CELL,CELL); }
       else if(t==="boulder"){ ctx.fillStyle="#12141f"; ctx.fillRect(x,y,CELL,CELL); ctx.fillStyle="#9a9ab5"; ctx.beginPath(); ctx.arc(x+CELL/2,y+CELL/2,CELL/2-2,0,7); ctx.fill(); ctx.fillStyle="#c9c9e0"; ctx.beginPath(); ctx.arc(x+CELL/2-3,y+CELL/2-3,3,0,7); ctx.fill(); }
-      else if(t==="gem"){ ctx.fillStyle="#12141f"; ctx.fillRect(x,y,CELL,CELL); ctx.fillStyle="#22d3ee"; ctx.beginPath(); ctx.moveTo(x+CELL/2,y+3); ctx.lineTo(x+CELL-4,y+CELL/2); ctx.lineTo(x+CELL/2,y+CELL-3); ctx.lineTo(x+4,y+CELL/2); ctx.closePath(); ctx.fill(); ctx.fillStyle="#a7f0ff"; ctx.fillRect(x+CELL/2-2,y+6,3,3); }
+      else if(t==="gem"){ ctx.fillStyle="#12141f"; ctx.fillRect(x,y,CELL,CELL);   // eggs to collect
+        const ex=x+CELL/2, ey=y+CELL/2, er=CELL*0.36;
+        ctx.fillStyle="#f3ead7"; ctx.strokeStyle="#c9bda3"; ctx.lineWidth=1;
+        ctx.beginPath(); ctx.moveTo(ex,ey-er);
+        ctx.bezierCurveTo(ex+er*0.72,ey-er,ex+er*0.86,ey+er*0.34,ex,ey+er);
+        ctx.bezierCurveTo(ex-er*0.86,ey+er*0.34,ex-er*0.72,ey-er,ex,ey-er);
+        ctx.closePath(); ctx.fill(); ctx.stroke();
+        ctx.fillStyle="rgba(255,255,255,.7)"; ctx.fillRect(ex-2,ey-er*0.4,2,3); }
       else if(t==="exit"){ ctx.fillStyle= s.gems>=s.need?"#34d399":"#2a2f4d"; ctx.fillRect(x+2,y+2,CELL-4,CELL-4); ctx.fillStyle="#0a0c18"; ctx.fillRect(x+CELL/2-2,y+5,4,CELL-10); }
     }
-    ctx.fillStyle="#ffcf5a"; ctx.fillRect(s.player.c*CELL+3,s.player.r*CELL+3,CELL-6,CELL-6); ctx.fillStyle="#0b0c1a"; ctx.fillRect(s.player.c*CELL+6,s.player.r*CELL+7,3,3); ctx.fillRect(s.player.c*CELL+CELL-9,s.player.r*CELL+7,3,3);
+    // the digging chicken — eased toward its cell so it glides instead of snapping
+    { const p=s.player, tx=p.c*CELL, ty=p.r*CELL;
+      if(p.ax==null||Math.abs(tx-p.ax)>CELL*1.8||Math.abs(ty-p.ay)>CELL*1.8){ p.ax=tx; p.ay=ty; }
+      else { p.ax+=(tx-p.ax)*0.4; p.ay+=(ty-p.ay)*0.4; }
+      const hx=p.ax+CELL/2, hy=p.ay+CELL/2;
+      ctx.fillStyle="#c96f14"; ctx.beginPath();                                                    // tail
+      ctx.moveTo(hx-CELL*0.26,hy); ctx.lineTo(hx-CELL*0.52,hy-CELL*0.20); ctx.lineTo(hx-CELL*0.26,hy+CELL*0.22); ctx.closePath(); ctx.fill();
+      ctx.fillStyle="#dc2626"; ctx.beginPath();                                                    // comb
+      ctx.arc(hx-CELL*0.12,hy-CELL*0.36,CELL*0.09,0,7); ctx.arc(hx+CELL*0.02,hy-CELL*0.41,CELL*0.10,0,7); ctx.arc(hx+CELL*0.16,hy-CELL*0.36,CELL*0.09,0,7); ctx.fill();
+      ctx.fillStyle="#ffcf5a"; ctx.beginPath(); ctx.arc(hx,hy,CELL*0.36,0,7); ctx.fill();          // body
+      ctx.fillStyle="#fde68a"; ctx.beginPath(); ctx.ellipse(hx-CELL*0.04,hy+CELL*0.06,CELL*0.20,CELL*0.12,0,0,7); ctx.fill();
+      ctx.fillStyle="#fb923c"; ctx.beginPath();                                                    // beak
+      ctx.moveTo(hx+CELL*0.30,hy-CELL*0.06); ctx.lineTo(hx+CELL*0.56,hy+CELL*0.02); ctx.lineTo(hx+CELL*0.30,hy+CELL*0.10); ctx.closePath(); ctx.fill();
+      ctx.fillStyle="#0b0c1a"; ctx.fillRect(hx-CELL*0.16,hy-CELL*0.14,3,3); ctx.fillRect(hx+CELL*0.06,hy-CELL*0.14,3,3); }
     if(s.won||s.over){ ctx.fillStyle="rgba(0,0,0,.6)"; ctx.fillRect(0,0,W,H); ctx.fillStyle=s.won?"#34d399":"#f43f5e"; ctx.font="bold 22px system-ui"; ctx.textAlign="center"; ctx.fillText(s.won?"ESCAPED!":"CRUSHED!",W/2,H/2-6); ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Score "+s.score+"  ·  Best "+best,W/2,H/2+16); }
   }
   function frame(){
     if(!s.over&&!s.won){
-      if(input && ++moveT>=6){ moveT=0; move(s,input); }
+      if(input && ++moveT>=5){ moveT=0; move(s,input); }   // slightly quicker: the board is bigger now
       if(++physT>=12){ physT=0; physicsStep(s); }
       if((s.won||s.over)&&s.score>best){ best=s.score; try{localStorage.setItem("boulder_best",String(best));}catch(e){} }
-      if(s.won) $("msg").textContent="🎉 Escaped with "+s.gems+" gems! Score "+s.score;
-      else if(s.over) $("msg").textContent="Crushed by a boulder! Score "+s.score;
+      if(s.won) $("msg").textContent="🎉 Escaped with "+s.gems+" eggs! Score "+s.score;
+      else if(s.over) $("msg").textContent="Crushed by a rock! Score "+s.score;
     }
     $("gems").textContent=s.gems; $("need").textContent=s.need; $("score").textContent=s.score; $("best").textContent=best; draw(); requestAnimationFrame(frame);
   }
