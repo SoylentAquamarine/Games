@@ -41,7 +41,7 @@
     </div>
     <div class="board-wrap">
       <canvas id="c" width="380" height="420"></canvas>
-      <div class="overlay" id="ov"><h2 id="ot">Chicken-Man</h2><p id="om">Eat all the seed. Avoid the foxes.</p><button class="btn" id="start">Play</button></div>
+      <div class="overlay" id="ov"><h2 id="ot">Chicken-Man</h2><p id="om">Eat all the seed. Avoid the weasels.</p><button class="btn" id="start">Play</button></div>
     </div>
     <div class="dpad">
       <button class="up" data-d="up">▲</button>
@@ -49,7 +49,7 @@
       <button data-d="down">▼</button>
       <button data-d="right">▶</button>
     </div>
-    <p class="hint">Arrows / WASD / swipe / d-pad · power corn lets you eat foxes</p>
+    <p class="hint">Arrows / WASD / swipe / d-pad · power corn lets you eat weasels</p>
   </div>
   <script>
   (function(){
@@ -81,8 +81,11 @@
     const T=cv.width/COLS;
     const scoreEl=document.getElementById("score"),livesEl=document.getElementById("lives"),bestEl=document.getElementById("best");
     const ov=document.getElementById("ov"),ot=document.getElementById("ot"),om=document.getElementById("om"),startBtn=document.getElementById("start");
-    const GHOST_COLORS=["#e2622a","#b45309","#f59e0b"];  // fox coats
+    const GHOST_COLORS=["#a16207","#78350f","#c2872a"];  // weasel coats
     let grid,dots,pac,ghosts,score,lives,fright,running,stepTimer,raf,pacStart,ghostStarts,best=+localStorage.getItem("pacman_best")||0;
+    const STEP_MS=150, DEATH_MS=2000;          // one grid step; length of the death animation
+    const SCATTER_STEPS=47, CHASE_STEPS=133;   // ~7s scatter / ~20s chase at 150ms a step
+    let mode="scatter", modeTick=0, lastStep=0, dying=0, pendingGameOver=false;
     bestEl.textContent=best;
 
     function parse(){
@@ -104,19 +107,40 @@
     function reset(full){
       if(full){score=0;lives=3;}
       dotmap=parse();
-      pac={r:pacStart.r,c:pacStart.c,dir:"left",next:"left",mouth:0};
-      ghosts=ghostStarts.map((g,i)=>({r:g.r,c:g.c,dir:"up",color:GHOST_COLORS[i%3],eaten:false,home:{r:g.r,c:g.c}}));
-      fright=0;
+      pac={r:pacStart.r,c:pacStart.c,pr:pacStart.r,pc:pacStart.c,dir:"left",next:"left",mouth:0};
+      // Personalities follow the original arcade ghosts: a direct chaser, an
+      // ambusher that aims ahead of you, and a shy one that backs off up close.
+      ghosts=ghostStarts.map((g,i)=>({r:g.r,c:g.c,pr:g.r,pc:g.c,dir:"up",color:GHOST_COLORS[i%3],
+        eaten:false,home:{r:g.r,c:g.c},kind:["chaser","ambusher","shy"][i%3],
+        corner:[{r:1,c:COLS-2},{r:1,c:1},{r:ROWS-2,c:1}][i%3]}));
+      fright=0; modeTick=0; mode="scatter";
       scoreEl.textContent=score;livesEl.textContent=lives;
       recountDots();
     }
     function recountDots(){dots=0;for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++)if(dotmap[r][c])dots++;}
-    function start(){reset(true);ov.classList.add("hidden");running=true;clearInterval(stepTimer);stepTimer=setInterval(step,150);draw();}
+    function start(){reset(true);ov.classList.add("hidden");running=true;dying=0;pendingGameOver=false;
+      lastStep=performance.now();clearInterval(stepTimer);stepTimer=setInterval(step,STEP_MS);
+      cancelAnimationFrame(raf);raf=requestAnimationFrame(frame);}
+    // Rendering runs every frame so movement can be interpolated between grid steps.
+    function frame(){
+      if(dying && performance.now()-dying>=DEATH_MS) finishDeath();
+      draw();
+      raf=requestAnimationFrame(frame);
+    }
     function open(r,c){return r>=0&&r<ROWS&&c>=0&&c<COLS&&grid[r][c]===0;}
     const DIRS={up:[-1,0],down:[1,0],left:[0,-1],right:[0,1]};
     function step(){
-      if(!running)return;
+      if(!running||dying)return;
+      lastStep=performance.now();
+      // scatter/chase alternation — ghosts reverse direction the moment it flips
+      if(fright<=0){
+        modeTick++;
+        const limit = mode==="scatter" ? SCATTER_STEPS : CHASE_STEPS;
+        if(modeTick>=limit){ modeTick=0; mode = mode==="scatter"?"chase":"scatter";
+          ghosts.forEach(g=>{ if(!g.eaten) g.dir=oppositeOf(g.dir); }); }
+      }
       // pac
+      pac.pr=pac.r; pac.pc=pac.c;
       if(canGo(pac.r,pac.c,pac.next))pac.dir=pac.next;
       if(canGo(pac.r,pac.c,pac.dir)){const[d]=[DIRS[pac.dir]];pac.r+=d[0];pac.c+=d[1];}
       pac.mouth=(pac.mouth+1)%2;
@@ -129,27 +153,38 @@
       for(const g of ghosts)moveGhost(g);
       checkCollisions();
       if(dots<=0){win();return;}
-      draw();
     }
     function canGo(r,c,dir){const d=DIRS[dir];return open(r+d[0],c+d[1]);}
+    // Where each ghost wants to be this tick. Mirrors the arcade behaviour:
+    // in scatter every ghost heads for its own corner; in chase each has its
+    // own way of hunting you.
+    function ghostTarget(g){
+      if(g.eaten) return g.home;                        // eaten: back to the pen
+      if(mode==="scatter") return g.corner;
+      const d=DIRS[pac.dir];
+      if(g.kind==="ambusher") return {r:pac.r+d[0]*4, c:pac.c+d[1]*4};   // four tiles ahead of you
+      if(g.kind==="shy"){                                                // backs off when close
+        return dist(g.r,g.c,pac)>8 ? pac : g.corner;
+      }
+      return pac;                                                        // chaser: straight at you
+    }
     function moveGhost(g){
       const opts=[];
       for(const dir in DIRS){const d=DIRS[dir];const nr=g.r+d[0],nc=g.c+d[1];
         if(!open(nr,nc))continue;
-        if(oppositeOf(g.dir)===dir)continue; // don't reverse
+        if(oppositeOf(g.dir)===dir)continue; // ghosts never reverse mid-corridor
         opts.push({dir,nr,nc});
       }
       if(!opts.length){const d=DIRS[oppositeOf(g.dir)];if(open(g.r+d[0],g.c+d[1]))opts.push({dir:oppositeOf(g.dir),nr:g.r+d[0],nc:g.c+d[1]});}
       if(!opts.length)return;
+      g.pr=g.r; g.pc=g.c;
       let choice;
-      const target=g.eaten?g.home:pac;
       if(fright>0&&!g.eaten){
-        // flee: maximize distance, with randomness
-        choice=opts.reduce((a,b)=>dist(b.nr,b.nc,pac)>dist(a.nr,a.nc,pac)?b:a);
-        if(Math.random()<0.35)choice=opts[Math.floor(Math.random()*opts.length)];
+        // frightened ghosts pick at random, as in the original
+        choice=opts[Math.floor(Math.random()*opts.length)];
       }else{
-        choice=opts.reduce((a,b)=>dist(b.nr,b.nc,target)<dist(a.nr,a.nc,target)?b:a);
-        if(!g.eaten&&Math.random()<0.15)choice=opts[Math.floor(Math.random()*opts.length)];
+        const t=ghostTarget(g);
+        choice=opts.reduce((a,b)=>dist(b.nr,b.nc,t)<dist(a.nr,a.nc,t)?b:a);
       }
       g.dir=choice.dir;g.r=choice.nr;g.c=choice.nc;
       if(g.eaten&&g.r===g.home.r&&g.c===g.home.c)g.eaten=false;
@@ -165,11 +200,23 @@
         }
       }
     }
-    function die(){lives--;livesEl.textContent=lives;
-      if(lives<=0){running=false;clearInterval(stepTimer);if(score>best){best=score;localStorage.setItem("pacman_best",best);bestEl.textContent=best;}
-        ot.textContent="Game Over";om.textContent="Score "+score;startBtn.textContent="Play again";ov.classList.remove("hidden");return;}
-      pac={r:pacStart.r,c:pacStart.c,dir:"left",next:"left",mouth:0};
-      ghosts.forEach(g=>{g.r=g.home.r;g.c=g.home.c;g.eaten=false;g.dir="up";});fright=0;draw();
+    // Death plays out over two seconds before anything resets.
+    function die(){
+      if(dying)return;
+      lives--;livesEl.textContent=lives;
+      dying=performance.now();
+      pendingGameOver = lives<=0;
+    }
+    function finishDeath(){
+      dying=0;
+      if(pendingGameOver){
+        pendingGameOver=false;running=false;clearInterval(stepTimer);
+        if(score>best){best=score;localStorage.setItem("pacman_best",best);bestEl.textContent=best;}
+        ot.textContent="Game Over";om.textContent="Score "+score;startBtn.textContent="Play again";ov.classList.remove("hidden");return;
+      }
+      pac={r:pacStart.r,c:pacStart.c,pr:pacStart.r,pc:pacStart.c,dir:"left",next:"left",mouth:0};
+      ghosts.forEach(g=>{g.r=g.home.r;g.c=g.home.c;g.pr=g.home.r;g.pc=g.home.c;g.eaten=false;g.dir="up";});
+      fright=0;mode="scatter";modeTick=0;lastStep=performance.now();
     }
     function win(){running=false;clearInterval(stepTimer);score+=500;scoreEl.textContent=score;if(score>best){best=score;localStorage.setItem("pacman_best",best);bestEl.textContent=best;}
       ot.textContent="🎉 Level cleared!";om.textContent="Score "+score;startBtn.textContent="Play again";ov.classList.remove("hidden");}
@@ -180,10 +227,30 @@
         else if(dotmap[r][c]===1){ctx.fillStyle="#f5d76e";ctx.beginPath();ctx.arc((c+.5)*T,(r+.5)*T,T*0.08,0,7);ctx.fill();}
         else if(dotmap[r][c]===2){ctx.fillStyle="#fff";ctx.beginPath();ctx.arc((c+.5)*T,(r+.5)*T,T*0.22,0,7);ctx.fill();}
       }
+      // Positions are interpolated between the last grid step and this one, so
+      // movement reads as continuous instead of snapping a whole tile at a time.
+      const a=Math.max(0,Math.min(1,(performance.now()-lastStep)/STEP_MS));
+      const lerp=(p,n)=>Math.abs(n-p)>1 ? n : p+(n-p)*a;   // big jumps (respawn) snap
       // pac
-      const px=(pac.c+.5)*T,py=(pac.r+.5)*T,rad=T*0.42;
+      const px=(lerp(pac.pc==null?pac.c:pac.pc,pac.c)+.5)*T, py=(lerp(pac.pr==null?pac.r:pac.pr,pac.r)+.5)*T, rad=T*0.42;
       const open=pac.mouth?0.28:0.03;
       const ang={left:Math.PI,right:0,up:-Math.PI/2,down:Math.PI/2}[pac.dir];
+      if(dying){   // 2-second death: the hen spins, shrinks and fades away
+        const t=Math.min(1,(performance.now()-dying)/DEATH_MS);
+        ctx.save();ctx.translate(px,py);ctx.rotate(t*Math.PI*4);ctx.scale(1-t*0.85,1-t*0.85);
+        ctx.globalAlpha=1-t*0.9;
+        ctx.fillStyle="#dc2626";
+        ctx.beginPath();ctx.arc(-rad*.30,-rad*.90,rad*.20,0,7);ctx.arc(0,-rad*1.02,rad*.22,0,7);ctx.arc(rad*.30,-rad*.90,rad*.20,0,7);ctx.fill();
+        ctx.fillStyle="#facc15";ctx.beginPath();ctx.arc(0,0,rad,0,7);ctx.fill();
+        ctx.fillStyle="#0b1030";ctx.beginPath();ctx.arc(rad*.18,-rad*.40,rad*.15,0,7);ctx.fill();
+        ctx.restore();
+        ctx.globalAlpha=1;
+        // a few feathers puffing outward
+        ctx.fillStyle="rgba(253,230,138,"+(1-t)+")";
+        for(let i=0;i<6;i++){const fa=i/6*Math.PI*2, fd=t*T*2.2;
+          ctx.beginPath();ctx.arc(px+Math.cos(fa)*fd,py+Math.sin(fa)*fd,2.5*(1-t),0,7);ctx.fill();}
+        return;
+      }
       ctx.save();ctx.translate(px,py);ctx.rotate(ang);
       // comb (three points along the top of the head)
       ctx.fillStyle="#dc2626";
@@ -196,20 +263,29 @@
       // eye
       ctx.fillStyle="#0b1030";ctx.beginPath();ctx.arc(rad*.18,-rad*.40,rad*.15,0,7);ctx.fill();
       ctx.restore();
-      // foxes
-      for(const g of ghosts){const gx=(g.c+.5)*T,gy=(g.r+.5)*T,r=T*0.4;
-        ctx.fillStyle=g.eaten?"#334155":(fright>0?(fright<8&&fright%2?"#fff":"#3b82f6"):g.color);
-        // ears
-        ctx.beginPath();ctx.moveTo(gx-r*.85,gy-r*.35);ctx.lineTo(gx-r*.60,gy-r*1.15);ctx.lineTo(gx-r*.20,gy-r*.55);ctx.closePath();ctx.fill();
-        ctx.beginPath();ctx.moveTo(gx+r*.85,gy-r*.35);ctx.lineTo(gx+r*.60,gy-r*1.15);ctx.lineTo(gx+r*.20,gy-r*.55);ctx.closePath();ctx.fill();
-        // head + ragged skirt
-        ctx.beginPath();ctx.arc(gx,gy-2,r,Math.PI,0);ctx.lineTo(gx+r,gy+r);ctx.lineTo(gx-r,gy+r);ctx.closePath();ctx.fill();
-        // snout
-        ctx.fillStyle=g.eaten?"#475569":"#fde9d0";
-        ctx.beginPath();ctx.moveTo(gx-r*.32,gy+r*.18);ctx.lineTo(gx+r*.32,gy+r*.18);ctx.lineTo(gx,gy+r*.80);ctx.closePath();ctx.fill();
-        ctx.fillStyle="#fff";ctx.beginPath();ctx.arc(gx-r*.4,gy-2,r*.28,0,7);ctx.arc(gx+r*.4,gy-2,r*.28,0,7);ctx.fill();
-        ctx.fillStyle="#0b1030";ctx.beginPath();ctx.arc(gx-r*.4,gy-2,r*.14,0,7);ctx.arc(gx+r*.4,gy-2,r*.14,0,7);ctx.fill();
-        ctx.beginPath();ctx.arc(gx,gy+r*.62,r*.13,0,7);ctx.fill();   // nose
+      // weasels
+      for(const g of ghosts){
+        const gx=(lerp(g.pc==null?g.c:g.pc,g.c)+.5)*T, gy=(lerp(g.pr==null?g.r:g.pr,g.r)+.5)*T, r=T*0.4;
+        const coat=g.eaten?"#334155":(fright>0?(fright<8&&fright%2?"#fff":"#3b82f6"):g.color);
+        const face=(g.dir==="left")?-1:1;
+        ctx.save();ctx.translate(gx,gy);ctx.scale(face,1);
+        ctx.fillStyle=coat;
+        // long low body and tail
+        ctx.beginPath();ctx.ellipse(-r*.10,r*.10,r*.78,r*.44,0,0,7);ctx.fill();
+        ctx.beginPath();ctx.moveTo(-r*.62,r*.06);ctx.lineTo(-r*1.35,-r*.30);ctx.lineTo(-r*.55,r*.36);ctx.closePath();ctx.fill();
+        // head, raised on a long neck
+        ctx.beginPath();ctx.arc(r*.52,-r*.34,r*.40,0,7);ctx.fill();
+        // small rounded ears
+        ctx.beginPath();ctx.arc(r*.34,-r*.68,r*.15,0,7);ctx.arc(r*.68,-r*.66,r*.15,0,7);ctx.fill();
+        // pale muzzle and bib
+        ctx.fillStyle=g.eaten?"#475569":"#fdeed6";
+        ctx.beginPath();ctx.ellipse(r*.86,-r*.22,r*.26,r*.18,0,0,7);ctx.fill();
+        ctx.beginPath();ctx.ellipse(r*.16,r*.26,r*.34,r*.18,0,0,7);ctx.fill();
+        // eye and nose
+        ctx.fillStyle="#fff";ctx.beginPath();ctx.arc(r*.58,-r*.42,r*.16,0,7);ctx.fill();
+        ctx.fillStyle="#0b1030";ctx.beginPath();ctx.arc(r*.62,-r*.42,r*.09,0,7);ctx.fill();
+        ctx.beginPath();ctx.arc(r*1.08,-r*.20,r*.09,0,7);ctx.fill();
+        ctx.restore();
       }
     }
     function roundRect(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
