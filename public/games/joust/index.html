@@ -16,9 +16,9 @@
   .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
   h1{margin:0;font-size:1.3rem;background:linear-gradient(120deg,#ffcf5a,#f0616e);-webkit-background-clip:text;background-clip:text;color:transparent}
   .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:9px 16px;border-radius:999px;cursor:pointer}
-  .hud{width:100%;max-width:400px;display:flex;justify-content:space-between;font-size:.85rem;color:var(--muted)}
+  .hud{width:100%;max-width:600px;display:flex;justify-content:space-between;font-size:.85rem;color:var(--muted)}
   .hud b{color:var(--text)}
-  canvas{width:100%;max-width:400px;aspect-ratio:400/300;image-rendering:pixelated;border-radius:10px;border:2px solid #2a2f55;background:#08040f;touch-action:none}
+  canvas{width:100%;max-width:600px;aspect-ratio:600/450;image-rendering:pixelated;border-radius:10px;border:2px solid #2a2f55;background:#08040f;touch-action:none}
   .msg{min-height:1.3em;font-weight:800;text-align:center}
   .ctl{display:flex;gap:10px;align-items:center}
   .cbtn{background:var(--panel);color:var(--text);border:1px solid rgba(255,255,255,.12);border-radius:12px;width:60px;height:52px;font-size:1.3rem;cursor:pointer;user-select:none}
@@ -31,19 +31,29 @@
 <div class="wrap">
   <div class="topbar"><a class="home" href="/">← Home</a><h1>🐔 Chicken Joust</h1><button class="btn" id="new">New Game</button></div>
   <div class="hud"><span>Score: <b id="score">0</b></span><span>Wave: <b id="wave">1</b></span><span>Lives: <b id="lives">3</b></span></div>
-  <canvas id="game" width="400" height="300"></canvas>
+  <canvas id="game" width="600" height="450"></canvas>
   <div class="msg" id="msg">Flap to fly. Hit an enemy from ABOVE to win the joust!</div>
   <div class="ctl"><button class="cbtn" id="bl">◀</button><button class="flap" id="bf">FLAP</button><button class="cbtn" id="br">▶</button></div>
   <div class="hint">Space/↑ flap · ←/→ steer · win when you're higher on contact</div>
 </div>
 <script>
 (function(){
-  const C={ W:400,H:300, GRAV:0.32, FLAP:-5.4, MOVE:0.45, MAXVX:3.6, LAVA:288, PW:20,PH:18, TOL:8 };
+  const C={ W:600,H:450, GRAV:0.32, FLAP:-5.4, MOVE:0.45, MAXVX:3.6, LAVA:438, PW:20,PH:18, TOL:8 };
   const rov=(a,b)=>a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;
   const rect=(o)=>({x:o.x,y:o.y,w:C.PW,h:C.PH});
   function joustResult(ay, by){ if(ay < by-C.TOL) return "aWins"; if(by < ay-C.TOL) return "bWins"; return "bounce"; }
-  const PLATS=[{x:0,y:250,w:120,h:10},{x:280,y:250,w:120,h:10},{x:150,y:180,w:100,h:10},{x:30,y:110,w:90,h:10},{x:280,y:110,w:90,h:10}];
-  function land(o){ o.onGround=false; for(const p of PLATS){ if(o.x+C.PW>p.x&&o.x<p.x+p.w && o.y+C.PH>=p.y && o.y+C.PH<=p.y+16 && o.vy>=0){ o.y=p.y-C.PH; o.vy=0; o.onGround=true; } } }
+  const PLATS=[{x:0,y:375,w:120,h:10},{x:480,y:375,w:120,h:10},{x:250,y:300,w:100,h:10},{x:60,y:210,w:90,h:10},{x:450,y:210,w:90,h:10},{x:255,y:140,w:90,h:10}];
+  function land(o){ o.onGround=false;
+    for(const p of PLATS){
+      if(!(o.x+C.PW>p.x && o.x<p.x+p.w)) continue;
+      // settling onto the top of an island
+      if(o.vy>=0 && o.y+C.PH>=p.y && o.y+C.PH<=p.y+16){ o.y=p.y-C.PH; o.vy=0; o.onGround=true; }
+      // clipping the underside — bounce off instead of rising straight through it
+      else if(o.vy<0 && o.y<p.y+p.h && o.y+C.PH>p.y+p.h){ o.y=p.y+p.h; o.vy=Math.abs(o.vy)*0.35; }
+    }
+    // nothing leaves the top of the screen
+    if(o.y<0){ o.y=0; o.vy=Math.abs(o.vy)*0.35; }
+  }
   function physics(o, input){
     if(input.flap) o.vy=C.FLAP;
     if(input.left){ o.vx=Math.max(-C.MAXVX,o.vx-C.MOVE); o.facing=-1; } if(input.right){ o.vx=Math.min(C.MAXVX,o.vx+C.MOVE); o.facing=1; }
@@ -52,8 +62,8 @@
     land(o);
     return o;
   }
-  function makeWave(s){ s.wave++; s.enemies=[]; const n=2+s.wave; for(let i=0;i<n;i++){ s.enemies.push({x:40+Math.random()*(C.W-80),y:40+Math.random()*80,vx:(Math.random()<.5?-1:1)*1.5,vy:0,facing:1,alive:true,flapT:Math.random()*30}); } }
-  function newState(){ const s={ player:{x:60,y:230,vx:0,vy:0,facing:1,onGround:false}, enemies:[], score:0, wave:0, lives:3, over:false }; makeWave(s); return s; }
+  function makeWave(s){ s.wave++; s.enemies=[]; const n=2+s.wave; for(let i=0;i<n;i++){ s.enemies.push({x:40+Math.random()*(C.W-80),y:40+Math.random()*170,vx:(Math.random()<.5?-1:1)*1.5,vy:0,facing:1,alive:true,flapT:Math.random()*30}); } }
+  function newState(){ const s={ player:{x:60,y:355,vx:0,vy:0,facing:1,onGround:false}, enemies:[], score:0, wave:0, lives:3, over:false }; makeWave(s); return s; }
   function step(s, input){
     if(s.over) return s;
     physics(s.player, input);
