@@ -22,16 +22,16 @@
     .table{width:100%;background:radial-gradient(circle at 50% 20%,#1a4a2b,var(--felt));border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:10px 8px 20px}
     .top{display:flex;justify-content:space-between;margin-bottom:12px}
     .foundations,.stockwaste{display:flex;gap:6px}
-    .slot{--cw:44px;width:var(--cw);height:calc(var(--cw)*1.42);border-radius:8px;border:2px dashed rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.25);font-size:1.4rem}
-    .tableau{display:flex;justify-content:space-between;gap:4px}
+    .slot{--cw:52px;width:var(--cw);height:calc(var(--cw)*1.42);border-radius:8px;border:2px dashed rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.25);font-size:1.4rem}
+    .tableau{display:flex;justify-content:space-between;gap:4px;overflow-x:auto}
     .pile{flex:1;min-height:200px;display:flex;flex-direction:column;align-items:center}
-    .pile .pcard,.pile .slot{--cw:44px}
-    .pile .stackcard{margin-top:-46px}
-    .pile .stackcard.down{margin-top:-52px}
+    .pile .pcard,.pile .slot{--cw:52px}
+    .pile .stackcard{margin-top:-44px}   /* leave the rank+suit corner readable */
+    .pile .stackcard.down{margin-top:-60px}
     .pile .stackcard:first-child{margin-top:0}
     .pcard.sel{outline:3px solid #34d399;outline-offset:1px;z-index:2}
     .pcard{cursor:pointer}
-    .foundations .pcard,.foundations .slot,.stockwaste .pcard,.stockwaste .slot{--cw:44px}
+    .foundations .pcard,.foundations .slot,.stockwaste .pcard,.stockwaste .slot{--cw:52px}
     .stock,.waste{cursor:pointer}
     #waste{display:flex}
     .bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center}
@@ -105,7 +105,7 @@
       else{const s=mkSlot(stockDead?"✕":"↻");s.classList.add("stock");if(!stockDead)s.addEventListener("click",drawStock);stockEl.appendChild(s);}
       // waste — draw 3, fanned, only the top card plays
       wasteEl.innerHTML="";
-      if(waste.length){ const show=waste.slice(-DEAL); show.forEach((c,i)=>{ const top=i===show.length-1; const el=Cards.cardEl(c,true); if(i>0)el.style.marginLeft="-30px";
+      if(waste.length){ const show=waste.slice(-DEAL); show.forEach((c,i)=>{ const top=i===show.length-1; const el=Cards.cardEl(c,true); if(i>0)el.style.marginLeft="-34px";
         if(top){ markSel(el,{t:"w"}); el.addEventListener("click",()=>clickCard({t:"w"})); el.addEventListener("dblclick",()=>autoOne({t:"w"})); }
         wasteEl.appendChild(el); }); }
       else wasteEl.appendChild(mkSlot(""));

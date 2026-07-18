@@ -30,6 +30,9 @@
 <body>
   <div class="wrap">
     <div class="topbar"><a class="home" href="/">← Home</a><h1>🐔 Chicken Tron</h1><span style="width:56px"></span></div>
+    <div class="hud" style="width:100%;max-width:400px;display:flex;justify-content:center;gap:6px;font-size:.85rem;color:var(--muted);margin-bottom:4px">
+      <span>Round: <b id="round" style="color:var(--text)">1</b></span>
+    </div>
     <div class="board-wrap">
       <canvas id="c" width="400" height="300"></canvas>
       <div class="overlay" id="ov"><h2 id="ot">🐔 Chicken Tron</h2><p id="om">Don't crash into the trails or walls!</p><button class="btn" id="start">Play</button></div>
@@ -48,6 +51,27 @@
     const DIRS={up:[0,-1],down:[0,1],left:[-1,0],right:[1,0]};
     const OPP={up:"down",down:"up",left:"right",right:"left"};
     let occ,you,cpu,running,timer,youNext;
+    let round=1;   // advances each time you win, resets when you lose
+
+    // How the CPU plays at a given round. Round 1 wanders, later rounds commit to
+    // straight lines, look further ahead, and eventually hunt you down.
+    // All terms below are on a normalised 0-100 scale so the weights actually compete;
+    // an unnormalised flood count would swamp everything else.
+    function cpuProfile(r){
+      return {
+        // Random noise: dominates round 1, but never reaches zero — a fully
+        // deterministic CPU would replay the identical line every single game.
+        jitter:   Math.max(6, 70-(r-1)*18),
+        straight: Math.min(16, (r-1)*6),               // bonus for holding a line
+        // How far ahead it can see. Must be able to reach a large share of the arena,
+        // otherwise every direction saturates the cap, the survival term goes flat and
+        // the CPU just drives straight into a corner.
+        cap:      Math.min(COLS*ROWS, 60+(r-1)*900),
+        // Hunts you from round 3, but capped: at full aggression it over-commits to the
+        // chase and actually plays worse than a patient space-filler.
+        aggr:     r<3 ? 0 : Math.min(0.7, (r-2)*0.25),
+      };
+    }
 
     function reset(){occ=Array.from({length:ROWS},()=>Array(COLS).fill(0));
       you={x:Math.floor(COLS*0.25),y:Math.floor(ROWS/2),dir:"right"};youNext="right";
@@ -68,20 +92,45 @@
       render();
     }
     function cpuChoose(){
+      const P=cpuProfile(round);
       const opts=Object.keys(DIRS).filter(d=>d!==OPP[cpu.dir]);
-      let best=cpu.dir,bs=-1;
+      let best=cpu.dir,bs=-Infinity;
       for(const d of opts){const[dx,dy]=DIRS[d];const nx=cpu.x+dx,ny=cpu.y+dy;if(!free(nx,ny))continue;
-        const space=floodCount(nx,ny)+(d===cpu.dir?8:0)+Math.random()*1.2;if(space>bs){bs=space;best=d;}}
+        // 1. survival: open ground this move leads into, as a 0-100 share of the search cap
+        const room=floodCount(nx,ny,P.cap)/P.cap*100;
+        let score=room;
+        // 2. commitment: later rounds stop dithering and hold a line
+        if(d===cpu.dir) score+=P.straight;
+        // 3. noise: round 1 wanders, gone by round 5
+        score+=Math.random()*P.jitter;
+        // 4. aggression, but only from a safe square — chasing into a dead end just
+        //    hands you the win, so survival always outranks hunting.
+        if(P.aggr>0 && room>55){
+          const gap=Math.abs(nx-you.x)+Math.abs(ny-you.y);
+          score += P.aggr*Math.max(0,60-gap)/60*16;
+          const before=occ[ny][nx]; occ[ny][nx]=2;                 // pretend the CPU is there
+          const yourRoom=floodCount(you.x+DIRS[you.dir][0], you.y+DIRS[you.dir][1], P.cap)/P.cap*100;
+          occ[ny][nx]=before;
+          score -= P.aggr*yourRoom*0.14;                            // reward boxing you in
+        }
+        if(score>bs){bs=score;best=d;}}
       return best;}
-    function floodCount(sx,sy){ // reachable free cells (capped) from (sx,sy)
+    function floodCount(sx,sy,cap){ // reachable free cells (capped) from (sx,sy)
+      const lim=cap||160;
       const seen=new Set();const st=[[sx,sy]];let n=0;
-      while(st.length&&n<160){const[x,y]=st.pop();const k=x+","+y;if(seen.has(k))continue;if(!free(x,y))continue;seen.add(k);n++;
+      while(st.length&&n<lim){const[x,y]=st.pop();const k=x+","+y;if(seen.has(k))continue;if(!free(x,y))continue;seen.add(k);n++;
         st.push([x+1,y],[x-1,y],[x,y+1],[x,y-1]);}
       return n;}
     function end(yDead,cDead){running=false;clearInterval(timer);
+      const won=!yDead&&cDead;
+      if(won){ round++; }
+      else if(yDead&&!cDead){ round=1; }          // a loss sends you back to the start
       ot.textContent=(yDead&&cDead)?"Draw!":yDead?"💥 You crashed":"🏆 You win!";
-      om.textContent=yDead&&cDead?"Both cycles crashed.":yDead?"The CPU outlasted you.":"You outlasted the CPU!";
-      startBtn.textContent="Play again";ov.classList.remove("hidden");}
+      om.textContent = yDead&&cDead ? "Both birds crashed — round "+round+" again."
+        : yDead ? "The CPU outlasted you. Back to round 1."
+        : "You outlasted the CPU! Round "+round+" next — it gets smarter.";
+      startBtn.textContent="Play again";ov.classList.remove("hidden");updateRound();}
+    function updateRound(){ const el=document.getElementById("round"); if(el) el.textContent=round; }
     function render(){
       ctx.clearRect(0,0,cv.width,cv.height);
       // feather trails — hen yellow vs rooster red

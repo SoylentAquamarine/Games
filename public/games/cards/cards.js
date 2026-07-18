@@ -74,6 +74,8 @@
       .pcard .pip{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:calc(var(--cw)*0.52)}
       .pcard.back{background:repeating-linear-gradient(45deg,#3b3f8f 0 6px,#2b2f6f 6px 12px);border:2px solid rgba(255,255,255,.5)}
       .pcard.back::after{content:"";position:absolute;inset:6px;border-radius:5px;border:2px solid rgba(255,255,255,.35)}
+      .pcard.back::before{content:"🐔";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+        font-size:calc(var(--cw)*0.46);line-height:1;z-index:1}
       .pcard.empty{background:transparent;border:2px dashed rgba(255,255,255,.18);box-shadow:none}
     `;
     document.head.appendChild(s);

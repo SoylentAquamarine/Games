@@ -18,7 +18,7 @@
   .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:9px 16px;border-radius:999px;cursor:pointer}
   .hud{width:100%;max-width:320px;display:flex;justify-content:space-between;font-size:.85rem;color:var(--muted)}
   .hud b{color:var(--text)}
-  canvas{width:min(90vw,320px);height:calc(min(90vw,320px)*1.25);image-rendering:pixelated;border-radius:10px;border:2px solid #2a2f55;background:#08040f;touch-action:none}
+  canvas{width:min(94vw,420px);height:calc(min(94vw,420px)*1.25);image-rendering:pixelated;border-radius:10px;border:2px solid #2a2f55;background:#08040f;touch-action:none}
   .msg{min-height:1.3em;font-weight:800;text-align:center}
   .ctl{display:flex;gap:8px;align-items:center}
   .dpad{display:grid;grid-template-columns:repeat(3,44px);grid-template-rows:repeat(3,44px);gap:4px}
@@ -33,7 +33,7 @@
 <div class="wrap">
   <div class="topbar"><a class="home" href="/">← Home</a><h1>Kong Climb</h1><button class="btn" id="new">New Game</button></div>
   <div class="hud"><span>Score: <b id="score">0</b></span><span>Lives: <b id="lives">3</b></span><span>Best: <b id="best">0</b></span></div>
-  <canvas id="game" width="288" height="360"></canvas>
+  <canvas id="game" width="360" height="450"></canvas>
   <div class="msg" id="msg">Climb to the top — jump the barrels rolling down!</div>
   <div class="ctl">
     <div class="dpad"><button class="u" data-d="up">▲</button><button class="l" data-d="left">◀</button><button class="dn" data-d="down">▼</button><button class="r" data-d="right">▶</button></div>
@@ -73,6 +73,14 @@
   try{ best=parseInt(localStorage.getItem("dk_best")||"0")||0; }catch(e){}
   const gy=(row)=>row*RH+RH*0.72; const cx=(col)=>col*CW+CW/2;
 
+  // The game logic is cell-stepped, which looks jerky if drawn raw. Each entity keeps
+  // an animated position that eases toward its logical cell; big jumps (row changes,
+  // wrap-arounds, respawns) snap instead of sliding across the screen.
+  function ease(o, tx, ty, k){
+    if(o.ax==null || Math.abs(tx-o.ax)>CW*1.6 || Math.abs(ty-o.ay)>RH*1.2){ o.ax=tx; o.ay=ty; return; }
+    o.ax+=(tx-o.ax)*k; o.ay+=(ty-o.ay)*k;
+  }
+
   function draw(){
     ctx.clearRect(0,0,W,H); ctx.fillStyle="#08040f"; ctx.fillRect(0,0,W,H);
     for(let r=0;r<C.rows;r++){ ctx.fillStyle="#c9558a"; ctx.fillRect(0,gy(r)+6,W,5); ctx.fillStyle="#e07ab0"; for(let x=0;x<W;x+=12) ctx.fillRect(x,gy(r)+6,6,2); }
@@ -80,8 +88,14 @@
       for(let y=gy(l.upper)+8;y<gy(l.lower)+8;y+=8){ ctx.beginPath(); ctx.moveTo(x-6,y); ctx.lineTo(x+6,y); ctx.stroke(); } }
     // goal / kong
     ctx.font="20px system-ui"; ctx.textAlign="center"; ctx.fillText("🦍",cx(1),gy(0)-2); ctx.fillText("👸",cx(3),gy(0)-4);
-    for(const b of s.barrels){ ctx.fillStyle="#a9743a"; ctx.beginPath(); ctx.arc(cx(b.col),gy(b.row)-4,CW*0.32,0,7); ctx.fill(); ctx.strokeStyle="#7a4a24"; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(cx(b.col),gy(b.row)-4,CW*0.32,0,7); ctx.stroke(); }
-    const p=s.player; const py=gy(p.row)-6-(p.jump>0?16:0); ctx.fillStyle="#f43f5e"; ctx.fillRect(cx(p.col)-6,py-12,12,12); ctx.fillStyle="#ffcf5a"; ctx.fillRect(cx(p.col)-6,py-16,12,4);
+    for(const b of s.barrels){ ease(b,cx(b.col),gy(b.row)-4,0.18);
+      ctx.save(); ctx.translate(b.ax,b.ay); ctx.rotate(b.ax*0.06*b.dir);   // roll as it travels
+      ctx.fillStyle="#a9743a"; ctx.beginPath(); ctx.arc(0,0,CW*0.32,0,7); ctx.fill();
+      ctx.strokeStyle="#7a4a24"; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(0,0,CW*0.32,0,7); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(-CW*0.32,0); ctx.lineTo(CW*0.32,0); ctx.stroke(); ctx.restore(); }
+    const p=s.player; ease(p,cx(p.col),gy(p.row),0.3);
+    const py=p.ay-6-(p.jump>0?16:0);
+    ctx.fillStyle="#f43f5e"; ctx.fillRect(p.ax-6,py-12,12,12); ctx.fillStyle="#ffcf5a"; ctx.fillRect(p.ax-6,py-16,12,4);
     if(s.won||s.over){ ctx.fillStyle="rgba(0,0,0,.6)"; ctx.fillRect(0,0,W,H); ctx.fillStyle=s.won?"#34d399":"#f43f5e"; ctx.font="bold 22px system-ui"; ctx.fillText(s.won?"YOU MADE IT!":"GAME OVER",W/2,H/2-6); ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Score "+s.score+"  ·  Best "+best,W/2,H/2+16); }
   }
   function frame(){

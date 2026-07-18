@@ -18,11 +18,12 @@
     .table{width:100%;background:radial-gradient(circle at 50% 20%,#1a4a2b,var(--felt));border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:10px 6px 20px}
     .top{display:flex;justify-content:space-between;margin-bottom:12px;gap:8px}
     .cells,.foundations{display:flex;gap:5px}
-    .slot{--cw:50px;width:var(--cw);height:calc(var(--cw)*1.42);border-radius:8px;border:2px dashed rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.25);font-size:1.3rem}
-    .cols{display:flex;justify-content:space-between;gap:3px}
+    .slot{--cw:54px;width:var(--cw);height:calc(var(--cw)*1.42);border-radius:8px;border:2px dashed rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.25);font-size:1.3rem}
+    .cols{display:flex;justify-content:space-between;gap:3px;overflow-x:auto}
     .col{flex:1;min-height:260px;display:flex;flex-direction:column;align-items:center}
-    .cells .pcard,.cells .slot,.foundations .pcard,.foundations .slot,.col .pcard,.col .slot{--cw:50px}
-    .col .stackcard{margin-top:-55px}
+    .cells .pcard,.cells .slot,.foundations .pcard,.foundations .slot,.col .pcard,.col .slot{--cw:54px}
+    /* leave enough of each card showing for both the rank AND the suit corner to read */
+    .col .stackcard{margin-top:-46px}
     .col .stackcard:first-child{margin-top:0}
     .pcard.sel{outline:3px solid #34d399;outline-offset:1px;z-index:2}
     .pcard{cursor:pointer}
@@ -48,7 +49,7 @@
       <button class="btn" id="auto">⤴ Auto to foundations</button>
       <button class="btn ghost" id="new">New Deal</button>
     </div>
-    <p class="hint">Tap a card to select, tap a spot to move. Double-tap sends to a foundation. Build columns down in alternating colors; park cards in the 4 free cells. You can move a run only if enough cells/empty columns are free.</p>
+    <p class="hint">Tap a card to select, tap a spot to move. Double-tap sends it to a foundation. Build columns down in alternating colors; park cards in the 4 free cells. You can move a run only if enough cells/empty columns are free. Once a card reaches a foundation it stays there — standard FreeCell rules.</p>
   </div>
   <script src="../cards.js"></script>
   <script>
@@ -63,7 +64,30 @@
     function maxMovable(freeCells, emptyCols){ return (freeCells+1)*Math.pow(2,emptyCols); }
     function canStackTab(mover, destTop){ if(!destTop) return true; return sv(mover.rank)===sv(destTop.rank)-1 && isRed(mover)!==isRed(destTop); }
     function canFoundation(card, pile){ if(card.suit!==pile.suit) return false; return sv(card.rank)===(pile.cards.length?sv(pile.cards[pile.cards.length-1].rank)+1:1); }
-    window.__freecell={ sv, validSeq, maxMovable, canStackTab, canFoundation };
+
+    // Is any legal move left? Takes the board as {cells, found, cols} so it can be tested headlessly.
+    function anyMove(b){
+      const fp=(suit)=>({suit,cards:b.found[suit]});
+      const freeCells=b.cells.filter(c=>c===null).length;
+      const openCols=b.cols.filter(c=>c.length===0).length;
+      // anything ready for a foundation?
+      for(const c of b.cells) if(c&&canFoundation(c,fp(c.suit))) return true;
+      for(const pile of b.cols) if(pile.length&&canFoundation(pile[pile.length-1],fp(pile[pile.length-1].suit))) return true;
+      // a spare cell means you can always park a card
+      if(freeCells>0&&b.cols.some(p=>p.length)) return true;
+      // a celled card back onto a column
+      for(const c of b.cells){ if(!c) continue;
+        for(const pile of b.cols) if(canStackTab(c,pile.length?pile[pile.length-1]:null)) return true; }
+      // a column run onto another column
+      for(let ci=0;ci<b.cols.length;ci++){ const pile=b.cols[ci];
+        for(let idx=0;idx<pile.length;idx++){ const run=pile.slice(idx); if(!validSeq(run)) continue;
+          for(let dj=0;dj<b.cols.length;dj++){ if(dj===ci) continue;
+            const dest=b.cols[dj];
+            if(!canStackTab(run[0],dest.length?dest[dest.length-1]:null)) continue;
+            if(run.length<=maxMovable(freeCells,Math.max(0,openCols-(dest.length===0?1:0)))) return true; } } }
+      return false;
+    }
+    window.__freecell={ sv, validSeq, maxMovable, canStackTab, canFoundation, anyMove };
 
     if(typeof document==="undefined"||!document.getElementById) return;
     const cellsEl=document.getElementById("cells"),foundEl=document.getElementById("foundations"),
@@ -81,7 +105,7 @@
 
     function render(){
       cellsEl.innerHTML="";
-      cells.forEach((c,i)=>{ if(c){const el=Cards.cardEl(c,true);markSel(el,{t:"cell",i});el.addEventListener("click",()=>cellClick(i));el.addEventListener("dblclick",()=>autoOne({t:"cell",i}));cellsEl.appendChild(el);}
+      cells.forEach((c,i)=>{ if(c){const el=Cards.cardEl(c,true);markSel(el,{t:"cell",i});el.addEventListener("click",()=>cellClick(i));cellsEl.appendChild(el);}
         else{const sl=mkSlot("○");sl.addEventListener("click",()=>cellClick(i));cellsEl.appendChild(sl);} });
       foundEl.innerHTML="";
       SUITS.forEach(s=>{ const pile=found[s];
@@ -91,7 +115,7 @@
       cols.forEach((pile,ci)=>{ const col=document.createElement("div");col.className="col";
         if(pile.length===0){const sl=mkSlot("");sl.addEventListener("click",()=>tryTo({t:"c",col:ci}));col.appendChild(sl);}
         pile.forEach((card,idx)=>{ const el=Cards.cardEl(card,true);el.classList.add("stackcard");markSel(el,{t:"c",col:ci,idx});
-          el.addEventListener("click",()=>colClick(ci,idx));el.addEventListener("dblclick",()=>autoOne({t:"c",col:ci,idx}));col.appendChild(el); });
+          el.addEventListener("click",()=>colClick(ci,idx));col.appendChild(el); });
         colsEl.appendChild(col); });
     }
     function mkSlot(txt){const d=document.createElement("div");d.className="slot";d.textContent=txt;return d;}
@@ -103,9 +127,21 @@
       const pile=cols[loc.col];const run=pile.slice(loc.idx); return validSeq(run)?run:null;
     }
     function movingCards(){ if(!sel)return null; return runFrom(sel); }
-    function cellClick(i){ if(sel){ if(cells[i]===null) tryTo({t:"cell",i}); else if(sameSel(sel,{t:"cell",i})){sel=null;render();} return; }
+    // Double-tap is detected here rather than via a dblclick listener: the first
+    // click re-renders the table, which destroys the element dblclick would fire on.
+    let lastTap={key:null,t:0};
+    function tapKey(loc){ return loc.t+":"+(loc.col!=null?loc.col:loc.i)+":"+(loc.idx!=null?loc.idx:""); }
+    function isDoubleTap(loc){ const k=tapKey(loc), now=Date.now();
+      const dbl = lastTap.key===k && now-lastTap.t<400;
+      lastTap={key:k,t:now}; return dbl; }
+
+    function cellClick(i){ const loc={t:"cell",i};
+      if(cells[i]&&isDoubleTap(loc)){ autoOne(loc); return; }
+      if(sel){ if(cells[i]===null) tryTo({t:"cell",i}); else if(sameSel(sel,{t:"cell",i})){sel=null;render();} return; }
       if(cells[i]){ sel={t:"cell",i}; render(); } }
-    function colClick(ci,idx){ if(sel){ tryTo({t:"c",col:ci}); return; } const run=runFrom({t:"c",col:ci,idx}); if(!run){sel=null;render();return;} sel={t:"c",col:ci,idx}; render(); }
+    function colClick(ci,idx){ const loc={t:"c",col:ci,idx};
+      if(isDoubleTap(loc)){ autoOne(loc); return; }
+      if(sel){ tryTo({t:"c",col:ci}); return; } const run=runFrom(loc); if(!run){sel=null;render();return;} sel=loc; render(); }
 
     function tryTo(dest){
       if(!sel)return; const cards=movingCards(); if(!cards){sel=null;render();return;}
@@ -131,7 +167,9 @@
       }
       sel=null;render();checkWin(); if(!any)statusEl.textContent="No cards ready for the foundations.";
     }
-    function checkWin(){ const total=SUITS.reduce((a,s)=>a+found[s].length,0); if(total===52) statusEl.textContent="🏆 Solved! Nicely done."; }
+    function checkWin(){ const total=SUITS.reduce((a,s)=>a+found[s].length,0);
+      if(total===52){ statusEl.textContent="🏆 Solved! Nicely done."; return; }
+      if(!anyMove({cells,found,cols})) statusEl.textContent="💀 No legal moves left — that deal is lost. New Deal to try again."; }
     document.getElementById("auto").addEventListener("click",autoAll);
     document.getElementById("new").addEventListener("click",newGame);
     newGame();

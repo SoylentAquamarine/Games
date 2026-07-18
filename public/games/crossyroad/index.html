@@ -50,8 +50,12 @@
       let x=rnd(0,2); while(x<C.COLS){ ent.push({x, len, speed:sp, dir}); x+=len+rnd(1.5,2.6); } }
     return { type, ent };
   }
-  function carHit(car, px){ const inset=0.12; return px+0.26>car.x+inset && px-0.26<car.x+car.len-inset; }
-  function logUnder(row, px){ for(const l of row.ent){ if(px+0.3>l.x && px-0.3<l.x+l.len) return l; } return null; }
+  // `pcx` is the player's CENTRE in cell units (= player.x + 0.5), matching how the
+  // chicken is drawn. Hitboxes below are sized to the sprites: the chicken is a 13px
+  // radius circle in a 40px cell (0.325 cells) and cars are drawn inset 3px (0.075 cells).
+  const PLAYER_HALF=0.30, CAR_INSET=0.09;
+  function carHit(car, pcx){ return pcx+PLAYER_HALF>car.x+CAR_INSET && pcx-PLAYER_HALF<car.x+car.len-CAR_INSET; }
+  function logUnder(row, pcx){ for(const l of row.ent){ if(pcx+PLAYER_HALF>l.x && pcx-PLAYER_HALF<l.x+l.len) return l; } return null; }
   function ensureRows(s, upto){ while(s.rows.length<=upto) s.rows.push(genRow(s.rows.length)); }
   function newState(){ const s={ rows:[], player:{x:4,row:0}, score:0, over:false }; ensureRows(s,20); return s; }
   function hop(s, dir){ if(s.over) return s; const p=s.player;
@@ -67,9 +71,9 @@
     for(let r=Math.max(0,s.player.row-2); r<=s.player.row+C.VIEW && r<s.rows.length; r++){
       const row=s.rows[r]; for(const e of row.ent){ e.x+=e.dir*e.speed;
         if(e.dir>0 && e.x>C.COLS) e.x=-e.len; if(e.dir<0 && e.x<-e.len) e.x=C.COLS; } }
-    const row=s.rows[s.player.row];
-    if(row){ if(row.type==="road"){ for(const car of row.ent){ if(carHit(car,s.player.x)){ s.over=true; break; } } }
-      else if(row.type==="water"){ const lg=logUnder(row,s.player.x); if(lg){ s.player.x+=lg.dir*lg.speed; if(s.player.x<-0.2||s.player.x>C.COLS-0.8) s.over=true; } else s.over=true; } }
+    const row=s.rows[s.player.row], pcx=s.player.x+0.5;
+    if(row){ if(row.type==="road"){ for(const car of row.ent){ if(carHit(car,pcx)){ s.over=true; break; } } }
+      else if(row.type==="water"){ const lg=logUnder(row,pcx); if(lg){ s.player.x+=lg.dir*lg.speed; if(s.player.x<-0.2||s.player.x>C.COLS-0.8) s.over=true; } else s.over=true; } }
     return s;
   }
   window.__crossyroad={ newState, genRow, hop, step, carHit, logUnder, C };
