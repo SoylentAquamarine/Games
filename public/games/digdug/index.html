@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-<title>Dig Dug — Games</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>⛏️</text></svg>" />
+<title>Chicken Dug — Games</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🐔</text></svg>" />
 <style>
   :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;--bad:#f43f5e;}
   *{box-sizing:border-box}
@@ -31,7 +31,7 @@
 </head>
 <body>
 <div class="wrap">
-  <div class="topbar"><a class="home" href="/">← Home</a><h1>Dig Dug</h1><button class="btn" id="new">New Game</button></div>
+  <div class="topbar"><a class="home" href="/">← Home</a><h1>🐔 Chicken Dug</h1><button class="btn" id="new">New Game</button></div>
   <div class="hud"><span>Score: <b id="score">0</b></span><span>Level: <b id="level">1</b></span><span>Lives: <b id="lives">3</b></span></div>
   <canvas id="game" width="280" height="320"></canvas>
   <div class="msg" id="msg">Dig tunnels and pump the monsters until they pop!</div>
@@ -110,7 +110,15 @@
       if(e.ax==null||Math.hypot(cx-e.ax,cy-e.ay)>CELL*2.5){e.ax=cx;e.ay=cy;} e.ax+=(cx-e.ax)*0.3; e.ay+=(cy-e.ay)*0.3;
       const sz=CELL/2-1+e.inflate*2; ctx.fillStyle=e.inflate>0?"#ffcf5a":"#f0616e"; ctx.beginPath(); ctx.arc(e.ax,e.ay,sz,0,7); ctx.fill(); ctx.fillStyle="#fff"; ctx.fillRect(e.ax-CELL/2+5,e.ay-CELL/2+6,3,3); ctx.fillRect(e.ax+CELL/2-8,e.ay-CELL/2+6,3,3); }
     { const p=s.player, tx=p.c*CELL, ty=p.r*CELL; if(p.ax==null||Math.hypot(tx-p.ax,ty-p.ay)>CELL*2.5){p.ax=tx;p.ay=ty;} p.ax+=(tx-p.ax)*0.35; p.ay+=(ty-p.ay)*0.35;
-      ctx.fillStyle="#22d3ee"; ctx.fillRect(p.ax+3,p.ay+3,CELL-6,CELL-6); ctx.fillStyle="#7de8ff"; const d=DIRS[p.dir]; ctx.fillRect(p.ax+CELL/2-2+d[0]*5, p.ay+CELL/2-2+d[1]*5,4,4); }
+      const cx=p.ax+CELL/2, cy=p.ay+CELL/2, rr=CELL/2-3, d=DIRS[p.dir];
+      ctx.fillStyle="#dc2626";                                    // comb
+      ctx.beginPath(); ctx.arc(cx-rr*.36,cy-rr*.86,rr*.22,0,7); ctx.arc(cx,cy-rr*1.0,rr*.24,0,7); ctx.arc(cx+rr*.36,cy-rr*.86,rr*.22,0,7); ctx.fill();
+      ctx.fillStyle="#facc15";                                    // body
+      ctx.beginPath(); ctx.arc(cx,cy,rr,0,7); ctx.fill();
+      ctx.fillStyle="#0b1030";                                    // eyes
+      ctx.beginPath(); ctx.arc(cx-rr*.35,cy-rr*.2,rr*.16,0,7); ctx.arc(cx+rr*.35,cy-rr*.2,rr*.16,0,7); ctx.fill();
+      ctx.fillStyle="#fb923c";                                    // beak points where you're digging
+      ctx.beginPath(); ctx.arc(cx+d[0]*rr*.85, cy+d[1]*rr*.85, rr*.28, 0, 7); ctx.fill(); }
     if(s.over){ ctx.fillStyle="rgba(0,0,0,.6)"; ctx.fillRect(0,0,W,H); ctx.fillStyle="#f43f5e"; ctx.font="bold 22px system-ui"; ctx.textAlign="center"; ctx.fillText("GAME OVER",W/2,H/2-6); ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Score "+s.score+"  ·  Best "+best,W/2,H/2+16); }
   }
   function frame(){

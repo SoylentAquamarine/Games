@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Asteroids — Games</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🚀</text></svg>" />
+  <title>ChickenRoids — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🥚</text></svg>" />
   <style>
     :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;}
     *{box-sizing:border-box}
@@ -32,7 +32,7 @@
 </head>
 <body>
   <div class="wrap">
-    <div class="topbar"><a class="home" href="/">← Home</a><h1>🚀 Asteroids</h1><span style="width:64px"></span></div>
+    <div class="topbar"><a class="home" href="/">← Home</a><h1>🥚 ChickenRoids</h1><span style="width:64px"></span></div>
     <div class="scores">
       <div class="stat"><div class="label">Score</div><div class="value" id="score">0</div></div>
       <div class="stat"><div class="label">Lives</div><div class="value" id="lives">3</div></div>
@@ -40,7 +40,7 @@
     </div>
     <div class="board-wrap">
       <canvas id="c" width="420" height="460"></canvas>
-      <div class="overlay" id="ov"><h2 id="ot">Asteroids</h2><p id="om">Rotate, thrust, and blast the rocks.</p><button class="btn" id="start">Play</button></div>
+      <div class="overlay" id="ov"><h2 id="ot">ChickenRoids</h2><p id="om">Rotate, thrust, and blast the eggs.</p><button class="btn" id="start">Play</button></div>
     </div>
     <div class="pad">
       <button data-k="left">⟲</button>
@@ -111,11 +111,19 @@
       ctx.clearRect(0,0,W,H);
       // stars
       ctx.fillStyle="rgba(255,255,255,.35)";
-      // rocks
-      ctx.strokeStyle="#9aa4d0";ctx.lineWidth=1.6;
-      rocks.forEach(r=>{ctx.save();ctx.translate(r.x,r.y);ctx.rotate(r.rot);ctx.beginPath();
-        r.verts.forEach((v,i)=>{const ang=i/r.verts.length*Math.PI*2,x=Math.cos(ang)*r.r*v,y=Math.sin(ang)*r.r*v;i?ctx.lineTo(x,y):ctx.moveTo(x,y);});
-        ctx.closePath();ctx.stroke();ctx.restore();});
+      // eggs
+      rocks.forEach(r=>{ctx.save();ctx.translate(r.x,r.y);ctx.rotate(r.rot);
+        // shell: an oval, narrower at the top like a real egg
+        ctx.fillStyle="#f3ead7";ctx.strokeStyle="#c9bda3";ctx.lineWidth=1.6;
+        ctx.beginPath();ctx.moveTo(0,-r.r);
+        ctx.bezierCurveTo(r.r*.62,-r.r,r.r*.82,r.r*.30,0,r.r);
+        ctx.bezierCurveTo(-r.r*.82,r.r*.30,-r.r*.62,-r.r,0,-r.r);
+        ctx.closePath();ctx.fill();ctx.stroke();
+        // speckles, seeded off the shape so each egg keeps its own pattern
+        ctx.fillStyle="rgba(150,130,95,.55)";
+        r.verts.forEach((v,i)=>{const ang=i/r.verts.length*Math.PI*2;
+          ctx.beginPath();ctx.arc(Math.cos(ang)*r.r*v*.45,Math.sin(ang)*r.r*v*.55,r.r*.09,0,7);ctx.fill();});
+        ctx.restore();});
       // bullets
       ctx.fillStyle="#22d3ee";bullets.forEach(b=>{ctx.beginPath();ctx.arc(b.x,b.y,2.2,0,7);ctx.fill();});
       // ship (blink when invulnerable)

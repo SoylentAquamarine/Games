@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Doodle Jump — Games</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🦘</text></svg>" />
+  <title>Chicken Jump — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🐔</text></svg>" />
   <style>
     :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;}
     *{box-sizing:border-box}
@@ -30,14 +30,14 @@
 </head>
 <body>
   <div class="wrap">
-    <div class="topbar"><a class="home" href="/">← Home</a><h1>🦘 Doodle Jump</h1><span style="width:56px"></span></div>
+    <div class="topbar"><a class="home" href="/">← Home</a><h1>🐔 Chicken Jump</h1><span style="width:56px"></span></div>
     <div class="scores">
       <div class="stat"><div class="label">Height</div><div class="value" id="score">0</div></div>
       <div class="stat"><div class="label">Best</div><div class="value" id="best">0</div></div>
     </div>
     <div class="board-wrap">
       <canvas id="c" width="340" height="500"></canvas>
-      <div class="overlay" id="ov"><h2 id="ot">🦘 Doodle Jump</h2><p id="om">Bounce up forever. Don't fall!</p><button class="btn" id="start">Play</button></div>
+      <div class="overlay" id="ov"><h2 id="ot">🐔 Chicken Jump</h2><p id="om">Bounce up forever. Don't fall!</p><button class="btn" id="start">Play</button></div>
     </div>
     <p class="hint">Move: ← → / A D / tilt-tap left-right half of screen. You bounce automatically.</p>
   </div>
@@ -80,7 +80,7 @@
       ctx.clearRect(0,0,W,H);
       ctx.fillStyle="#22c55e";plats.forEach(p=>{ctx.fillStyle=p.move?"#3b82f6":"#22c55e";
         ctx.beginPath();ctx.roundRect(p.x,p.y,PW,PH,6);ctx.fill();});
-      ctx.font="28px serif";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText("🦘",player.x+player.w/2,player.y+player.h/2);
+      ctx.font="28px serif";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText("🐔",player.x+player.w/2,player.y+player.h/2);
     }
     document.addEventListener("keydown",e=>{if(e.key==="ArrowLeft"||e.key==="a")left=true;if(e.key==="ArrowRight"||e.key==="d")right=true;});
     document.addEventListener("keyup",e=>{if(e.key==="ArrowLeft"||e.key==="a")left=false;if(e.key==="ArrowRight"||e.key==="d")right=false;});

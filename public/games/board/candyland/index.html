@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Candy Land — Games</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🍭</text></svg>" />
+  <title>ChickenCandy Land — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🐔</text></svg>" />
   <style>
     :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;}
     *{box-sizing:border-box}
@@ -39,7 +39,7 @@
 </head>
 <body>
   <div class="wrap">
-    <div class="topbar"><a class="home" href="/games/board/">← Board</a><h1>🍭 Candy Land</h1><span style="width:56px"></span></div>
+    <div class="topbar"><a class="home" href="/games/board/">← Board</a><h1>🐔 ChickenCandy Land</h1><span style="width:56px"></span></div>
     <div class="players" id="players"></div>
     <div class="board" id="board"></div>
     <div class="status" id="status">Draw a card to move!</div>
@@ -54,7 +54,7 @@
   (function(){
     const COLORS=[["Red","#ef4444"],["Orange","#f97316"],["Yellow","#eab308"],["Green","#22c55e"],["Blue","#3b82f6"],["Purple","#a855f7"]];
     const N=54, COLS=9;
-    const TOKENS=["🔴","🔵","🟢"];
+    const TOKENS=["🐔","🐤","🐣"];
     const PNAMES=["You","CPU 1","CPU 2"];
     const boardEl=document.getElementById("board"),playersEl=document.getElementById("players"),statusEl=document.getElementById("status"),cardEl=document.getElementById("card"),drawBtn=document.getElementById("draw");
     let spaces,licorice,deck,pos,skip,turn,over;

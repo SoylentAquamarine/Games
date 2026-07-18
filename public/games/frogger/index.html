@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Frogger — Games</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🐸</text></svg>" />
+  <title>Chickener — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🐔</text></svg>" />
   <style>
     :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;}
     *{box-sizing:border-box}
@@ -34,7 +34,7 @@
 </head>
 <body>
   <div class="wrap">
-    <div class="topbar"><a class="home" href="/">← Home</a><h1>🐸 Frogger</h1><span style="width:64px"></span></div>
+    <div class="topbar"><a class="home" href="/">← Home</a><h1>🐔 Chickener</h1><span style="width:64px"></span></div>
     <div class="scores">
       <div class="stat"><div class="label">Score</div><div class="value" id="score">0</div></div>
       <div class="stat"><div class="label">Lives</div><div class="value" id="lives">3</div></div>
@@ -42,7 +42,7 @@
     </div>
     <div class="board-wrap">
       <canvas id="c" width="390" height="450"></canvas>
-      <div class="overlay" id="ov"><h2 id="ot">Frogger</h2><p id="om">Cross the road and river.</p><button class="btn" id="start">Play</button></div>
+      <div class="overlay" id="ov"><h2 id="ot">Chickener</h2><p id="om">Cross the road and river.</p><button class="btn" id="start">Play</button></div>
     </div>
     <div class="dpad">
       <button class="up" data-d="up">▲</button>
@@ -132,7 +132,7 @@
       frog={c:6,r:14};
     }
     function win(){running=false;cancelAnimationFrame(raf);score+=100;scoreEl.textContent=score;if(score>best){best=score;localStorage.setItem("frogger_best",best);}
-      ot.textContent="🎉 All frogs home!";om.textContent=`Score ${score}`;startBtn.textContent="Play again";ov.classList.remove("hidden");}
+      ot.textContent="🎉 All chickens home!";om.textContent=`Score ${score}`;startBtn.textContent="Play again";ov.classList.remove("hidden");}
     function render(){
       // background rows
       for(let r=0;r<ROWS;r++){
@@ -157,9 +157,9 @@
           }
         });
       }
-      // frog
+      // chicken
       ctx.font=(T*0.8)+"px serif";ctx.textAlign="center";ctx.textBaseline="middle";
-      ctx.fillText("🐸",(frog.c+.5)*T,(frog.r+.5)*T);
+      ctx.fillText("🐔",(frog.c+.5)*T,(frog.r+.5)*T);
     }
     function roundRect(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
     document.addEventListener("keydown",e=>{const m={ArrowUp:"up",ArrowDown:"down",ArrowLeft:"left",ArrowRight:"right",w:"up",s:"down",a:"left",d:"right"}[e.key];if(m){e.preventDefault();move(m);}});

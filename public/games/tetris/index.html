@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Tetris — Games</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🟦</text></svg>" />
+  <title>Chickris — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🥚</text></svg>" />
   <style>
     :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;}
     *{box-sizing:border-box}
@@ -34,11 +34,11 @@
 </head>
 <body>
   <div class="wrap">
-    <div class="topbar"><a class="home" href="/">← Home</a><h1>🟦 Tetris</h1><span style="width:56px"></span></div>
+    <div class="topbar"><a class="home" href="/">← Home</a><h1>🥚 Chickris</h1><span style="width:56px"></span></div>
     <div class="game">
       <div class="board-wrap">
         <canvas id="c" width="200" height="400"></canvas>
-        <div class="overlay" id="ov"><h2 id="ot">Tetris</h2><p id="om">Clear lines!</p><button class="btn" id="start">Play</button></div>
+        <div class="overlay" id="ov"><h2 id="ot">Chickris</h2><p id="om">Clear lines!</p><button class="btn" id="start">Play</button></div>
       </div>
       <div class="side">
         <div class="box"><div class="label">Score</div><div class="value" id="score">0</div></div>
@@ -60,8 +60,9 @@
     const scoreEl=document.getElementById("score"),linesEl=document.getElementById("lines"),levelEl=document.getElementById("level");
     const ov=document.getElementById("ov"),ot=document.getElementById("ot"),om=document.getElementById("om"),startBtn=document.getElementById("start");
     const SHAPES={
-      I:{m:[[1,1,1,1]],c:"#22d3ee"},O:{m:[[1,1],[1,1]],c:"#eab308"},T:{m:[[1,1,1],[0,1,0]],c:"#a855f7"},
-      S:{m:[[0,1,1],[1,1,0]],c:"#22c55e"},Z:{m:[[1,1,0],[0,1,1]],c:"#ef4444"},J:{m:[[1,0,0],[1,1,1]],c:"#3b82f6"},L:{m:[[0,0,1],[1,1,1]],c:"#f97316"}};
+      // farmyard palette — hues kept far apart so the seven pieces stay easy to tell apart
+      I:{m:[[1,1,1,1]],c:"#e8dcc0"},O:{m:[[1,1],[1,1]],c:"#f5c518"},T:{m:[[1,1,1],[0,1,0]],c:"#c2410c"},
+      S:{m:[[0,1,1],[1,1,0]],c:"#65a30d"},Z:{m:[[1,1,0],[0,1,1]],c:"#b91c1c"},J:{m:[[1,0,0],[1,1,1]],c:"#0e7490"},L:{m:[[0,0,1],[1,1,1]],c:"#d97706"}};
     const KEYS=Object.keys(SHAPES);
     let board,piece,next,score,lines,level,over,running,dropAcc,lastT,raf;
 

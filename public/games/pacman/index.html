@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Pac-Man — Games</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🟡</text></svg>" />
+  <title>Chicken-Man — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🐔</text></svg>" />
   <style>
     :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;}
     *{box-sizing:border-box}
@@ -33,7 +33,7 @@
 </head>
 <body>
   <div class="wrap">
-    <div class="topbar"><a class="home" href="/">← Home</a><h1>🟡 Pac-Man</h1><span style="width:64px"></span></div>
+    <div class="topbar"><a class="home" href="/">← Home</a><h1>🐔 Chicken-Man</h1><span style="width:64px"></span></div>
     <div class="scores">
       <div class="stat"><div class="label">Score</div><div class="value" id="score">0</div></div>
       <div class="stat"><div class="label">Lives</div><div class="value" id="lives">3</div></div>
@@ -41,7 +41,7 @@
     </div>
     <div class="board-wrap">
       <canvas id="c" width="380" height="420"></canvas>
-      <div class="overlay" id="ov"><h2 id="ot">Pac-Man</h2><p id="om">Eat all the dots. Avoid the ghosts.</p><button class="btn" id="start">Play</button></div>
+      <div class="overlay" id="ov"><h2 id="ot">Chicken-Man</h2><p id="om">Eat all the seed. Avoid the foxes.</p><button class="btn" id="start">Play</button></div>
     </div>
     <div class="dpad">
       <button class="up" data-d="up">▲</button>
@@ -49,7 +49,7 @@
       <button data-d="down">▼</button>
       <button data-d="right">▶</button>
     </div>
-    <p class="hint">Arrows / WASD / swipe / d-pad · power pellets let you eat ghosts</p>
+    <p class="hint">Arrows / WASD / swipe / d-pad · power corn lets you eat foxes</p>
   </div>
   <script>
   (function(){
@@ -81,7 +81,7 @@
     const T=cv.width/COLS;
     const scoreEl=document.getElementById("score"),livesEl=document.getElementById("lives"),bestEl=document.getElementById("best");
     const ov=document.getElementById("ov"),ot=document.getElementById("ot"),om=document.getElementById("om"),startBtn=document.getElementById("start");
-    const GHOST_COLORS=["#f43f5e","#22d3ee","#fb923c"];
+    const GHOST_COLORS=["#e2622a","#b45309","#f59e0b"];  // fox coats
     let grid,dots,pac,ghosts,score,lives,fright,running,stepTimer,raf,pacStart,ghostStarts,best=+localStorage.getItem("pacman_best")||0;
     bestEl.textContent=best;
 
@@ -184,14 +184,32 @@
       const px=(pac.c+.5)*T,py=(pac.r+.5)*T,rad=T*0.42;
       const open=pac.mouth?0.28:0.03;
       const ang={left:Math.PI,right:0,up:-Math.PI/2,down:Math.PI/2}[pac.dir];
-      ctx.fillStyle="#facc15";ctx.beginPath();ctx.moveTo(px,py);
-      ctx.arc(px,py,rad,ang+open,ang-open+Math.PI*2);ctx.closePath();ctx.fill();
-      // ghosts
+      ctx.save();ctx.translate(px,py);ctx.rotate(ang);
+      // comb (three points along the top of the head)
+      ctx.fillStyle="#dc2626";
+      ctx.beginPath();ctx.arc(-rad*.30,-rad*.90,rad*.20,0,7);ctx.arc(0,-rad*1.02,rad*.22,0,7);ctx.arc(rad*.30,-rad*.90,rad*.20,0,7);ctx.fill();
+      // head, mouth wedge opens toward travel direction
+      ctx.fillStyle="#facc15";ctx.beginPath();ctx.moveTo(0,0);
+      ctx.arc(0,0,rad,open,-open+Math.PI*2);ctx.closePath();ctx.fill();
+      // wattle under the beak
+      ctx.fillStyle="#dc2626";ctx.beginPath();ctx.arc(rad*.62,rad*.46,rad*.17,0,7);ctx.fill();
+      // eye
+      ctx.fillStyle="#0b1030";ctx.beginPath();ctx.arc(rad*.18,-rad*.40,rad*.15,0,7);ctx.fill();
+      ctx.restore();
+      // foxes
       for(const g of ghosts){const gx=(g.c+.5)*T,gy=(g.r+.5)*T,r=T*0.4;
         ctx.fillStyle=g.eaten?"#334155":(fright>0?(fright<8&&fright%2?"#fff":"#3b82f6"):g.color);
+        // ears
+        ctx.beginPath();ctx.moveTo(gx-r*.85,gy-r*.35);ctx.lineTo(gx-r*.60,gy-r*1.15);ctx.lineTo(gx-r*.20,gy-r*.55);ctx.closePath();ctx.fill();
+        ctx.beginPath();ctx.moveTo(gx+r*.85,gy-r*.35);ctx.lineTo(gx+r*.60,gy-r*1.15);ctx.lineTo(gx+r*.20,gy-r*.55);ctx.closePath();ctx.fill();
+        // head + ragged skirt
         ctx.beginPath();ctx.arc(gx,gy-2,r,Math.PI,0);ctx.lineTo(gx+r,gy+r);ctx.lineTo(gx-r,gy+r);ctx.closePath();ctx.fill();
+        // snout
+        ctx.fillStyle=g.eaten?"#475569":"#fde9d0";
+        ctx.beginPath();ctx.moveTo(gx-r*.32,gy+r*.18);ctx.lineTo(gx+r*.32,gy+r*.18);ctx.lineTo(gx,gy+r*.80);ctx.closePath();ctx.fill();
         ctx.fillStyle="#fff";ctx.beginPath();ctx.arc(gx-r*.4,gy-2,r*.28,0,7);ctx.arc(gx+r*.4,gy-2,r*.28,0,7);ctx.fill();
         ctx.fillStyle="#0b1030";ctx.beginPath();ctx.arc(gx-r*.4,gy-2,r*.14,0,7);ctx.arc(gx+r*.4,gy-2,r*.14,0,7);ctx.fill();
+        ctx.beginPath();ctx.arc(gx,gy+r*.62,r*.13,0,7);ctx.fill();   // nose
       }
     }
     function roundRect(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
