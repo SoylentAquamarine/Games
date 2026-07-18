@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cards — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🃏</text></svg>" />
+  <style>
+    :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;--felt:#12351f;}
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+      background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.22),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.16),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;}
+    .wrap{max-width:900px;margin:0 auto;padding:14px 10px 40px;display:flex;flex-direction:column;align-items:center;gap:12px}
+    .topbar{width:100%;display:flex;align-items:center;justify-content:space-between;padding:0 4px}
+    .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+    .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+    h1{margin:0;font-size:1.35rem;background:linear-gradient(120deg,var(--accent),var(--accent-2));-webkit-background-clip:text;background-clip:text;color:transparent}
+    .sub{color:var(--muted);font-size:.86rem;text-align:center;margin:0;max-width:620px}
+    .table{width:100%;background:radial-gradient(circle at 50% 10%,#1a4a2b,var(--felt));border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:14px 12px 20px}
+    .rowlabel{display:flex;align-items:center;gap:8px;color:rgba(255,255,255,.65);font-size:.72rem;text-transform:uppercase;letter-spacing:.09em;margin:12px 0 6px}
+    .rowlabel:first-child{margin-top:0}
+    .rowlabel .sym{font-size:1.05rem;letter-spacing:0}
+    .rowlabel .sym.red{color:#ff8a8a}
+    .row{display:flex;flex-wrap:wrap;gap:6px}
+    .row .pcard{--cw:56px}
+    .backrow{display:flex;align-items:center;gap:18px;flex-wrap:wrap;justify-content:center;
+      background:var(--panel);border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:14px 18px;width:100%}
+    .backrow .pcard{--cw:76px}
+    .backnote{color:var(--muted);font-size:.84rem;max-width:340px}
+    .backnote b{color:var(--text)}
+    .bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:center}
+    .btn{background:transparent;border:1px solid rgba(255,255,255,.18);color:var(--muted);font-weight:600;padding:8px 16px;border-radius:999px;cursor:pointer;font-size:.84rem}
+    .btn.on{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border-color:transparent}
+    .callout{width:100%;background:rgba(124,92,255,.12);border:1px solid rgba(124,92,255,.35);border-radius:12px;padding:10px 14px;font-size:.86rem;color:var(--text)}
+    .callout b{color:#c9b8ff}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar"><a class="home" href="/">← Home</a><h1>🃏 Cards</h1><a class="home" href="/games/cards/klondike/">Play →</a></div>
+    <p class="sub">The full deck used by every card game on the site. Change it here and it changes everywhere.</p>
+
+    <div class="callout">💬 <b>Leave a comment at the bottom of this page</b> about anything in the deck — the face cards, the back, colours, sizing, readability — and I'll redraw it. This is the single source of truth for all card games.</div>
+
+    <div class="backrow">
+      <div id="backslot"></div>
+      <div class="backnote"><b>The back.</b> Shown on every face-down card in Klondike, FreeCell, Pyramid, Go&nbsp;Fish, War, Crazy&nbsp;Eights, Hearts, Spades, Blackjack and Video&nbsp;Poker.</div>
+    </div>
+
+    <div class="bar">
+      <button class="btn on" id="sizeM">Medium</button>
+      <button class="btn" id="sizeL">Large</button>
+      <button class="btn" id="sizeS">Small</button>
+    </div>
+
+    <div class="table" id="table"></div>
+  </div>
+
+  <script src="../cards/cards.js"></script>
+  <script>
+  (function(){
+    const tableEl=document.getElementById("table"), backEl=document.getElementById("backslot");
+    // one face-down card, so the back design can be reviewed on its own
+    backEl.appendChild(Cards.cardEl(null,false));
+
+    function render(){
+      tableEl.innerHTML="";
+      for(const suit of Cards.SUITS){
+        const lab=document.createElement("div"); lab.className="rowlabel";
+        const sym=document.createElement("span");
+        sym.className="sym"+(Cards.RED[suit]?" red":"");
+        sym.textContent=Cards.SUIT_SYMBOL[suit];
+        const name=document.createElement("span");
+        name.textContent={S:"Spades",H:"Hearts",D:"Diamonds",C:"Clubs"}[suit];
+        lab.appendChild(sym); lab.appendChild(name); tableEl.appendChild(lab);
+
+        const row=document.createElement("div"); row.className="row";
+        // Ace first, then 2..10, then J Q K — reading order rather than deck order
+        const order=[14,2,3,4,5,6,7,8,9,10,11,12,13];
+        for(const rank of order) row.appendChild(Cards.cardEl({rank,suit,id:suit+rank},true));
+        tableEl.appendChild(row);
+      }
+    }
+    function setSize(px,btn){
+      document.documentElement.style.setProperty("--deckcw",px+"px");
+      tableEl.querySelectorAll(".pcard").forEach(c=>c.style.setProperty("--cw",px+"px"));
+      document.querySelectorAll(".bar .btn").forEach(b=>b.classList.remove("on"));
+      btn.classList.add("on");
+    }
+    render();
+    document.getElementById("sizeS").addEventListener("click",e=>setSize(44,e.currentTarget));
+    document.getElementById("sizeM").addEventListener("click",e=>setSize(56,e.currentTarget));
+    document.getElementById("sizeL").addEventListener("click",e=>setSize(76,e.currentTarget));
+  })();
+  </script>
+  <script src="/comments.js" defer></script>
+</body>
+</html>
