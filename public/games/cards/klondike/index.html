@@ -37,13 +37,14 @@
     .bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center}
     .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:9px 18px;border-radius:999px;cursor:pointer;font-size:.86rem}
     .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,.18);color:var(--muted)}
+    .hidden{display:none}
     .status{min-height:1.2em;font-weight:600;color:#fde68a;text-align:center}
     .hint{color:var(--muted);font-size:.8rem;text-align:center}
   </style>
 </head>
 <body>
   <div class="wrap">
-    <div class="topbar"><a class="home" href="/games/cards/">← Cards</a><h1>🂡 Klondike</h1><span style="width:56px"></span></div>
+    <div class="topbar"><a class="home" href="/">← Home</a><h1>🂡 Klondike</h1><span style="width:56px"></span></div>
     <div class="modebar">Rules: <span id="mode"><button class="active" data-m="std">Standard</button><button data-m="vegas">Vegas</button></span></div>
     <div class="score" id="score"></div>
     <div class="table">
@@ -57,6 +58,7 @@
     <div class="bar">
       <button class="btn" id="auto">⤴ Auto to foundations</button>
       <button class="btn ghost" id="new">New Deal</button>
+      <button class="btn ghost hidden" id="resetbank">💰 Reset bankroll</button>
     </div>
     <p class="hint">Draw 3 at a time (top card plays). Tap a card to select, tap a pile/foundation to move; double-tap sends to a foundation, and you can pull a card back from a foundation. Build tableau down in alternating colors. <b>Vegas:</b> pay $52 for the deck, earn $5 per card to a foundation, 3 passes through the stock.</p>
   </div>
@@ -92,8 +94,17 @@
     }
     function setMode(m){ mode=m; document.querySelectorAll("#mode button").forEach(b=>b.classList.toggle("active",b.dataset.m===m)); newGame(); }
     function updateScore(){
-      if(mode==="vegas"){ scoreEl.style.display=""; scoreEl.innerHTML="Score: <b>$"+score+"</b> &nbsp;·&nbsp; Bankroll: <b>$"+bank+"</b> &nbsp;·&nbsp; Redeals left: <b>"+passes+"</b>"; }
-      else scoreEl.style.display="none";
+      const rb=document.getElementById("resetbank");
+      if(mode==="vegas"){ scoreEl.style.display=""; scoreEl.innerHTML="Score: <b>$"+score+"</b> &nbsp;·&nbsp; Bankroll: <b>$"+bank+"</b> &nbsp;·&nbsp; Redeals left: <b>"+passes+"</b>";
+        if(rb) rb.classList.remove("hidden"); }
+      else { scoreEl.style.display="none"; if(rb) rb.classList.add("hidden"); }
+    }
+    // Vegas bankroll carries across deals, so it needs a way back to zero.
+    function resetBank(){
+      if(!confirm("Reset your Vegas bankroll to $0? This clears your running total.")) return;
+      bank=0; committed=true;
+      try{ localStorage.setItem("klondike_bank","0"); }catch(e){}
+      updateScore(); statusEl.textContent="Bankroll reset to $0.";
     }
     function foundScore(delta){ if(mode==="vegas"){ score+=delta*5; updateScore(); } }
 
@@ -210,6 +221,7 @@
     }
     document.getElementById("auto").addEventListener("click",autoAll);
     document.getElementById("new").addEventListener("click",newGame);
+    document.getElementById("resetbank").addEventListener("click",resetBank);
     document.querySelectorAll("#mode button").forEach(b=>b.addEventListener("click",()=>setMode(b.dataset.m)));
     newGame();
   })();

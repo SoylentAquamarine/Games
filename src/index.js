@@ -18,6 +18,12 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
+    // The card-games hub page was removed — every game links straight home now.
+    // Redirect the old URL so existing links and bookmarks don't 404.
+    if (url.pathname === "/games/cards" || url.pathname === "/games/cards/") {
+      return Response.redirect(new URL("/", url).toString(), 301);
+    }
+
     if (url.pathname === "/api/account/register" && request.method === "POST") {
       return handleRegister(request, env);
     }
