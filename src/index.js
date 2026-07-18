@@ -517,7 +517,142 @@ const MP_GAMES = {
         drawnIdx: (st.phase==="drew" && st.turn===sym) ? st.drawnIdx : null, last: st.lastAction };
     },
   },
+
+  // Mancala (Kalah). Pits 0-5 belong to X with X's store at 6; pits 7-12 belong
+  // to O with O's store at 13. Landing your last stone in your own store earns
+  // another turn; landing in an empty pit on your side captures the opposite pit.
+  mancala: { name: "Mancala",
+    init: () => ({ pits: [4,4,4,4,4,4,0, 4,4,4,4,4,4,0], turn: "X", last: null }),
+    move: (st, pl, mv) => {
+      if (st.turn !== pl) return null;
+      const idx = Number(mv);
+      if (!Number.isInteger(idx)) return null;
+      const mine = pl === "X" ? [0,5] : [7,12];
+      const myStore = pl === "X" ? 6 : 13, oppStore = pl === "X" ? 13 : 6;
+      if (idx < mine[0] || idx > mine[1]) return null;
+      const pits = st.pits.slice();
+      let n = pits[idx];
+      if (n === 0) return null;
+      pits[idx] = 0;
+      let i = idx;
+      while (n > 0) {
+        i = (i + 1) % 14;
+        if (i === oppStore) continue;          // never seed the opponent's store
+        pits[i]++; n--;
+      }
+      let again = false;
+      if (i === myStore) {
+        again = true;                          // last stone in your own store: go again
+      } else if (i >= mine[0] && i <= mine[1] && pits[i] === 1) {
+        const opposite = 12 - i;               // capture across the board
+        if (pits[opposite] > 0) { pits[myStore] += pits[opposite] + 1; pits[i] = 0; pits[opposite] = 0; }
+      }
+      // If either side is empty the game ends: the other player sweeps their pits.
+      const xEmpty = pits.slice(0,6).every(v => v === 0);
+      const oEmpty = pits.slice(7,13).every(v => v === 0);
+      if (xEmpty || oEmpty) {
+        for (let k=0;k<6;k++)  { pits[6]  += pits[k];   pits[k]   = 0; }
+        for (let k=7;k<13;k++) { pits[13] += pits[k];   pits[k]   = 0; }
+      }
+      const next = again ? pl : other(pl);
+      return { state: { pits, turn: next, last: { by: pl, pit: idx, again } }, next };
+    },
+    result: (st) => {
+      const done = st.pits.slice(0,6).every(v => v === 0) && st.pits.slice(7,13).every(v => v === 0);
+      if (!done) return null;
+      if (st.pits[6] > st.pits[13]) return { winner: "X" };
+      if (st.pits[13] > st.pits[6]) return { winner: "O" };
+      return { draw: true };
+    },
+  },
+
+  // Battleship on a 8x8 grid. Fleets are placed at random for both players so
+  // there is no separate placement phase; the shooting is the game.
+  ships: { name: "Battleship",
+    init: () => ({ boards: { X: bsPlaceFleet(), O: bsPlaceFleet() }, shots: { X: [], O: [] },
+                   turn: "X", last: null }),
+    move: (st, pl, mv) => {
+      if (st.turn !== pl) return null;
+      const cell = Number(mv);
+      if (!Number.isInteger(cell) || cell < 0 || cell >= 64) return null;
+      if (st.shots[pl].some(s => s.cell === cell)) return null;   // already fired there
+      const opp = other(pl);
+      const s = JSON.parse(JSON.stringify(st));
+      const shipId = s.boards[opp][cell];                          // 0 = water
+      const hit = shipId > 0;
+      s.shots[pl].push({ cell, hit });
+      let sunk = null;
+      if (hit) {
+        const cells = [];
+        for (let i=0;i<64;i++) if (s.boards[opp][i] === shipId) cells.push(i);
+        const fired = new Set(s.shots[pl].map(x => x.cell));
+        if (cells.every(c => fired.has(c))) sunk = BS_FLEET[shipId-1].name;
+      }
+      s.last = { by: pl, cell, hit, sunk };
+      // A hit earns another shot, as in the classic rules.
+      const next = hit ? pl : opp;
+      s.turn = next;
+      return { state: s, next };
+    },
+    result: (st) => {
+      for (const pl of ["X","O"]) {
+        const opp = other(pl);
+        const fired = new Set(st.shots[pl].map(x => x.cell));
+        let afloat = false;
+        for (let i=0;i<64;i++) if (st.boards[opp][i] > 0 && !fired.has(i)) { afloat = true; break; }
+        if (!afloat) return { winner: pl };
+      }
+      return null;
+    },
+    // Each side sees its own fleet, but only the shots fired at the opponent —
+    // never where the opponent's ships actually are.
+    redact: (st, sym) => {
+      const opp = other(sym);
+      const oppFired = new Set(st.shots[opp].map(x => x.cell));
+      return {
+        turn: st.turn, last: st.last,
+        myFleet: st.boards[sym],                 // my ships, plus
+        incoming: st.shots[opp],                 // where they have shot at me
+        myShots: st.shots[sym],                  // and my own shots with hit/miss
+        myLost: countSunk(st.boards[sym], oppFired),
+        theirLost: countSunk(st.boards[opp], new Set(st.shots[sym].map(x => x.cell))),
+        fleet: BS_FLEET.map(f => f.size),
+      };
+    },
+  },
 };
+
+// --- Battleship helpers ----------------------------------------------------
+const BS_FLEET = [
+  { name: "Carrier", size: 5 }, { name: "Battleship", size: 4 },
+  { name: "Cruiser", size: 3 }, { name: "Submarine", size: 3 }, { name: "Destroyer", size: 2 },
+];
+// Returns a 64-cell grid: 0 for water, otherwise the 1-based ship index.
+function bsPlaceFleet() {
+  const g = new Array(64).fill(0);
+  BS_FLEET.forEach((ship, si) => {
+    for (let attempt = 0; attempt < 500; attempt++) {
+      const horiz = Math.random() < 0.5;
+      const r = Math.floor(Math.random() * 8), c = Math.floor(Math.random() * 8);
+      if (horiz ? c + ship.size > 8 : r + ship.size > 8) continue;
+      const cells = [];
+      for (let k = 0; k < ship.size; k++) cells.push(horiz ? r*8 + c + k : (r+k)*8 + c);
+      if (cells.some(i => g[i] !== 0)) continue;
+      cells.forEach(i => { g[i] = si + 1; });
+      break;
+    }
+  });
+  return g;
+}
+function countSunk(board, firedSet) {
+  let sunk = 0;
+  BS_FLEET.forEach((ship, si) => {
+    const cells = [];
+    for (let i=0;i<64;i++) if (board[i] === si + 1) cells.push(i);
+    if (cells.length && cells.every(c => firedSet.has(c))) sunk++;
+  });
+  return sunk;
+}
 
 // Redact hidden-info games (e.g. Wild Cards) per viewer before sending to a client.
 function mpView(match, eng, sym) {

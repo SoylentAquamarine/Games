@@ -45,6 +45,37 @@
     .rev .disc{width:80%;height:80%;border-radius:50%}
     .rev .disc.x{background:radial-gradient(circle at 35% 30%,#7de8ff,var(--x))}
     .rev .disc.o{background:radial-gradient(circle at 35% 30%,#ff8aa0,var(--o))}
+    /* Mancala: a store at each end, two rows of six pits between them */
+    .manc{display:flex;align-items:stretch;gap:8px;width:100%;max-width:520px;background:#2a2050;border-radius:14px;padding:10px}
+    .manc .mancmid{flex:1;display:flex;flex-direction:column;gap:8px;min-width:0}
+    .manc .prow{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
+    .manc .pit{background:#141730;border-radius:50%;aspect-ratio:1;display:flex;align-items:center;justify-content:center;
+      font-weight:800;font-size:clamp(.8rem,3.6vw,1.15rem);cursor:default;position:relative}
+    .manc .pit.mine{background:#1c2450}
+    .manc .pit.can{box-shadow:inset 0 0 0 2px var(--good);cursor:pointer}
+    .manc .pit.can:hover{background:#27306a}
+    .manc .pit.last{outline:2px solid rgba(250,204,21,.7);outline-offset:1px}
+    .manc .store{flex:0 0 clamp(44px,13vw,64px);background:#141730;border-radius:14px;display:flex;flex-direction:column;
+      align-items:center;justify-content:center;gap:3px;font-weight:800;font-size:clamp(1rem,4.5vw,1.5rem)}
+    .manc .store.mine{background:#1c2450;box-shadow:inset 0 0 0 2px rgba(34,211,238,.35)}
+    .manc .store .lbl{font-size:.6rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+
+    /* Battleship: their waters above, your fleet below */
+    .ships{display:flex;flex-direction:column;align-items:center;gap:6px;width:100%;max-width:360px}
+    .ships .shead{width:100%;font-size:.74rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:700;margin-top:4px}
+    .ships .sgrid{display:grid;grid-template-columns:repeat(8,1fr);gap:3px;width:100%;background:#16233f;border-radius:8px;padding:4px}
+    .ships .sgrid.own{opacity:.92}
+    .ships .sc{background:#1d3358;border-radius:4px;aspect-ratio:1;display:flex;align-items:center;justify-content:center;
+      font-size:clamp(.6rem,3vw,.95rem);font-weight:800;cursor:default;color:#8fb6ff}
+    .ships .sc.can{cursor:pointer}
+    .ships .sc.can:hover{background:#2a4a80;box-shadow:inset 0 0 0 2px var(--good)}
+    .ships .sc.hit{background:#7f1d2e;color:#ffb4c0}
+    .ships .sc.miss{background:#16233f;color:#5b7bb0}
+    .ships .sc.own{background:#1a2c4d}
+    .ships .sc.own.ship{background:#3f4a6b}
+    .ships .sc.own.hit{background:#7f1d2e}
+    .ships .slast{width:100%;font-size:.8rem;color:#fde68a;font-weight:600;min-height:1.2em;text-align:center}
+
     .uttt{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;width:100%;max-width:340px;aspect-ratio:1;background:#2a2050;border-radius:10px;padding:5px}
     .mini{position:relative;display:grid;grid-template-columns:repeat(3,1fr);gap:2px;background:#141730;border-radius:6px;padding:2px}
     .mini.active{box-shadow:0 0 0 2px var(--good)}
@@ -131,7 +162,7 @@
       else $("status").textContent=myTurn?"Your move.":"Waiting for "+esc(match.players[match.turn])+"…";
       $("back").classList.toggle("hidden",!over);
       $("c4btns").classList.add("hidden");$("dscore").classList.add("hidden");
-      ({ttt:renderTTT,c4:renderC4,gomoku:renderGomoku,reversi:renderReversi,uttt:renderUTTT,dots:renderDots,checkers:renderCheckers,wild:renderUno}[match.game]||(()=>{}))(myTurn);
+      ({ttt:renderTTT,c4:renderC4,gomoku:renderGomoku,reversi:renderReversi,uttt:renderUTTT,dots:renderDots,checkers:renderCheckers,wild:renderUno,mancala:renderMancala,ships:renderShips}[match.game]||(()=>{}))(myTurn);
     }
     function renderTTT(myTurn){const b=$("board");b.className="ttt";b.innerHTML="";
       match.state.forEach((v,i)=>{const c=document.createElement("div");c.className="cell"+(v==="X"?" x":v==="O"?" o":"")+((myTurn&&!v)?" can":"");
@@ -154,6 +185,76 @@
       match.state.forEach((v,i)=>{const c=document.createElement("div");c.className="rc"+(legal.has(i)?" can":"");
         if(v){const d=document.createElement("div");d.className="disc "+(v==="X"?"x":"o");c.appendChild(d);}
         if(legal.has(i))c.onclick=()=>move(i);b.appendChild(c);});}
+    // --- Mancala: your six pits along the bottom, theirs across the top ------
+    function renderMancala(myTurn){
+      const st=match.state,b=$("board");b.className="manc";b.innerHTML="";
+      const myPits = mySym==="X" ? [0,1,2,3,4,5] : [7,8,9,10,11,12];
+      const oppPits= mySym==="X" ? [12,11,10,9,8,7] : [5,4,3,2,1,0];
+      const myStore= mySym==="X" ? 6 : 13, oppStore= mySym==="X" ? 13 : 6;
+      const pit=(i,mine)=>{const d=document.createElement("div");
+        const can=mine&&myTurn&&st.pits[i]>0;
+        d.className="pit"+(mine?" mine":" theirs")+(can?" can":"");
+        d.innerHTML=`<span class="n">${st.pits[i]}</span>`;
+        if(st.last&&st.last.pit===i)d.classList.add("last");
+        if(can)d.onclick=()=>move(i);
+        return d;};
+      const store=(i,mine)=>{const d=document.createElement("div");
+        d.className="store"+(mine?" mine":" theirs");
+        d.innerHTML=`<span class="n">${st.pits[i]}</span><span class="lbl">${mine?"You":"Them"}</span>`;
+        return d;};
+      const oppRow=document.createElement("div");oppRow.className="prow";
+      oppPits.forEach(i=>oppRow.appendChild(pit(i,false)));
+      const myRow=document.createElement("div");myRow.className="prow";
+      myPits.forEach(i=>myRow.appendChild(pit(i,true)));
+      const mid=document.createElement("div");mid.className="mancmid";
+      mid.appendChild(oppRow);mid.appendChild(myRow);
+      b.appendChild(store(oppStore,false));
+      b.appendChild(mid);
+      b.appendChild(store(myStore,true));
+      $("dscore").classList.remove("hidden");
+      $("dscore").innerHTML=`<span style="color:var(--x)">You: ${st.pits[myStore]}</span><span style="color:var(--o)">Them: ${st.pits[oppStore]}</span>`;
+    }
+
+    // --- Battleship: their waters on top (where you fire), your fleet below --
+    function renderShips(myTurn){
+      const st=match.state,b=$("board");b.className="ships";b.innerHTML="";
+      const firedAt=new Map(st.myShots.map(s=>[s.cell,s.hit]));
+      const incoming=new Map(st.incoming.map(s=>[s.cell,s.hit]));
+      const total=st.fleet.length;
+
+      const head=(txt)=>{const h=document.createElement("div");h.className="shead";h.textContent=txt;return h;};
+      b.appendChild(head(`Their waters — ${st.theirLost}/${total} sunk`));
+      const grid=document.createElement("div");grid.className="sgrid";
+      for(let i=0;i<64;i++){
+        const c=document.createElement("div");
+        const shot=firedAt.has(i);
+        c.className="sc"+(shot?(firedAt.get(i)?" hit":" miss"):(myTurn?" can":""));
+        c.textContent=shot?(firedAt.get(i)?"✸":"·"):"";
+        if(!shot&&myTurn)c.onclick=()=>move(i);
+        grid.appendChild(c);
+      }
+      b.appendChild(grid);
+
+      b.appendChild(head(`Your fleet — ${st.myLost}/${total} lost`));
+      const mine=document.createElement("div");mine.className="sgrid own";
+      for(let i=0;i<64;i++){
+        const c=document.createElement("div");
+        const ship=st.myFleet[i]>0, hitHere=incoming.has(i);
+        c.className="sc own"+(ship?" ship":"")+(hitHere?(incoming.get(i)?" hit":" miss"):"");
+        c.textContent=hitHere?(incoming.get(i)?"✸":"·"):"";
+        mine.appendChild(c);
+      }
+      b.appendChild(mine);
+
+      if(st.last){
+        const l=document.createElement("div");l.className="slast";
+        const who=st.last.by===mySym?"You":"They";
+        l.textContent=`${who} fired ${cellName(st.last.cell)} — ${st.last.hit?"HIT":"miss"}${st.last.sunk?" · sank the "+st.last.sunk+"!":""}`;
+        b.appendChild(l);
+      }
+    }
+    function cellName(i){ return "ABCDEFGH"[i%8] + (Math.floor(i/8)+1); }
+
     function renderUTTT(myTurn){const st=match.state,b=$("board");b.className="uttt";b.innerHTML="";
       const full=(bd)=>bd.every(x=>x);
       const legalBoards=new Set();
