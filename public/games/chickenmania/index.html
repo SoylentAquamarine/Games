@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Chickenmania — Games</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🐔</text></svg>" />
+<style>
+  :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;--bad:#f43f5e;--good:#34d399;}
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+    background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.2),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.14),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;touch-action:none;}
+  .wrap{max-width:440px;margin:0 auto;padding:14px 12px 30px;display:flex;flex-direction:column;align-items:center;gap:10px}
+  .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
+  .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+  .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+  h1{margin:0;font-size:1.3rem;background:linear-gradient(120deg,#ffcf5a,var(--accent-2));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:9px 16px;border-radius:999px;cursor:pointer;font-size:.85rem}
+  .hud{width:100%;max-width:380px;display:flex;justify-content:space-between;font-size:.85rem;color:var(--muted)}
+  .hud b{color:var(--text)}
+  .energywrap{width:100%;max-width:380px;display:flex;align-items:center;gap:8px;font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+  .energy{flex:1;height:10px;background:#141730;border-radius:999px;overflow:hidden;border:1px solid rgba(255,255,255,.08)}
+  .energy i{display:block;height:100%;width:100%;background:linear-gradient(90deg,var(--good),#ffcf5a);transition:width .12s linear}
+  .energy.low i{background:linear-gradient(90deg,var(--bad),#ffcf5a)}
+  canvas{width:min(94vw,380px);height:calc(min(94vw,380px)*1.15);image-rendering:pixelated;border-radius:10px;border:2px solid #2a2f55;background:#070a16;touch-action:none}
+  .msg{min-height:1.3em;font-weight:800;text-align:center}
+  .ctl{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:center}
+  .pad{background:var(--panel);color:var(--text);border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:14px 20px;font-size:1.2rem;cursor:pointer;user-select:none;touch-action:none}
+  .pad:active{background:var(--accent);color:#0b0c1a}
+  .fire{background:var(--accent-2);color:#0b0c1a;border:none;font-weight:800}
+  .opt{display:flex;gap:6px;align-items:center;font-size:.8rem;color:var(--muted)}
+  .toggle{background:transparent;border:1px solid rgba(255,255,255,.18);color:var(--muted);border-radius:999px;padding:6px 14px;cursor:pointer;font-size:.78rem;font-weight:600}
+  .toggle.on{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border-color:transparent}
+  .hint{font-size:.78rem;color:var(--muted);text-align:center;max-width:380px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar"><a class="home" href="/">← Home</a><h1>🐔 Chickenmania</h1><button class="btn" id="new">New Game</button></div>
+  <div class="hud"><span>Score: <b id="score">0</b></span><span>Wave: <b id="wave">1</b></span><span>Lives: <b id="lives">3</b></span><span>Best: <b id="best">0</b></span></div>
+  <div class="energywrap"><span>Feed</span><div class="energy" id="ebar"><i id="efill"></i></div></div>
+  <canvas id="game" width="320" height="368"></canvas>
+  <div class="msg" id="msg">Steer your shot after firing — that's the trick.</div>
+  <div class="ctl">
+    <button class="pad" data-d="left">◀</button>
+    <button class="pad fire" data-d="fire">● FIRE</button>
+    <button class="pad" data-d="right">▶</button>
+  </div>
+  <div class="opt">Bullets: <button class="toggle on" id="guided">Guided</button><button class="toggle" id="straight">Straight</button></div>
+  <p class="hint">← → move · Space fire. With <b>guided</b> bullets your shot keeps following your left/right steering all the way up the screen — one shot at a time, so make it count. Your feed drains constantly; clear the flock to refill it.</p>
+</div>
+<script>
+(function(){
+  // ---- constants -----------------------------------------------------------
+  const C = {
+    W:320, H:368,
+    SHIP_W:22, SHIP_H:12, SHIP_Y:344, SHIP_SPEED:3.2,
+    BULLET_W:3, BULLET_H:8, BULLET_SPEED:5.2, GUIDE_SPEED:2.8,
+    E_W:20, E_H:14, COLS:7, ROWS:2,
+    ENERGY_MAX:100, ENERGY_DRAIN:0.055, ENERGY_PER_WAVE:100,
+    LIVES:3,
+  };
+
+  // Eight formations, cycled by wave. Each moves differently.
+  const WAVES = [
+    { name:"Eggs",      shape:"egg",     pattern:"slide",  speed:0.75, drop:0.055 },
+    { name:"Corn",      shape:"corn",    pattern:"sine",   speed:0.95, drop:0.050 },
+    { name:"Feathers",  shape:"feather", pattern:"drift",  speed:0.85, drop:0.060 },
+    { name:"Seed",      shape:"seed",    pattern:"slide",  speed:1.15, drop:0.065 },
+    { name:"Buckets",   shape:"bucket",  pattern:"snake",  speed:1.00, drop:0.058 },
+    { name:"Worms",     shape:"worm",    pattern:"sine",   speed:1.25, drop:0.062 },
+    { name:"Nests",     shape:"nest",    pattern:"drift",  speed:1.10, drop:0.070 },
+    { name:"Cartons",   shape:"carton",  pattern:"snake",  speed:1.35, drop:0.072 },
+  ];
+
+  const clamp=(v,a,b)=>v<a?a:v>b?b:v;
+  function waveDef(w){ return WAVES[(w-1)%WAVES.length]; }
+
+  function makeEnemies(wave){
+    const def=waveDef(wave), out=[];
+    const gapX=(C.W-C.COLS*C.E_W)/(C.COLS+1);
+    for(let r=0;r<C.ROWS;r++) for(let c=0;c<C.COLS;c++){
+      out.push({
+        x: gapX+c*(C.E_W+gapX), y: 34+r*26,
+        row:r, col:c, alive:true,
+        phase: (c*0.6 + r*1.3),           // per-enemy offset for wobble patterns
+      });
+    }
+    return out;
+  }
+
+  function newState(){
+    return {
+      ship:{ x:C.W/2-C.SHIP_W/2 },
+      bullet:null,
+      enemies:makeEnemies(1),
+      wave:1, score:0, lives:C.LIVES,
+      energy:C.ENERGY_MAX,
+      dir:1, t:0,
+      over:false, cleared:false, msg:"",
+      hitFlash:0,
+    };
+  }
+
+  function fire(s){
+    if(s.over||s.bullet) return false;              // one shot on screen at a time
+    s.bullet={ x:s.ship.x+C.SHIP_W/2-C.BULLET_W/2, y:C.SHIP_Y-C.BULLET_H };
+    return true;
+  }
+
+  const overlaps=(ax,ay,aw,ah,bx,by,bw,bh)=> ax<bx+bw && ax+aw>bx && ay<by+bh && ay+ah>by;
+
+  function moveEnemies(s){
+    const def=waveDef(s.wave);
+    s.t++;
+    // Horizontal motion depends on the formation's pattern.
+    if(def.pattern==="slide"||def.pattern==="snake"){
+      let hitEdge=false;
+      for(const e of s.enemies){ if(!e.alive) continue;
+        const nx=e.x+s.dir*def.speed;
+        if(nx<2||nx+C.E_W>C.W-2) hitEdge=true;
+      }
+      if(hitEdge){
+        s.dir*=-1;
+        if(def.pattern==="snake") for(const e of s.enemies) e.y+=8;   // snake steps down at the edge
+      }
+      for(const e of s.enemies) e.x+=s.dir*def.speed;
+    } else if(def.pattern==="sine"){
+      for(const e of s.enemies){ e.x += Math.sin((s.t*0.03)+e.phase)*def.speed; e.x=clamp(e.x,2,C.W-C.E_W-2); }
+    } else { // drift: each column slides at its own rate and wraps around
+      for(const e of s.enemies){
+        e.x += def.speed*(e.row%2?-1:1);
+        if(e.x>C.W) e.x=-C.E_W; if(e.x<-C.E_W) e.x=C.W;
+      }
+    }
+    for(const e of s.enemies) e.y += def.drop;
+  }
+
+  // input: {left, right, fire, guided}
+  function step(s, input){
+    if(s.over) return s;
+    input=input||{};
+
+    // ship
+    if(input.left)  s.ship.x-=C.SHIP_SPEED;
+    if(input.right) s.ship.x+=C.SHIP_SPEED;
+    if(s.ship.x<-C.SHIP_W) s.ship.x=C.W;          // wraps, like the original
+    if(s.ship.x>C.W) s.ship.x=-C.SHIP_W;
+
+    // bullet — this is the Megamania trick: it keeps answering your steering
+    if(s.bullet){
+      s.bullet.y-=C.BULLET_SPEED;
+      if(input.guided){
+        if(input.left)  s.bullet.x-=C.GUIDE_SPEED;
+        if(input.right) s.bullet.x+=C.GUIDE_SPEED;
+        s.bullet.x=clamp(s.bullet.x,0,C.W-C.BULLET_W);
+      }
+      if(s.bullet.y+C.BULLET_H<0) s.bullet=null;
+    }
+
+    moveEnemies(s);
+
+    // bullet vs flock
+    if(s.bullet){
+      for(const e of s.enemies){
+        if(!e.alive) continue;
+        if(overlaps(s.bullet.x,s.bullet.y,C.BULLET_W,C.BULLET_H, e.x,e.y,C.E_W,C.E_H)){
+          e.alive=false; s.bullet=null; s.score+=20+ (s.wave-1)*5;
+          break;
+        }
+      }
+    }
+
+    // flock vs ship, and the flock reaching the floor
+    for(const e of s.enemies){
+      if(!e.alive) continue;
+      if(e.y+C.E_H>=C.H){ loseLife(s); return s; }
+      if(overlaps(e.x,e.y,C.E_W,C.E_H, s.ship.x,C.SHIP_Y,C.SHIP_W,C.SHIP_H)){ loseLife(s); return s; }
+    }
+
+    // feed drains the whole time
+    s.energy-=C.ENERGY_DRAIN;
+    if(s.energy<=0){ s.energy=0; loseLife(s); return s; }
+
+    // wave cleared
+    if(s.enemies.every(e=>!e.alive)){
+      s.score+=Math.round(s.energy);              // leftover feed is your bonus
+      s.wave++;
+      s.enemies=makeEnemies(s.wave);
+      s.energy=C.ENERGY_PER_WAVE;
+      s.bullet=null; s.dir=1; s.t=0; s.cleared=true;
+    }
+    return s;
+  }
+
+  function loseLife(s){
+    s.lives--; s.hitFlash=18;
+    if(s.lives<=0){ s.over=true; return s; }
+    s.enemies=makeEnemies(s.wave);
+    s.bullet=null; s.energy=C.ENERGY_MAX; s.dir=1; s.t=0;
+    return s;
+  }
+
+  function result(s){ return s.over?{score:s.score,wave:s.wave}:null; }
+
+  window.__chickenmania={ newState, step, fire, loseLife, makeEnemies, waveDef, result, overlaps, C, WAVES };
+
+  // ---- rendering / wiring --------------------------------------------------
+  if(typeof document==="undefined"||!document.getElementById) return;
+  const $=(id)=>document.getElementById(id);
+  const cv=$("game"); if(!cv) return;
+  const ctx=cv.getContext("2d");
+  let s=newState(), best=0, started=false;
+  let input={left:false,right:false,guided:true};
+  try{ best=parseInt(localStorage.getItem("chickenmania_best")||"0")||0; }catch(e){}
+  try{ const g=localStorage.getItem("chickenmania_guided"); if(g==="0") input.guided=false; }catch(e){}
+
+  function setGuided(on){
+    input.guided=on;
+    $("guided").classList.toggle("on",on);
+    $("straight").classList.toggle("on",!on);
+    try{ localStorage.setItem("chickenmania_guided",on?"1":"0"); }catch(e){}
+  }
+
+  // --- enemy artwork, one per formation ---
+  function drawEnemy(e, shape){
+    const x=e.x, y=e.y, w=C.E_W, h=C.E_H, cx=x+w/2, cy=y+h/2;
+    if(shape==="egg"){
+      ctx.fillStyle="#f3ead7"; ctx.strokeStyle="#c9bda3"; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.moveTo(cx,y);
+      ctx.bezierCurveTo(x+w,y,x+w,y+h,cx,y+h);
+      ctx.bezierCurveTo(x,y+h,x,y,cx,y);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.fillStyle="rgba(160,140,105,.5)"; ctx.fillRect(cx-3,cy-2,2,2); ctx.fillRect(cx+2,cy+1,2,2);
+    } else if(shape==="corn"){
+      ctx.fillStyle="#facc15"; ctx.beginPath(); ctx.ellipse(cx,cy,w*0.28,h*0.46,0,0,7); ctx.fill();
+      ctx.fillStyle="#65a30d";
+      ctx.beginPath(); ctx.moveTo(cx-w*0.28,cy); ctx.lineTo(cx-w*0.5,cy-h*0.4); ctx.lineTo(cx-w*0.2,cy+h*0.3); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(cx+w*0.28,cy); ctx.lineTo(cx+w*0.5,cy-h*0.4); ctx.lineTo(cx+w*0.2,cy+h*0.3); ctx.closePath(); ctx.fill();
+      ctx.fillStyle="#d97706"; for(let i=-1;i<2;i++) ctx.fillRect(cx-1+i*3,cy-4,1.5,8);
+    } else if(shape==="feather"){
+      ctx.fillStyle="#e6e6f0"; ctx.beginPath(); ctx.ellipse(cx,cy,w*0.2,h*0.48,0.5,0,7); ctx.fill();
+      ctx.strokeStyle="#9a9ab5"; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.moveTo(cx-w*0.3,cy+h*0.35); ctx.lineTo(cx+w*0.3,cy-h*0.35); ctx.stroke();
+    } else if(shape==="seed"){
+      ctx.fillStyle="#b45309";
+      for(const [dx,dy] of [[-4,-3],[3,-2],[-2,3],[4,3],[0,0]]){
+        ctx.beginPath(); ctx.ellipse(cx+dx,cy+dy,2.6,1.8,0.6,0,7); ctx.fill();
+      }
+    } else if(shape==="bucket"){
+      ctx.fillStyle="#9a9ab5";
+      ctx.beginPath(); ctx.moveTo(x+2,y+2); ctx.lineTo(x+w-2,y+2); ctx.lineTo(x+w-5,y+h); ctx.lineTo(x+5,y+h); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle="#c9c9e0"; ctx.lineWidth=1.4; ctx.beginPath(); ctx.arc(cx,y+2,w*0.32,Math.PI,0); ctx.stroke();
+    } else if(shape==="worm"){
+      ctx.strokeStyle="#f0616e"; ctx.lineWidth=3.5; ctx.lineCap="round";
+      ctx.beginPath(); ctx.moveTo(x+3,cy);
+      ctx.quadraticCurveTo(cx-2,cy-5,cx+2,cy); ctx.quadraticCurveTo(cx+6,cy+5,x+w-3,cy);
+      ctx.stroke(); ctx.lineCap="butt";
+      ctx.fillStyle="#0b0c1a"; ctx.fillRect(x+w-5,cy-2,1.5,1.5);
+    } else if(shape==="nest"){
+      ctx.strokeStyle="#8b5a2b"; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.ellipse(cx,cy+1,w*0.42,h*0.34,0,0,7); ctx.stroke();
+      ctx.fillStyle="#6b4423"; ctx.beginPath(); ctx.ellipse(cx,cy+2,w*0.42,h*0.3,0,0,7); ctx.fill();
+      ctx.fillStyle="#f3ead7";
+      ctx.beginPath(); ctx.ellipse(cx-3,cy-1,2.4,3,0,0,7); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(cx+3,cy-1,2.4,3,0,0,7); ctx.fill();
+    } else { // carton
+      ctx.fillStyle="#c9bda3"; ctx.fillRect(x+2,y+3,w-4,h-5);
+      ctx.strokeStyle="#8a7f68"; ctx.lineWidth=1; ctx.strokeRect(x+2,y+3,w-4,h-5);
+      ctx.fillStyle="#a89b80";
+      for(let i=0;i<3;i++){ ctx.beginPath(); ctx.arc(x+6+i*4.5,y+7,1.8,0,7); ctx.fill(); }
+    }
+  }
+
+  function drawShip(){
+    const x=s.ship.x, y=C.SHIP_Y, w=C.SHIP_W, h=C.SHIP_H, cx=x+w/2;
+    // a hen in a little launch cradle
+    ctx.fillStyle="#dc2626";
+    ctx.fillRect(cx-4,y-6,2.5,4); ctx.fillRect(cx-0.5,y-7,2.5,5); ctx.fillRect(cx+3,y-6,2.5,4);
+    ctx.fillStyle="#facc15"; ctx.beginPath(); ctx.ellipse(cx,y+3,w*0.34,h*0.55,0,0,7); ctx.fill();
+    ctx.fillStyle="#fb923c"; ctx.beginPath();
+    ctx.moveTo(cx+w*0.30,y+2); ctx.lineTo(cx+w*0.52,y+4); ctx.lineTo(cx+w*0.30,y+6); ctx.closePath(); ctx.fill();
+    ctx.fillStyle="#0b0c1a"; ctx.fillRect(cx+1,y+1,2,2);
+    ctx.fillStyle="#22d3ee"; ctx.fillRect(x,y+h-3,w,3);
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,C.W,C.H);
+    ctx.fillStyle="#070a16"; ctx.fillRect(0,0,C.W,C.H);
+    // starfield
+    ctx.fillStyle="#1b2244";
+    for(let i=0;i<34;i++){ const x=(i*67)%C.W, y=(i*113+Math.floor(s.t*0.35))%C.H; ctx.fillRect(x,y,1,1); }
+
+    const def=waveDef(s.wave);
+    for(const e of s.enemies){ if(e.alive) drawEnemy(e,def.shape); }
+
+    if(s.bullet){
+      ctx.fillStyle=input.guided?"#34d399":"#22d3ee";
+      ctx.fillRect(s.bullet.x,s.bullet.y,C.BULLET_W,C.BULLET_H);
+      if(input.guided){ ctx.fillStyle="rgba(52,211,153,.35)"; ctx.fillRect(s.bullet.x,s.bullet.y+C.BULLET_H,C.BULLET_W,5); }
+    }
+
+    drawShip();
+
+    if(s.hitFlash>0){ ctx.fillStyle="rgba(244,63,94,"+(s.hitFlash/40)+")"; ctx.fillRect(0,0,C.W,C.H); s.hitFlash--; }
+
+    ctx.fillStyle="rgba(230,230,240,.5)"; ctx.font="9px monospace"; ctx.textAlign="left";
+    ctx.fillText("WAVE "+s.wave+" · "+def.name.toUpperCase(),6,12);
+
+    if(!started&&!s.over){
+      ctx.fillStyle="rgba(0,0,0,.55)"; ctx.fillRect(0,0,C.W,C.H);
+      ctx.fillStyle="#ffcf5a"; ctx.font="bold 17px system-ui"; ctx.textAlign="center";
+      ctx.fillText("CHICKENMANIA",C.W/2,C.H/2-14);
+      ctx.fillStyle="#e6e6f0"; ctx.font="11px system-ui";
+      ctx.fillText("Fire, then keep steering the shot.",C.W/2,C.H/2+8);
+      ctx.fillText("Press Space or FIRE to start",C.W/2,C.H/2+26);
+    }
+    if(s.over){
+      ctx.fillStyle="rgba(0,0,0,.65)"; ctx.fillRect(0,0,C.W,C.H);
+      ctx.fillStyle="#f43f5e"; ctx.font="bold 20px system-ui"; ctx.textAlign="center";
+      ctx.fillText("GAME OVER",C.W/2,C.H/2-6);
+      ctx.fillStyle="#e6e6f0"; ctx.font="12px system-ui";
+      ctx.fillText("Score "+s.score+"  ·  Wave "+s.wave+"  ·  Best "+best,C.W/2,C.H/2+16);
+    }
+  }
+
+  function hud(){
+    $("score").textContent=s.score; $("wave").textContent=s.wave;
+    $("lives").textContent=Math.max(0,s.lives); $("best").textContent=best;
+    const pct=Math.max(0,Math.min(100,s.energy));
+    $("efill").style.width=pct+"%";
+    $("ebar").classList.toggle("low",pct<30);
+  }
+
+  function frame(){
+    if(started&&!s.over){
+      const wasWave=s.wave;
+      step(s,input);
+      if(s.wave>wasWave) $("msg").textContent="Wave "+s.wave+" — "+waveDef(s.wave).name+"! Feed refilled.";
+      if(s.over){
+        if(s.score>best){ best=s.score; try{localStorage.setItem("chickenmania_best",String(best));}catch(e){} }
+        $("msg").textContent="💥 Game over — score "+s.score+" on wave "+s.wave+".";
+      }
+    }
+    draw(); hud(); requestAnimationFrame(frame);
+  }
+
+  function doFire(){
+    if(s.over) return;
+    if(!started){ started=true; $("msg").textContent="Go! Steer the shot as it climbs."; return; }
+    fire(s);
+  }
+  function reset(){ s=newState(); started=false; $("msg").textContent="Steer your shot after firing — that's the trick."; }
+
+  // keyboard
+  addEventListener("keydown",(e)=>{
+    if(e.key==="ArrowLeft"||e.key==="a"){ e.preventDefault(); input.left=true; }
+    else if(e.key==="ArrowRight"||e.key==="d"){ e.preventDefault(); input.right=true; }
+    else if(e.key===" "||e.key==="ArrowUp"||e.key==="w"){ e.preventDefault(); doFire(); }
+  });
+  addEventListener("keyup",(e)=>{
+    if(e.key==="ArrowLeft"||e.key==="a") input.left=false;
+    if(e.key==="ArrowRight"||e.key==="d") input.right=false;
+  });
+  // touch / mouse pad
+  document.querySelectorAll(".ctl .pad").forEach(b=>{
+    const d=b.getAttribute("data-d");
+    const on=(e)=>{ e.preventDefault(); if(d==="fire") doFire(); else input[d]=true; };
+    const off=(e)=>{ e.preventDefault(); if(d!=="fire") input[d]=false; };
+    b.addEventListener("mousedown",on); b.addEventListener("touchstart",on,{passive:false});
+    b.addEventListener("mouseup",off);  b.addEventListener("touchend",off,{passive:false});
+    b.addEventListener("mouseleave",off);
+  });
+  cv.addEventListener("touchstart",(e)=>{ e.preventDefault(); doFire(); },{passive:false});
+  $("guided").addEventListener("click",()=>setGuided(true));
+  $("straight").addEventListener("click",()=>setGuided(false));
+  $("new").addEventListener("click",reset);
+
+  setGuided(input.guided);
+  requestAnimationFrame(frame);
+})();
+</script>
+<script src="/comments.js" defer></script>
+</body>
+</html>
