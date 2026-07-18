@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-<title>Kaboom! — Games</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>💣</text></svg>" />
+<title>ChickenBoom — Games</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🥚</text></svg>" />
 <style>
   :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;--bad:#f43f5e;}
   *{box-sizing:border-box}
@@ -25,11 +25,11 @@
 </head>
 <body>
 <div class="wrap">
-  <div class="topbar"><a class="home" href="/">← Home</a><h1>Kaboom!</h1><button class="btn" id="new">New Game</button></div>
-  <div class="hud"><span>Score: <b id="score">0</b></span><span>Wave: <b id="wave">1</b></span><span>Buckets: <b id="buckets">3</b></span></div>
+  <div class="topbar"><a class="home" href="/">← Home</a><h1>🥚 ChickenBoom</h1><button class="btn" id="new">New Game</button></div>
+  <div class="hud"><span>Score: <b id="score">0</b></span><span>Wave: <b id="wave">1</b></span><span>Baskets: <b id="buckets">3</b></span></div>
   <canvas id="game" width="300" height="300"></canvas>
-  <div class="msg" id="msg">Catch every bomb the Mad Bomber drops. Miss one and it all blows up!</div>
-  <div class="hint">Move the mouse / drag / ←→ to slide the buckets</div>
+  <div class="msg" id="msg">Catch every egg the hen lays. Miss one and they all smash!</div>
+  <div class="hint">Move the mouse / drag / ←→ to slide the baskets</div>
 </div>
 <script>
 (function(){
@@ -65,19 +65,40 @@
 
   function draw(){
     ctx.clearRect(0,0,C.W,C.H); ctx.fillStyle="#0a0c18"; ctx.fillRect(0,0,C.W,C.H);
-    // bomber
-    ctx.fillStyle="#f0616e"; ctx.fillRect(s.bomberX-10,C.BOMBER_Y-8,20,12); ctx.fillStyle="#ffcf5a"; ctx.fillRect(s.bomberX-4,C.BOMBER_Y-12,8,4);
-    // bombs
-    for(const b of s.bombs){ ctx.fillStyle="#e6e6f0"; ctx.beginPath(); ctx.arc(b.x,b.y,4,0,7); ctx.fill(); ctx.strokeStyle="#ffcf5a"; ctx.beginPath(); ctx.moveTo(b.x,b.y-4); ctx.lineTo(b.x+2,b.y-8); ctx.stroke(); }
-    // buckets (paddle stack)
-    for(let i=0;i<s.buckets;i++){ const y=C.CATCH_Y+i*11; ctx.fillStyle=i===0?"#22d3ee":"#7c5cff"; ctx.fillRect(s.paddleX-C.PADDLE_W/2,y,C.PADDLE_W,8); }
+    // the hen up top, facing the way she's strutting
+    { const bx=s.bomberX, by=C.BOMBER_Y, f=s.bomberDir>=0?1:-1;
+      ctx.save(); ctx.translate(bx,by); ctx.scale(f,1);
+      ctx.fillStyle="#c96f14"; ctx.beginPath();                       // tail
+      ctx.moveTo(-8,-2); ctx.lineTo(-17,-10); ctx.lineTo(-8,4); ctx.closePath(); ctx.fill();
+      ctx.fillStyle="#dc2626";                                        // comb
+      ctx.fillRect(-1,-17,3,5); ctx.fillRect(3,-18,3,6); ctx.fillRect(7,-17,3,5);
+      ctx.fillStyle="#facc15"; ctx.beginPath(); ctx.ellipse(0,-4,11,8,0,0,7); ctx.fill();   // body
+      ctx.fillStyle="#fde68a"; ctx.beginPath(); ctx.ellipse(-1,-2,6,4,0,0,7); ctx.fill();   // wing
+      ctx.fillStyle="#0b0c1a"; ctx.beginPath(); ctx.arc(6,-9,1.8,0,7); ctx.fill();          // eye
+      ctx.fillStyle="#fb923c"; ctx.beginPath();                       // beak
+      ctx.moveTo(10,-8); ctx.lineTo(17,-6); ctx.lineTo(10,-4); ctx.closePath(); ctx.fill();
+      ctx.fillStyle="#dc2626"; ctx.beginPath(); ctx.arc(10,-2,2.4,0,7); ctx.fill();         // wattle
+      ctx.restore(); }
+    // falling eggs
+    for(const b of s.bombs){
+      ctx.fillStyle="#f3ead7"; ctx.strokeStyle="#c9bda3"; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.moveTo(b.x,b.y-6);
+      ctx.bezierCurveTo(b.x+4.4,b.y-6,b.x+5.2,b.y+2,b.x,b.y+6);
+      ctx.bezierCurveTo(b.x-5.2,b.y+2,b.x-4.4,b.y-6,b.x,b.y-6);
+      ctx.closePath(); ctx.fill(); ctx.stroke(); }
+    // the farmer's baskets
+    for(let i=0;i<s.buckets;i++){ const y=C.CATCH_Y+i*11, hw=C.PADDLE_W/2;
+      ctx.fillStyle=i===0?"#b45309":"#8a5a12";
+      ctx.beginPath(); ctx.moveTo(s.paddleX-hw,y); ctx.lineTo(s.paddleX+hw,y);
+      ctx.lineTo(s.paddleX+hw-3,y+8); ctx.lineTo(s.paddleX-hw+3,y+8); ctx.closePath(); ctx.fill();
+      ctx.fillStyle=i===0?"#d97706":"#a16207"; ctx.fillRect(s.paddleX-hw,y,C.PADDLE_W,2.5); }
     ctx.fillStyle="#2b2f4d"; ctx.fillRect(0,C.H-4,C.W,4);
-    if(s.over){ ctx.fillStyle="rgba(0,0,0,.55)"; ctx.fillRect(0,0,C.W,C.H); ctx.fillStyle="#f43f5e"; ctx.font="bold 24px system-ui"; ctx.textAlign="center"; ctx.fillText("KABOOM!",C.W/2,C.H/2-4); ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Score "+s.score+(best?"  ·  Best "+best:""),C.W/2,C.H/2+18); }
+    if(s.over){ ctx.fillStyle="rgba(0,0,0,.55)"; ctx.fillRect(0,0,C.W,C.H); ctx.fillStyle="#f43f5e"; ctx.font="bold 24px system-ui"; ctx.textAlign="center"; ctx.fillText("SPLAT!",C.W/2,C.H/2-4); ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Score "+s.score+(best?"  ·  Best "+best:""),C.W/2,C.H/2+18); }
   }
   function hud(){ $("score").textContent=s.score; $("wave").textContent=s.wave; $("buckets").textContent=Math.max(0,s.buckets); }
   function frame(){ step(s,input); input.left=input.right=false;
     if(s.over && s.score>best){ best=s.score; try{localStorage.setItem("kaboom_best",String(best));}catch(e){} }
-    if(s.over) $("msg").textContent="💥 Boom! Final score "+s.score+". New Game to try again.";
+    if(s.over) $("msg").textContent="🥚 Splat! Final score "+s.score+". New Game to try again.";
     draw(); hud(); requestAnimationFrame(frame); }
   function px(ev){ const r=cv.getBoundingClientRect(); const cx=(ev.touches?ev.touches[0].clientX:ev.clientX)-r.left; return cx*(C.W/r.width); }
   cv.addEventListener("mousemove",(e)=>{ input.x=px(e); });
