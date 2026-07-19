@@ -28,7 +28,7 @@
 <div class="wrap">
   <div class="topbar"><a class="home" href="/">← Home</a><h1>🐔 Chicken Run</h1><button class="btn" id="new">New Game</button></div>
   <canvas id="game" width="600" height="180"></canvas>
-  <div class="msg" id="msg">Press Space / ▲ to jump, ▼ to duck. Avoid the cacti and hawks!</div>
+  <div class="msg" id="msg">Press Space / ▲ to jump, ▼ to duck. Jump the cacti · duck the high flocks · low hawks take either</div>
   <div class="ctl"><button class="cbtn" id="bjump">▲ Jump</button><button class="cbtn" id="bduck">▼ Duck</button></div>
   <div class="hint">Space/↑ jump · ↓ duck · tap the canvas to jump on mobile</div>
 </div>
@@ -61,14 +61,34 @@
   try{ best=parseInt(localStorage.getItem("dino_best")||"0")||0; }catch(e){}
   for(let i=0;i<4;i++) clouds.push({x:Math.random()*C.W,y:20+Math.random()*40});
 
-  function spawn(){ if(Math.random()<0.5){ s.obs.push({x:C.W,y:C.GROUND-24,w:12+Math.random()*10|0,h:24,type:"cactus"}); }
-    else s.obs.push({x:C.W,y:C.GROUND-34-(Math.random()<.5?0:14),w:22,h:14,type:"bird"}); }
+  // Three classes of obstacle, so the choice actually matters:
+  //   cactus   — sits on the ground: you must JUMP (ducking still clips it)
+  //   lowhawk  — hangs at chest height: either works, jump or duck
+  //   highwall — a tall swooping flock: too tall to clear, you must DUCK
+  // A jump reaches about 84px (v^2/2g with JUMP_V -11, GRAVITY 0.72), so the
+  // duck-only obstacle is deliberately taller than that.
+  function spawn(){
+    const r=Math.random();
+    if(r<0.42)       s.obs.push({x:C.W, y:C.GROUND-24,  w:12+(Math.random()*10|0), h:24, type:"cactus"});
+    else if(r<0.74)  s.obs.push({x:C.W, y:C.GROUND-34,  w:22, h:14, type:"lowhawk"});
+    else             s.obs.push({x:C.W, y:C.GROUND-100, w:20, h:82, type:"highwall"});
+  }
   function draw(){
     ctx.clearRect(0,0,C.W,C.H); ctx.fillStyle="#0c0e1c"; ctx.fillRect(0,0,C.W,C.H);
     ctx.fillStyle="#20244a"; for(const c of clouds) ctx.fillRect(c.x,c.y,26,7);
     ctx.strokeStyle="#3a4170"; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(0,C.GROUND+1); ctx.lineTo(C.W,C.GROUND+1); ctx.stroke();
-    for(const o of s.obs){ if(o.type==="cactus"){ ctx.fillStyle="#4caf50"; ctx.fillRect(o.x,o.y,o.w,o.h); ctx.fillRect(o.x-4,o.y+6,4,3); ctx.fillRect(o.x+o.w,o.y+9,4,3); }
-      else { ctx.fillStyle="#c9c9e6"; ctx.fillRect(o.x,o.y,o.w,o.h); ctx.fillRect(o.x+4,o.y-3-(Math.floor(s.t/6)%2?0:3)*0,6,3); } }
+    for(const o of s.obs){
+      if(o.type==="cactus"){ ctx.fillStyle="#4caf50"; ctx.fillRect(o.x,o.y,o.w,o.h); ctx.fillRect(o.x-4,o.y+6,4,3); ctx.fillRect(o.x+o.w,o.y+9,4,3); }
+      else if(o.type==="highwall"){
+        // a tall column of swooping hawks — too high to clear, duck under it
+        ctx.fillStyle="#8b5cf6";
+        for(let k=0;k<5;k++){ const wy=o.y+k*17, f2=(Math.floor(s.t/7)+k)%2;
+          ctx.fillRect(o.x,wy+4,o.w,7);
+          ctx.fillRect(o.x-5,wy+(f2?1:7),6,3); ctx.fillRect(o.x+o.w-1,wy+(f2?7:1),6,3); }
+        ctx.fillStyle="#c4b5fd"; ctx.fillRect(o.x+o.w-5,o.y+o.h-9,3,3);
+      }
+      else { ctx.fillStyle="#c9c9e6"; ctx.fillRect(o.x,o.y,o.w,o.h);
+        ctx.fillRect(o.x+4,o.y+(Math.floor(s.t/6)%2?-3:3),6,3); } }
     // running chicken — only the art changed; dinoRect (the hitbox) is untouched
     const d=s.dino, r=dinoRect(d); const body= s.over?"#f43f5e":"#facc15";
     const cxm=r.x+r.w/2, run=Math.floor(s.t/5)%2;
