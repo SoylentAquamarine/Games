@@ -39,7 +39,11 @@
 <script>
 (function(){
   const C={ W:480,H:600, PW:22,PH:14, EW:20,EH:16, PLY:558, BSPEED:7, ESPEED:2.4,
-            BEAM_Y:210, BEAM_W:56, BEAM_OPEN:150, BEAM_HOLD:110 };
+            BEAM_Y:210, BEAM_W:56, BEAM_OPEN:80, BEAM_HOLD:150,
+            BEAM_RAMP:26, BEAM_ARM:0.6, PULL_T:46 };
+  // BEAM_RAMP: frames to widen or shut the cone.
+  // BEAM_ARM: how far open it must be before it can actually take your ship.
+  // PULL_T: frames the captured ship spends being drawn up the beam.
   const rov=(a,b)=>a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;
   function bulletHitsEnemy(b, e){ return e.alive && rov({x:b.x,y:b.y,w:3,h:10},{x:e.x-C.EW/2,y:e.y-C.EH/2,w:C.EW,h:C.EH}); }
   function enemyRect(e){ return {x:e.x-C.EW/2,y:e.y-C.EH/2,w:C.EW,h:C.EH}; }
@@ -48,13 +52,16 @@
       // the top row are bosses — only they can pull the tractor-beam trick
       s.enemies.push({ x:fx, y:fy, fx, fy, alive:true, state:"form", t:Math.random()*6, boss:r===0, hasShip:false,
         color:r===0?"#f0616e":r===1?"#ffcf5a":"#22d3ee" }); }
-    s.diveTimer=90; s.beamTimer=340; }
+    s.diveTimer=90; s.beamTimer=150; }
   function newState(){ const s={ px:C.W/2, bullets:[], enemies:[], score:0, wave:0, lives:3, over:false, sway:0,
-    diveTimer:90, beamTimer:340, dual:false, rescue:null, captured:false }; makeWave(s); return s; }
+    diveTimer:90, beamTimer:150, dual:false, rescue:null, captured:false, pull:null }; makeWave(s); return s; }
   // Width of the beam cone at a given depth below the boss.
-  function beamHalfWidth(e, y){ const d=Math.max(0,y-e.y); return C.BEAM_W*0.25 + d*0.18; }
+  function beamHalfWidth(e, y){ const d=Math.max(0,y-e.y);
+    const open = e.beamOpen==null ? 1 : e.beamOpen;
+    return (C.BEAM_W*0.25 + d*0.18) * open; }
   function inBeam(e, px, py){
     if(e.state!=="beam"||e.beamT<=0) return false;
+    if((e.beamOpen||0) < C.BEAM_ARM) return false;      // still opening — not armed yet
     if(py<e.y) return false;
     return Math.abs(px-e.x) <= beamHalfWidth(e,py);
   }
@@ -74,14 +81,21 @@
         if(e.y<C.BEAM_Y && e.beamT<=0 && !e.returning){ e.y+=C.ESPEED; if(e.y>=C.BEAM_Y) e.beamT=C.BEAM_HOLD; }
         else if(e.beamT>0){
           e.beamT--;
+          // widen on the way in, shut again over the last frames
+          const closing = e.beamT < C.BEAM_RAMP;
+          const target = closing ? 0 : 1;
+          const rate = 1/C.BEAM_RAMP;
+          e.beamOpen = (e.beamOpen==null?0:e.beamOpen) + Math.sign(target-(e.beamOpen==null?0:e.beamOpen))*rate;
+          e.beamOpen = Math.max(0, Math.min(1, e.beamOpen));
           if(!s.captured && !s.dual && inBeam(e,s.px,C.PLY)){   // caught in the beam
             s.captured=true; e.hasShip=true; e.beamT=0; e.returning=true;
+            s.pull={ x:s.px, y:C.PLY, tx:e.x, ty:e.y+C.EH, t:C.PULL_T };
             s.lives--; if(s.lives<=0){ s.over=true; return s; }
             s.px=C.W/2;
           }
           if(e.beamT<=0 && !e.returning) e.returning=true;
         }
-        else if(e.returning){ e.y-=C.ESPEED*1.2; if(e.y<=e.fy){ e.y=e.fy; e.state="form"; e.returning=false; s.captured=e.hasShip?true:s.captured; } }
+        else if(e.returning){ e.beamOpen=Math.max(0,(e.beamOpen==null?0:e.beamOpen)-1/C.BEAM_RAMP); e.y-=C.ESPEED*1.2; if(e.y<=e.fy){ e.y=e.fy; e.state="form"; e.returning=false; s.captured=e.hasShip?true:s.captured; } }
       }
       else { e.t+=0.05; e.y+=C.ESPEED+s.wave*0.15; e.x=e.diveX+Math.sin(e.t*4)*46;
         if(e.y>C.H+20){ e.y=-10; e.state="form"; } // looped back to formation
@@ -90,12 +104,18 @@
     }
     // launch a diver
     if(--s.diveTimer<=0){ const forms=s.enemies.filter(e=>e.alive&&e.state==="form"&&!e.boss); if(forms.length){ const e=forms[Math.floor(Math.random()*forms.length)]; e.state="dive"; e.diveX=e.x; e.t=0; } s.diveTimer=Math.max(30,90-s.wave*8); }
+    // the captured ship being drawn up the beam
+    if(s.pull){ s.pull.t--;
+      if(s.pull.t<=0) s.pull=null;
+      else { const u=1-(s.pull.t/C.PULL_T);
+        s.pull.cx=s.pull.x+(s.pull.tx-s.pull.x)*u;
+        s.pull.cy=s.pull.y+(s.pull.ty-s.pull.y)*u; } }
     // a boss comes down to try the tractor beam
     if(--s.beamTimer<=0){
       const bosses=s.enemies.filter(e=>e.alive&&e.boss&&e.state==="form"&&!e.hasShip);
       if(bosses.length && !s.captured && !s.dual){ const e=bosses[Math.floor(Math.random()*bosses.length)];
-        e.state="beam"; e.beamT=0; e.returning=false; }
-      s.beamTimer=C.BEAM_OPEN+Math.floor(Math.random()*180);
+        e.state="beam"; e.beamT=0; e.beamOpen=0; e.returning=false; }
+      s.beamTimer=C.BEAM_OPEN+Math.floor(Math.random()*90);   // noticeably more often
     }
     // a freed ship flies back down to you and doubles you up
     if(s.rescue){ s.rescue.y+=4; if(s.rescue.y>=C.PLY){ s.rescue=null; s.dual=true; s.captured=false; } }
@@ -138,10 +158,18 @@
       ctx.lineTo(e.x+beamHalfWidth(e,C.PLY),C.PLY); ctx.lineTo(e.x-beamHalfWidth(e,C.PLY),C.PLY);
       ctx.closePath(); ctx.fill();
       // pulsing rungs down the cone
-      ctx.strokeStyle="rgba(199,180,255,.5)";
+      ctx.strokeStyle="rgba(199,180,255,"+(0.25+0.35*(e.beamOpen==null?1:e.beamOpen))+")";
       for(let k=0;k<5;k++){ const yy=e.y+((k*46+(Date.now()/8)%46));
         if(yy>C.PLY) continue; const hw=beamHalfWidth(e,yy);
         ctx.beginPath(); ctx.moveTo(e.x-hw,yy); ctx.lineTo(e.x+hw,yy); ctx.stroke(); } }
+    // your ship spiralling up the beam after a capture
+    if(s.pull && s.pull.cx!=null){
+      const u=1-(s.pull.t/C.PULL_T);
+      ctx.save(); ctx.translate(s.pull.cx,s.pull.cy); ctx.rotate(u*Math.PI*4);
+      ctx.globalAlpha=0.4+0.6*(1-u);
+      ctx.fillStyle="#22d3ee"; ctx.fillRect(-C.PW/2,-C.PH/2,C.PW,C.PH*0.7);
+      ctx.restore(); ctx.globalAlpha=1;
+    }
     for(const e of s.enemies){ if(!e.alive) continue; ctx.fillStyle=e.color; ctx.fillRect(e.x-C.EW/2,e.y-C.EH/2,C.EW,C.EH);
       ctx.fillStyle="#0b0c1a"; ctx.fillRect(e.x-6,e.y-2,4,4); ctx.fillRect(e.x+2,e.y-2,4,4); ctx.fillStyle=e.color; ctx.fillRect(e.x-C.EW/2-3,e.y,3,5); ctx.fillRect(e.x+C.EW/2,e.y,3,5);
       // your captured ship, slung underneath the boss that took it
