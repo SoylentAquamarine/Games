@@ -67,6 +67,8 @@
   if(typeof document==="undefined") return;
   const $=(id)=>document.getElementById(id);
   const cv=$("game"), ctx=cv.getContext("2d"); const W=cv.width,H=cv.height;
+  // Hold the loop until the player asks for it (comment: Press Spacebar To Begin)
+  const GATE = Arcade.startGate(cv, "ChickenBert");
   const CW=44, TH=24, FH=24, ROWSTEP=37, TOPY=26;   // board + sprites 10% larger
   let s=newState(), best=0, hopAnim=0;
   try{ best=parseInt(localStorage.getItem("qbert_best")||"0")||0; }catch(e){}
@@ -160,6 +162,7 @@
     if(s.over && s.score>best){ best=s.score; try{localStorage.setItem("qbert_best",String(best));}catch(e){} $("msg").textContent="Fell off! Score "+s.score+"  ·  Best "+best; }
     $("score").textContent=s.score; $("level").textContent=s.level; $("lives").textContent=Math.max(0,s.lives); }
   function frame(){
+    if(!GATE.open){ draw(); GATE.paint(); return requestAnimationFrame(frame); }
     if(anim && performance.now()-anim.t0>=170) pendingCube=null;
     if(levelBanner>0){
       if(--levelBanner===0){ s.level++; resetBoard(s); enemyT=0; spawnT=0; eAnim=null;

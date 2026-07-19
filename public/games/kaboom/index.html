@@ -31,6 +31,7 @@
   <div class="msg" id="msg">Catch every egg the hen lays. Miss one and they all smash!</div>
   <div class="hint">Move the mouse / drag / ←→ to slide the baskets · catch every egg, but <b>let the firecrackers hit the ground</b></div>
 </div>
+<script src="/arcade.js"></script>
 <script>
 (function(){
   const C={ W:480,H:360, CATCH_Y:318, PADDLE_W:52, BOMBER_Y:26, FALL_BASE:2.4,
@@ -107,6 +108,8 @@
   if(typeof document==="undefined") return;
   const $=(id)=>document.getElementById(id);
   const cv=$("game"), ctx=cv.getContext("2d");
+  // Hold the loop until the player asks for it (comment: Press Spacebar To Begin)
+  const GATE = Arcade.startGate(cv, "Chicken Kaboom");
   let s=newState(), input={x:null,left:false,right:false}, best=0;
   try{ best=parseInt(localStorage.getItem("kaboom_best")||"0")||0; }catch(e){}
 
@@ -169,7 +172,8 @@
     if(s.over){ ctx.fillStyle="rgba(0,0,0,.55)"; ctx.fillRect(0,0,C.W,C.H); ctx.fillStyle="#f43f5e"; ctx.font="bold 24px system-ui"; ctx.textAlign="center"; ctx.fillText("SPLAT!",C.W/2,C.H/2-4); ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Score "+s.score+(best?"  ·  Best "+best:""),C.W/2,C.H/2+18); }
   }
   function hud(){ $("score").textContent=s.score; $("wave").textContent=s.wave; $("buckets").textContent=Math.max(0,s.buckets); }
-  function frame(){ step(s,input); input.left=input.right=false;
+  function frame(){
+    if(!GATE.open){ draw(); GATE.paint(); return requestAnimationFrame(frame); } step(s,input); input.left=input.right=false;
     if(s.over && s.score>best){ best=s.score; try{localStorage.setItem("kaboom_best",String(best));}catch(e){} }
     if(s.over) $("msg").textContent="🥚 Splat! Final score "+s.score+". New Game to try again.";
     draw(); hud(); requestAnimationFrame(frame); }

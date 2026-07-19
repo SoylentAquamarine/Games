@@ -41,6 +41,7 @@
   </div>
   <div class="hint">Arrows/WASD move & climb ladders · Space/JUMP hops eggs</div>
 </div>
+<script src="/arcade.js"></script>
 <script>
 (function(){
   const C={ cols:12, rows:6 };
@@ -77,6 +78,8 @@
   if(typeof document==="undefined") return;
   const $=(id)=>document.getElementById(id);
   const cv=$("game"), ctx=cv.getContext("2d"); const W=cv.width,H=cv.height, CW=W/C.cols, RH=H/C.rows;
+  // Hold the loop until the player asks for it (comment: Press Spacebar To Begin)
+  const GATE = Arcade.startGate(cv, "Chicken Kong");
   let s=newState(), best=0, barrelT=0, moveT=0, input=null;
   try{ best=parseInt(localStorage.getItem("dk_best")||"0")||0; }catch(e){}
   // Girders slope, alternating direction row to row, like the arcade cabinet.
@@ -154,6 +157,7 @@
     if(s.won||s.over){ ctx.fillStyle="rgba(0,0,0,.6)"; ctx.fillRect(0,0,W,H); ctx.fillStyle=s.won?"#34d399":"#f43f5e"; ctx.font="bold 22px system-ui"; ctx.fillText(s.won?"YOU MADE IT!":"GAME OVER",W/2,H/2-6); ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Score "+s.score+"  ·  Best "+best,W/2,H/2+16); }
   }
   function frame(){
+    if(!GATE.open){ draw(); GATE.paint(); return requestAnimationFrame(frame); }
     if(!s.over&&!s.won){
       if(s.player.jump>0) s.player.jump--;
       if(input && ++moveT>=(s.player.climb>0?13:9)){ moveT=0; move(s,input); }   // slower overall, slower still on a ladder

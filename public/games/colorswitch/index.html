@@ -28,6 +28,7 @@
   <div class="msg" id="msg">Tap to bounce up. Only pass a ring through the arc that matches your color!</div>
   <div class="hint">Tap / click / Space to flap · grab stars to change color</div>
 </div>
+<script src="/arcade.js"></script>
 <script>
 (function(){
   const COLORS=["#f43f5e","#22d3ee","#8ad48a","#ffcf5a"];
@@ -55,6 +56,8 @@
   if(typeof document==="undefined") return;
   const $=(id)=>document.getElementById(id);
   const cv=$("game"), ctx=cv.getContext("2d"); const W=C.W,H=C.H;
+  // Hold the loop until the player asks for it (comment: Press Spacebar To Begin)
+  const GATE = Arcade.startGate(cv, "Colour Switch");
   let s=newState(), best=0;
   try{ best=parseInt(localStorage.getItem("colorswitch_best")||"0")||0; }catch(e){}
 
@@ -74,7 +77,8 @@
     else if(!s.started){ ctx.fillStyle="#9a9ab5"; ctx.font="14px system-ui"; ctx.fillText("tap to start",W/2,H*0.35); }
   }
   let flapReq=false;
-  function frame(){ step(s,flapReq); flapReq=false;
+  function frame(){
+    if(!GATE.open){ draw(); GATE.paint(); return requestAnimationFrame(frame); } step(s,flapReq); flapReq=false;
     if(s.over && s.score>best){ best=s.score; try{localStorage.setItem("colorswitch_best",String(best));}catch(e){} $("msg").textContent="Game over! Score "+s.score+"  ·  Best "+best; }
     draw(); requestAnimationFrame(frame); }
   function flap(){ if(s.over) return; flapReq=true; }

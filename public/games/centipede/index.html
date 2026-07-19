@@ -42,6 +42,7 @@
   </div>
   <div class="hint">Arrows/WASD move · Space/FIRE to shoot · drag on canvas to aim</div>
 </div>
+<script src="/arcade.js"></script>
 <script>
 (function(){
   const C={ cols:24, rows:18, cell:20, playerZone:4, mushHp:3 };
@@ -79,6 +80,8 @@
   if(typeof document==="undefined") return;
   const $=(id)=>document.getElementById(id);
   const cv=$("game"), ctx=cv.getContext("2d"); const W=cv.width,H=cv.height, CELL=C.cell;
+  // Hold the loop until the player asks for it (comment: Press Spacebar To Begin)
+  const GATE = Arcade.startGate(cv, "Chickenpede");
   let s=newState(), best=0, input={left:false,right:false,up:false,down:false}, fireHeld=false, moveT=0;
   try{ best=parseInt(localStorage.getItem("centipede_best")||"0")||0; }catch(e){}
 
@@ -99,6 +102,7 @@
     if(input.up) s.player.r=Math.max(minR,s.player.r-1); if(input.down) s.player.r=Math.min(C.rows-1,s.player.r+1); }
   function fire(){ if(!s.bullet && !s.over){ s.bullet={c:s.player.c, y:s.player.r*CELL, lastR:s.player.r}; } }
   function frame(){
+    if(!GATE.open){ draw(); GATE.paint(); return requestAnimationFrame(frame); }
     if(!s.over){
       if(++moveT>=5){ moveT=0; movePlayer(); }
       if(fireHeld) fire();

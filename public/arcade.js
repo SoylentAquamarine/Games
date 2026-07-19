@@ -171,5 +171,64 @@
     FRAMES_2S,
   };
 
-  global.Arcade = { SCREEN, fitScreen, sfx, splash };
+  // ---------------------------------------------------------------------
+  // startGate — the canvas equivalent of /startgate.js.
+  //
+  // Games that paint their own screen can't use a DOM overlay: their loop is
+  // already running, so an overlay would just sit on top of a game in progress.
+  // This gives the loop a flag to hold on instead:
+  //
+  //   const GATE = Arcade.startGate(canvas, "Galaga");
+  //   function frame(){
+  //     if(!GATE.open){ draw(); GATE.paint(); return requestAnimationFrame(frame); }
+  //     ...
+  //   }
+  //
+  // It swallows the opening press so the same keystroke does not also reach the
+  // game and fire on frame one.
+  function startGate(canvas, title) {
+    const gate = { open: false };
+    const ctx = canvas.getContext("2d");
+
+    gate.paint = function () {
+      const W = canvas.width, H = canvas.height, u = Math.min(W, H);
+      ctx.save();
+      ctx.fillStyle = "rgba(0,0,0,.62)";
+      ctx.fillRect(0, 0, W, H);
+      ctx.textAlign = "center";
+      if (title) {
+        ctx.fillStyle = "#ffcf5a";
+        ctx.font = "bold " + Math.round(u * 0.082) + "px system-ui";
+        ctx.fillText(String(title).toUpperCase(), W / 2, H / 2 - u * 0.03);
+      }
+      ctx.fillStyle = "#e6e6f0";
+      ctx.font = Math.round(u * 0.046) + "px system-ui";
+      ctx.globalAlpha = 0.55 + 0.45 * Math.sin(Date.now() / 380);
+      ctx.fillText("PRESS SPACEBAR TO BEGIN", W / 2, H / 2 + u * 0.055);
+      ctx.globalAlpha = 0.4;
+      ctx.font = Math.round(u * 0.036) + "px system-ui";
+      ctx.fillText("or tap to start", W / 2, H / 2 + u * 0.115);
+      ctx.restore();
+    };
+
+    function opener(e) {
+      if (gate.open) return;
+      if (e && e.type === "keydown" && e.key !== " " && e.key !== "Enter") return;
+      gate.open = true;
+      if (e) {
+        if (e.preventDefault) e.preventDefault();
+        if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+      }
+      try { sfx.coin(); } catch (_) {}
+    }
+    addEventListener("keydown", opener, true);
+    canvas.addEventListener("pointerdown", opener, true);
+    canvas.addEventListener("touchstart", opener, true);
+
+    // call from New Game if the gate should come back
+    gate.reset = function () { gate.open = false; };
+    return gate;
+  }
+
+  global.Arcade = { SCREEN, fitScreen, sfx, splash, startGate };
 })(typeof window !== "undefined" ? window : globalThis);

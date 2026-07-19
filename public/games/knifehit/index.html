@@ -31,6 +31,7 @@
   <div class="msg" id="msg">Tap to throw. Don't hit a knife that's already stuck!</div>
   <div class="hint">Click / tap / Space to throw</div>
 </div>
+<script src="/arcade.js"></script>
 <script>
 (function(){
   const C={ TOL:0.26, KNIVES_PER:6 };
@@ -57,6 +58,8 @@
   if(typeof document==="undefined") return;
   const $=(id)=>document.getElementById(id);
   const cv=$("game"), ctx=cv.getContext("2d"); const W=cv.width,H=cv.height;
+  // Hold the loop until the player asks for it (comment: Press Spacebar To Begin)
+  const GATE = Arcade.startGate(cv, "Feather Hit");
   const CX=W/2, CY=140, R=62;
   let s=newState(), best=0, flying=null, shake=0;
   try{ best=parseInt(localStorage.getItem("knife_best")||"0")||0; }catch(e){}
@@ -81,7 +84,8 @@
     ctx.fillStyle="#e6e6f0"; ctx.fillRect(0,-1.5,18,3); ctx.fillStyle="#7a4a24"; ctx.fillRect(18,-2.5,10,5); ctx.restore();
     if(s.over){ ctx.fillStyle="rgba(0,0,0,.6)"; ctx.fillRect(0,0,W,H); ctx.fillStyle="#f43f5e"; ctx.font="bold 24px system-ui"; ctx.textAlign="center"; ctx.fillText("CLANG!",W/2,H/2-6); ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Score "+s.score+"  ·  Best "+best,W/2,H/2+16); }
   }
-  function frame(){ step(s);
+  function frame(){
+    if(!GATE.open){ draw(); GATE.paint(); return requestAnimationFrame(frame); } step(s);
     if(flying!=null){ flying-=26; if(flying<=CY+R){ flying=null; doThrow(); } }
     draw(); $("score").textContent=s.score; $("level").textContent=s.level; $("left").textContent=s.toThrow; requestAnimationFrame(frame); }
   function doThrow(){ const r=throwKnife(s); if(r==="hit"){ shake=6; if(s.score>best){ best=s.score; try{localStorage.setItem("knife_best",String(best));}catch(e){} } $("msg").textContent="💥 You hit a knife! Score "+s.score+"  ·  Best "+best; } }

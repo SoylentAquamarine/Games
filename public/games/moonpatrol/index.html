@@ -36,6 +36,7 @@
   <div class="ctl"><button class="cbtn" id="bjump">▲ JUMP</button><button class="cbtn fire" id="bfire">FIRE</button></div>
   <div class="hint">Space/↑ jump · F/Ctrl or FIRE to shoot · tap canvas to jump</div>
 </div>
+<script src="/arcade.js"></script>
 <script>
 (function(){
   const C={ W:720,H:360, GROUND:316, BUGGY_X:70, BW:44, BH:22, GRAV:0.7, JUMP_V:-11, SPEED0:3.2, SPEEDMAX:6.5, BSPEED:9, MAX_VOLLEYS:2 };
@@ -102,6 +103,8 @@
   if(typeof document==="undefined") return;
   const $=(id)=>document.getElementById(id);
   const cv=$("game"), ctx=cv.getContext("2d"); const W=C.W,H=C.H;
+  // Hold the loop until the player asks for it (comment: Press Spacebar To Begin)
+  const GATE = Arcade.startGate(cv, "Moon Chicken");
   let s=newState(), input={jump:false}, best=0, stars=[], wheel=0;
   try{ best=parseInt(localStorage.getItem("moon_best")||"0")||0; }catch(e){}
   for(let i=0;i<40;i++) stars.push({x:Math.random()*W,y:Math.random()*C.GROUND*0.8});
@@ -140,6 +143,7 @@
     if(s.over){ ctx.fillStyle="rgba(0,0,0,.6)"; ctx.fillRect(0,0,W,H); ctx.fillStyle="#f43f5e"; ctx.font="bold 24px system-ui"; ctx.textAlign="center"; ctx.fillText("GAME OVER",W/2,H/2-6); ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Score "+s.score+"  ·  Best "+best,W/2,H/2+16); }
   }
   function frame(){
+    if(!GATE.open){ draw(); GATE.paint(); return requestAnimationFrame(frame); }
     if(!s.over){ if(--s.spawnGap<=0){ spawn(s); s.spawnGap=Math.max(28, 70-Math.floor(s.speed*4)); } step(s,input); input.jump=false;
       if(s.over && s.score>best){ best=s.score; try{localStorage.setItem("moon_best",String(best));}catch(e){} $("msg").textContent="Crashed! Score "+s.score+"  ·  Best "+best; } }
     $("score").textContent=s.score; $("lives").textContent=Math.max(0,s.lives); $("best").textContent=best; draw(); requestAnimationFrame(frame);

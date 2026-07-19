@@ -36,6 +36,7 @@
   <div class="ctl"><button class="cbtn" id="bl">◀</button><button class="flap" id="bf">FLAP</button><button class="cbtn" id="br">▶</button></div>
   <div class="hint">Space/↑ flap · ←/→ steer · win when you're higher on contact</div>
 </div>
+<script src="/arcade.js"></script>
 <script>
 (function(){
   const C={ W:600,H:450, GRAV:0.32, FLAP:-5.4, MOVE:0.45, MAXVX:3.6, LAVA:438, PW:20,PH:18, TOL:8 };
@@ -87,6 +88,8 @@
   if(typeof document==="undefined") return;
   const $=(id)=>document.getElementById(id);
   const cv=$("game"), ctx=cv.getContext("2d"); const W=C.W,H=C.H;
+  // Hold the loop until the player asks for it (comment: Press Spacebar To Begin)
+  const GATE = Arcade.startGate(cv, "Chicken Joust");
   let s=newState(), input={flap:false,left:false,right:false}, best=0, flapEdge=false;
   try{ best=parseInt(localStorage.getItem("joust_best")||"0")||0; }catch(e){}
 
@@ -109,7 +112,8 @@
     bird(s.player,"#22d3ee");
     if(s.over){ ctx.fillStyle="rgba(0,0,0,.6)"; ctx.fillRect(0,0,W,H); ctx.fillStyle="#f43f5e"; ctx.font="bold 24px system-ui"; ctx.textAlign="center"; ctx.fillText("GAME OVER",W/2,H/2-6); ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Score "+s.score+"  ·  Best "+best,W/2,H/2+16); }
   }
-  function frame(){ input.flap=flapEdge; flapEdge=false;
+  function frame(){
+    if(!GATE.open){ draw(); GATE.paint(); return requestAnimationFrame(frame); } input.flap=flapEdge; flapEdge=false;
     if(!s.over){ step(s,input);
       if(s.over && s.score>best){ best=s.score; try{localStorage.setItem("joust_best",String(best));}catch(e){} $("msg").textContent="Fell! Score "+s.score+"  ·  Best "+best; } }
     $("score").textContent=s.score; $("wave").textContent=s.wave; $("lives").textContent=Math.max(0,s.lives); draw(); requestAnimationFrame(frame);

@@ -31,6 +31,7 @@
   <div class="msg" id="msg">Tap only the black tiles — in order, don't miss one!</div>
   <div class="hint">Tap the tiles or use A · S · D · F</div>
 </div>
+<script src="/arcade.js"></script>
 <script>
 (function(){
   const C={ COLS:4, W:300, H:420, ROW_H:105, START_SPEED:3.2, MAX_SPEED:8 };
@@ -62,6 +63,8 @@
   if(typeof document==="undefined") return;
   const $=(id)=>document.getElementById(id);
   const cv=$("game"), ctx=cv.getContext("2d");
+  // Hold the loop until the player asks for it (comment: Press Spacebar To Begin)
+  const GATE = Arcade.startGate(cv, "Piano Chicken");
   let s=newState(), best=0;
   try{ best=parseInt(localStorage.getItem("piano_best")||"0")||0; }catch(e){}
   const cw=C.W/C.COLS;
@@ -73,7 +76,8 @@
     if(s.over){ ctx.fillStyle="rgba(0,0,0,.6)"; ctx.fillRect(0,0,C.W,C.H); ctx.fillStyle="#f43f5e"; ctx.font="bold 24px system-ui"; ctx.textAlign="center"; ctx.fillText("GAME OVER",C.W/2,C.H/2-6); ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Score "+s.score+"  ·  Best "+best,C.W/2,C.H/2+18); }
     else if(!s.started){ ctx.fillStyle="rgba(20,22,43,.85)"; ctx.font="bold 16px system-ui"; ctx.textAlign="center"; const t=lowestUntapped(s); if(t) ctx.fillText("TAP",t.black*cw+cw/2,t.y+C.ROW_H/2+5); }
   }
-  function frame(){ step(s);
+  function frame(){
+    if(!GATE.open){ draw(); GATE.paint(); return requestAnimationFrame(frame); } step(s);
     if(s.over && s.score>best){ best=s.score; try{localStorage.setItem("piano_best",String(best));}catch(e){} $("msg").textContent="🎹 Missed! Score "+s.score+"  ·  Best "+best; }
     $("score").textContent=s.score; $("best").textContent=best; draw(); requestAnimationFrame(frame); }
   function tapAt(x){ tapColumn(s, Math.min(C.COLS-1, Math.max(0, Math.floor(x/cw)))); }
