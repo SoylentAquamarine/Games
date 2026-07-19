@@ -238,6 +238,15 @@
   // Kept in localStorage so it rides along with the existing cloud backup,
   // which mirrors the whole of localStorage.
   const STATS_KEY = "arcade:stats:v1";
+
+  // Games call record() from inside their frame loop, so it fires many times a
+  // second with the running score — it is NOT one call per finished game. So a
+  // call is treated as a running session rather than a new play: the first
+  // scoring call opens a session and counts one play, later calls just extend
+  // that same session's score, and the score dropping back to zero means a new
+  // game has begun. Counting every call as a play would have logged tens of
+  // thousands of plays a minute and made the averages meaningless.
+  const session = Object.create(null);
   const stats = {
     all() {
       try { return JSON.parse(localStorage.getItem(STATS_KEY) || "{}"); }
@@ -246,21 +255,48 @@
     record(slug, score) {
       if (!slug) return;
       const n = Number(score);
-      const s = stats.all();
-      const g = s[slug] || { plays: 0, total: 0, best: null, last: null, at: 0 };
-      g.plays += 1;
-      if (Number.isFinite(n)) {
-        g.total += n;
-        g.last = n;
-        if (g.best === null || n > g.best) g.best = n;
+      if (!Number.isFinite(n)) return;
+
+      const live = session[slug];
+      // a fresh game: no session yet, or the score has fallen back to zero
+      const restarted = live && n === 0 && live.last > 0;
+      if (!live || restarted) {
+        if (n <= 0) {                       // nothing scored yet; wait for the first point
+          if (restarted) delete session[slug];
+          return;
+        }
+        return commit(slug, n, true);
       }
-      g.at = Date.now();
-      s[slug] = g;
-      try { localStorage.setItem(STATS_KEY, JSON.stringify(s)); } catch (_) {}
-      return g;
+      if (n === live.last) return;          // idling on the game-over screen
+      return commit(slug, n, false);
     },
-    reset() { try { localStorage.removeItem(STATS_KEY); } catch (_) {} },
+    // explicit hook for games that want to force a new session
+    newSession(slug) { delete session[slug]; },
+    reset() {
+      for (const k of Object.keys(session)) delete session[k];
+      try { localStorage.removeItem(STATS_KEY); } catch (_) {}
+    },
   };
+
+  function commit(slug, n, isNewPlay) {
+    const all = stats.all();
+    const g = all[slug] || { plays: 0, total: 0, best: null, last: null, at: 0 };
+    if (isNewPlay) {
+      g.plays += 1;
+      g.total += n;
+      session[slug] = { last: n };
+    } else {
+      // same play continuing — add only what the score went up by
+      g.total += n - session[slug].last;
+      session[slug].last = n;
+    }
+    g.last = n;
+    if (g.best === null || n > g.best) g.best = n;
+    g.at = Date.now();
+    all[slug] = g;
+    try { localStorage.setItem(STATS_KEY, JSON.stringify(all)); } catch (_) {}
+    return g;
+  }
 
   global.Arcade = { SCREEN, fitScreen, sfx, splash, startGate, stats };
 })(typeof window !== "undefined" ? window : globalThis);

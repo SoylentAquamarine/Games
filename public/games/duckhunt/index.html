@@ -18,7 +18,7 @@
   .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:9px 16px;border-radius:999px;cursor:pointer}
   .hud{width:100%;max-width:360px;display:flex;justify-content:space-between;font-size:.85rem;color:var(--muted)}
   .hud b{color:var(--text)}
-  canvas{width:min(94vw,360px);height:calc(min(94vw,360px)*0.75);image-rendering:pixelated;border-radius:10px;border:2px solid #2a2f55;background:#12305a;cursor:crosshair;touch-action:none}
+  canvas{width:min(96vw,560px);aspect-ratio:4/3;height:auto;border-radius:10px;border:2px solid #2a2f55;background:#12305a;cursor:crosshair;touch-action:none}
   .msg{min-height:1.3em;font-weight:800;text-align:center}
   .hint{font-size:.78rem;color:var(--muted);text-align:center}
 </style>
@@ -27,21 +27,48 @@
 <div class="wrap">
   <div class="topbar"><a class="home" href="/">← Home</a><h1>🐔 Chicken Hunt</h1><button class="btn" id="new">New Game</button></div>
   <div class="hud"><span>Score: <b id="score">0</b></span><span>Ammo: <b id="ammo">3</b></span><span>Escaped: <b id="miss">0</b>/3</span></div>
-  <canvas id="game" width="320" height="240"></canvas>
+  <canvas id="game" width="432" height="324"></canvas>
   <div class="msg" id="msg">Click / tap the chickens before they fly away. 3 shots each!</div>
-  <div class="hint">3 chickens escape and it's game over</div>
+  <div class="hint">3 chickens escape and it's game over · <b>Rooster Reg</b> struts along the grass — he's a friend, shooting him costs you 25</div>
 </div>
 <script src="/arcade.js"></script>
 <script>
 (function(){
-  const C={ W:320,H:240, GROUND:206, DUCK_W:24, DUCK_H:20, AMMO:3, SPEED:1.5 };
+  // Whole game scaled up 35% (was 320x240 with a 24x20 bird).
+  const C={ W:432,H:324, GROUND:278, DUCK_W:32, DUCK_H:27, AMMO:3, SPEED:2.0,
+            ROO_W:44, ROO_H:38, ROO_PENALTY:25 };
   function spawnDuck(level){ const x=40+Math.random()*(C.W-80), goRight=Math.random()<.5;
     const sp=C.SPEED+level*0.12; return { x, y:C.GROUND-10, vx:(goRight?1:-1)*sp*(0.8+Math.random()*0.6), vy:-(sp*(0.7+Math.random()*0.5)), alive:true, falling:false, escaped:false }; }
-  function newState(){ return { duck:spawnDuck(0), ammo:C.AMMO, score:0, hits:0, miss:0, level:0, over:false }; }
+  function newState(){ return { duck:spawnDuck(0), rooster:null, ammo:C.AMMO, score:0, hits:0, miss:0,
+                                level:0, over:false, scold:0, friendlyHits:0 }; }
   function hitDuck(d, x, y){ return d.alive && !d.falling && x>=d.x-C.DUCK_W/2 && x<=d.x+C.DUCK_W/2 && y>=d.y-C.DUCK_H/2 && y<=d.y+C.DUCK_H/2; }
-  function next(s){ s.level++; s.duck=spawnDuck(s.level); s.ammo=C.AMMO; }
+  // Rooster Reg struts along the grass between rounds. He is a friend — shooting
+  // him costs you points, the way plugging the dog never went well either.
+  function spawnRooster(level){
+    const goRight=Math.random()<0.5;
+    return { x: goRight ? -C.ROO_W : C.W+C.ROO_W, vx:(goRight?1:-1)*(0.9+level*0.04),
+             y: C.GROUND+4, alive:true, hit:false, hitT:0, step:0 };
+  }
+  function hitRooster(r, x, y){
+    return r && r.alive && !r.hit && x>=r.x-C.ROO_W/2 && x<=r.x+C.ROO_W/2 &&
+           y>=r.y-C.ROO_H && y<=r.y+4;
+  }
+  function next(s){
+    s.level++; s.duck=spawnDuck(s.level); s.ammo=C.AMMO;
+    // he wanders in now and then once you are past the opening rounds
+    if(!s.rooster && s.level>=2 && Math.random()<0.35) s.rooster=spawnRooster(s.level);
+  }
   function shoot(s, x, y){
-    if(s.over || s.ammo<=0 || !s.duck.alive || s.duck.falling) return false;
+    if(s.over || s.ammo<=0) return false;
+    // check the friend first — he is on the ground, in front of everything
+    if(hitRooster(s.rooster,x,y)){
+      s.ammo--;
+      s.rooster.hit=true; s.rooster.hitT=90;
+      s.score=Math.max(0, s.score-C.ROO_PENALTY);
+      s.friendlyHits++; s.scold=110;
+      return "friendly";
+    }
+    if(!s.duck.alive || s.duck.falling) return false;
     s.ammo--;
     if(hitDuck(s.duck,x,y)){ s.duck.falling=true; s.duck.vx=0; s.duck.vy=0; s.score += 10; s.hits++; return true; }
     if(s.ammo<=0){ s.duck.escaped=true; } // out of ammo -> it gets away
@@ -49,6 +76,16 @@
   }
   function step(s){
     if(s.over) return s;
+    if(s.scold>0) s.scold--;
+    const r=s.rooster;
+    if(r){
+      r.step++;
+      if(r.hit){ if(--r.hitT<=0) s.rooster=null; }        // he stops, glares, then wanders off
+      else {
+        r.x+=r.vx;
+        if(r.x<-C.ROO_W*1.5 || r.x>C.W+C.ROO_W*1.5) s.rooster=null;
+      }
+    }
     const d=s.duck;
     if(d.falling){ d.vy+=0.5; d.y+=d.vy; if(d.y>C.GROUND){ next(s); } return s; }
     if(d.escaped){ d.vy=-3.2; d.falling=false; d.y+=d.vy; if(d.y< -C.DUCK_H){ s.miss++; if(s.miss>=3){ s.over=true; } else next(s); } return s; }
@@ -59,7 +96,7 @@
     if(d.x<=C.DUCK_W/2||d.x>=C.W-C.DUCK_W/2){ /* bounce keeps it in play */ }
     return s;
   }
-  window.__duckhunt={ newState, step, shoot, hitDuck, spawnDuck, C };
+  window.__duckhunt={ newState, step, shoot, hitDuck, spawnDuck, spawnRooster, hitRooster, C };
 
   if(typeof document==="undefined") return;
   const $=(id)=>document.getElementById(id);
@@ -72,27 +109,111 @@
   function draw(){
     ctx.clearRect(0,0,C.W,C.H);
     const g=ctx.createLinearGradient(0,0,0,C.GROUND); g.addColorStop(0,"#12305a"); g.addColorStop(1,"#3b6ea5"); ctx.fillStyle=g; ctx.fillRect(0,0,C.W,C.GROUND);
-    ctx.fillStyle="#e6e6f0"; ctx.fillRect(40,40,34,10); ctx.fillRect(60,32,30,10); ctx.fillRect(220,54,40,10);
-    ctx.fillStyle="#2f6b34"; ctx.fillRect(0,C.GROUND,C.W,C.H-C.GROUND); ctx.fillStyle="#215024"; for(let x=0;x<C.W;x+=18) ctx.fillRect(x,C.GROUND-6,10,8);
+    // soft clouds instead of stacked rectangles
+    ctx.fillStyle="rgba(255,255,255,.85)";
+    for(const c of [[70,58,26],[95,52,20],[300,74,30],[330,66,22],[190,40,18]]){
+      ctx.beginPath(); ctx.ellipse(c[0],c[1],c[2],c[2]*0.52,0,0,7); ctx.fill();
+    }
+    ctx.fillStyle="#2f6b34"; ctx.fillRect(0,C.GROUND,C.W,C.H-C.GROUND);
+    // rolling grass line rather than a hard edge
+    ctx.fillStyle="#347a3b"; ctx.beginPath(); ctx.moveTo(0,C.GROUND+4);
+    for(let x=0;x<=C.W;x+=36) ctx.quadraticCurveTo(x+18,C.GROUND-6,x+36,C.GROUND+4);
+    ctx.lineTo(C.W,C.H); ctx.lineTo(0,C.H); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle="#215024"; ctx.lineWidth=2; ctx.lineCap="round";
+    for(let x=6;x<C.W;x+=13){ const h=6+((x*7)%5);
+      ctx.beginPath(); ctx.moveTo(x,C.GROUND+6); ctx.quadraticCurveTo(x+2,C.GROUND+6-h,x+5,C.GROUND+4-h); ctx.stroke(); }
     const d=s.duck;
     if(d.alive){ ctx.save(); ctx.translate(d.x,d.y);
-      // tail feathers
+      if(d.vx<0) ctx.scale(-1,1);                       // face the way she is flying
+      const W=C.DUCK_W, H=C.DUCK_H;
+      // tail feathers — three curved plumes
       ctx.fillStyle=d.falling?"#8a6420":"#c96f14";
-      ctx.beginPath(); ctx.moveTo(-C.DUCK_W/2,-2); ctx.lineTo(-C.DUCK_W/2-8,-9); ctx.lineTo(-C.DUCK_W/2,5); ctx.closePath(); ctx.fill();
-      // body
-      ctx.fillStyle=d.falling?"#b98a2a":"#facc15"; ctx.fillRect(-C.DUCK_W/2,-C.DUCK_H/2,C.DUCK_W,C.DUCK_H-4);
-      // comb
+      ctx.beginPath(); ctx.moveTo(-W*0.36,-1);
+      ctx.quadraticCurveTo(-W*0.72,-H*0.46,-W*0.34,-H*0.30);
+      ctx.quadraticCurveTo(-W*0.74,-H*0.10,-W*0.32,H*0.10);
+      ctx.quadraticCurveTo(-W*0.66,H*0.26,-W*0.30,H*0.20);
+      ctx.closePath(); ctx.fill();
+      // body — an egg on its side
+      ctx.fillStyle=d.falling?"#b98a2a":"#facc15";
+      ctx.beginPath(); ctx.ellipse(0,0,W*0.44,H*0.40,0,0,7); ctx.fill();
+      // head
+      ctx.beginPath(); ctx.arc(W*0.34,-H*0.20,H*0.25,0,7); ctx.fill();
+      // comb — three soft bumps
       ctx.fillStyle="#dc2626";
-      ctx.fillRect(C.DUCK_W/2-8,-C.DUCK_H/2-4,3,4); ctx.fillRect(C.DUCK_W/2-4,-C.DUCK_H/2-5,3,5);
-      // beak + wattle
-      ctx.fillStyle="#fb923c"; ctx.fillRect(C.DUCK_W/2,-2,5,3);
-      ctx.fillStyle="#dc2626"; ctx.fillRect(C.DUCK_W/2-2,1,3,3);
+      ctx.beginPath();
+      ctx.arc(W*0.24,-H*0.44,H*0.09,0,7); ctx.arc(W*0.34,-H*0.50,H*0.10,0,7); ctx.arc(W*0.44,-H*0.44,H*0.09,0,7);
+      ctx.fill();
+      // beak
+      ctx.fillStyle="#fb923c";
+      ctx.beginPath(); ctx.moveTo(W*0.52,-H*0.22); ctx.lineTo(W*0.74,-H*0.14); ctx.lineTo(W*0.52,-H*0.06); ctx.closePath(); ctx.fill();
+      // wattle
+      ctx.fillStyle="#dc2626"; ctx.beginPath(); ctx.arc(W*0.50,-H*0.02,H*0.08,0,7); ctx.fill();
       // eye
-      ctx.fillStyle="#0b0c1a"; ctx.fillRect(C.DUCK_W/2-6,-4,2,2);
-      // flapping wing
-      const wf=Math.floor(Date.now()/90)%2; ctx.fillStyle="#fde68a"; ctx.fillRect(-4,wf?-8:2,10,5);
+      ctx.fillStyle="#fff"; ctx.beginPath(); ctx.arc(W*0.38,-H*0.26,H*0.10,0,7); ctx.fill();
+      ctx.fillStyle="#0b0c1a"; ctx.beginPath(); ctx.arc(W*0.40,-H*0.26,H*0.05,0,7); ctx.fill();
+      // wing — sweeps up and down as she flaps
+      const wf=Math.sin(Date.now()/70);
+      ctx.fillStyle="#fde68a";
+      ctx.beginPath(); ctx.moveTo(-W*0.10,-H*0.06);
+      ctx.quadraticCurveTo(W*0.02,-H*0.10+wf*H*0.60, W*0.20,-H*0.02+wf*H*0.34);
+      ctx.quadraticCurveTo(W*0.04,H*0.12, -W*0.10,-H*0.06);
+      ctx.closePath(); ctx.fill();
       ctx.restore();
-      if(d.falling){ ctx.fillStyle="#fff"; ctx.font="bold 12px system-ui"; ctx.textAlign="center"; ctx.fillText("+10",d.x,d.y-16); } }
+      if(d.falling){ ctx.fillStyle="#fff"; ctx.font="bold 15px system-ui"; ctx.textAlign="center"; ctx.fillText("+10",d.x,d.y-20); } }
+
+    // Rooster Reg, strutting along the grass. Do not shoot him.
+    const r=s.rooster;
+    if(r){
+      ctx.save(); ctx.translate(r.x,r.y);
+      if(r.vx<0) ctx.scale(-1,1);
+      const W=C.ROO_W, H=C.ROO_H;
+      const bob=r.hit?0:Math.sin(r.step/7)*2;
+      ctx.translate(0,bob);
+      // legs, striding
+      const stride=r.hit?0:Math.sin(r.step/7)*4;
+      ctx.strokeStyle="#e0a33c"; ctx.lineWidth=3; ctx.lineCap="round";
+      ctx.beginPath(); ctx.moveTo(-2,-H*0.22); ctx.lineTo(-2+stride,0); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(4,-H*0.22); ctx.lineTo(4-stride,0); ctx.stroke();
+      // sweeping tail
+      ctx.fillStyle="#1f6f4a";
+      ctx.beginPath(); ctx.moveTo(-W*0.22,-H*0.42);
+      ctx.quadraticCurveTo(-W*0.72,-H*1.10,-W*0.16,-H*0.86);
+      ctx.quadraticCurveTo(-W*0.44,-H*0.62,-W*0.20,-H*0.36);
+      ctx.closePath(); ctx.fill();
+      // body
+      ctx.fillStyle="#e8e2d4";
+      ctx.beginPath(); ctx.ellipse(0,-H*0.46,W*0.30,H*0.26,0,0,7); ctx.fill();
+      // neck + head
+      ctx.beginPath(); ctx.ellipse(W*0.20,-H*0.72,W*0.13,H*0.20,-0.3,0,7); ctx.fill();
+      ctx.beginPath(); ctx.arc(W*0.28,-H*0.88,H*0.15,0,7); ctx.fill();
+      // big comb and wattle — clearly not the target
+      ctx.fillStyle="#dc2626";
+      ctx.beginPath();
+      ctx.arc(W*0.20,-H*1.03,H*0.08,0,7); ctx.arc(W*0.29,-H*1.08,H*0.09,0,7); ctx.arc(W*0.38,-H*1.02,H*0.08,0,7);
+      ctx.fill();
+      ctx.beginPath(); ctx.ellipse(W*0.30,-H*0.74,H*0.07,H*0.11,0,0,7); ctx.fill();
+      // beak
+      ctx.fillStyle="#f0a72a";
+      ctx.beginPath(); ctx.moveTo(W*0.40,-H*0.90); ctx.lineTo(W*0.58,-H*0.84); ctx.lineTo(W*0.40,-H*0.78); ctx.closePath(); ctx.fill();
+      // eye — cross if you shot him
+      if(r.hit){ ctx.strokeStyle="#0b0c1a"; ctx.lineWidth=2;
+        ctx.beginPath(); ctx.moveTo(W*0.27,-H*0.94); ctx.lineTo(W*0.35,-H*0.86);
+        ctx.moveTo(W*0.35,-H*0.94); ctx.lineTo(W*0.27,-H*0.86); ctx.stroke(); }
+      else { ctx.fillStyle="#fff"; ctx.beginPath(); ctx.arc(W*0.31,-H*0.90,H*0.06,0,7); ctx.fill();
+        ctx.fillStyle="#0b0c1a"; ctx.beginPath(); ctx.arc(W*0.33,-H*0.90,H*0.03,0,7); ctx.fill(); }
+      // wing
+      ctx.fillStyle="#cfc7b4";
+      ctx.beginPath(); ctx.ellipse(-W*0.04,-H*0.46,W*0.16,H*0.13,0.2,0,7); ctx.fill();
+      ctx.restore();
+    }
+    if(s.scold>0){
+      ctx.textAlign="center";
+      ctx.fillStyle="rgba(244,63,94,"+Math.min(1,s.scold/40)+")";
+      ctx.font="bold 20px system-ui";
+      ctx.fillText("DON'T SHOOT REG!",C.W/2,44);
+      ctx.font="13px system-ui"; ctx.fillStyle="rgba(230,230,240,"+Math.min(1,s.scold/40)+")";
+      ctx.fillText("−"+C.ROO_PENALTY+" points",C.W/2,64);
+    }
     if(flash>0){ ctx.fillStyle="rgba(255,255,255,"+(flash/6*.4)+")"; ctx.fillRect(0,0,C.W,C.H); flash--; }
     if(s.over){ ctx.fillStyle="rgba(0,0,0,.55)"; ctx.fillRect(0,0,C.W,C.H); ctx.fillStyle="#f43f5e"; ctx.font="bold 22px system-ui"; ctx.textAlign="center"; ctx.fillText("GAME OVER",C.W/2,C.H/2-4); ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Score "+s.score+(best?"  ·  Best "+best:""),C.W/2,C.H/2+18); }
   }
