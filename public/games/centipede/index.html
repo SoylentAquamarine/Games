@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-<title>Centipede — Games</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🐛</text></svg>" />
+<title>Chickenpede — Games</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🐔</text></svg>" />
 <style>
   :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;--bad:#f43f5e;}
   *{box-sizing:border-box}
   html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
     background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.2),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.14),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;touch-action:none;}
-  .wrap{max-width:420px;margin:0 auto;padding:14px 12px 30px;display:flex;flex-direction:column;align-items:center;gap:10px}
+  .wrap{max-width:600px;margin:0 auto;padding:14px 12px 30px;display:flex;flex-direction:column;align-items:center;gap:10px}
   .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
   .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
   .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
@@ -18,7 +18,7 @@
   .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:9px 16px;border-radius:999px;cursor:pointer}
   .hud{width:100%;max-width:300px;display:flex;justify-content:space-between;font-size:.85rem;color:var(--muted)}
   .hud b{color:var(--text)}
-  canvas{width:min(90vw,300px);height:calc(min(90vw,300px)*1.2);image-rendering:pixelated;border-radius:10px;border:2px solid #2a2f55;background:#080a14;touch-action:none}
+  canvas{width:min(96vw,560px);aspect-ratio:4/3;height:auto;image-rendering:pixelated;border-radius:10px;border:2px solid #2a2f55;background:#080a14;touch-action:none}
   .msg{min-height:1.3em;font-weight:800;text-align:center}
   .hint{font-size:.78rem;color:var(--muted);text-align:center}
   .ctl{display:flex;gap:8px;align-items:center}
@@ -32,9 +32,9 @@
 </head>
 <body>
 <div class="wrap">
-  <div class="topbar"><a class="home" href="/">← Home</a><h1>Centipede</h1><button class="btn" id="new">New Game</button></div>
+  <div class="topbar"><a class="home" href="/">← Home</a><h1>🐔 Chickenpede</h1><button class="btn" id="new">New Game</button></div>
   <div class="hud"><span>Score: <b id="score">0</b></span><span>Wave: <b id="wave">1</b></span><span>Lives: <b id="lives">3</b></span></div>
-  <canvas id="game" width="300" height="360"></canvas>
+  <canvas id="game" width="480" height="360"></canvas>
   <div class="msg" id="msg">Shoot the centipede. Each hit splits it and leaves a mushroom!</div>
   <div class="ctl">
     <div class="dpad"><button class="u" data-d="up">▲</button><button class="l" data-d="left">◀</button><button class="dn" data-d="down">▼</button><button class="r" data-d="right">▶</button></div>
@@ -44,7 +44,7 @@
 </div>
 <script>
 (function(){
-  const C={ cols:15, rows:18, cell:20, playerZone:4, mushHp:3 };
+  const C={ cols:24, rows:18, cell:20, playerZone:4, mushHp:3 };
   const key=(c,r)=>c+","+r;
   function newState(){ const s={ cols:C.cols, rows:C.rows, trains:[], mush:{}, bullet:null,
     player:{c:Math.floor(C.cols/2), r:C.rows-1}, lives:3, score:0, wave:0, over:false, tickEvery:14, tc:0 };

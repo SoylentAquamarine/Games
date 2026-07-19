@@ -10,7 +10,7 @@
   *{box-sizing:border-box}
   html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
     background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.2),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.14),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;touch-action:none;}
-  .wrap{max-width:420px;margin:0 auto;padding:14px 12px 30px;display:flex;flex-direction:column;align-items:center;gap:10px}
+  .wrap{max-width:600px;margin:0 auto;padding:14px 12px 30px;display:flex;flex-direction:column;align-items:center;gap:10px}
   .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
   .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
   .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
@@ -18,7 +18,7 @@
   .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:9px 16px;border-radius:999px;cursor:pointer}
   .hud{width:100%;max-width:300px;display:flex;justify-content:space-between;font-size:.85rem;color:var(--muted)}
   .hud b{color:var(--text)}
-  canvas{width:min(90vw,300px);height:calc(min(90vw,300px)*1.14);image-rendering:pixelated;border-radius:10px;border:2px solid #2a2f55;background:#3a2418;touch-action:none}
+  canvas{width:min(96vw,560px);aspect-ratio:4/3;height:auto;image-rendering:pixelated;border-radius:10px;border:2px solid #2a2f55;background:#3a2418;touch-action:none}
   .msg{min-height:1.3em;font-weight:800;text-align:center}
   .ctl{display:flex;gap:8px;align-items:center}
   .dpad{display:grid;grid-template-columns:repeat(3,44px);grid-template-rows:repeat(3,44px);gap:4px}
@@ -33,7 +33,7 @@
 <div class="wrap">
   <div class="topbar"><a class="home" href="/">← Home</a><h1>🐔 Chicken Dug</h1><button class="btn" id="new">New Game</button></div>
   <div class="hud"><span>Score: <b id="score">0</b></span><span>Level: <b id="level">1</b></span><span>Lives: <b id="lives">3</b></span></div>
-  <canvas id="game" width="280" height="320"></canvas>
+  <canvas id="game" width="480" height="360"></canvas>
   <div class="msg" id="msg">Dig tunnels and pump the monsters until they pop!</div>
   <div class="ctl">
     <div class="dpad"><button class="u" data-d="up">▲</button><button class="l" data-d="left">◀</button><button class="dn" data-d="down">▼</button><button class="r" data-d="right">▶</button></div>
@@ -43,7 +43,7 @@
 </div>
 <script>
 (function(){
-  const C={ cols:14, rows:16, cell:20, reach:3, wobble:9 };
+  const C={ cols:24, rows:18, cell:20, reach:3, wobble:9 };
   const DIRS={left:[-1,0],right:[1,0],up:[0,-1],down:[0,1]};
   function enemyAt(s,c,r){ return s.enemies.find(e=>e.alive&&e.c===c&&e.r===r)||null; }
   function newState(){
@@ -113,7 +113,10 @@
       else { ctx.fillStyle= r<2?"#12305a":"#1a120c"; ctx.fillRect(c*CELL,r*CELL,CELL,CELL); } }
     for(const rk of s.rocks){ const wx=(rk.wob>0&&!rk.falling)?(Math.random()*4-2):0; ctx.fillStyle=rk.wob>0?"#b5b5c8":"#9a9ab5"; ctx.beginPath(); ctx.arc(rk.c*CELL+CELL/2+wx,rk.r*CELL+CELL/2,CELL/2-1,0,7); ctx.fill(); ctx.fillStyle="#6a6a85"; ctx.fillRect(rk.c*CELL+4+wx,rk.r*CELL+5,4,3); }
     for(const e of s.enemies){ if(!e.alive) continue; const cx=e.c*CELL+CELL/2, cy=e.r*CELL+CELL/2;
-      if(e.ax==null||Math.hypot(cx-e.ax,cy-e.ay)>CELL*2.5){e.ax=cx;e.ay=cy;} e.ax+=(cx-e.ax)*0.3; e.ay+=(cy-e.ay)*0.3;
+      if(e.ax==null||Math.hypot(cx-e.ax,cy-e.ay)>CELL*2.5){e.ax=cx;e.ay=cy;}
+      // Eased to span the 44-frame step interval — 0.3 arrived in ~10 frames and
+      // then sat still, which is what read as jumpy.
+      e.ax+=(cx-e.ax)*0.12; e.ay+=(cy-e.ay)*0.12;
       const sz=CELL/2-1+e.inflate*2; ctx.fillStyle=e.inflate>0?"#ffcf5a":"#f0616e"; ctx.beginPath(); ctx.arc(e.ax,e.ay,sz,0,7); ctx.fill(); ctx.fillStyle="#fff"; ctx.fillRect(e.ax-CELL/2+5,e.ay-CELL/2+6,3,3); ctx.fillRect(e.ax+CELL/2-8,e.ay-CELL/2+6,3,3); }
     { const p=s.player, tx=p.c*CELL, ty=p.r*CELL; if(p.ax==null||Math.hypot(tx-p.ax,ty-p.ay)>CELL*2.5){p.ax=tx;p.ay=ty;} p.ax+=(tx-p.ax)*0.35; p.ay+=(ty-p.ay)*0.35;
       const cx=p.ax+CELL/2, cy=p.ay+CELL/2, rr=CELL/2-3, d=DIRS[p.dir];
