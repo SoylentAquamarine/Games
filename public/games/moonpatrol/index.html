@@ -38,24 +38,40 @@
 </div>
 <script>
 (function(){
-  const C={ W:720,H:360, GROUND:316, BUGGY_X:70, BW:44, BH:22, GRAV:0.7, JUMP_V:-11, SPEED0:3.2, SPEEDMAX:6.5, BSPEED:9 };
+  const C={ W:720,H:360, GROUND:316, BUGGY_X:70, BW:44, BH:22, GRAV:0.7, JUMP_V:-11, SPEED0:3.2, SPEEDMAX:6.5, BSPEED:9, MAX_VOLLEYS:2 };
   const rov=(a,b)=>a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;
   function buggyRect(s){ return {x:C.BUGGY_X,y:s.y,w:C.BW,h:C.BH}; }
-  function newState(){ return { y:C.GROUND-C.BH, vy:0, onGround:true, obstacles:[], bullets:[], speed:C.SPEED0, dist:0, score:0, lives:3, over:false, spawnGap:60 }; }
+  // Three background bands scrolling at different rates — distant hills barely
+  // move, near dunes rush past, which is what sells the speed.
+  const LAYERS=[
+    { speed:0.12, y:C.GROUND-96, h:64, color:"#241a3a", step:150, amp:34 },
+    { speed:0.30, y:C.GROUND-62, h:48, color:"#33244f", step:104, amp:24 },
+    { speed:0.62, y:C.GROUND-30, h:30, color:"#432f63", step:70,  amp:15 },
+  ];
+  function newState(){ return { y:C.GROUND-C.BH, vy:0, onGround:true, obstacles:[], bullets:[], scroll:[0,0,0], speed:C.SPEED0, dist:0, score:0, lives:3, over:false, spawnGap:60, volleys:0, nextVid:0 }; }
   function step(s, input){
     if(s.over) return s;
     // buggy vertical
     if(input.jump && s.onGround){ s.vy=C.JUMP_V; s.onGround=false; }
     if(!s.onGround){ s.vy+=C.GRAV; s.y+=s.vy; const floor=C.GROUND-C.BH; if(s.y>=floor){ s.y=floor; s.vy=0; s.onGround=true; } }
+    // parallax bands drift at their own fractions of the buggy's speed
+    for(let i=0;i<LAYERS.length;i++) s.scroll[i]=(s.scroll[i]+s.speed*LAYERS[i].speed)%100000;
     // world scroll
     for(const o of s.obstacles) o.x-=s.speed;
-    for(const b of s.bullets) b.x+=C.BSPEED;
+    for(const b of s.bullets){ b.x += (b.vx==null?C.BSPEED:b.vx); b.y += (b.vy||0); }
     s.obstacles=s.obstacles.filter(o=>o.x+o.w>-4);
-    s.bullets=s.bullets.filter(b=>b.x<C.W+10);
+    s.bullets=s.bullets.filter(b=>b.x<C.W+10 && b.x>-14 && b.y>-14);
+    s.volleys=new Set(s.bullets.map(b=>b.vid)).size;   // a volley is live while any of its shots is
     s.dist+=s.speed; s.score=Math.floor(s.dist/10);
     if(s.speed<C.SPEEDMAX) s.speed+=0.0016;
     // bullets destroy rocks
-    for(const b of s.bullets){ for(const o of s.obstacles){ if(o.type==="rock" && o.alive!==false && rov({x:b.x,y:b.y,w:6,h:3},{x:o.x,y:o.y,w:o.w,h:o.h})){ o.alive=false; b.x=C.W+99; s.score+=25; } } }
+    for(const b of s.bullets){
+      if(b.dir==="up") continue;                       // the upward shot is for what flies over
+      for(const o of s.obstacles){
+        if(o.type==="rock" && o.alive!==false && rov({x:b.x,y:b.y,w:6,h:3},{x:o.x,y:o.y,w:o.w,h:o.h})){
+          o.alive=false; b.dead=true; s.score+=25;
+        } } }
+    s.bullets=s.bullets.filter(b=>!b.dead);
     s.obstacles=s.obstacles.filter(o=>o.alive!==false);
     s.bullets=s.bullets.filter(b=>b.x<C.W+10);
     // collisions
@@ -68,10 +84,20 @@
     return s;
   }
   function crash(s){ s.lives--; if(s.lives<=0){ s.over=true; } else { s.obstacles=[]; s.y=C.GROUND-C.BH; s.vy=0; s.onGround=true; } }
-  function fire(s){ if(!s.over && s.bullets.length<3) s.bullets.push({x:C.BUGGY_X+C.BW, y:s.y+4}); }
+  // One press fires three ways at once: ahead, behind, and straight up.
+  // Forward and back clear rocks; the upward shot is what reaches the hawks.
+  function fire(s){
+    if(s.over) return s;
+    if(new Set(s.bullets.map(b=>b.vid)).size>=C.MAX_VOLLEYS) return s;
+    const vid=++s.nextVid;
+    s.bullets.push({ vid, x:C.BUGGY_X+C.BW,   y:s.y+4, vx: C.BSPEED, vy:0,         dir:"fwd" });
+    s.bullets.push({ vid, x:C.BUGGY_X-6,      y:s.y+4, vx:-C.BSPEED, vy:0,         dir:"back" });
+    s.bullets.push({ vid, x:C.BUGGY_X+C.BW/2, y:s.y-4, vx:0,         vy:-C.BSPEED, dir:"up" });
+    return s;
+  }
   function spawn(s){ if(Math.random()<0.5){ const w=18+Math.floor(Math.random()*16); s.obstacles.push({type:"crater",x:C.W,y:C.GROUND,w,h:C.H-C.GROUND}); }
     else { const w=16+Math.floor(Math.random()*14); s.obstacles.push({type:"rock",x:C.W,y:C.GROUND-16,w,h:16,alive:true}); } }
-  window.__moonpatrol={ newState, step, fire, spawn, buggyRect, C };
+  window.__moonpatrol={ LAYERS, newState, step, fire, spawn, buggyRect, C };
 
   if(typeof document==="undefined") return;
   const $=(id)=>document.getElementById(id);
@@ -83,12 +109,24 @@
   function draw(){
     ctx.clearRect(0,0,W,H); ctx.fillStyle="#08040f"; ctx.fillRect(0,0,W,H);
     ctx.fillStyle="#2a2f55"; for(const st of stars) ctx.fillRect(st.x,st.y,1,1);
-    ctx.fillStyle="#2a2038"; ctx.beginPath(); ctx.moveTo(0,C.GROUND); for(let x=0;x<=W;x+=40) ctx.lineTo(x,C.GROUND-20-10*Math.sin(x*0.05)); ctx.lineTo(W,C.GROUND); ctx.fill();
+    // three parallax bands, far to near
+    for(let i=0;i<LAYERS.length;i++){
+      const L=LAYERS[i], off=s.scroll[i]%L.step;
+      ctx.fillStyle=L.color; ctx.beginPath(); ctx.moveTo(-L.step,C.GROUND);
+      for(let x=-L.step; x<=W+L.step; x+=L.step){
+        const px=x-off;
+        ctx.lineTo(px, L.y);
+        ctx.lineTo(px+L.step*0.5, L.y-L.amp);
+        ctx.lineTo(px+L.step, L.y);
+      }
+      ctx.lineTo(W+L.step,C.GROUND); ctx.lineTo(-L.step,C.GROUND); ctx.closePath(); ctx.fill();
+    }
     // ground
     ctx.fillStyle="#4a3a5a"; ctx.fillRect(0,C.GROUND,W,H-C.GROUND);
     for(const o of s.obstacles){ if(o.type==="crater"){ ctx.fillStyle="#08040f"; ctx.fillRect(o.x,C.GROUND,o.w,H-C.GROUND); ctx.strokeStyle="#6a5a7a"; ctx.beginPath(); ctx.arc(o.x+o.w/2,C.GROUND,o.w/2,Math.PI,0); ctx.stroke(); }
       else { ctx.fillStyle="#9a8aa5"; ctx.beginPath(); ctx.arc(o.x+o.w/2,o.y+o.h,o.w/2,Math.PI,0); ctx.fill(); ctx.fillStyle="#7a6a85"; ctx.fillRect(o.x+3,o.y+6,4,3); } }
-    ctx.fillStyle="#ffcf5a"; for(const b of s.bullets) ctx.fillRect(b.x,b.y,7,3);
+    for(const b of s.bullets){ ctx.fillStyle = b.dir==="up" ? "#22d3ee" : "#ffcf5a";
+      if(b.dir==="up") ctx.fillRect(b.x,b.y,3,7); else ctx.fillRect(b.x,b.y,7,3); }
     // buggy
     wheel=(wheel+s.speed*0.3)%(Math.PI*2);
     ctx.fillStyle="#22d3ee"; ctx.fillRect(C.BUGGY_X,s.y,C.BW,C.BH-6); ctx.fillRect(C.BUGGY_X+8,s.y-8,C.BW-20,10);
