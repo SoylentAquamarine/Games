@@ -8,6 +8,13 @@
 //
 // Games that draw their own start screen on the canvas do not need this.
 (function () {
+  // The overlay comes back on game over, so without this the gate would swallow
+  // every space typed into the feedback box underneath the game.
+  function isTyping(el) {
+    if (!el) return false;
+    const tag = (el.tagName || "").toLowerCase();
+    return tag === "input" || tag === "textarea" || tag === "select" || el.isContentEditable;
+  }
   function init() {
     const ov = document.querySelector(".overlay");
     const btn = document.getElementById("start");
@@ -33,6 +40,7 @@
     // on frame one.
     addEventListener("keydown", (e) => {
       if (e.key !== " " && e.key !== "Enter") return;
+      if (isTyping(e.target)) return;      // never eat a space out of the comment box
       if (!showing()) return;
       e.preventDefault();
       e.stopImmediatePropagation();

@@ -32,6 +32,7 @@
     <div class="topbar"><a class="home" href="/">← Home</a><h1>🐔 Chicken Tron</h1><span style="width:56px"></span></div>
     <div class="hud" style="width:100%;max-width:400px;display:flex;justify-content:center;gap:6px;font-size:.85rem;color:var(--muted);margin-bottom:4px">
       <span>Round: <b id="round" style="color:var(--text)">1</b></span>
+      <span>Chickens: <b id="lives" style="color:var(--text)">🐔🐔🐔</b></span>
     </div>
     <div class="board-wrap">
       <canvas id="c" width="400" height="300"></canvas>
@@ -51,7 +52,11 @@
     const DIRS={up:[0,-1],down:[0,1],left:[-1,0],right:[1,0]};
     const OPP={up:"down",down:"up",left:"right",right:"left"};
     let occ,you,cpu,running,timer,youNext;
-    let round=1;   // advances each time you win, resets when you lose
+    let round=1;   // advances each time you win
+    // Crashing costs a chicken and replays the same round, rather than throwing
+    // away the whole ladder. Run over when all three are gone.
+    const LIVES=3;
+    let lives=LIVES;
 
     // How the CPU plays at a given round. Round 1 wanders, later rounds commit to
     // straight lines, look further ahead, and eventually hunt you down.
@@ -124,18 +129,32 @@
     function end(yDead,cDead){running=false;clearInterval(timer);
       const won=!yDead&&cDead;
       if(won){ round++; }
-      else if(yDead&&!cDead){ round=1; }          // a loss sends you back to the start
+      else if(yDead){ lives--; }                 // crashing costs a chicken, not your progress
+      updateRound();
+
+      // Out of chickens: the run is over and the ladder resets.
+      if(lives<=0){
+        ot.textContent="💥 Out of chickens";
+        om.textContent="You reached round "+round+". Three fresh chickens await.";
+        round=1; lives=LIVES; updateRound();
+        startBtn.textContent="Play again"; ov.classList.remove("hidden"); return;
+      }
+
       ot.textContent=(yDead&&cDead)?"Draw!":yDead?"💥 You crashed":"🏆 You win!";
       om.textContent = yDead&&cDead ? "Both birds crashed — round "+round+" again."
-        : yDead ? "The CPU outlasted you. Back to round 1."
+        : yDead ? "Round "+round+" again — "+lives+" chicken"+(lives===1?"":"s")+" left."
         : "You outlasted the CPU! Round "+round+" next — it gets smarter.";
-      updateRound();
-      // Beating the CPU rolls straight into the next round instead of
-      // making you click Play again.
-      if(won){ ot.textContent="🏆 Round "+(round-1)+" cleared!"; ov.classList.remove("hidden");
-        setTimeout(()=>{ if(!running) start(); }, 1400); return; }
-      startBtn.textContent="Play again";ov.classList.remove("hidden");}
-    function updateRound(){ const el=document.getElementById("round"); if(el) el.textContent=round; }
+
+      // Whether you won or died, the next attempt rolls in on its own rather
+      // than making you click Play again.
+      if(won) ot.textContent="🏆 Round "+(round-1)+" cleared!";
+      ov.classList.remove("hidden");
+      setTimeout(()=>{ if(!running) start(); }, 1400);
+    }
+    function updateRound(){
+      const el=document.getElementById("round"); if(el) el.textContent=round;
+      const lv=document.getElementById("lives"); if(lv) lv.textContent="🐔".repeat(Math.max(0,lives));
+    }
     function render(){
       ctx.clearRect(0,0,cv.width,cv.height);
       // feather trails — hen yellow vs rooster red
@@ -153,6 +172,9 @@
     cv.addEventListener("touchend",e=>{if(!ts)return;const dx=e.changedTouches[0].clientX-ts.x,dy=e.changedTouches[0].clientY-ts.y;if(Math.abs(dx)<16&&Math.abs(dy)<16)return;if(Math.abs(dx)>Math.abs(dy))turn(dx>0?"right":"left");else turn(dy>0?"down":"up");ts=null;},{passive:true});
     startBtn.addEventListener("click",start);
     reset();
+    updateRound();                      // show the starting round and chickens
+    // test hook
+    window.__tron={ end, updateRound, state:()=>({round,lives}) };
   })();
   </script>
   <script src="/startgate.js" defer></script>

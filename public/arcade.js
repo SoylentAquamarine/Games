@@ -211,9 +211,19 @@
       ctx.restore();
     };
 
+    // Typing in the feedback box must never be treated as starting the game —
+    // otherwise every space in a comment gets eaten.
+    function isTyping(el) {
+      if (!el) return false;
+      const tag = (el.tagName || "").toLowerCase();
+      return tag === "input" || tag === "textarea" || tag === "select" || el.isContentEditable;
+    }
     function opener(e) {
       if (gate.open) return;
-      if (e && e.type === "keydown" && e.key !== " " && e.key !== "Enter") return;
+      if (e && e.type === "keydown") {
+        if (e.key !== " " && e.key !== "Enter") return;
+        if (isTyping(e.target)) return;
+      }
       gate.open = true;
       if (e) {
         if (e.preventDefault) e.preventDefault();

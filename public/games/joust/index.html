@@ -18,7 +18,7 @@
   .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:9px 16px;border-radius:999px;cursor:pointer}
   .hud{width:100%;max-width:600px;display:flex;justify-content:space-between;font-size:.85rem;color:var(--muted)}
   .hud b{color:var(--text)}
-  canvas{width:100%;max-width:600px;aspect-ratio:600/450;image-rendering:pixelated;border-radius:10px;border:2px solid #2a2f55;background:#08040f;touch-action:none}
+  canvas{width:100%;max-width:752px;aspect-ratio:4/3;image-rendering:pixelated;border-radius:10px;border:2px solid #2a2f55;background:#08040f;touch-action:none}
   .msg{min-height:1.3em;font-weight:800;text-align:center}
   .ctl{display:flex;gap:10px;align-items:center}
   .cbtn{background:var(--panel);color:var(--text);border:1px solid rgba(255,255,255,.12);border-radius:12px;width:60px;height:52px;font-size:1.3rem;cursor:pointer;user-select:none}
@@ -31,7 +31,7 @@
 <div class="wrap">
   <div class="topbar"><a class="home" href="/">← Home</a><h1>🐔 Chicken Joust</h1><button class="btn" id="new">New Game</button></div>
   <div class="hud"><span>Score: <b id="score">0</b></span><span>Wave: <b id="wave">1</b></span><span>Lives: <b id="lives">3</b></span></div>
-  <canvas id="game" width="600" height="450"></canvas>
+  <canvas id="game" width="752" height="564"></canvas>
   <div class="msg" id="msg">Flap to fly. Hit an enemy from ABOVE to win the joust!</div>
   <div class="ctl"><button class="cbtn" id="bl">◀</button><button class="flap" id="bf">FLAP</button><button class="cbtn" id="br">▶</button></div>
   <div class="hint">Space/↑ flap · ←/→ steer · win when you're higher on contact</div>
@@ -39,11 +39,13 @@
 <script src="/arcade.js"></script>
 <script>
 (function(){
-  const C={ W:600,H:450, GRAV:0.32, FLAP:-5.4, MOVE:0.45, MAXVX:3.6, LAVA:438, PW:20,PH:18, TOL:8 };
+  // Scaled up 25% from 600x450. Speeds and gravity scale with the screen so the
+  // arc of a flap covers the same fraction of the arena as before.
+  const C={ W:752,H:564, GRAV:0.401, FLAP:-6.77, MOVE:0.564, MAXVX:4.51, LAVA:549, PW:25,PH:23, TOL:10 };
   const rov=(a,b)=>a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;
   const rect=(o)=>({x:o.x,y:o.y,w:C.PW,h:C.PH});
   function joustResult(ay, by){ if(ay < by-C.TOL) return "aWins"; if(by < ay-C.TOL) return "bWins"; return "bounce"; }
-  const PLATS=[{x:0,y:375,w:120,h:10},{x:480,y:375,w:120,h:10},{x:250,y:300,w:100,h:10},{x:60,y:210,w:90,h:10},{x:450,y:210,w:90,h:10},{x:255,y:140,w:90,h:10}];
+  const PLATS=[{x:0,y:470,w:150,h:13},{x:602,y:470,w:150,h:13},{x:313,y:376,w:125,h:13},{x:75,y:263,w:113,h:13},{x:564,y:263,w:113,h:13},{x:320,y:175,w:113,h:13}];
   function land(o){ o.onGround=false;
     for(const p of PLATS){
       if(!(o.x+C.PW>p.x && o.x<p.x+p.w)) continue;
@@ -93,16 +95,22 @@
   let s=newState(), input={flap:false,left:false,right:false}, best=0, flapEdge=false;
   try{ best=parseInt(localStorage.getItem("joust_best")||"0")||0; }catch(e){}
 
-  function bird(o, col){ const f=o.facing||1; ctx.save(); ctx.translate(o.x+C.PW/2,o.y+C.PH/2); ctx.scale(f,1);
-    ctx.fillStyle=col; ctx.fillRect(-C.PW/2,-2,C.PW,8); ctx.fillRect(C.PW/2-6,-8,7,8);
-    const w=Math.sin(Date.now()/70)*5; ctx.fillStyle=col; ctx.fillRect(-C.PW/2-4,-2+w,8,4);
-    ctx.fillStyle="#dc2626"; ctx.fillRect(C.PW/2-5,-11,2,3); ctx.fillRect(C.PW/2-2,-12,2,4);   // comb
-    ctx.fillStyle="#ffcf5a"; ctx.fillRect(C.PW/2-2,-6,4,3);                                     // beak
-    ctx.fillStyle="#dc2626"; ctx.fillRect(C.PW/2-3,-3,2,3);                                     // wattle
-    ctx.fillStyle="#0b0c1a"; ctx.fillRect(C.PW/2-4,-6,2,2);                                     // eye
-    ctx.fillStyle=col; ctx.beginPath();                                                          // tail feathers
-    ctx.moveTo(-C.PW/2,-2); ctx.lineTo(-C.PW/2-7,-9); ctx.lineTo(-C.PW/2,4); ctx.closePath(); ctx.fill();
-    ctx.fillStyle="#e6e6f0"; ctx.fillRect(-2,-9,7,6);                                            // rider
+  // The sprite is authored against the original 20-wide bird and scaled to the
+  // current size, so the comb, beak and rider grow with the body instead of
+  // staying tiny on a larger chicken.
+  const ART_W=20;
+  function bird(o, col){ const f=o.facing||1, K=C.PW/ART_W;
+    ctx.save(); ctx.translate(o.x+C.PW/2,o.y+C.PH/2); ctx.scale(f*K,K);
+    const P=ART_W;
+    ctx.fillStyle=col; ctx.fillRect(-P/2,-2,P,8); ctx.fillRect(P/2-6,-8,7,8);
+    const w=Math.sin(Date.now()/70)*5; ctx.fillStyle=col; ctx.fillRect(-P/2-4,-2+w,8,4);
+    ctx.fillStyle="#dc2626"; ctx.fillRect(P/2-5,-11,2,3); ctx.fillRect(P/2-2,-12,2,4);   // comb
+    ctx.fillStyle="#ffcf5a"; ctx.fillRect(P/2-2,-6,4,3);                                  // beak
+    ctx.fillStyle="#dc2626"; ctx.fillRect(P/2-3,-3,2,3);                                  // wattle
+    ctx.fillStyle="#0b0c1a"; ctx.fillRect(P/2-4,-6,2,2);                                  // eye
+    ctx.fillStyle=col; ctx.beginPath();                                                    // tail feathers
+    ctx.moveTo(-P/2,-2); ctx.lineTo(-P/2-7,-9); ctx.lineTo(-P/2,4); ctx.closePath(); ctx.fill();
+    ctx.fillStyle="#e6e6f0"; ctx.fillRect(-2,-9,7,6);                                      // rider
     ctx.restore(); }
   function draw(){
     ctx.clearRect(0,0,W,H); ctx.fillStyle="#08040f"; ctx.fillRect(0,0,W,H);
