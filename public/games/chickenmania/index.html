@@ -86,12 +86,18 @@
 
   // How many complete passes through the eight formations you've survived.
   function cycleOf(wave){ return Math.floor((wave-1)/WAVES.length); }
-  // The same formation coming round again is faster, drops faster and throws more.
+  // Every formation that comes round again is 5% faster and throws 5% more, and
+  // it arrives moving in a different pattern, so a flock you recognise never
+  // plays quite the same way twice. Compounding, so it keeps climbing.
+  const PATTERN_ORDER=["slide","sine","drift","wild","snake","bounce","cycle"];
+  const RAMP=1.05;
   function waveDef(w){
     const base=WAVES[(w-1)%WAVES.length], n=cycleOf(w);
     if(n===0) return base;
-    const k=1+n*0.26;
-    return { ...base, speed:base.speed*k, drop:base.drop*k, dropMul:1+n*0.85 };
+    const k=Math.pow(RAMP,n);
+    const pi=PATTERN_ORDER.indexOf(base.pattern);
+    const pattern = pi<0 ? base.pattern : PATTERN_ORDER[(pi+n)%PATTERN_ORDER.length];
+    return { ...base, pattern, speed:base.speed*k, drop:base.drop*k, dropMul:k };
   }
 
   function makeEnemies(wave){
@@ -286,7 +292,13 @@
   function loseLife(s){
     s.lives--; s.hitFlash=18;
     if(s.lives<=0){ s.over=true; return s; }
-    s.enemies=makeEnemies(s.wave);
+    // Come back to the flock as you left it. Rebuilding the wave outright handed
+    // the whole formation back every death, so the shooting you'd already done
+    // counted for nothing — only the survivors reform.
+    const survived=new Set(s.enemies.filter(e=>e.alive).map(e=>e.row+","+e.col));
+    const fresh=makeEnemies(s.wave);
+    for(const e of fresh) e.alive=survived.has(e.row+","+e.col);
+    s.enemies=fresh;
     s.bullet=null; s.eggs=[]; s.dir=1; s.t=0;
     return s;
   }
