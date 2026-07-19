@@ -53,7 +53,7 @@
     <p><b>Goal:</b> Retrieve the Enchanted Chalice (locked inside the Black Castle) and carry it back to the Gold Castle.</p>
     <p><b>Move</b> with the arrow keys / WASD or the on-screen pad. You can carry <b>one item</b> at a time — walk over an item to pick it up, press <b>Space</b> / “Drop&nbsp;/&nbsp;Use” to drop it.</p>
     <p><b>Sword:</b> touch a dragon while holding it to slay it. Without the sword, a dragon that catches you eats you (you respawn at the Gold Castle and drop what you held).</p>
-    <p><b>Black Key:</b> touch the Black Castle gate holding it to open the castle. <b>Bridge:</b> carry it to walk straight through walls.</p>
+    <p><b>Gold Key:</b> touch the Black Castle gate holding it to open the castle. <b>Bridge:</b> carry it to walk straight through walls.</p>
     <p>Three dragons roam: <span style="color:#d8c020">Yellow</span>, <span style="color:#38b038">Green</span>, <span style="color:#d03020">Red</span>.</p>
   </details>
 </div>
@@ -69,7 +69,7 @@
   const clamp=(v,a,b)=>v<a?a:v>b?b:v;
   const overlap=(a,b)=>a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;
   const heroRect=(s)=>({x:s.hero.x,y:s.hero.y,w:HS,h:HS});
-  const LABEL={sword:"Sword",bridge:"Bridge",blackkey:"Black Key",chalice:"Enchanted Chalice"};
+  const LABEL={sword:"Sword",bridge:"Bridge",goldkey:"Gold Key",chalice:"Enchanted Chalice"};
 
   const ROOMS={
     commons:{ name:"The Commons", color:"#3a7d3a", exits:{N:"north",S:"south",E:"east",W:"west"},
@@ -82,12 +82,21 @@
       inner:[{x:36,y:112,w:128,h:12}],
       castle:{name:"Black",gate:{x:84,y:52,w:32,h:20},interior:"blackIn"} },
     west:{ name:"West Woods", color:"#3a6a2a", exits:{E:"commons",N:"grotto",W:"maze1"} },
-    grotto:{ name:"The Grotto", color:"#1f5a6a", exits:{S:"west"} },
+    grotto:{ name:"The Grotto", color:"#1f5a6a", exits:{S:"west",E:"ravine"} },
     maze1:{ name:"Twisting Maze", color:"#6a5a2a", exits:{E:"west",W:"maze2"}, inner:[{x:40,y:60,w:12,h:120},{x:120,y:20,w:12,h:120}] },
-    maze2:{ name:"Deep Maze", color:"#5a3a6a", exits:{E:"maze1"}, inner:[{x:60,y:0,w:12,h:130},{x:132,y:70,w:12,h:130}] },
-    belfry:{ name:"The Belfry", color:"#2b4a8a", exits:{S:"north"} },
+    maze2:{ name:"Deep Maze", color:"#5a3a6a", exits:{E:"maze1",S:"roost"}, inner:[{x:60,y:0,w:12,h:130},{x:132,y:70,w:12,h:130}] },
+    belfry:{ name:"The Belfry", color:"#2b4a8a", exits:{S:"north",N:"granary"} },
     catacomb:{ name:"The Catacomb", color:"#3a2a3a", exits:{N:"south",E:"crypt"}, inner:[{x:90,y:40,w:12,h:100}] },
-    crypt:{ name:"The Crypt", color:"#242438", exits:{W:"catacomb"} },
+    crypt:{ name:"The Crypt", color:"#242438", exits:{W:"catacomb",S:"orchard"} },
+    orchard:{ name:"The Orchard", color:"#2f6b34", exits:{N:"crypt",W:"henhouse"} },
+    henhouse:{ name:"The Henhouse", color:"#7a5a2a", exits:{E:"orchard",N:"ravine"},
+      inner:[{x:60,y:70,w:80,h:12}] },
+    ravine:{ name:"Sunken Ravine", color:"#2a4a5a", exits:{S:"henhouse",W:"grotto",E:"roost"},
+      inner:[{x:30,y:110,w:60,h:12},{x:110,y:60,w:60,h:12}] },
+    roost:{ name:"The High Roost", color:"#5a4a7a", exits:{W:"ravine",N:"maze2"} },
+    granary:{ name:"The Granary", color:"#6a5a3a", exits:{S:"belfry",E:"aviary"},
+      inner:[{x:70,y:40,w:12,h:90}] },
+    aviary:{ name:"The Aviary", color:"#3a5a6a", exits:{W:"granary"} },
     goldIn:{ name:"Inside the Gold Castle", color:"#12101c", exits:{S:"commons"}, exitReturn:{x:96,y:96} },
     blackIn:{ name:"Inside the Black Castle", color:"#12101c", exits:{S:"blackgate"}, exitReturn:{x:96,y:80} },
   };
@@ -103,22 +112,70 @@
   const roomWalls=(id)=>borderWalls(id).concat(ROOMS[id].inner||[]);
   function collide(id,rect,bridge){ if(bridge) return false; for(const w of roomWalls(id)) if(overlap(rect,w)) return true; return false; }
 
+  // Rooms an item or dragon may start in: outdoor rooms only, never a castle
+  // interior and never the room you spawn in.
+  function spawnRooms(){
+    return Object.keys(ROOMS).filter(id => id!=="commons" && id!=="goldIn" && id!=="blackIn");
+  }
+  // A spot in a room that is not inside a wall — items used to spawn embedded
+  // in the scenery about one time in ten.
+  function freeSpot(roomId, size){
+    const walls=roomWalls(roomId);
+    for(let i=0;i<300;i++){
+      const x=BW+4+Math.floor(Math.random()*(SIZE-2*BW-8-size));
+      const y=BW+4+Math.floor(Math.random()*(SIZE-2*BW-8-size));
+      const box={x,y,w:size,h:size};
+      if(!walls.some(w=>overlap(box,w))) return {x,y};
+    }
+    return {x:SIZE/2-size/2, y:SIZE/2-size/2};
+  }
+  function pickRooms(n){
+    const pool=spawnRooms().slice();
+    for(let i=pool.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [pool[i],pool[j]]=[pool[j],pool[i]]; }
+    return pool.slice(0,n);
+  }
+  // Every exit must name a real room, and that room must lead back the other way.
+  const OPP={N:"S",S:"N",E:"W",W:"E"};
+  function brokenDoors(){
+    const bad=[];
+    for(const [id,room] of Object.entries(ROOMS)){
+      for(const [dir,dest] of Object.entries(room.exits||{})){
+        if(!ROOMS[dest]){ bad.push(id+"."+dir+" -> missing room "+dest); continue; }
+        // castle interiors are one-way by design (you leave through the gate)
+        if(id==="goldIn"||id==="blackIn"||dest==="goldIn"||dest==="blackIn") continue;
+        const back=(ROOMS[dest].exits||{})[OPP[dir]];
+        if(back!==id) bad.push(id+"."+dir+" -> "+dest+" does not lead back");
+      }
+    }
+    return bad;
+  }
+
   function newGame(){
     return {
       room:"commons", hero:{x:96,y:150,dir:"up"}, carry:null, won:false, dead:false,
       gates:{black:false}, msg:"", dropLock:null,
       hp:100, inv:0,
-      objects:{
-        sword:{room:"north",x:100,y:100,carried:false},
-        bridge:{room:"south",x:60,y:150,carried:false},
-        blackkey:{room:"east",x:56,y:60,carried:false},
-        chalice:{room:"blackIn",x:96,y:56,carried:false},
-      },
-      dragons:[
-        {id:"yellow",color:"#d8c020",room:"south",x:100,y:60,hx:100,hy:60,alive:true,spd:SPEED*0.45,stunFor:STUN.yellow,stun:0},
-        {id:"green", color:"#38b038",room:"east", x:120,y:120,hx:120,hy:120,alive:true,spd:SPEED*0.60,stunFor:STUN.green,stun:0},
-        {id:"red",   color:"#d03020",room:"blackgate",x:100,y:150,hx:100,hy:150,alive:true,spd:SPEED*0.75,stunFor:STUN.red,stun:0},
-      ],
+      objects:(function(){
+        // Items scatter across the outdoor rooms each game; the chalice always
+        // stays locked in the Black Castle, which is the point of the key.
+        const spots=pickRooms(3);
+        return {
+          sword:{room:spots[0],...freeSpot(spots[0],OBJ),carried:false},
+          bridge:{room:spots[1],...freeSpot(spots[1],OBJ),carried:false},
+          goldkey:{room:spots[2],...freeSpot(spots[2],OBJ),carried:false},
+          chalice:{room:"blackIn",x:96,y:56,carried:false},
+        };
+      })(),
+      dragons:(function(){
+        const dens=pickRooms(3);
+        const mk=(id,color,spd,stunFor,room)=>{ const p=freeSpot(room,DS);
+          return {id,color,room,x:p.x,y:p.y,hx:p.x,hy:p.y,alive:true,spd,stunFor,stun:0}; };
+        return [
+          mk("yellow","#d8c020",SPEED*0.45,STUN.yellow,dens[0]),
+          mk("green", "#38b038",SPEED*0.60,STUN.green, dens[1]),
+          mk("red",   "#d03020",SPEED*0.75,STUN.red,   dens[2]),
+        ];
+      })(),
     };
   }
 
@@ -150,8 +207,8 @@
       s.room=c.interior; s.hero.x=96; s.hero.y=SIZE-BW-HS-4;
     } else {
       if(s.gates.black){ s.room=c.interior; s.hero.x=96; s.hero.y=SIZE-BW-HS-4; }
-      else if(s.carry==="blackkey"){ s.gates.black=true; s.msg="The Black Castle gate creaks open!"; }
-      else s.msg="The Black Castle is locked. Find the Black Key.";
+      else if(s.carry==="goldkey"){ s.gates.black=true; s.msg="The Black Castle gate creaks open!"; }
+      else s.msg="The Black Castle is locked. Find the Gold Key.";
     }
   }
   function pickup(s){
@@ -217,6 +274,7 @@
   }
 
   window.__adventure={ newGame, tick, drop, respawn, dragonStep, collide, ROOMS, borderWalls, roomWalls, LABEL,
+    spawnRooms, pickRooms, brokenDoors, freeSpot,
     C:{SIZE,HS,OBJ,BW,DS,SPEED,DSPEED,HIT_DMG,HIT_INV,STUN} };
 
   // ===== Rendering + input (skipped in headless: no #game canvas / no DOMContentLoaded) =====
@@ -240,7 +298,9 @@
     function rr(x,y,w,h,c){ ctx.fillStyle=c; ctx.fillRect(x,y,w,h); }
     function drawObject(k,x,y){
       if(k==="sword"){ rr(x+2,y-1,4,11,"#d9d9e6"); rr(x,y+8,8,3,"#b8860b"); rr(x+3,y+8,2,4,"#8a6d1a"); }
-      else if(k==="blackkey"){ rr(x,y+1,3,6,"#111"); rr(x+1,y+1,4,2,"#111"); rr(x+3,y,5,3,"#111"); rr(x+6,y,2,5,"#111"); }
+      else if(k==="goldkey"){                                   // gold, so it reads against the dark
+      rr(x,y+1,3,6,"#f5d020"); rr(x+1,y+1,4,2,"#f5d020"); rr(x+3,y,5,3,"#f5d020"); rr(x+6,y,2,5,"#f5d020");
+      rr(x+1,y+2,1,1,"#fff7cc"); }
       else if(k==="bridge"){ rr(x-2,y,12,10,"#a9743a"); rr(x-2,y+2,12,2,"#5c3a18"); rr(x-2,y+6,12,2,"#5c3a18"); }
       else if(k==="chalice"){ ctx.fillStyle="#ffd94a"; ctx.fillRect(x,y,8,2); ctx.fillRect(x+1,y+2,6,3); ctx.fillRect(x+3,y+5,2,4); ctx.fillRect(x+1,y+9,6,2);
         ctx.fillStyle="#fff7cc"; ctx.fillRect(x+2,y+1,1,1); }
