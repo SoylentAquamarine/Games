@@ -31,6 +31,9 @@
     .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:9px 18px;border-radius:999px;cursor:pointer;font-size:.86rem}
     .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,.18);color:var(--muted)}
     .btn:disabled{opacity:.35;cursor:default}
+    /* a card landing on a foundation gets a brief pop + glow */
+    @keyframes landPop{0%{transform:scale(1)}40%{transform:scale(1.16);box-shadow:0 0 14px rgba(52,211,153,.9)}100%{transform:scale(1)}}
+    .foundations .pcard.landed,.foundations .slot.landed{animation:landPop .28s ease-out}
     .status{min-height:1.2em;font-weight:600;color:#fde68a;text-align:center}
     .hint{color:var(--muted);font-size:.8rem;text-align:center}
   </style>
@@ -108,6 +111,7 @@
     function restore(s){ cells=s.cells; found=s.found; cols=s.cols; sel=null; }
     function commit(){ if(pending){ history.push(pending); pending=null; } }
     function undo(){
+      if(autoTimer){ clearTimeout(autoTimer); autoTimer=null; }   // cancel an animating run
       if(!history.length) return;
       restore(history.pop());
       pending=null; statusEl.textContent = history.length ? "" : "Back to the original deal.";
@@ -120,6 +124,7 @@
       cols=[[],[],[],[],[],[],[],[]]; d.forEach((c,i)=>cols[i%8].push(c));
       cells=[null,null,null,null]; found={S:[],H:[],D:[],C:[]}; sel=null; statusEl.textContent="";
       history=[]; pending=null;
+      if(autoTimer){ clearTimeout(autoTimer); autoTimer=null; }
       render();
     }
     const emptyCells=()=>cells.filter(c=>c===null).length;
@@ -185,14 +190,60 @@
 
     function autoOne(loc){ const run=runFrom(loc); if(!run||run.length!==1)return; const c=run[0];
       if(canFoundation(c,foundPile(c.suit))){ sel=loc; tryTo({t:"f",suit:c.suit}); } else { sel=loc; render(); } }
-    function autoAll(){ let moved=true,any=false;
-      const before=snapshot();          // the whole run undoes as a single step
-      while(moved){ moved=false;
-        for(let i=0;i<4;i++){ const c=cells[i]; if(c&&canFoundation(c,foundPile(c.suit))){ cells[i]=null; found[c.suit].push(c); moved=true;any=true; } }
-        for(let ci=0;ci<8;ci++){ const pile=cols[ci]; if(pile.length){ const c=pile[pile.length-1]; if(canFoundation(c,foundPile(c.suit))){ pile.pop(); found[c.suit].push(c); moved=true;any=true; } } }
-      }
-      if(any) history.push(before);
-      sel=null;render();checkWin(); if(!any)statusEl.textContent="No cards ready for the foundations.";
+    // One card at a time, on a timer, so you can see the run happen.
+    let autoTimer=null;
+    function autoStep(){
+      for(let i=0;i<4;i++){ const c=cells[i];
+        if(c&&canFoundation(c,foundPile(c.suit))){ cells[i]=null; found[c.suit].push(c); return c; } }
+      for(let ci=0;ci<8;ci++){ const pile=cols[ci];
+        if(pile.length){ const c=pile[pile.length-1];
+          if(canFoundation(c,foundPile(c.suit))){ pile.pop(); found[c.suit].push(c); return c; } } }
+      return null;
+    }
+    // Can anything go home right now? (peeked without moving it)
+    function anyReady(){
+      for(const c of cells) if(c&&canFoundation(c,foundPile(c.suit))) return true;
+      for(const pile of cols) if(pile.length&&canFoundation(pile[pile.length-1],foundPile(pile[pile.length-1].suit))) return true;
+      return false;
+    }
+    function autoAll(){
+      if(autoTimer) return;                          // already running
+      if(!anyReady()){ statusEl.textContent="No cards ready for the foundations."; return; }
+      // Record the undo entry up front, not when the animation ends — otherwise
+      // undoing (or leaving) mid-run would lose it.
+      history.push(snapshot());
+      const tick=()=>{
+        const moved=autoStep();
+        if(moved){
+          flyTo(moved); render();
+          statusEl.textContent="Sending "+Cards.rankLabel(moved.rank)+Cards.SUIT_SYMBOL[moved.suit]+" home…";
+          autoTimer=setTimeout(tick,130);
+          return;
+        }
+        autoTimer=null;
+        sel=null; render(); checkWin();
+        if(SUITS.reduce((a,s)=>a+found[s].length,0)===52) celebrate();
+      };
+      tick();
+    }
+    // A card briefly lands with a flash on its foundation.
+    function flyTo(card){
+      requestAnimationFrame(()=>{
+        const idx=SUITS.indexOf(card.suit);
+        const el=foundEl.children[idx];
+        if(!el) return;
+        el.classList.remove("landed"); void el.offsetWidth; el.classList.add("landed");
+      });
+    }
+    // Winning fountain: the foundations pulse in turn.
+    function celebrate(){
+      let i=0;
+      const pulse=()=>{
+        const el=foundEl.children[i%4];
+        if(el){ el.classList.remove("landed"); void el.offsetWidth; el.classList.add("landed"); }
+        if(++i<16) setTimeout(pulse,110);
+      };
+      pulse();
     }
     function checkWin(){ const total=SUITS.reduce((a,s)=>a+found[s].length,0);
       if(total===52){ statusEl.textContent="🏆 Solved! Nicely done."; return; }
