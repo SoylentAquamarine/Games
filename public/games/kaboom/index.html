@@ -10,15 +10,15 @@
   *{box-sizing:border-box}
   html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
     background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.2),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.14),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;touch-action:none;}
-  .wrap{max-width:460px;margin:0 auto;padding:14px 12px 30px;display:flex;flex-direction:column;align-items:center;gap:10px}
+  .wrap{max-width:600px;margin:0 auto;padding:14px 12px 30px;display:flex;flex-direction:column;align-items:center;gap:10px}
   .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
   .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
   .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
   h1{margin:0;font-size:1.3rem;background:linear-gradient(120deg,var(--bad),#ffcf5a);-webkit-background-clip:text;background-clip:text;color:transparent}
   .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:9px 16px;border-radius:999px;cursor:pointer}
-  .hud{width:100%;max-width:360px;display:flex;justify-content:space-between;font-size:.85rem;color:var(--muted)}
+  .hud{width:100%;max-width:560px;display:flex;justify-content:space-between;font-size:.85rem;color:var(--muted)}
   .hud b{color:var(--text)}
-  canvas{width:min(94vw,360px);height:min(94vw,360px);image-rendering:pixelated;border-radius:10px;border:2px solid #2a2f55;background:#0a0c18;cursor:pointer;touch-action:none}
+  canvas{width:min(96vw,560px);aspect-ratio:4/3;height:auto;image-rendering:pixelated;border-radius:10px;border:2px solid #2a2f55;background:#0a0c18;cursor:pointer;touch-action:none}
   .msg{min-height:1.3em;font-weight:800;text-align:center}
   .hint{font-size:.78rem;color:var(--muted);text-align:center}
 </style>
@@ -27,35 +27,82 @@
 <div class="wrap">
   <div class="topbar"><a class="home" href="/">← Home</a><h1>🥚 ChickenBoom</h1><button class="btn" id="new">New Game</button></div>
   <div class="hud"><span>Score: <b id="score">0</b></span><span>Wave: <b id="wave">1</b></span><span>Baskets: <b id="buckets">3</b></span></div>
-  <canvas id="game" width="300" height="300"></canvas>
+  <canvas id="game" width="480" height="360"></canvas>
   <div class="msg" id="msg">Catch every egg the hen lays. Miss one and they all smash!</div>
-  <div class="hint">Move the mouse / drag / ←→ to slide the baskets</div>
+  <div class="hint">Move the mouse / drag / ←→ to slide the baskets · catch every egg, but <b>let the firecrackers hit the ground</b></div>
 </div>
 <script>
 (function(){
-  const C={ W:300,H:300, CATCH_Y:264, PADDLE_W:46, BOMBER_Y:22, DROP_BASE:44, FALL_BASE:2.4 };
+  const C={ W:480,H:360, CATCH_Y:318, PADDLE_W:52, BOMBER_Y:26, FALL_BASE:2.4,
+             GAP:110, DEATH:120, CRACKER_FROM:3 };   // GAP/DEATH in frames (~2s)
+  // Each wave is a burst of eggs with a breather after it. Later waves are
+  // bigger, faster, tighter-spaced — and from wave 3 the hen mixes in
+  // firecrackers, which you must let hit the ground.
+  function waveSize(w){ return 8 + w*2; }
+  function waveFall(w){ return C.FALL_BASE + (w-1)*0.32; }
+  function waveSpacing(w){ return Math.max(14, 46 - w*3); }
+  function crackerChance(w){ return w < C.CRACKER_FROM ? 0 : Math.min(0.30, 0.10 + (w-C.CRACKER_FROM)*0.04); }
   const clamp=(v,a,b)=>v<a?a:v>b?b:v;
-  function newState(){ return { paddleX:150, buckets:3, bombs:[], bomberX:150, bomberDir:1, score:0, wave:1, caught:0, dropT:35, fall:C.FALL_BASE, over:false }; }
+  function newState(){ return { paddleX:C.W/2, buckets:3, bombs:[], bomberX:C.W/2, bomberDir:1,
+    score:0, wave:1, caught:0, dropT:35, fall:C.FALL_BASE,
+    toDrop:waveSize(1), gap:0, dying:0, over:false, msg:"" }; }
   function catchCheck(bomb, paddleX){ return Math.abs(bomb.x-paddleX)<=C.PADDLE_W/2; }
+  function startWave(s, w){
+    s.wave=w; s.toDrop=waveSize(w); s.fall=waveFall(w);
+    s.dropT=20; s.bombs=[]; s.gap=0;
+  }
+  function loseBasket(s, why){
+    s.buckets--; s.bombs=[]; s.dying=C.DEATH; s.msg=why;
+    if(s.buckets<=0) s.over=true;
+    return s;
+  }
   function step(s, input){
     if(s.over) return s;
+
+    // 2 second beat after losing a basket, so you can gather yourself
+    if(s.dying>0){ if(--s.dying<=0){ startWave(s, s.wave); } return s; }
+    // breather between waves
+    if(s.gap>0){ if(--s.gap<=0) startWave(s, s.wave+1); return s; }
+
     if(input){ if(input.x!=null) s.paddleX=clamp(input.x,C.PADDLE_W/2,C.W-C.PADDLE_W/2);
       if(input.left) s.paddleX=clamp(s.paddleX-6,C.PADDLE_W/2,C.W-C.PADDLE_W/2);
       if(input.right) s.paddleX=clamp(s.paddleX+6,C.PADDLE_W/2,C.W-C.PADDLE_W/2); }
-    // bomber
+
     const bspeed=1.4+s.wave*0.25; s.bomberX+=s.bomberDir*bspeed;
     if(s.bomberX<24){ s.bomberX=24; s.bomberDir=1; } if(s.bomberX>C.W-24){ s.bomberX=C.W-24; s.bomberDir=-1; }
-    if(--s.dropT<=0){ s.bombs.push({x:s.bomberX,y:C.BOMBER_Y+8}); s.dropT=Math.max(12,C.DROP_BASE-s.wave*3); }
-    // bombs fall + resolve at the catch line
+
+    // lay the wave, then stop until it has all landed
+    if(s.toDrop>0 && --s.dropT<=0){
+      const cracker = Math.random() < crackerChance(s.wave);
+      s.bombs.push({ x:s.bomberX, y:C.BOMBER_Y+8, cracker });
+      s.toDrop--;
+      s.dropT=waveSpacing(s.wave);
+    }
+
     for(const b of s.bombs) b.y+=s.fall;
-    const survivors=[]; let missed=false;
-    for(const b of s.bombs){ if(b.y>=C.CATCH_Y){ if(catchCheck(b,s.paddleX)){ s.score++; s.caught++; } else missed=true; } else survivors.push(b); }
+    const survivors=[];
+    for(const b of s.bombs){
+      if(b.y < C.CATCH_Y){ survivors.push(b); continue; }
+      const caught=catchCheck(b,s.paddleX);
+      if(b.cracker){
+        // firecrackers are the opposite: catching one is what hurts you
+        if(caught){ s.bombs=survivors; return loseBasket(s,"You caught a firecracker!"); }
+      } else {
+        if(caught){ s.score+= 1 + Math.floor(s.wave/2); s.caught++; }
+        else { s.bombs=survivors; return loseBasket(s,"An egg hit the ground!"); }
+      }
+    }
     s.bombs=survivors;
-    if(missed){ s.buckets--; s.bombs=[]; if(s.buckets<=0) s.over=true; }
-    if(s.caught>=s.wave*10){ s.wave++; s.fall+=0.35; s.caught=0; }
+
+    // wave finished once everything has been laid and resolved
+    if(s.toDrop===0 && s.bombs.length===0 && s.gap===0){
+      s.score+=25*s.wave;
+      s.gap=C.GAP;
+    }
     return s;
   }
-  window.__kaboom={ newState, step, catchCheck, C };
+  window.__kaboom={ newState, step, catchCheck, startWave, loseBasket,
+                    waveSize, waveFall, waveSpacing, crackerChance, C };
 
   if(typeof document==="undefined") return;
   const $=(id)=>document.getElementById(id);
@@ -79,13 +126,22 @@
       ctx.moveTo(10,-8); ctx.lineTo(17,-6); ctx.lineTo(10,-4); ctx.closePath(); ctx.fill();
       ctx.fillStyle="#dc2626"; ctx.beginPath(); ctx.arc(10,-2,2.4,0,7); ctx.fill();         // wattle
       ctx.restore(); }
-    // falling eggs
+    // falling eggs, and firecrackers you must let through
     for(const b of s.bombs){
-      ctx.fillStyle="#f3ead7"; ctx.strokeStyle="#c9bda3"; ctx.lineWidth=1;
-      ctx.beginPath(); ctx.moveTo(b.x,b.y-6);
-      ctx.bezierCurveTo(b.x+4.4,b.y-6,b.x+5.2,b.y+2,b.x,b.y+6);
-      ctx.bezierCurveTo(b.x-5.2,b.y+2,b.x-4.4,b.y-6,b.x,b.y-6);
-      ctx.closePath(); ctx.fill(); ctx.stroke(); }
+      if(b.cracker){
+        ctx.fillStyle="#b91c1c"; ctx.fillRect(b.x-3,b.y-7,6,13);
+        ctx.fillStyle="#fca5a5"; ctx.fillRect(b.x-3,b.y-3,6,2); ctx.fillRect(b.x-3,b.y+2,6,2);
+        ctx.strokeStyle="#facc15"; ctx.lineWidth=1.4;                    // fuse
+        ctx.beginPath(); ctx.moveTo(b.x,b.y-7); ctx.quadraticCurveTo(b.x+4,b.y-12,b.x+1,b.y-15); ctx.stroke();
+        const spark=(Math.floor(Date.now()/70)%2)?2.6:1.6;               // sputtering spark
+        ctx.fillStyle="#fde68a"; ctx.beginPath(); ctx.arc(b.x+1,b.y-15,spark,0,7); ctx.fill();
+      } else {
+        ctx.fillStyle="#f3ead7"; ctx.strokeStyle="#c9bda3"; ctx.lineWidth=1;
+        ctx.beginPath(); ctx.moveTo(b.x,b.y-6);
+        ctx.bezierCurveTo(b.x+4.4,b.y-6,b.x+5.2,b.y+2,b.x,b.y+6);
+        ctx.bezierCurveTo(b.x-5.2,b.y+2,b.x-4.4,b.y-6,b.x,b.y-6);
+        ctx.closePath(); ctx.fill(); ctx.stroke();
+      } }
     // the farmer's baskets
     for(let i=0;i<s.buckets;i++){ const y=C.CATCH_Y+i*11, hw=C.PADDLE_W/2;
       ctx.fillStyle=i===0?"#b45309":"#8a5a12";
@@ -93,6 +149,23 @@
       ctx.lineTo(s.paddleX+hw-3,y+8); ctx.lineTo(s.paddleX-hw+3,y+8); ctx.closePath(); ctx.fill();
       ctx.fillStyle=i===0?"#d97706":"#a16207"; ctx.fillRect(s.paddleX-hw,y,C.PADDLE_W,2.5); }
     ctx.fillStyle="#2b2f4d"; ctx.fillRect(0,C.H-4,C.W,4);
+    // the 2s beat after losing a basket
+    if(s.dying>0 && !s.over){
+      ctx.fillStyle="rgba(0,0,0,"+(0.5*Math.min(1,s.dying/40))+")"; ctx.fillRect(0,0,C.W,C.H);
+      const j=()=>(Math.random()-0.5)*4;
+      ctx.fillStyle="#f43f5e"; ctx.font="bold 20px system-ui"; ctx.textAlign="center";
+      ctx.fillText(s.msg||"SPLAT!",C.W/2+j(),C.H/2-4);
+      ctx.fillStyle="#e6e6f0"; ctx.font="12px system-ui";
+      ctx.fillText(s.buckets+" basket"+(s.buckets===1?"":"s")+" left · back in "+(s.dying/60).toFixed(1)+"s",C.W/2,C.H/2+18);
+    }
+    // between-wave breather
+    if(s.gap>0 && !s.over){
+      ctx.fillStyle="rgba(0,0,0,.45)"; ctx.fillRect(0,0,C.W,C.H);
+      ctx.fillStyle="#ffcf5a"; ctx.font="bold 20px system-ui"; ctx.textAlign="center";
+      ctx.fillText("WAVE "+(s.wave+1),C.W/2,C.H/2-4);
+      ctx.fillStyle="#e6e6f0"; ctx.font="12px system-ui";
+      ctx.fillText(crackerChance(s.wave+1)>0?"Watch for firecrackers — let them fall!":"Get ready…",C.W/2,C.H/2+18);
+    }
     if(s.over){ ctx.fillStyle="rgba(0,0,0,.55)"; ctx.fillRect(0,0,C.W,C.H); ctx.fillStyle="#f43f5e"; ctx.font="bold 24px system-ui"; ctx.textAlign="center"; ctx.fillText("SPLAT!",C.W/2,C.H/2-4); ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Score "+s.score+(best?"  ·  Best "+best:""),C.W/2,C.H/2+18); }
   }
   function hud(){ $("score").textContent=s.score; $("wave").textContent=s.wave; $("buckets").textContent=Math.max(0,s.buckets); }
