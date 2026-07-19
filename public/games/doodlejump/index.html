@@ -76,8 +76,47 @@
     }
     function dead(){running=false;cancelAnimationFrame(raf);if(score>best){best=score;localStorage.setItem("doodle_best",best);bestEl.textContent=best;}
       ot.textContent="You fell!";om.textContent="Height "+score+(score>=best?" · new best!":"");startBtn.textContent="Play again";ov.classList.remove("hidden");}
+    // The backdrop shifts band by band as you climb, so you can see at a glance
+    // whether you are above your previous best.
+    const BANDS=[
+      {sky:"#0a1020", tint:"rgba(56,189,248,.10)", name:"Coop"},
+      {sky:"#10182e", tint:"rgba(52,211,153,.10)", name:"Treetops"},
+      {sky:"#161a38", tint:"rgba(250,204,21,.10)", name:"Clouds"},
+      {sky:"#1d1840", tint:"rgba(244,114,182,.11)", name:"Storm"},
+      {sky:"#241148", tint:"rgba(168,85,247,.12)", name:"Stratosphere"},
+      {sky:"#2a0a3f", tint:"rgba(255,255,255,.10)", name:"Space"},
+    ];
+    const BAND_H=2500;                       // score units per band
+    function bandAt(sc){ return BANDS[Math.min(BANDS.length-1, Math.floor(sc/BAND_H))]; }
     function render(){
       ctx.clearRect(0,0,W,H);
+      // sky for this altitude, easing into the next band
+      const bi=Math.min(BANDS.length-1, Math.floor(score/BAND_H));
+      const band=BANDS[bi];
+      ctx.fillStyle=band.sky; ctx.fillRect(0,0,W,H);
+      // a drifting pattern keyed to the band, so the scenery visibly changes
+      ctx.fillStyle=band.tint;
+      const off=(score*0.35)%56;
+      for(let y=-56;y<H+56;y+=56){
+        for(let x=(bi%2?0:28);x<W;x+=56){
+          ctx.beginPath();
+          if(bi<2) ctx.arc(x, y+off, 9, 0, 7);                       // low: leaves
+          else if(bi<4){ ctx.ellipse(x, y+off, 15, 7, 0, 0, 7); }    // mid: clouds
+          else ctx.rect(x-2, y+off-2, 3, 3);                          // high: stars
+          ctx.fill();
+        }
+      }
+      // best-height marker: a line you can see yourself pass
+      if(best>0 && score<best){
+        const dy=(best-score);
+        if(dy<H){ ctx.strokeStyle="rgba(250,204,21,.55)"; ctx.setLineDash([7,7]); ctx.lineWidth=2;
+          ctx.beginPath(); ctx.moveTo(0,H*0.4-dy); ctx.lineTo(W,H*0.4-dy); ctx.stroke(); ctx.setLineDash([]);
+          ctx.fillStyle="rgba(250,204,21,.8)"; ctx.font="10px system-ui"; ctx.textAlign="right";
+          ctx.fillText("BEST "+best, W-6, H*0.4-dy-4); }
+      }
+      ctx.textAlign="left";
+      ctx.fillStyle="rgba(230,230,240,.5)"; ctx.font="10px system-ui";
+      ctx.fillText(band.name, 6, 14);
       ctx.fillStyle="#22c55e";plats.forEach(p=>{ctx.fillStyle=p.move?"#3b82f6":"#22c55e";
         ctx.beginPath();ctx.roundRect(p.x,p.y,PW,PH,6);ctx.fill();});
       ctx.font="28px serif";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText("🐔",player.x+player.w/2,player.y+player.h/2);

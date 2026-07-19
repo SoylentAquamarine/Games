@@ -35,6 +35,7 @@
   <div class="pad"><button data-d="ul">↖</button><button data-d="ur">↗</button><button data-d="dl">↙</button><button data-d="dr">↘</button></div>
   <div class="hint">↖ Q · ↗ E · ↙ A · ↘ D · or tap the pad</div>
 </div>
+<script src="/arcade.js"></script>
 <script>
 (function(){
   const C={ rows:7 };
@@ -79,9 +80,17 @@
     ctx.strokeStyle="rgba(0,0,0,.25)"; ctx.stroke();
   }
   let anim=null, eAnim=null, enemyT=0, spawnT=0;
+  // While a hop is in flight, the destination cube is drawn unlit — it should
+  // only change colour at the moment she actually lands on it.
+  let pendingCube=null;
+  let levelBanner=0;                       // frames left on the LEVEL COMPLETE banner
+  let bannerLevel=0;
   function draw(){
     ctx.clearRect(0,0,W,H); ctx.fillStyle="#080a14"; ctx.fillRect(0,0,W,H);
-    for(let r=0;r<C.rows;r++) for(let c=0;c<=r;c++) drawCube(r,c,s.colored[r][c]);
+    for(let r=0;r<C.rows;r++) for(let c=0;c<=r;c++){
+      const held = pendingCube && pendingCube.row===r && pendingCube.col===c;
+      drawCube(r,c, held ? false : s.colored[r][c]);
+    }
     // enemy (Coily-style ball)
     if(s.enemy){ const e=cubeXY(s.enemy.row,s.enemy.col);
       let ex=e.x, ey=e.y;
@@ -90,7 +99,8 @@
         ex=eAnim.fx+(eAnim.tx-eAnim.fx)*t2; ey=eAnim.fy+(eAnim.ty-eAnim.fy)*t2 - Math.sin(t2*Math.PI)*20;
         if(t2>=1) eAnim=null; }
       const sq=eAnim?1+Math.sin(Math.min(1,(performance.now()-eAnim.t0)/200)*Math.PI)*0.22:1;
-      ctx.fillStyle="#c026d3"; ctx.beginPath(); ctx.ellipse(ex,ey+TH/2-5,10/sq,10*sq,0,0,7); ctx.fill();
+      ctx.fillStyle="#ff3b6b"; ctx.beginPath(); ctx.ellipse(ex,ey+TH/2-5,10/sq,10*sq,0,0,7); ctx.fill();
+      ctx.strokeStyle="#ffe4ec"; ctx.lineWidth=2; ctx.stroke();
       ctx.fillStyle="#fff"; ctx.fillRect(ex-4,ey+TH/2-8,3,3); ctx.fillRect(ex+2,ey+TH/2-8,3,3); }
     // player (with jump arc)
     let px, py; const base=cubeXY(s.q.row,s.q.col);
@@ -110,14 +120,52 @@
     ctx.fillStyle="#dc2626"; ctx.fillRect(px-2,cy+8,4,3);
     // feet
     ctx.fillStyle="#facc15"; ctx.fillRect(px-5,cy+10,2,4); ctx.fillRect(px+3,cy+10,2,4);
+    if(levelBanner>0){
+      ctx.fillStyle="rgba(0,0,0,.35)"; ctx.fillRect(0,H/2-34,W,58);
+      ctx.textAlign="center";
+      ctx.fillStyle="#ffcf5a"; ctx.font="bold 26px system-ui";
+      ctx.fillText("LEVEL COMPLETE", W/2, H/2-6);
+      ctx.fillStyle="#e6e6f0"; ctx.font="13px system-ui";
+      ctx.fillText("Level "+bannerLevel+" next", W/2, H/2+15);
+    }
     if(s.over){ ctx.fillStyle="rgba(0,0,0,.6)"; ctx.fillRect(0,0,W,H); ctx.fillStyle="#f43f5e"; ctx.font="bold 24px system-ui"; ctx.textAlign="center"; ctx.fillText("GAME OVER",W/2,H/2-6); ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Score "+s.score+"  ·  Best "+best,W/2,H/2+16); }
   }
-  function go(dir){ if(s.over||anim) return; const lv=s.level; const from=cubeXY(s.q.row,s.q.col); hop(s,dir);
+  function go(dir){ if(s.over||anim||levelBanner>0) return; const lv=s.level; const lives0=s.lives; const from=cubeXY(s.q.row,s.q.col);
+    // Does this hop light the last cube? If so, colour it here and hold the
+    // board reset until the banner has had its two seconds.
+    const tc=target(s.q.row,s.q.col,dir);
+    let finishes=false;
+    if(onPyramid(tc.row,tc.col) && !s.colored[tc.row][tc.col] && !(s.enemy&&s.enemy.row===tc.row&&s.enemy.col===tc.col)){
+      let remaining=0;
+      for(let r=0;r<C.rows;r++) for(let c=0;c<=r;c++) if(!s.colored[r][c]) remaining++;
+      finishes = remaining===1;
+    }
+    if(finishes){
+      s.q=tc; s.colored[tc.row][tc.col]=true; s.score+=125;   // 25 for the cube + 100 level bonus
+      pendingCube={row:tc.row,col:tc.col};
+      const to2=cubeXY(tc.row,tc.col);
+      anim={fx:from.x,fy:from.y,tx:to2.x,ty:to2.y,t0:performance.now()};
+      levelBanner=120; bannerLevel=s.level+1;                 // 120 frames ≈ 2s
+      if(typeof Arcade!=="undefined"){ Arcade.sfx.jump(); Arcade.sfx.win(); }
+      $("msg").textContent="Level complete!";
+      $("score").textContent=s.score; $("level").textContent=s.level; $("lives").textContent=Math.max(0,s.lives);
+      return;
+    }
+    hop(s,dir);
+    pendingCube={row:s.q.row,col:s.q.col};       // held unlit until she lands
+    if(typeof Arcade!=="undefined") Arcade.sfx.jump();
     const to=cubeXY(s.q.row,s.q.col); anim={fx:from.x,fy:from.y,tx:to.x,ty:to.y,t0:performance.now()};
     if(s.level>lv) $("msg").textContent="Level "+s.level+"! Fresh pyramid.";
+    if(s.lives<lives0 && typeof Arcade!=="undefined") Arcade.sfx.death();
     if(s.over && s.score>best){ best=s.score; try{localStorage.setItem("qbert_best",String(best));}catch(e){} $("msg").textContent="Fell off! Score "+s.score+"  ·  Best "+best; }
     $("score").textContent=s.score; $("level").textContent=s.level; $("lives").textContent=Math.max(0,s.lives); }
   function frame(){
+    if(anim && performance.now()-anim.t0>=170) pendingCube=null;
+    if(levelBanner>0){
+      if(--levelBanner===0){ s.level++; resetBoard(s); enemyT=0; spawnT=0; eAnim=null;
+        $("level").textContent=s.level; $("msg").textContent="Level "+s.level+"! Fresh pyramid."; }
+      draw(); return requestAnimationFrame(frame);
+    }
     if(!s.over){
       if(++spawnT>=200){ spawnT=0; spawnEnemy(s); }
       if(s.enemy && ++enemyT>=48){ enemyT=0; const ef=s.enemy?cubeXY(s.enemy.row,s.enemy.col):null; enemyStep(s);
@@ -128,7 +176,7 @@
   }
   document.querySelectorAll(".pad button").forEach(b=>{ const d=b.getAttribute("data-d"); const f=(e)=>{e.preventDefault();go(d);}; b.addEventListener("click",f); b.addEventListener("touchstart",f,{passive:false}); });
   addEventListener("keydown",(e)=>{ const m={q:"ul",e:"ur",a:"dl",d:"dr"}[e.key.toLowerCase()]; if(m){ e.preventDefault(); go(m); } });
-  $("new").addEventListener("click",()=>{ s=newState(); $("score").textContent=0; $("level").textContent=1; $("lives").textContent=3; $("msg").textContent="Hop on every cube to change its color!"; });
+  $("new").addEventListener("click",()=>{ s=newState(); levelBanner=0; pendingCube=null; anim=null; eAnim=null; $("score").textContent=0; $("level").textContent=1; $("lives").textContent=3; $("msg").textContent="Hop on every cube to change its color!"; });
   $("score").textContent=0; $("level").textContent=1; $("lives").textContent=3;
   requestAnimationFrame(frame);
 })();

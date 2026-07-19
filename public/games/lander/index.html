@@ -21,7 +21,7 @@
   .hud .warn{color:var(--bad)}
   .fuel{width:100%;max-width:360px;height:8px;background:#20244a;border-radius:6px;overflow:hidden}
   .fuel > div{height:100%;background:linear-gradient(90deg,var(--good),#a7f3d0);transition:width .1s}
-  canvas{width:min(94vw,360px);height:min(94vw,360px);image-rendering:pixelated;border-radius:10px;border:2px solid #2a2f55;background:#05060f;touch-action:none}
+  canvas{width:min(96vw,560px);aspect-ratio:4/3;height:auto;image-rendering:pixelated;border-radius:10px;border:2px solid #2a2f55;background:#05060f;touch-action:none}
   .msg{min-height:1.3em;font-weight:800;text-align:center}
   .controls{display:flex;gap:10px;align-items:center}
   .cbtn{background:var(--panel);color:var(--text);border:1px solid rgba(255,255,255,.12);border-radius:12px;width:64px;height:56px;font-size:1.3rem;cursor:pointer;user-select:none}
@@ -34,7 +34,7 @@
   <div class="topbar"><a class="home" href="/">← Home</a><h1>🐔 Chicken Lander</h1><button class="btn" id="new">New Game</button></div>
   <div class="hud"><span>Vert: <b id="vy">0.0</b></span><span>Horiz: <b id="vx">0.0</b></span><span>Alt: <b id="alt">0</b></span></div>
   <div class="fuel"><div id="fuelbar" style="width:100%"></div></div>
-  <canvas id="game" width="300" height="300"></canvas>
+  <canvas id="game" width="480" height="360"></canvas>
   <div class="msg" id="msg">Land gently on the green pad. Watch your speed!</div>
   <div class="controls">
     <button class="cbtn" id="bl">◀</button>
@@ -45,9 +45,9 @@
 </div>
 <script>
 (function(){
-  const W=300,H=300, GROUND_Y=278, LW=16, LH=16;
-  const C={ GRAVITY:0.045, THRUST:0.11, LATERAL:0.05, FUEL:100, BURN_UP:0.5, BURN_SIDE:0.28,
-    LAND_VMAX:1.15, LAND_VXMAX:0.7, PAD_W:54, W, H, GROUND_Y, LW, LH };
+  const W=480,H=360, GROUND_Y=334, LW=26, LH=26;
+  const C={ GRAVITY:0.072, THRUST:0.176, LATERAL:0.08, FUEL:100, BURN_UP:0.5, BURN_SIDE:0.28,
+    LAND_VMAX:1.84, LAND_VXMAX:1.12, PAD_W:86, W, H, GROUND_Y, LW, LH };
 
   function makeState(opts){ opts=opts||{};
     const padX = opts.padX!=null?opts.padX:(40+Math.floor(Math.random()*(W-80-C.PAD_W)));
