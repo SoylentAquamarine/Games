@@ -44,8 +44,22 @@
     const s={cities,bases,enemies:[],interceptors:[],explosions:[],score:0,wave:0,waveLeftToSpawn:0,spawnTimer:0,spawnEvery:80,intermission:null,enemySpeed:C.ENEMY_SPEED,over:false};
     startWave(s); return s;
   }
-  function startWave(s){ s.wave++; s.waveLeftToSpawn=3+s.wave*2; s.spawnEvery=Math.max(22,90-s.wave*8); s.spawnTimer=25; s.enemySpeed=C.ENEMY_SPEED+s.wave*0.1;
+  // Every per-wave growth term is scaled by 0.9, so the curve rises the same
+  // shape but 10% less steeply: fewer missiles per wave, a longer gap between
+  // launches, and a gentler speed climb.
+  function startWave(s){ s.wave++; s.waveLeftToSpawn=Math.round(3+s.wave*1.8); s.spawnEvery=Math.max(24,90-s.wave*7.2); s.spawnTimer=25; s.enemySpeed=C.ENEMY_SPEED+s.wave*0.09;
     if(s.bases) for(const b of s.bases) if(!b.dead) b.ammo=C.BASE_AMMO; }   // ammo replenishes, but a destroyed launcher stays dead
+  // Each round gets its own missile and trail colours, cycling through a set of
+  // clearly distinct hues so you can tell waves apart at a glance.
+  const WAVE_COLORS=[
+    { missile:"#f43f5e", trail:"244,63,94",   name:"Crimson" },
+    { missile:"#f59e0b", trail:"245,158,11",  name:"Amber"   },
+    { missile:"#a3e635", trail:"163,230,53",  name:"Lime"    },
+    { missile:"#22d3ee", trail:"34,211,238",  name:"Cyan"    },
+    { missile:"#c084fc", trail:"192,132,252", name:"Violet"  },
+    { missile:"#fb7185", trail:"251,113,133", name:"Rose"    },
+  ];
+  function waveColor(w){ return WAVE_COLORS[Math.max(0,(w-1))%WAVE_COLORS.length]; }
   function stepInterceptor(m){ const dx=m.tx-m.x,dy=m.ty-m.y,d=Math.hypot(dx,dy); if(d<=C.INT_SPEED){ m.x=m.tx; m.y=m.ty; return true; } m.x+=dx/d*C.INT_SPEED; m.y+=dy/d*C.INT_SPEED; return false; }
   function spawnEnemy(s){
     // Bases are targets too, not just the coops.
@@ -59,6 +73,7 @@
     if(best<0) return false;                          // no base has ammo
     const b=s.bases[best]; b.ammo--;
     s.interceptors.push({x:b.x,y:C.GROUND_Y-10,ox:b.x,oy:C.GROUND_Y-10,tx:x,ty:y});
+    if(typeof Arcade!=="undefined") Arcade.sfx.shoot();
     return true;
   }
   function stepExplosion(e){ if(e.phase==="grow"){ e.r+=C.EXP_GROW; if(e.r>=C.EXP_MAX_R) e.phase="shrink"; } else { e.r-=C.EXP_GROW*0.8; if(e.r<0)e.r=0; } e.life--; }
@@ -73,11 +88,15 @@
         // A direct hit on a launcher knocks it out for the rest of the game.
         const bi=s.bases.findIndex(b=>!b.dead && Math.abs(b.x-m.x)<=14);
         if(bi>=0){ s.bases[bi].dead=true; s.bases[bi].ammo=0; }
-        else { const ci=cityIndexAtX(s.cities,m.x); if(ci>=0&&s.cities[ci].alive) s.cities[ci].alive=false; } } }
-    for(const it of s.interceptors){ if(stepInterceptor(it)){ it.done=true; s.explosions.push({x:it.tx,y:it.ty,r:1,phase:"grow",life:C.EXP_LIFE}); } }
+        else { const ci=cityIndexAtX(s.cities,m.x);
+          if(ci>=0&&s.cities[ci].alive){ s.cities[ci].alive=false;
+            if(typeof Arcade!=="undefined") Arcade.sfx.death(); } } } }
+    for(const it of s.interceptors){ if(stepInterceptor(it)){ it.done=true; s.explosions.push({x:it.tx,y:it.ty,r:1,phase:"grow",life:C.EXP_LIFE});
+      if(typeof Arcade!=="undefined") Arcade.sfx.explode(); } }
     s.interceptors=s.interceptors.filter(it=>!it.done);
     for(const e of s.explosions) stepExplosion(e);
-    for(const e of s.explosions){ if(e.life<=0) continue; for(const m of s.enemies){ if(explosionHits(e,m)){ m.alive=false; s.score+=25; } } }
+    for(const e of s.explosions){ if(e.life<=0) continue; for(const m of s.enemies){ if(explosionHits(e,m)){ m.alive=false; s.score+=25;
+      if(typeof Arcade!=="undefined") Arcade.sfx.hit(); } } }
     s.enemies=s.enemies.filter(m=>m.alive);
     s.explosions=s.explosions.filter(e=>e.life>0);
     // Breather between waves: hold for 2 seconds and announce the next one.
@@ -121,8 +140,10 @@
       ctx.fillStyle=b.ammo>0?"#e6e6f0":"#8a8f9a"; ctx.font="bold 10px system-ui"; ctx.textAlign="center"; ctx.fillText(b.ammo, b.x, C.GROUND_Y-17); }
     for(const it of s.interceptors){ ctx.strokeStyle="rgba(52,211,153,.6)"; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(it.ox,it.oy); ctx.lineTo(it.x,it.y); ctx.stroke();
       ctx.fillStyle="#34d399"; ctx.beginPath(); ctx.arc(it.x,it.y,2,0,7); ctx.fill(); ctx.strokeStyle="rgba(52,211,153,.4)"; ctx.strokeRect(it.tx-3,it.ty-3,6,6); }
-    for(const m of s.enemies){ ctx.strokeStyle="rgba(244,63,94,.5)"; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(m.ox,m.oy); ctx.lineTo(m.x,m.y); ctx.stroke();
-      ctx.fillStyle="#f43f5e"; ctx.beginPath(); ctx.arc(m.x,m.y,2.5,0,7); ctx.fill(); }
+    const wc=waveColor(s.wave);
+    for(const m of s.enemies){ ctx.strokeStyle="rgba("+wc.trail+",.55)"; ctx.lineWidth=1.4; ctx.beginPath(); ctx.moveTo(m.ox,m.oy); ctx.lineTo(m.x,m.y); ctx.stroke();
+      ctx.fillStyle=wc.missile; ctx.beginPath(); ctx.arc(m.x,m.y,2.8,0,7); ctx.fill();
+      ctx.fillStyle="rgba(255,255,255,.85)"; ctx.beginPath(); ctx.arc(m.x,m.y,1.1,0,7); ctx.fill(); }
     for(const e of s.explosions){ const g=ctx.createRadialGradient(e.x,e.y,0,e.x,e.y,Math.max(1,e.r));
       g.addColorStop(0,"rgba(255,255,255,.95)"); g.addColorStop(.5,"rgba(34,211,238,.7)"); g.addColorStop(1,"rgba(124,92,255,0)");
       ctx.fillStyle=g; ctx.beginPath(); ctx.arc(e.x,e.y,Math.max(1,e.r),0,7); ctx.fill(); }

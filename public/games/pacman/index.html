@@ -86,7 +86,7 @@
     let grid,dots,pac,ghosts,score,lives,fright,running,stepTimer,raf,pacStart,ghostStarts,best=+localStorage.getItem("pacman_best")||0;
     const STEP_MS=150, DEATH_MS=2000;          // one grid step; length of the death animation
     const SCATTER_STEPS=47, CHASE_STEPS=133;   // ~7s scatter / ~20s chase at 150ms a step
-    let mode="scatter", modeTick=0, lastStep=0, dying=0, pendingGameOver=false, ghostTick=0;
+    let mode="scatter", modeTick=0, lastStep=0, dying=0, pendingGameOver=false, ghostTick=0, ghostCum=0;
     bestEl.textContent=best;
 
     function parse(){
@@ -153,8 +153,22 @@
       // ghosts
       // Ghosts skip every 4th step, so they are strictly slower than you.
       // At equal speed they were inescapable in a corridor.
+      // Ghosts are slower than you. Skipping every 4th step did that, but it
+      // also froze them for a whole tick every fourth one, which is what read as
+      // jumping. Instead each ghost carries a fractional step budget and moves
+      // when it has banked a full cell, so it glides at a steady 3/4 pace.
       ghostTick++;
-      if(fright>0 || ghostTick%4!==0) for(const g of ghosts)moveGhost(g);
+      const grate=fright>0?1:0.75;
+      ghostCum+=grate;
+      for(const g of ghosts){
+        g.prog=(g.prog||0)+grate;
+        while(g.prog>=1){
+          g.prog-=1; moveGhost(g);
+          // the exact point on the shared timeline where this move landed, so
+          // the glide can finish precisely as the next one begins
+          g.moveAt=ghostCum-g.prog;
+        }
+      }
       checkCollisions();
       if(dots<=0){win();return;}
     }
@@ -276,7 +290,13 @@
       ctx.restore();
       // weasels
       for(const g of ghosts){
-        const gx=(lerp(g.pc==null?g.c:g.pc,g.c)+.5)*T, gy=(lerp(g.pr==null?g.r:g.pr,g.r)+.5)*T, r=T*0.4;
+        // Ghosts run on their own cumulative timeline, so one cell of travel is
+        // spread evenly over the time until their next move — no stutter, and no
+        // arriving early and waiting.
+        const cumNow=ghostCum+(fright>0?1:0.75)*a;
+        const ga=Math.max(0,Math.min(1,cumNow-(g.moveAt==null?cumNow:g.moveAt)));
+        const glerp=(p,n)=>Math.abs(n-p)>1 ? n : p+(n-p)*ga;
+        const gx=(glerp(g.pc==null?g.c:g.pc,g.c)+.5)*T, gy=(glerp(g.pr==null?g.r:g.pr,g.r)+.5)*T, r=T*0.4;
         const coat=g.eaten?"#334155":(fright>0?(fright<8&&fright%2?"#fff":"#3b82f6"):g.color);
         const face=(g.dir==="left")?-1:1;
         ctx.save();ctx.translate(gx,gy);ctx.scale(face,1);
