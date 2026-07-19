@@ -26,8 +26,8 @@
     .tableau{display:flex;justify-content:space-between;gap:4px;overflow-x:auto}
     .pile{flex:1;min-height:200px;display:flex;flex-direction:column;align-items:center}
     .pile .pcard,.pile .slot{--cw:52px}
-    .pile .stackcard{margin-top:-44px}   /* leave the rank+suit corner readable */
-    .pile .stackcard.down{margin-top:-60px}
+    .pile .stackcard{margin-top:-56px}   /* no extra reveal — a modest sliver is enough */
+    .pile .stackcard.down{margin-top:-66px}   /* face-down cards barely peek out */
     .pile .stackcard:first-child{margin-top:0}
     .pcard.sel{outline:3px solid #34d399;outline-offset:1px;z-index:2}
     .pcard{cursor:pointer}

@@ -63,7 +63,7 @@
       "####.###.#.###.####",
       "#....#.......#....#",
       "#.##.#.#G#G#.#.##.#",
-      "#..........G......#",
+      "#.....G....G......#",
       "#.##.#.#####.#.##.#",
       "#....#...#...#....#",
       "####.###.#.###.####",
@@ -81,11 +81,11 @@
     const T=cv.width/COLS;
     const scoreEl=document.getElementById("score"),livesEl=document.getElementById("lives"),bestEl=document.getElementById("best");
     const ov=document.getElementById("ov"),ot=document.getElementById("ot"),om=document.getElementById("om"),startBtn=document.getElementById("start");
-    const GHOST_COLORS=["#a16207","#78350f","#c2872a"];  // weasel coats
+    const GHOST_COLORS=["#ff0000","#ffb8ff","#00ffff","#ffb852"];  // Blinky, Pinky, Inky, Clyde
     let grid,dots,pac,ghosts,score,lives,fright,running,stepTimer,raf,pacStart,ghostStarts,best=+localStorage.getItem("pacman_best")||0;
     const STEP_MS=150, DEATH_MS=2000;          // one grid step; length of the death animation
     const SCATTER_STEPS=47, CHASE_STEPS=133;   // ~7s scatter / ~20s chase at 150ms a step
-    let mode="scatter", modeTick=0, lastStep=0, dying=0, pendingGameOver=false;
+    let mode="scatter", modeTick=0, lastStep=0, dying=0, pendingGameOver=false, ghostTick=0;
     bestEl.textContent=best;
 
     function parse(){
@@ -110,9 +110,9 @@
       pac={r:pacStart.r,c:pacStart.c,pr:pacStart.r,pc:pacStart.c,dir:"left",next:"left",mouth:0};
       // Personalities follow the original arcade ghosts: a direct chaser, an
       // ambusher that aims ahead of you, and a shy one that backs off up close.
-      ghosts=ghostStarts.map((g,i)=>({r:g.r,c:g.c,pr:g.r,pc:g.c,dir:"up",color:GHOST_COLORS[i%3],
-        eaten:false,home:{r:g.r,c:g.c},kind:["chaser","ambusher","shy"][i%3],
-        corner:[{r:1,c:COLS-2},{r:1,c:1},{r:ROWS-2,c:1}][i%3]}));
+      ghosts=ghostStarts.map((g,i)=>({r:g.r,c:g.c,pr:g.r,pc:g.c,dir:"up",color:GHOST_COLORS[i%4],
+        eaten:false,home:{r:g.r,c:g.c},kind:["chaser","ambusher","flanker","shy"][i%4],
+        corner:[{r:1,c:COLS-2},{r:1,c:1},{r:ROWS-2,c:COLS-2},{r:ROWS-2,c:1}][i%4]}));
       fright=0; modeTick=0; mode="scatter";
       scoreEl.textContent=score;livesEl.textContent=lives;
       recountDots();
@@ -150,7 +150,10 @@
       scoreEl.textContent=score;
       if(fright>0)fright--;
       // ghosts
-      for(const g of ghosts)moveGhost(g);
+      // Ghosts skip every 4th step, so they are strictly slower than you.
+      // At equal speed they were inescapable in a corridor.
+      ghostTick++;
+      if(fright>0 || ghostTick%4!==0) for(const g of ghosts)moveGhost(g);
       checkCollisions();
       if(dots<=0){win();return;}
     }
@@ -163,6 +166,13 @@
       if(mode==="scatter") return g.corner;
       const d=DIRS[pac.dir];
       if(g.kind==="ambusher") return {r:pac.r+d[0]*4, c:pac.c+d[1]*4};   // four tiles ahead of you
+      if(g.kind==="flanker"){
+        // Inky: reflect the lead ghost through the point two tiles ahead of you,
+        // so he cuts you off from the far side rather than tailing you.
+        const p={r:pac.r+d[0]*2, c:pac.c+d[1]*2};
+        const lead=ghosts.find(x=>x.kind==="chaser")||g;
+        return {r:p.r+(p.r-lead.r), c:p.c+(p.c-lead.c)};
+      }
       if(g.kind==="shy"){                                                // backs off when close
         return dist(g.r,g.c,pac)>8 ? pac : g.corner;
       }

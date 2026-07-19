@@ -111,7 +111,7 @@
 
     function newGame(){
       genWorld();room=[1,1];keys=0;unlocked=false;over=false;frame=0;
-      player={x:7*TILE+4,y:5*TILE+4,size:24,dir:0,hp:3,maxhp:3,inv:0,atk:0,rupees:0};
+      player={x:7*TILE+4,y:5*TILE+4,size:24,dir:0,hp:3,maxhp:7,inv:0,atk:0,rupees:0};   // 3 to start, room for 7
       rooms[1][1].visited=true;updateHud();ov.classList.add("hidden");running=true;loop();
     }
     function loop(){if(!running)return;update();render();raf=requestAnimationFrame(loop);}
