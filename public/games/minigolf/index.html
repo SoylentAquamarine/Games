@@ -31,6 +31,7 @@
   <div class="msg" id="msg">Drag back from the ball to aim & set power, release to putt.</div>
   <div class="hint">Sand slows the ball · water costs a penalty stroke</div>
 </div>
+<script src="/arcade.js"></script>
 <script>
 (function(){
   const C={ W:320,H:420, R:7, FRICTION:0.984, SAND_FRICTION:0.9, STOP:0.28, MAXPOW:15, HOLE_R:11 };
@@ -125,13 +126,27 @@
     return ball;
   }
   function sunk(ball, hole){ return Math.hypot(ball.x-hole.x,ball.y-hole.y)<C.HOLE_R && Math.hypot(ball.vx,ball.vy)<7; }
-  function newState(){ const lv=LEVELS[0]; return { level:0, ball:{x:lv.start.x,y:lv.start.y,vx:0,vy:0}, strokes:0, total:0, done:false }; }
+  function newState(){ const lv=LEVELS[0]; return { level:0, ball:{x:lv.start.x,y:lv.start.y,vx:0,vy:0}, strokes:0, total:0, card:[], done:false }; }
   window.__minigolf={ newState, putt, stepBall, sunk, collideWall, moving, inSand, inWater, LEVELS, C };
 
   if(typeof document==="undefined") return;
   const $=(id)=>document.getElementById(id);
   const cv=$("game"), ctx=cv.getContext("2d"); const W=C.W,H=C.H;
   let s=newState(), aim=null, best=null, lastRest={x:0,y:0};
+  // Hole-in-one celebration: two seconds of fireworks over a shaking banner
+  // before the course moves on.
+  let ace=0, fw=[];
+  const ACE_FRAMES=120;
+  function burst(x,y){
+    const hue=["#ffcf5a","#f43f5e","#22d3ee","#4ade80","#c084fc"][Math.floor(Math.random()*5)];
+    for(let i=0;i<26;i++){ const a=Math.random()*Math.PI*2, sp=1.2+Math.random()*3.4;
+      fw.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:34+Math.random()*22,max:56,col:hue}); }
+  }
+  function stepFireworks(){
+    if(ace%18===0) burst(40+Math.random()*(W-80), 60+Math.random()*(H*0.5));
+    for(const p of fw){ p.x+=p.vx; p.y+=p.vy; p.vy+=0.06; p.vx*=0.98; p.life--; }
+    fw=fw.filter(p=>p.life>0);
+  }
   try{ best=parseInt(localStorage.getItem("minigolf_best")||"")||null; }catch(e){}
   function lv(){ return LEVELS[s.level]; }
 
@@ -163,26 +178,83 @@
     if(aim){ const dx=aim.sx-aim.x, dy=aim.sy-aim.y; const pw=Math.min(Math.hypot(dx,dy),120);
       const ang=Math.atan2(dy,dx); ctx.strokeStyle="rgba(255,255,255,.7)"; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(s.ball.x,s.ball.y); ctx.lineTo(s.ball.x+Math.cos(ang)*pw*0.7,s.ball.y+Math.sin(ang)*pw*0.7); ctx.stroke(); }
     ctx.fillStyle="#fff"; ctx.beginPath(); ctx.arc(s.ball.x,s.ball.y,C.R,0,7); ctx.fill(); ctx.fillStyle="rgba(0,0,0,.15)"; ctx.beginPath(); ctx.arc(s.ball.x+2,s.ball.y+2,C.R*0.6,0,7); ctx.fill();
-    if(s.done){ ctx.fillStyle="rgba(0,0,0,.6)"; ctx.fillRect(0,0,W,H); ctx.fillStyle="#34d399"; ctx.font="bold 22px system-ui"; ctx.textAlign="center"; ctx.fillText("18 HOLES DONE!",W/2,H/2-6); ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Total "+s.total+(best?"  ·  Best "+best:""),W/2,H/2+16); }
+    if(ace>0){
+      for(const p of fw){ ctx.globalAlpha=Math.max(0,p.life/p.max); ctx.fillStyle=p.col; ctx.fillRect(p.x-2,p.y-2,4,4); }
+      ctx.globalAlpha=1;
+      const sh=Math.max(0,(ace-40)/80)*6 + 2;      // shakes hardest at the start
+      const ox=(Math.random()*2-1)*sh, oy=(Math.random()*2-1)*sh;
+      ctx.textAlign="center";
+      ctx.font="bold 30px system-ui"; ctx.lineWidth=5; ctx.strokeStyle="#0a0c18";
+      ctx.strokeText("HOLE IN ONE",W/2+ox,H/2+oy);
+      ctx.fillStyle="#ffcf5a"; ctx.fillText("HOLE IN ONE",W/2+ox,H/2+oy);
+    }
+    if(s.done) drawCard();
+  }
+  // Full golf card: par, shots and how you finished on every hole.
+  function drawCard(){
+    ctx.fillStyle="rgba(6,10,18,.93)"; ctx.fillRect(0,0,W,H);
+    ctx.textAlign="center"; ctx.fillStyle="#34d399"; ctx.font="bold 20px system-ui";
+    ctx.fillText("SCORECARD",W/2,32);
+    const parTot=s.card.reduce((a,c)=>a+c.par,0);
+    const rel=s.total-parTot;
+    ctx.fillStyle="#e6e6f0"; ctx.font="13px system-ui";
+    ctx.fillText("Total "+s.total+"  ·  Par "+parTot+"  ·  "+(rel===0?"E":(rel>0?"+"+rel:String(rel))),W/2,52);
+    if(best) { ctx.fillStyle="#9a9ab5"; ctx.font="11px system-ui"; ctx.fillText("Best "+best,W/2,68); }
+    const NAME=(r)=>r<=-3?"Albatross":r===-2?"Eagle":r===-1?"Birdie":r===0?"Par":r===1?"Bogey":r===2?"Double":"+"+r;
+    const COL=(r)=>r<=-2?"#ffcf5a":r===-1?"#4ade80":r===0?"#e6e6f0":r===1?"#fbbf24":"#f43f5e";
+    const top=88, rowH=17;
+    for(let half=0; half<2; half++){
+      const x0 = half? W/2+6 : 10;
+      ctx.textAlign="left"; ctx.fillStyle="#9a9ab5"; ctx.font="10px system-ui";
+      ctx.fillText(half?"BACK 9":"FRONT 9", x0+2, top-8);
+      ctx.fillText("Hole", x0+2, top+4); ctx.fillText("Par", x0+42, top+4);
+      ctx.fillText("You", x0+72, top+4); ctx.fillText("", x0+100, top+4);
+      for(let i=0;i<9;i++){
+        const idx=half*9+i, c=s.card[idx]; if(!c) continue;
+        const y=top+18+i*rowH, r=c.shots-c.par;
+        if(i%2===0){ ctx.fillStyle="rgba(255,255,255,.04)"; ctx.fillRect(x0,y-11,W/2-16,rowH); }
+        ctx.font="11px system-ui"; ctx.fillStyle="#9a9ab5"; ctx.fillText(String(idx+1), x0+4, y);
+        ctx.fillStyle="#c9c9dd"; ctx.fillText(String(c.par), x0+44, y);
+        ctx.fillStyle=COL(r); ctx.font="bold 11px system-ui"; ctx.fillText(String(c.shots), x0+74, y);
+        ctx.font="10px system-ui"; ctx.fillText(NAME(r), x0+94, y);
+      }
+      const sub=s.card.slice(half*9,half*9+9);
+      const sy=top+18+9*rowH+6;
+      ctx.font="bold 11px system-ui"; ctx.fillStyle="#e6e6f0"; ctx.textAlign="left";
+      ctx.fillText("OUT", x0+4, sy);
+      ctx.fillText(String(sub.reduce((a,c)=>a+c.par,0)), x0+44, sy);
+      ctx.fillText(String(sub.reduce((a,c)=>a+c.shots,0)), x0+74, sy);
+    }
+    const aces=s.card.filter(c=>c.shots===1).length;
+    ctx.textAlign="center"; ctx.font="11px system-ui"; ctx.fillStyle="#ffcf5a";
+    ctx.fillText(aces?("🎆 "+aces+" hole"+(aces>1?"s":"")+" in one"):"No aces this round", W/2, H-14);
   }
   function frame(){
+    if(ace>0){
+      ace--; stepFireworks();
+      if(ace===0){ fw=[]; nextHole(); }
+      draw(); return requestAnimationFrame(frame);
+    }
     if(moving(s.ball)){ stepBall(s.ball, lv().walls, lv().sand);
       if(inWater(s.ball, lv().water)){ s.ball.x=lastRest.x; s.ball.y=lastRest.y; s.ball.vx=0; s.ball.vy=0; s.strokes++; $("msg").textContent="💦 Splash! Penalty stroke."; }
-      else if(sunk(s.ball, lv().hole)){ s.ball.vx=0; s.ball.vy=0; s.ball.x=lv().hole.x; s.ball.y=lv().hole.y; nextHole(); } }
+      else if(sunk(s.ball, lv().hole)){ s.ball.vx=0; s.ball.vy=0; s.ball.x=lv().hole.x; s.ball.y=lv().hole.y;
+        if(s.strokes===1){ ace=ACE_FRAMES; fw=[]; burst(W/2,H/2); $("msg").textContent="🎆 HOLE IN ONE!";
+          if(typeof Arcade!=="undefined") Arcade.sfx.win(); }
+        else nextHole(); } }
     $("hole").textContent=s.level+1; $("holes").textContent=LEVELS.length; $("par").textContent=lv().par; $("strokes").textContent=s.strokes; $("total").textContent=s.total;
     draw(); requestAnimationFrame(frame);
   }
-  function nextHole(){ s.total+=s.strokes; const rel=s.strokes-lv().par;
+  function nextHole(){ s.card.push({par:lv().par, shots:s.strokes}); s.total+=s.strokes; const rel=s.strokes-lv().par;
     if(s.level+1>=LEVELS.length){ s.done=true; if(!best||s.total<best){ best=s.total; try{localStorage.setItem("minigolf_best",String(best));}catch(e){} } $("msg").textContent="Course complete! Total "+s.total+(best?"  ·  Best "+best:""); return; }
     s.level++; s.strokes=0; const l=lv(); s.ball={x:l.start.x,y:l.start.y,vx:0,vy:0}; $("msg").textContent=(rel<=-2?"Eagle!":rel===-1?"Birdie!":rel===0?"Par!":rel===1?"Bogey.":"+"+rel)+" — next hole."; }
   function pos(ev){ const r=cv.getBoundingClientRect(); const t=ev.touches?ev.touches[0]:ev; return { x:(t.clientX-r.left)*(W/r.width), y:(t.clientY-r.top)*(H/r.height) }; }
-  function down(ev){ if(s.done||moving(s.ball)) return; const p=pos(ev); if(Math.hypot(p.x-s.ball.x,p.y-s.ball.y)<40) aim={x:p.x,y:p.y,sx:p.x,sy:p.y}; }
+  function down(ev){ if(s.done||ace>0||moving(s.ball)) return; const p=pos(ev); if(Math.hypot(p.x-s.ball.x,p.y-s.ball.y)<40) aim={x:p.x,y:p.y,sx:p.x,sy:p.y}; }
   function move(ev){ if(!aim) return; ev.preventDefault(); const p=pos(ev); aim.x=p.x; aim.y=p.y; }
   function up(){ if(!aim) return; const dx=aim.sx-aim.x, dy=aim.sy-aim.y; const dist=Math.hypot(dx,dy);
     if(dist>8){ lastRest={x:s.ball.x,y:s.ball.y}; const ang=Math.atan2(dy,dx); putt(s.ball, ang, Math.min(dist,120)/120*C.MAXPOW); s.strokes++; } aim=null; }
   cv.addEventListener("mousedown",down); window.addEventListener("mousemove",move); window.addEventListener("mouseup",up);
   cv.addEventListener("touchstart",(e)=>{e.preventDefault();down(e);},{passive:false}); cv.addEventListener("touchmove",move,{passive:false}); cv.addEventListener("touchend",up);
-  $("new").addEventListener("click",()=>{ s=newState(); aim=null; $("msg").textContent="Drag back from the ball to aim, release to putt."; });
+  $("new").addEventListener("click",()=>{ s=newState(); aim=null; ace=0; fw=[]; $("msg").textContent="Drag back from the ball to aim, release to putt."; });
   requestAnimationFrame(frame);
 })();
 </script>
