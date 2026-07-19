@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Chicken Circus — Games</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🎪</text></svg>" />
+<style>
+  :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;--bad:#f43f5e;--good:#34d399;}
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+    background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.2),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.14),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;touch-action:none;}
+  .wrap{max-width:600px;margin:0 auto;padding:14px 12px 30px;display:flex;flex-direction:column;align-items:center;gap:10px}
+  .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
+  .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+  .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+  h1{margin:0;font-size:1.3rem;background:linear-gradient(120deg,#f472b6,#ffcf5a);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:9px 16px;border-radius:999px;cursor:pointer;font-size:.85rem}
+  .hud{width:100%;max-width:560px;display:flex;justify-content:space-between;font-size:.85rem;color:var(--muted)}
+  .hud b{color:var(--text)}
+  canvas{width:min(96vw,560px);aspect-ratio:4/3;height:auto;image-rendering:pixelated;border-radius:10px;border:2px solid #2a2f55;background:#160d2b;touch-action:none}
+  .msg{min-height:1.3em;font-weight:800;text-align:center}
+  .ctl{display:flex;gap:8px;justify-content:center}
+  .pad{background:var(--panel);color:var(--text);border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:14px 26px;font-size:1.2rem;cursor:pointer;user-select:none;touch-action:none}
+  .pad:active{background:var(--accent);color:#0b0c1a}
+  .hint{font-size:.78rem;color:var(--muted);text-align:center;max-width:560px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar"><a class="home" href="/">← Home</a><h1>🎪 Chicken Circus</h1><button class="btn" id="new">New Game</button></div>
+  <div class="hud"><span>Score: <b id="score">0</b></span><span>Wave: <b id="wave">1</b></span><span>Lives: <b id="lives">3</b></span><span>Best: <b id="best">0</b></span></div>
+  <canvas id="game" width="480" height="360"></canvas>
+  <div class="msg" id="msg">Slide the seesaw under the falling chicken — bounce her into the balloons.</div>
+  <div class="ctl">
+    <button class="pad" data-d="left">◀</button>
+    <button class="pad" data-d="right">▶</button>
+  </div>
+  <p class="hint">← → or the pad to slide the seesaw. Catch the falling chicken on the <b>low end</b> — that flings her partner up into the balloons.
+    The higher rows are worth more. Miss the seesaw and you lose a chicken. Pop every balloon to move on.</p>
+</div>
+<script src="/arcade.js"></script>
+<script>
+(function(){
+  const C = {
+    W:480, H:360,
+    GROUND:340,
+    SEESAW_HW:34, SEESAW_TILT:14, SEESAW_SPEED:4.4, PLANK_T:6,
+    CH_R:9,
+    GRAV:0.30, LAUNCH_MIN:6.4, LAUNCH_MAX:12.4, BOUNCE_KEEP:1.02,
+    ROWS:3, PER_ROW:12, BAL_R:9, BAL_TOP:52, ROW_GAP:26,
+    LIVES:3,
+  };
+  const ROW_POINTS=[30,20,10];                 // top row is worth the most
+  const ROW_COLOR=["#f472b6","#38bdf8","#facc15"];
+  const clamp=(v,a,b)=>v<a?a:v>b?b:v;
+
+  function makeBalloons(){
+    const out=[], gap=(C.W-40)/C.PER_ROW;
+    for(let r=0;r<C.ROWS;r++) for(let i=0;i<C.PER_ROW;i++)
+      out.push({ x:20+gap*(i+0.5), y:C.BAL_TOP+r*C.ROW_GAP, row:r, alive:true });
+    return out;
+  }
+
+  // The seesaw's two end positions. tilt -1 => the left end is the low one.
+  function endY(s, side){                       // side -1 = left, +1 = right
+    const low = (s.tilt===side);
+    return C.GROUND - (low ? 0 : C.SEESAW_TILT);
+  }
+  function endX(s, side){ return s.x + side*C.SEESAW_HW; }
+
+  function newState(){
+    const s={
+      x:C.W/2, tilt:-1,
+      chickens:[], balloons:makeBalloons(),
+      score:0, lives:C.LIVES, wave:1, over:false, msg:"", t:0, popFlash:0,
+    };
+    // One chicken waits on the high end, the other is dropped in above it.
+    s.chickens=[
+      { x:endX(s,+1), y:endY(s,+1)-C.CH_R, vx:0, vy:0, flying:false },
+      { x:C.W/2,      y:60,                vx:1.6, vy:0, flying:true  },
+    ];
+    return s;
+  }
+
+  function resetRound(s){
+    s.x=C.W/2; s.tilt=-1;
+    s.chickens=[
+      { x:endX(s,+1), y:endY(s,+1)-C.CH_R, vx:0, vy:0, flying:false },
+      { x:C.W/2,      y:60,                vx:1.6, vy:0, flying:true  },
+    ];
+  }
+
+  function launchSpeed(impact){
+    return clamp(C.LAUNCH_MIN + Math.abs(impact)*0.55, C.LAUNCH_MIN, C.LAUNCH_MAX);
+  }
+
+  // input: {left,right}
+  function step(s, input){
+    if(s.over) return s;
+    input=input||{};
+    s.t++;
+    if(s.popFlash>0) s.popFlash--;
+
+    if(input.left)  s.x-=C.SEESAW_SPEED;
+    if(input.right) s.x+=C.SEESAW_SPEED;
+    s.x=clamp(s.x, C.SEESAW_HW+4, C.W-C.SEESAW_HW-4);
+
+    // the waiting chicken rides its end of the plank
+    for(const ch of s.chickens){
+      if(ch.flying) continue;
+      const side = ch.side==null ? (ch.x<s.x?-1:1) : ch.side;
+      ch.side=side;
+      ch.x=endX(s,side); ch.y=endY(s,side)-C.CH_R;
+    }
+
+    for(const ch of s.chickens){
+      if(!ch.flying) continue;
+      ch.vy+=C.GRAV;
+      ch.x+=ch.vx; ch.y+=ch.vy;
+
+      // side walls
+      if(ch.x<C.CH_R){ ch.x=C.CH_R; ch.vx=Math.abs(ch.vx); }
+      if(ch.x>C.W-C.CH_R){ ch.x=C.W-C.CH_R; ch.vx=-Math.abs(ch.vx); }
+      // ceiling
+      if(ch.y<C.CH_R){ ch.y=C.CH_R; ch.vy=Math.abs(ch.vy); }
+
+      // balloons
+      for(const b of s.balloons){
+        if(!b.alive) continue;
+        if(Math.hypot(b.x-ch.x, b.y-ch.y) < C.BAL_R+C.CH_R){
+          b.alive=false;
+          s.score+=ROW_POINTS[b.row];
+          s.popFlash=6;
+          ch.vy = Math.abs(ch.vy)*C.BOUNCE_KEEP;   // pops send her onward, not back
+        }
+      }
+
+      // the plank
+      if(ch.vy>0){
+        for(const side of [-1,1]){
+          const ex=endX(s,side), ey=endY(s,side);
+          if(Math.abs(ch.x-ex)<=C.SEESAW_HW*0.62 && ch.y+C.CH_R>=ey-2 && ch.y+C.CH_R<=ey+12){
+            land(s, ch, side);
+            break;
+          }
+        }
+      }
+
+      // the floor
+      if(!ch.landed && ch.y+C.CH_R>=C.GROUND+6){
+        loseLife(s);
+        return s;
+      }
+    }
+
+    if(s.balloons.every(b=>!b.alive)){
+      s.wave++;
+      s.balloons=makeBalloons();
+      s.score+=100*s.wave;
+      resetRound(s);
+      s.cleared=true;
+    }
+    return s;
+  }
+
+  // A chicken lands on one end; if that end is the LOW one, the partner on the
+  // high end is catapulted up. Landing on the high end is a soft, wasted landing.
+  function land(s, ch, side){
+    const impact=ch.vy;
+    ch.flying=false; ch.side=side; ch.vx=0; ch.vy=0;
+    ch.x=endX(s,side); ch.y=endY(s,side)-C.CH_R;
+
+    const partner=s.chickens.find(c=>c!==ch);
+    const wasLow = (s.tilt===side);
+    s.tilt = side;                 // the end she landed on is now down
+
+    if(partner && !partner.flying && wasLow){
+      partner.flying=true;
+      partner.side=null;
+      partner.vy=-launchSpeed(impact);
+      // a little outward drift so she doesn't fly perfectly vertically
+      partner.vx=(partner.x<C.W/2?1:-1)*(0.9+Math.random()*1.1);
+      partner.y=endY(s,-side)-C.CH_R;
+      partner.x=endX(s,-side);
+    }
+  }
+
+  function loseLife(s){
+    s.lives--;
+    if(s.lives<=0){ s.over=true; return s; }
+    resetRound(s);
+    return s;
+  }
+
+  function balloonsLeft(s){ return s.balloons.filter(b=>b.alive).length; }
+  function result(s){ return s.over?{score:s.score,wave:s.wave}:null; }
+
+  window.__chickencircus={ newState, step, land, loseLife, makeBalloons, resetRound,
+                           balloonsLeft, launchSpeed, endX, endY, result, C, ROW_POINTS };
+
+  // ------------------------------------------------------------------ view ---
+  if(typeof document==="undefined"||!document.getElementById) return;
+  const $=(id)=>document.getElementById(id);
+  const cv=$("game"); if(!cv) return;
+  const ctx=cv.getContext("2d");
+  let s=newState(), best=0, input={left:false,right:false}, splash=null, started=false;
+  try{ best=parseInt(localStorage.getItem("circus_best")||"0")||0; }catch(e){}
+
+  function drawChicken(ch){
+    const x=ch.x, y=ch.y, r=C.CH_R;
+    ctx.fillStyle="#c96f14";
+    ctx.beginPath(); ctx.moveTo(x-r*0.7,y); ctx.lineTo(x-r*1.5,y-r*0.7); ctx.lineTo(x-r*0.7,y+r*0.6); ctx.closePath(); ctx.fill();
+    ctx.fillStyle="#dc2626";
+    ctx.fillRect(x-3,y-r-3,2,3); ctx.fillRect(x,y-r-4,2,4); ctx.fillRect(x+3,y-r-3,2,3);
+    ctx.fillStyle="#facc15"; ctx.beginPath(); ctx.arc(x,y,r,0,7); ctx.fill();
+    ctx.fillStyle="#fde68a"; ctx.beginPath(); ctx.ellipse(x-1,y+1,r*0.55,r*0.35,0,0,7); ctx.fill();
+    ctx.fillStyle="#0b0c1a"; ctx.beginPath(); ctx.arc(x+r*0.35,y-r*0.3,1.6,0,7); ctx.fill();
+    ctx.fillStyle="#fb923c";
+    ctx.beginPath(); ctx.moveTo(x+r*0.7,y-1); ctx.lineTo(x+r*1.5,y+1); ctx.lineTo(x+r*0.7,y+3); ctx.closePath(); ctx.fill();
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,C.W,C.H);
+    // big top: stripes and a scalloped canopy
+    ctx.fillStyle="#160d2b"; ctx.fillRect(0,0,C.W,C.H);
+    for(let i=0;i<C.W;i+=40){ ctx.fillStyle=(i/40)%2?"rgba(244,114,182,.07)":"rgba(255,255,255,.04)";
+      ctx.fillRect(i,0,40,C.H); }
+    ctx.fillStyle="#7c2d5c";
+    ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(C.W,0); ctx.lineTo(C.W,18);
+    for(let i=C.W;i>0;i-=24) ctx.quadraticCurveTo(i-12,32,i-24,18);
+    ctx.closePath(); ctx.fill();
+
+    // balloons
+    for(const b of s.balloons){
+      if(!b.alive) continue;
+      ctx.fillStyle=ROW_COLOR[b.row];
+      ctx.beginPath(); ctx.ellipse(b.x,b.y,C.BAL_R*0.86,C.BAL_R,0,0,7); ctx.fill();
+      ctx.fillStyle="rgba(255,255,255,.45)";
+      ctx.beginPath(); ctx.ellipse(b.x-2.5,b.y-3,2.2,3,0,0,7); ctx.fill();
+      ctx.strokeStyle="rgba(255,255,255,.25)"; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.moveTo(b.x,b.y+C.BAL_R); ctx.lineTo(b.x,b.y+C.BAL_R+5); ctx.stroke();
+    }
+
+    // ground and the seesaw
+    ctx.fillStyle="#3b1e46"; ctx.fillRect(0,C.GROUND+6,C.W,C.H-C.GROUND-6);
+    const lx=endX(s,-1), ly=endY(s,-1), rx=endX(s,1), ry=endY(s,1);
+    ctx.strokeStyle="#c99b52"; ctx.lineWidth=C.PLANK_T; ctx.lineCap="round";
+    ctx.beginPath(); ctx.moveTo(lx,ly); ctx.lineTo(rx,ry); ctx.stroke(); ctx.lineCap="butt";
+    ctx.fillStyle="#8a5a2b";
+    ctx.beginPath(); ctx.moveTo(s.x-9,C.GROUND+6); ctx.lineTo(s.x+9,C.GROUND+6); ctx.lineTo(s.x,C.GROUND-10); ctx.closePath(); ctx.fill();
+
+    for(const ch of s.chickens) drawChicken(ch);
+
+    if(s.popFlash>0){ ctx.fillStyle="rgba(255,255,255,"+(s.popFlash/26)+")"; ctx.fillRect(0,0,C.W,C.H); }
+
+    ctx.fillStyle="rgba(230,230,240,.55)"; ctx.font="9px monospace"; ctx.textAlign="left";
+    ctx.fillText("BALLOONS "+balloonsLeft(s),6,C.H-8);
+
+    if(!started&&!s.over){
+      ctx.fillStyle="rgba(0,0,0,.55)"; ctx.fillRect(0,0,C.W,C.H);
+      ctx.fillStyle="#ffcf5a"; ctx.font="bold 18px system-ui"; ctx.textAlign="center";
+      ctx.fillText("CHICKEN CIRCUS",C.W/2,C.H/2-12);
+      ctx.fillStyle="#e6e6f0"; ctx.font="11px system-ui";
+      ctx.fillText("Catch her on the low end of the seesaw.",C.W/2,C.H/2+10);
+      ctx.fillText("Press ← → or tap to start",C.W/2,C.H/2+28);
+    }
+    if(s.over){
+      ctx.fillStyle="rgba(0,0,0,.65)"; ctx.fillRect(0,0,C.W,C.H);
+      ctx.fillStyle="#f43f5e"; ctx.font="bold 20px system-ui"; ctx.textAlign="center";
+      ctx.fillText("GAME OVER",C.W/2,C.H/2-6);
+      ctx.fillStyle="#e6e6f0"; ctx.font="12px system-ui";
+      ctx.fillText("Score "+s.score+"  ·  Wave "+s.wave+"  ·  Best "+best,C.W/2,C.H/2+16);
+    }
+  }
+
+  function hud(){
+    $("score").textContent=s.score; $("wave").textContent=s.wave;
+    $("lives").textContent=Math.max(0,s.lives); $("best").textContent=best;
+  }
+
+  function frame(){
+    if(splash && Arcade.splash.tick(splash)) splash=null;
+    if(started&&!s.over&&!splash){
+      const lives0=s.lives, wave0=s.wave, left0=balloonsLeft(s);
+      step(s,input);
+      if(balloonsLeft(s)<left0) Arcade.sfx.pickup();
+      if(s.wave>wave0){ Arcade.sfx.wave(); splash=Arcade.splash.wave(s.wave,"More balloons"); }
+      else if(s.lives<lives0 && !s.over){ Arcade.sfx.death(); splash=Arcade.splash.death("SHE FELL!",s.lives+" left"); }
+      if(s.over){
+        Arcade.sfx.lose(); splash=Arcade.splash.death("GAME OVER","Score "+s.score);
+        if(s.score>best){ best=s.score; try{localStorage.setItem("circus_best",String(best));}catch(e){} }
+        $("msg").textContent="💥 Game over — "+s.score+" points on wave "+s.wave+".";
+      }
+    }
+    draw(); Arcade.splash.draw(ctx,C.W,C.H,splash); hud();
+    requestAnimationFrame(frame);
+  }
+
+  function begin(){ if(!started){ started=true; $("msg").textContent="Keep her in the air!"; } }
+  addEventListener("keydown",(e)=>{
+    if(e.key==="ArrowLeft"||e.key==="a"){ e.preventDefault(); input.left=true; begin(); }
+    if(e.key==="ArrowRight"||e.key==="d"){ e.preventDefault(); input.right=true; begin(); }
+  });
+  addEventListener("keyup",(e)=>{
+    if(e.key==="ArrowLeft"||e.key==="a") input.left=false;
+    if(e.key==="ArrowRight"||e.key==="d") input.right=false;
+  });
+  document.querySelectorAll(".ctl .pad").forEach(b=>{
+    const d=b.getAttribute("data-d");
+    const on=(e)=>{ e.preventDefault(); input[d]=true; begin(); };
+    const off=(e)=>{ e.preventDefault(); input[d]=false; };
+    b.addEventListener("mousedown",on); b.addEventListener("touchstart",on,{passive:false});
+    b.addEventListener("mouseup",off);  b.addEventListener("touchend",off,{passive:false});
+    b.addEventListener("mouseleave",off);
+  });
+  cv.addEventListener("touchstart",(e)=>{
+    e.preventDefault(); begin();
+    const r=cv.getBoundingClientRect();
+    const x=(e.touches[0].clientX-r.left)/r.width*C.W;
+    input.left = x < s.x; input.right = x >= s.x;
+  },{passive:false});
+  cv.addEventListener("touchend",()=>{ input.left=input.right=false; });
+  $("new").addEventListener("click",()=>{ s=newState(); started=false; splash=null;
+    $("msg").textContent="Slide the seesaw under the falling chicken — bounce her into the balloons."; });
+
+  requestAnimationFrame(frame);
+})();
+</script>
+<script src="/comments.js" defer></script>
+</body>
+</html>
