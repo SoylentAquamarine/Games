@@ -129,7 +129,7 @@
         if(s.lanes.every(l=>l)){ s.score+=5000; s.bonus++; s.lanes=[false,false,false]; if(s.balls<5) s.balls++; $("msg").textContent="LANES COMPLETE! +5000 & an extra ball!"; } }
       // static rails: outlane guides and upper deflectors
       for(const w of WALLS) wallReflect(s.ball,w);
-      if(drainCheck(s.ball)){ s.balls--; if(s.balls<=0){ s.over=true; if(s.score>best){ best=s.score; try{localStorage.setItem("pinball_best",String(best));}catch(e){} } $("msg").textContent="Game over! Score "+s.score+"  ·  Best "+best; } else { newBall(); $("msg").textContent="Ball drained! "+s.balls+" left — Space to launch."; } }
+      if(drainCheck(s.ball)){ s.balls--; if(s.balls<=0){ s.over=true; if(typeof Arcade!=="undefined")Arcade.stats.record("pinball",s.score); if(s.score>best){ best=s.score; try{localStorage.setItem("pinball_best",String(best));}catch(e){} } $("msg").textContent="Game over! Score "+s.score+"  ·  Best "+best; } else { newBall(); $("msg").textContent="Ball drained! "+s.balls+" left — Space to launch."; } }
     }
     $("score").textContent=s.score; $("balls").textContent=Math.max(0,s.balls); draw(); requestAnimationFrame(frame);
   }

@@ -79,7 +79,7 @@
   let flapReq=false;
   function frame(){
     if(!GATE.open){ draw(); GATE.paint(); return requestAnimationFrame(frame); } step(s,flapReq); flapReq=false;
-    if(s.over && s.score>best){ best=s.score; try{localStorage.setItem("colorswitch_best",String(best));}catch(e){} $("msg").textContent="Game over! Score "+s.score+"  ·  Best "+best; }
+    if(typeof Arcade!=="undefined")Arcade.stats.record("colorswitch",s.score); if(s.over && s.score>best){ best=s.score; try{localStorage.setItem("colorswitch_best",String(best));}catch(e){} $("msg").textContent="Game over! Score "+s.score+"  ·  Best "+best; }
     draw(); requestAnimationFrame(frame); }
   function flap(){ if(s.over) return; flapReq=true; }
   cv.addEventListener("mousedown",(e)=>{e.preventDefault();flap();});

@@ -51,6 +51,7 @@
     <button class="btn" id="start">Start</button>
     <p class="hint">Watch the sequence, then tap it back. It grows each round.</p>
   </div>
+  <script src="/arcade.js"></script>
   <script>
   (function(){
     const pads=[...document.querySelectorAll(".pad")];
@@ -65,7 +66,7 @@
     function next(){step=0;seq.push(Math.floor(Math.random()*4));roundEl.textContent=seq.length;acceptInput=false;statusEl.textContent="Watch…";playback();}
     function playback(){let i=0;const speed=Math.max(300,650-seq.length*20);const t=setInterval(()=>{if(i>=seq.length){clearInterval(t);acceptInput=true;statusEl.textContent="Your turn";return;}light(seq[i],speed*.7);i++;},speed);}
     function click(i){if(!acceptInput)return;light(i,220);
-      if(seq[step]===i){step++;if(step===seq.length){acceptInput=false;if(seq.length>best){best=seq.length;bestEl.textContent=best;localStorage.setItem("simon_best",best);}statusEl.textContent="✓ Nice!";setTimeout(next,700);}}
+      if(seq[step]===i){step++;if(step===seq.length){acceptInput=false;if(typeof Arcade!=="undefined")Arcade.stats.record("simon",seq.length); if(seq.length>best){best=seq.length;bestEl.textContent=best;localStorage.setItem("simon_best",best);}statusEl.textContent="✓ Nice!";setTimeout(next,700);}}
       else{acceptInput=false;statusEl.textContent=`✗ Wrong! You reached round ${seq.length-1}.`;centerEl.textContent="▶";pads.forEach(p=>{p.style.opacity=".2";setTimeout(()=>p.style.opacity="",600);});}
     }
     pads.forEach((p,i)=>{p.addEventListener("click",()=>click(i));});

@@ -52,6 +52,7 @@
     </div>
     <p class="hint">Arrows / WASD / swipe / d-pad · reach the 3 lily pads up top</p>
   </div>
+  <script src="/arcade.js"></script>
   <script>
   (function(){
     const cv=document.getElementById("c"),ctx=cv.getContext("2d");
@@ -128,7 +129,7 @@
       }
     }
     function die(){lives--;livesEl.textContent=lives;
-      if(lives<=0){running=false;cancelAnimationFrame(raf);if(score>best){best=score;localStorage.setItem("frogger_best",best);}ot.textContent="Game Over";om.textContent=`Score ${score}${score>=best?" · best!":""}`;startBtn.textContent="Play again";ov.classList.remove("hidden");return;}
+      if(lives<=0){running=false;cancelAnimationFrame(raf);if(typeof Arcade!=="undefined")Arcade.stats.record("frogger",score); if(score>best){best=score;localStorage.setItem("frogger_best",best);}ot.textContent="Game Over";om.textContent=`Score ${score}${score>=best?" · best!":""}`;startBtn.textContent="Play again";ov.classList.remove("hidden");return;}
       frog={c:6,r:14};
     }
     function win(){running=false;cancelAnimationFrame(raf);score+=100;scoreEl.textContent=score;if(score>best){best=score;localStorage.setItem("frogger_best",best);}

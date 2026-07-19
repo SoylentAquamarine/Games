@@ -49,6 +49,7 @@
     </div>
     <p class="hint">← → move · Space fire · take cover behind the bunkers</p>
   </div>
+  <script src="/arcade.js"></script>
   <script>
   (function(){
     const cv=document.getElementById("c"),ctx=cv.getContext("2d"),W=cv.width,H=cv.height;
@@ -128,7 +129,7 @@
     }
     function fire(){if(!running||pBullet)return;pBullet={x:player.x+player.w/2,y:player.y-6};}
     function die(overrun){lives--;livesEl.textContent=lives;eBullets=[];
-      if(lives<=0||overrun){running=false;cancelAnimationFrame(raf);if(score>best){best=score;localStorage.setItem("invaders_best",best);}
+      if(lives<=0||overrun){running=false;cancelAnimationFrame(raf);if(typeof Arcade!=="undefined")Arcade.stats.record("invaders",score); if(score>best){best=score;localStorage.setItem("invaders_best",best);}
         ot.textContent=overrun&&lives>0?"Overrun!":"Game Over";om.textContent="Score "+score+(score>=best?" · best!":"");startBtn.textContent="Play again";ov.classList.remove("hidden");return;}
       player.x=W/2-16;}
     // Four chicken breeds — one per invader row.

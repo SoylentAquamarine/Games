@@ -35,6 +35,21 @@
     .avatar img{width:44px;height:44px;border-radius:50%}
     .note{color:var(--muted);font-size:.82rem;line-height:1.5}
     .hidden{display:none}
+    .statrow{display:flex;gap:8px;margin:10px 0 14px;flex-wrap:wrap}
+    .stat{flex:1;min-width:88px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:8px;text-align:center}
+    .stat .v{font-size:1.3rem;font-weight:800}
+    .stat .k{font-size:.66rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+    .tablewrap{overflow-x:auto}
+    table.report{width:100%;border-collapse:collapse;font-size:.84rem}
+    table.report th{text-align:left;font-size:.66rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);padding:6px 8px;border-bottom:1px solid rgba(255,255,255,.1)}
+    table.report td{padding:6px 8px;border-bottom:1px solid rgba(255,255,255,.05);white-space:nowrap}
+    table.report td.num{text-align:right;font-variant-numeric:tabular-nums}
+    table.report tr:hover td{background:rgba(255,255,255,.03)}
+    table.report a{color:var(--text);text-decoration:none}
+    table.report a:hover{color:var(--accent-2)}
+    .adminlinks{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+    .adminlinks a{color:var(--accent-2);text-decoration:none;font-size:.88rem;padding:7px 10px;border:1px solid rgba(34,211,238,.25);border-radius:8px}
+    .adminlinks a:hover{background:rgba(34,211,238,.08)}
   </style>
 </head>
 <body>
@@ -61,10 +76,29 @@
         <button class="btn ghost" id="restore">⬇ Restore</button>
       </div>
       <div class="msg" id="msg2"></div>
+
+      <h2 style="margin-top:22px">🏆 Your report</h2>
+      <div class="statrow" id="statRow"></div>
+      <div class="tablewrap"><table class="report" id="report"></table></div>
+      <p class="note" id="reportNote"></p>
+
+      <div id="adminBox" class="hidden">
+        <h2 style="margin-top:22px">🔧 Site admin</h2>
+        <p class="note">Pages that are otherwise unlinked.</p>
+        <div class="adminlinks">
+          <a href="/admin/comments/">💬 Comment approval</a>
+          <a href="/admin/">🛠 Admin dashboard</a>
+          <a href="/games/musicmaker/">🎵 Music Maker hub</a>
+          <a href="/play/match/">🎮 Online match screen</a>
+          <a href="/play/adv/">🗺 Online adventure screen</a>
+        </div>
+      </div>
+
       <button class="btn ghost" id="logout" style="margin-top:16px">Log out</button>
     </div>
   </div>
 
+  <script src="/arcade.js"></script>
   <script src="/account.js"></script>
   <script>
   (function(){
@@ -87,9 +121,93 @@
         $("avatar").textContent=(u.username||"?").slice(0,1).toUpperCase();
         const last=await Account.lastBackup();
         $("backupInfo").innerHTML="Back up everything on this device to your account. <b>Last backup:</b> "+fmtTime(last)+".";
+        buildReport();
+        // admin links are only for the site owner
+        $("adminBox").classList.toggle("hidden", String(u.username||"").toLowerCase()!=="steve");
       }else{
         $("authCard").classList.remove("hidden");$("profileCard").classList.add("hidden");
       }
+    }
+
+    // ---------------------------------------------------------------------
+    // Report. Plays and averages come from Arcade.stats, which games record as
+    // they finish. Older high scores only ever existed as "<game>_best" keys in
+    // localStorage, so those are folded in too — otherwise years of top scores
+    // would simply not appear.
+    // ---------------------------------------------------------------------
+    const TITLES={qbert:"ChickenBert",dk:"Chicken Kong",doodle:"Chicken Jump",doodlejump:"Chicken Jump",
+      minigolf:"Chicken Minigolf",asteroids:"Chicken Asteroids",galaga:"Chickaga",lander:"Chicken Lander",
+      chickenmania:"Chickenmania",chickencircus:"Chicken Circus",crossyroad:"Crossy Chicken",
+      moonpatrol:"Moon Chicken",missilecommand:"Coop Command",centipede:"Chickenpede",
+      boulderdash:"Boulder Chicken",digdug:"Dig Chicken",duckhunt:"Chicken Hunt",dino:"Chicken Run",
+      timberman:"Timber Chicken",knifehit:"Feather Hit",helixjump:"Helix Chicken",joust:"Chicken Joust",
+      kaboom:"Chicken Kaboom",fruitninja:"Fruit Chicken",pinball:"Chicken Pinball",tron:"Chicken Tron",
+      bomberman:"Chicken Bomber",colorswitch:"Colour Switch",pianotiles:"Piano Chicken",
+      adventure:"Chicken Quest",pacman:"Chicken-Man",invaders:"Chicken Invaders",tetris:"Chickentris"};
+    const pretty=(s)=>TITLES[s]||s.replace(/[-_/]/g," ").replace(/\b\w/g,c=>c.toUpperCase());
+    // Several games shortened their storage key, so the prefix is not the slug.
+    // Without this the report would invent games like "bomber" and "crossy" and
+    // link them to pages that do not exist.
+    const KEY2SLUG={bomber:"bomberman",boulder:"boulderdash",circus:"chickencircus",
+      crossy:"crossyroad",doodle:"doodlejump",fib:"fibonacci",fruit:"fruitninja",
+      helix:"helixjump",knife:"knifehit",mc:"missilecommand",moon:"moonpatrol",
+      piano:"pianotiles",timber:"timberman"};
+
+    function legacyBests(){
+      // keys look like "qbert_best", "doodle_best", "asteroids_best"
+      const out={};
+      for(let i=0;i<localStorage.length;i++){
+        const k=localStorage.key(i);
+        const m=k&&k.match(/^(.+?)[_:-]?best$/i);
+        if(!m||!m[1]) continue;
+        const n=Number(localStorage.getItem(k));
+        if(!Number.isFinite(n)) continue;
+        const prefix=m[1].replace(/[_:-]$/,"");
+        out[KEY2SLUG[prefix]||prefix]=n;
+      }
+      return out;
+    }
+    function gather(){
+      const tracked=(window.Arcade&&Arcade.stats)?Arcade.stats.all():{};
+      const legacy=legacyBests();
+      const rows={};
+      for(const [slug,g] of Object.entries(tracked)){
+        rows[slug]={slug,plays:g.plays||0,best:g.best,avg:g.plays?Math.round((g.total||0)/g.plays):null,at:g.at||0};
+      }
+      for(const [slug,best] of Object.entries(legacy)){
+        if(rows[slug]){ if(rows[slug].best===null||best>rows[slug].best) rows[slug].best=best; }
+        else rows[slug]={slug,plays:0,best,avg:null,at:0};
+      }
+      return Object.values(rows).sort((a,b)=>(b.best??-1)-(a.best??-1)||a.slug.localeCompare(b.slug));
+    }
+    function buildReport(){
+      const rows=gather();
+      const totalPlays=rows.reduce((a,r)=>a+r.plays,0);
+      const scored=rows.filter(r=>r.plays>0&&r.avg!==null);
+      const overallAvg=scored.length?Math.round(scored.reduce((a,r)=>a+r.avg*r.plays,0)/scored.reduce((a,r)=>a+r.plays,0)):null;
+      $("statRow").innerHTML=
+        '<div class="stat"><div class="v">'+rows.length+'</div><div class="k">Games played</div></div>'+
+        '<div class="stat"><div class="v">'+totalPlays+'</div><div class="k">Total plays</div></div>'+
+        '<div class="stat"><div class="v">'+(overallAvg===null?"—":overallAvg)+'</div><div class="k">Avg score</div></div>';
+      if(!rows.length){
+        $("report").innerHTML="";
+        $("reportNote").textContent="No scores on this device yet. Play something, then come back — or restore a cloud backup.";
+        return;
+      }
+      const body=rows.map(r=>"<tr>"+
+        '<td><a href="/games/'+r.slug+'/">'+pretty(r.slug)+"</a></td>"+
+        '<td class="num">'+(r.best===null?"—":r.best.toLocaleString())+"</td>"+
+        '<td class="num">'+(r.plays||"—")+"</td>"+
+        '<td class="num">'+(r.avg===null?"—":r.avg.toLocaleString())+"</td>"+
+        '<td class="num">'+(r.at?new Date(r.at).toLocaleDateString():"—")+"</td>"+
+      "</tr>").join("");
+      $("report").innerHTML="<thead><tr><th>Game</th><th style='text-align:right'>Top score</th>"+
+        "<th style='text-align:right'>Plays</th><th style='text-align:right'>Avg</th>"+
+        "<th style='text-align:right'>Last</th></tr></thead><tbody>"+body+"</tbody>";
+      const untracked=rows.filter(r=>!r.plays).length;
+      $("reportNote").textContent=untracked
+        ? untracked+" game"+(untracked>1?"s":"")+" show a top score from before play tracking started, so plays and averages begin from your next game."
+        : "Scores are stored on this device and travel with your cloud backup.";
     }
 
     $("submit").addEventListener("click",async()=>{

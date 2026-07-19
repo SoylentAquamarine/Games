@@ -43,6 +43,7 @@
     <button class="btn" id="new">New Game</button>
     <p class="hint">Arrow keys / WASD or swipe · merge to reach 2048</p>
   </div>
+  <script src="/arcade.js"></script>
   <script>
   (function(){
     const SIZE=4, cellsEl=document.getElementById("cells"), tilesEl=document.getElementById("tiles");
@@ -81,7 +82,7 @@
       rot((4-times)%4);
       grid=g;
       if(JSON.stringify(grid)!==before){add();scoreEl.textContent=score;
-        if(score>best){best=score;bestEl.textContent=best;localStorage.setItem("2048_best",best);}
+        if(typeof Arcade!=="undefined")Arcade.stats.record("2048",score); if(score>best){best=score;bestEl.textContent=best;localStorage.setItem("2048_best",best);}
         draw();
         if(won){statusEl.textContent="🎉 You made 2048! Keep going.";won=false;}
         if(!canMove()){over=true;statusEl.textContent="Game over — no moves left.";}

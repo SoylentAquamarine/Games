@@ -165,7 +165,7 @@
       if(++barrelT>=16){ barrelT=0; barrelStep(s); }
       collide(s);
       if(s.won) s.score+=500;
-      if((s.over||s.won) && s.score>best){ best=s.score; try{localStorage.setItem("dk_best",String(best));}catch(e){} }
+      if(typeof Arcade!=="undefined")Arcade.stats.record("dk",s.score); if((s.over||s.won) && s.score>best){ best=s.score; try{localStorage.setItem("dk_best",String(best));}catch(e){} }
       if(s.won) $("msg").textContent="🎉 Rescued! Score "+s.score+". New Game to climb again.";
       else if(s.over) $("msg").textContent="Squashed! Score "+s.score+"  ·  Best "+best;
     }

@@ -43,6 +43,7 @@
   </div>
   <div class="hint">↑/Space thrust · ←/→ steer · touch the buttons on mobile</div>
 </div>
+<script src="/arcade.js"></script>
 <script>
 (function(){
   const W=480,H=360, GROUND_Y=334, LW=26, LH=26;
@@ -120,7 +121,7 @@
     $("alt").textContent=Math.max(0,Math.round(GROUND_Y-LH-s.y)); $("fuelbar").style.width=(s.fuel/C.FUEL*100)+"%"; }
 
   function frame(){ if(!done){ step(s,input);
-    if(s.landed){ done=true; if(!best||(s.score>best)){ best=s.score; try{localStorage.setItem("lander_best",String(best));}catch(e){} } $("msg").textContent="🚀 Nice landing! Score "+s.score+(best?"  ·  Best "+best:""); }
+    if(s.landed){ done=true; if(typeof Arcade!=="undefined")Arcade.stats.record("lander",s.score); if(!best||(s.score>best)){ best=s.score; try{localStorage.setItem("lander_best",String(best));}catch(e){} } $("msg").textContent="🚀 Nice landing! Score "+s.score+(best?"  ·  Best "+best:""); }
     else if(s.crashed){ done=true; $("msg").textContent="💥 Too fast or off the pad. Try again!"; } }
     draw(); hud(); requestAnimationFrame(frame); }
 

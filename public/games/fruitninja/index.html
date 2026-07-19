@@ -79,7 +79,7 @@
   }
   function frame(){
     if(!GATE.open){ draw(); GATE.paint(); return requestAnimationFrame(frame); } step(s);
-    if(s.over && s.score>best){ best=s.score; try{localStorage.setItem("fruit_best",String(best));}catch(e){} $("msg").textContent="🍉 Game over! Score "+s.score+"  ·  Best "+best; }
+    if(typeof Arcade!=="undefined")Arcade.stats.record("fruitninja",s.score); if(s.over && s.score>best){ best=s.score; try{localStorage.setItem("fruit_best",String(best));}catch(e){} $("msg").textContent="🍉 Game over! Score "+s.score+"  ·  Best "+best; }
     if(trail.length){ trail.forEach(p=>p.life--); trail=trail.filter(p=>p.life>0); }
     $("score").textContent=s.score; $("lives").textContent="❤".repeat(Math.max(0,s.lives))||"—"; draw(); requestAnimationFrame(frame); }
   function pos(ev){ const r=cv.getBoundingClientRect(); const t=ev.touches?ev.touches[0]:ev; return { x:(t.clientX-r.left)*(C.W/r.width), y:(t.clientY-r.top)*(C.H/r.height) }; }

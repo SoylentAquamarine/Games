@@ -88,7 +88,7 @@
     if(!GATE.open){ draw(); GATE.paint(); return requestAnimationFrame(frame); } step(s);
     if(flying!=null){ flying-=26; if(flying<=CY+R){ flying=null; doThrow(); } }
     draw(); $("score").textContent=s.score; $("level").textContent=s.level; $("left").textContent=s.toThrow; requestAnimationFrame(frame); }
-  function doThrow(){ const r=throwKnife(s); if(r==="hit"){ shake=6; if(s.score>best){ best=s.score; try{localStorage.setItem("knife_best",String(best));}catch(e){} } $("msg").textContent="💥 You hit a knife! Score "+s.score+"  ·  Best "+best; } }
+  function doThrow(){ const r=throwKnife(s); if(r==="hit"){ shake=6; if(typeof Arcade!=="undefined")Arcade.stats.record("knifehit",s.score); if(s.score>best){ best=s.score; try{localStorage.setItem("knife_best",String(best));}catch(e){} } $("msg").textContent="💥 You hit a knife! Score "+s.score+"  ·  Best "+best; } }
   function toss(){ if(s.over||flying!=null) return; flying=H-40; }
   cv.addEventListener("mousedown",(e)=>{e.preventDefault();toss();});
   cv.addEventListener("touchstart",(e)=>{e.preventDefault();toss();},{passive:false});

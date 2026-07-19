@@ -38,6 +38,7 @@
     <button class="btn" id="new">New Game</button>
     <p class="hint">Arrows / WASD / swipe. Merge <b>consecutive</b> Fibonacci numbers: 1+1=2, 1+2=3, 2+3=5, 3+5=8, 5+8=13…</p>
   </div>
+  <script src="/arcade.js"></script>
   <script>
   (function(){
     const N=4;
@@ -58,7 +59,7 @@
       if(over)return;const before=JSON.stringify(board);let gain=0;
       for(let idx=0;idx<N;idx++){const {out,gained}=collapse(getLine(dir,idx));setLine(dir,idx,out);gain+=gained;}
       if(JSON.stringify(board)===before)return;
-      score+=gain;scoreEl.textContent=score;if(score>best){best=score;bestEl.textContent=best;localStorage.setItem("fib_best",best);}
+      score+=gain;scoreEl.textContent=score;if(typeof Arcade!=="undefined")Arcade.stats.record("fibonacci",score); if(score>best){best=score;bestEl.textContent=best;localStorage.setItem("fib_best",best);}
       addTile();render();
       if(won){statusEl.textContent="🎉 You reached 233! Keep going.";won=false;}
       if(!anyMove()){over=true;statusEl.textContent="Game over — final score "+score+".";}

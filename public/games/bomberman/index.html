@@ -119,7 +119,7 @@
       if(input && ++moveT>=8){ moveT=0; movePlayer(s,input); }
       if(++enemyT>=22){ enemyT=0; moveEnemies(s); }
       tick(s);
-      if((s.over||s.won) && s.score>best){ best=s.score; try{localStorage.setItem("bomber_best",String(best));}catch(e){} }
+      if(typeof Arcade!=="undefined")Arcade.stats.record("bomberman",s.score); if((s.over||s.won) && s.score>best){ best=s.score; try{localStorage.setItem("bomber_best",String(best));}catch(e){} }
       if(s.won) $("msg").textContent="🎉 Level cleared! Score "+s.score+". New Game for another.";
       else if(s.over) $("msg").textContent="💥 Boom! Score "+s.score+"  ·  Best "+best;
     }

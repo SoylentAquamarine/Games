@@ -465,7 +465,7 @@
       if(s.over){
         Arcade.sfx.lose();
         splash=Arcade.splash.death("GAME OVER","Score "+s.score);
-        if(s.score>best){ best=s.score; try{localStorage.setItem("chickenmania_best",String(best));}catch(e){} }
+        if(typeof Arcade!=="undefined")Arcade.stats.record("chickenmania",s.score); if(s.score>best){ best=s.score; try{localStorage.setItem("chickenmania_best",String(best));}catch(e){} }
         $("msg").textContent="💥 Game over — score "+s.score+" on wave "+s.wave+".";
       }
     }

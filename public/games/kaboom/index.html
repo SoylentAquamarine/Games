@@ -174,7 +174,7 @@
   function hud(){ $("score").textContent=s.score; $("wave").textContent=s.wave; $("buckets").textContent=Math.max(0,s.buckets); }
   function frame(){
     if(!GATE.open){ draw(); GATE.paint(); return requestAnimationFrame(frame); } step(s,input); input.left=input.right=false;
-    if(s.over && s.score>best){ best=s.score; try{localStorage.setItem("kaboom_best",String(best));}catch(e){} }
+    if(typeof Arcade!=="undefined")Arcade.stats.record("kaboom",s.score); if(s.over && s.score>best){ best=s.score; try{localStorage.setItem("kaboom_best",String(best));}catch(e){} }
     if(s.over) $("msg").textContent="🥚 Splat! Final score "+s.score+". New Game to try again.";
     draw(); hud(); requestAnimationFrame(frame); }
   function px(ev){ const r=cv.getBoundingClientRect(); const cx=(ev.touches?ev.touches[0].clientX:ev.clientX)-r.left; return cx*(C.W/r.width); }

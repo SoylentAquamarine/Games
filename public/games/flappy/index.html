@@ -41,6 +41,7 @@
     </div>
     <p class="hint">Tap, click, or press Space to flap through the gaps.</p>
   </div>
+  <script src="/arcade.js"></script>
   <script>
   (function(){
     const cv=document.getElementById("c"),ctx=cv.getContext("2d"),W=cv.width,H=cv.height;
@@ -66,7 +67,7 @@
       }
       if(bird.y+bird.r>H||bird.y-bird.r<0)return dead();
     }
-    function dead(){running=false;cancelAnimationFrame(raf);if(score>best){best=score;localStorage.setItem("flappy_best",best);bestEl.textContent=best;}
+    function dead(){running=false;cancelAnimationFrame(raf);if(typeof Arcade!=="undefined")Arcade.stats.record("flappy",score); if(score>best){best=score;localStorage.setItem("flappy_best",best);bestEl.textContent=best;}
       ot.textContent="Game Over";om.textContent="Score "+score+(score>=best?" · new best!":"");startBtn.textContent="Play again";ov.classList.remove("hidden");}
     function render(){
       // sky

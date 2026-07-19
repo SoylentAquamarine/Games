@@ -222,7 +222,7 @@
     function afterDeath(){
       dying=0; debris=[];
       if(gameOverPending){ gameOverPending=false; running=false; cancelAnimationFrame(raf);
-        if(score>best){best=score;localStorage.setItem("asteroids_best",best);bestEl.textContent=best;}
+        if(typeof Arcade!=="undefined")Arcade.stats.record("asteroids",score); if(score>best){best=score;localStorage.setItem("asteroids_best",best);bestEl.textContent=best;}
         ot.textContent="Game Over";om.textContent="Score "+score+" · wave "+wave;startBtn.textContent="Play again";ov.classList.remove("hidden");return; }
       ship=newShip(); inv=RESPAWN_INV; respawnFlash=RESPAWN_FLASH;
     }

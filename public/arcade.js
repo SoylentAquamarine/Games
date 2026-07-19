@@ -230,5 +230,37 @@
     return gate;
   }
 
-  global.Arcade = { SCREEN, fitScreen, sfx, splash, startGate };
+  // ---------------------------------------------------------------------
+  // stats — per-game play history behind the account report.
+  //
+  //   Arcade.stats.record("galaga", 4200)   // call once per finished game
+  //
+  // Kept in localStorage so it rides along with the existing cloud backup,
+  // which mirrors the whole of localStorage.
+  const STATS_KEY = "arcade:stats:v1";
+  const stats = {
+    all() {
+      try { return JSON.parse(localStorage.getItem(STATS_KEY) || "{}"); }
+      catch (_) { return {}; }
+    },
+    record(slug, score) {
+      if (!slug) return;
+      const n = Number(score);
+      const s = stats.all();
+      const g = s[slug] || { plays: 0, total: 0, best: null, last: null, at: 0 };
+      g.plays += 1;
+      if (Number.isFinite(n)) {
+        g.total += n;
+        g.last = n;
+        if (g.best === null || n > g.best) g.best = n;
+      }
+      g.at = Date.now();
+      s[slug] = g;
+      try { localStorage.setItem(STATS_KEY, JSON.stringify(s)); } catch (_) {}
+      return g;
+    },
+    reset() { try { localStorage.removeItem(STATS_KEY); } catch (_) {} },
+  };
+
+  global.Arcade = { SCREEN, fitScreen, sfx, splash, startGate, stats };
 })(typeof window !== "undefined" ? window : globalThis);

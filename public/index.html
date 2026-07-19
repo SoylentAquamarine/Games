@@ -13,7 +13,7 @@
     <span class="brand">🐔 Steve &amp; Claude's Chicken Game Extravaganza</span>
     <div class="header-right">
       <a class="account-link" href="/play/">🌐 Play Online</a>
-      <a class="account-link" href="/account/">☁️ Account</a>
+      <a class="account-link" href="/account/" id="accountLink">☁️ Account</a>
     </div>
   </header>
 
@@ -178,8 +178,20 @@
     <p>&copy; <span id="year"></span> Steve &amp; Claude. Vibecoded on Cloudflare.</p>
   </footer>
 
+  <script src="/account.js"></script>
   <script>
     document.getElementById("year").textContent = new Date().getFullYear();
+    // Show who is signed in rather than a generic "Account" label.
+    (async function () {
+      try {
+        const me = await Account.me();
+        if (me && me.loggedIn && me.user && me.user.username) {
+          const a = document.getElementById("accountLink");
+          a.textContent = "👤 " + me.user.username;
+          a.title = "Your account and score report";
+        }
+      } catch (e) {}
+    })();
   </script>
   <!-- Site-wide comments. The slug resolves to "home" for /, so anything left
        here is general feedback rather than tied to a single game. -->

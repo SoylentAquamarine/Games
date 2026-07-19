@@ -111,7 +111,7 @@
       if(++s.tc>=s.tickEvery){ s.tc=0; stepCentipede(s);
         for(const t of s.trains) for(const seg of t.cells) if(seg.c===s.player.c&&seg.r===s.player.r){ s.lives--; s.trains=[]; if(s.lives<=0) s.over=true; } }
       ensureCentipede(s);
-      if(s.over && s.score>best){ best=s.score; try{localStorage.setItem("centipede_best",String(best));}catch(e){} $("msg").textContent="Game over! Score "+s.score+"  ·  Best "+best; }
+      if(typeof Arcade!=="undefined")Arcade.stats.record("centipede",s.score); if(s.over && s.score>best){ best=s.score; try{localStorage.setItem("centipede_best",String(best));}catch(e){} $("msg").textContent="Game over! Score "+s.score+"  ·  Best "+best; }
     }
     $("score").textContent=s.score; $("wave").textContent=s.wave; $("lives").textContent=Math.max(0,s.lives);
     draw(); requestAnimationFrame(frame);

@@ -87,7 +87,7 @@
   }
   function frame(){
     if(!GATE.open){ draw(); GATE.paint(); return requestAnimationFrame(frame); } step(s,input); input.rot=null;
-    if(s.over && s.score>best){ best=s.score; try{localStorage.setItem("helix_best",String(best));}catch(e){} $("msg").textContent="Ouch! Depth "+s.score+"  ·  Best "+best; }
+    if(typeof Arcade!=="undefined")Arcade.stats.record("helixjump",s.score); if(s.over && s.score>best){ best=s.score; try{localStorage.setItem("helix_best",String(best));}catch(e){} $("msg").textContent="Ouch! Depth "+s.score+"  ·  Best "+best; }
     $("score").textContent=s.score; $("best").textContent=best; draw(); requestAnimationFrame(frame); }
   addEventListener("keydown",(e)=>{ if(e.key==="ArrowLeft"||e.key==="a")input.left=true; else if(e.key==="ArrowRight"||e.key==="d")input.right=true; });
   addEventListener("keyup",(e)=>{ if(e.key==="ArrowLeft"||e.key==="a")input.left=false; else if(e.key==="ArrowRight"||e.key==="d")input.right=false; });

@@ -51,6 +51,7 @@
     </div>
     <p class="hint">Arrows / WASD / swipe / d-pad · power corn lets you eat weasels</p>
   </div>
+  <script src="/arcade.js"></script>
   <script>
   (function(){
     const MAP=[
@@ -221,7 +222,7 @@
       dying=0;
       if(pendingGameOver){
         pendingGameOver=false;running=false;clearInterval(stepTimer);
-        if(score>best){best=score;localStorage.setItem("pacman_best",best);bestEl.textContent=best;}
+        if(typeof Arcade!=="undefined")Arcade.stats.record("pacman",score); if(score>best){best=score;localStorage.setItem("pacman_best",best);bestEl.textContent=best;}
         ot.textContent="Game Over";om.textContent="Score "+score;startBtn.textContent="Play again";ov.classList.remove("hidden");return;
       }
       pac={r:pacStart.r,c:pacStart.c,pr:pacStart.r,pc:pacStart.c,dir:"left",next:"left",mouth:0};

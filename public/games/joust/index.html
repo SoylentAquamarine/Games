@@ -115,7 +115,7 @@
   function frame(){
     if(!GATE.open){ draw(); GATE.paint(); return requestAnimationFrame(frame); } input.flap=flapEdge; flapEdge=false;
     if(!s.over){ step(s,input);
-      if(s.over && s.score>best){ best=s.score; try{localStorage.setItem("joust_best",String(best));}catch(e){} $("msg").textContent="Fell! Score "+s.score+"  ·  Best "+best; } }
+      if(typeof Arcade!=="undefined")Arcade.stats.record("joust",s.score); if(s.over && s.score>best){ best=s.score; try{localStorage.setItem("joust_best",String(best));}catch(e){} $("msg").textContent="Fell! Score "+s.score+"  ·  Best "+best; } }
     $("score").textContent=s.score; $("wave").textContent=s.wave; $("lives").textContent=Math.max(0,s.lives); draw(); requestAnimationFrame(frame);
   }
   function flap(){ if(!s.over) flapEdge=true; }

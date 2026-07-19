@@ -78,7 +78,7 @@
   }
   function frame(){
     if(!GATE.open){ draw(); GATE.paint(); return requestAnimationFrame(frame); } step(s);
-    if(s.over && s.score>best){ best=s.score; try{localStorage.setItem("piano_best",String(best));}catch(e){} $("msg").textContent="🎹 Missed! Score "+s.score+"  ·  Best "+best; }
+    if(typeof Arcade!=="undefined")Arcade.stats.record("pianotiles",s.score); if(s.over && s.score>best){ best=s.score; try{localStorage.setItem("piano_best",String(best));}catch(e){} $("msg").textContent="🎹 Missed! Score "+s.score+"  ·  Best "+best; }
     $("score").textContent=s.score; $("best").textContent=best; draw(); requestAnimationFrame(frame); }
   function tapAt(x){ tapColumn(s, Math.min(C.COLS-1, Math.max(0, Math.floor(x/cw)))); }
   cv.addEventListener("mousedown",(e)=>{ const r=cv.getBoundingClientRect(); tapAt((e.clientX-r.left)*(C.W/r.width)); });

@@ -42,6 +42,7 @@
     <button class="btn" id="new">New Game</button>
     <p class="hint">Tap a column to drop the next tile. Equal tiles stacked on each other merge and double — chain them for big scores!</p>
   </div>
+  <script src="/arcade.js"></script>
   <script>
   (function(){
     const COLS=5,ROWS=8;
@@ -67,7 +68,7 @@
       let r=-1;for(let i=ROWS-1;i>=0;i--)if(!grid[i][c]){r=i;break;}
       if(r<0)return; // column full
       grid[r][c]=next;
-      score+=settle();scoreEl.textContent=score;if(score>best){best=score;bestEl.textContent=best;localStorage.setItem("dropmerge_best",best);}
+      score+=settle();scoreEl.textContent=score;if(typeof Arcade!=="undefined")Arcade.stats.record("dropmerge",score); if(score>best){best=score;bestEl.textContent=best;localStorage.setItem("dropmerge_best",best);}
       next=genNext();nextEl.textContent=next;nextEl.style.background=color(next);
       render();
       if(full()){over=true;statusEl.textContent="Board full — game over! Score "+score+".";}

@@ -45,6 +45,7 @@
     <button class="btn" id="start">Start</button>
     <p class="hint">30 seconds. Moles = +1, golden mole = +3, bomb = −2.</p>
   </div>
+  <script src="/arcade.js"></script>
   <script>
   (function(){
     const grid=document.getElementById("grid"),scoreEl=document.getElementById("score"),timeEl=document.getElementById("time"),bestEl=document.getElementById("best"),statusEl=document.getElementById("status"),startBtn=document.getElementById("start");
@@ -73,7 +74,7 @@
     }
     function end(){running=false;clearTimeout(popTimer);clearInterval(tickTimer);startBtn.disabled=false;startBtn.textContent="Play again";
       holes.forEach(h=>{h.el.classList.remove("up");h.type=null;});
-      let msg=`⏱ Time! Final score ${score}.`;if(score>best){best=score;bestEl.textContent=best;localStorage.setItem("whack_best",best);msg+=" 🏆 New best!";}
+      let msg=`⏱ Time! Final score ${score}.`;if(typeof Arcade!=="undefined")Arcade.stats.record("whack",score); if(score>best){best=score;bestEl.textContent=best;localStorage.setItem("whack_best",best);msg+=" 🏆 New best!";}
       statusEl.textContent=msg;
     }
     startBtn.addEventListener("click",start);

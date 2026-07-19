@@ -76,7 +76,7 @@
   }
   function frame(){
     if(!GATE.open){ draw(); GATE.paint(); return requestAnimationFrame(frame); } tickTimer(s,C.TIMER_DRAIN);
-    if(s.over && s.score>best){ best=s.score; try{localStorage.setItem("timber_best",String(best));}catch(e){} $("msg").textContent="🪓 Down it goes! Score "+s.score+"  ·  Best "+best; }
+    if(typeof Arcade!=="undefined")Arcade.stats.record("timberman",s.score); if(s.over && s.score>best){ best=s.score; try{localStorage.setItem("timber_best",String(best));}catch(e){} $("msg").textContent="🪓 Down it goes! Score "+s.score+"  ·  Best "+best; }
     draw(); requestAnimationFrame(frame); }
   function doChop(side){ if(s.over) return; shake=4; chop(s,side); }
   cv.addEventListener("mousedown",(e)=>{ const r=cv.getBoundingClientRect(); doChop((e.clientX-r.left)<r.width/2?"left":"right"); });

@@ -113,7 +113,7 @@
   function frame(){
     if(!GATE.open){ draw(); GATE.paint(); return requestAnimationFrame(frame); } s.t++;
     if(!s.over&&started){ if(--spawnGap<=0){ spawn(); spawnGap=Math.max(40, 90 - Math.floor(s.speed*4)); } step(s,input); input.jump=false;
-      if(s.over){ const sc=Math.floor(s.score/3); if(sc>best){ best=sc; try{localStorage.setItem("dino_best",String(best));}catch(e){} } $("msg").textContent="💥 Ouch! Score "+sc+"  ·  Best "+best; } }
+      if(s.over){ const sc=Math.floor(s.score/3); if(typeof Arcade!=="undefined")Arcade.stats.record("dino",sc); if(sc>best){ best=sc; try{localStorage.setItem("dino_best",String(best));}catch(e){} } $("msg").textContent="💥 Ouch! Score "+sc+"  ·  Best "+best; } }
     for(const c of clouds){ c.x-=0.4; if(c.x<-26){ c.x=C.W; c.y=20+Math.random()*40; } }
     draw(); requestAnimationFrame(frame);
   }

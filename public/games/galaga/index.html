@@ -189,7 +189,7 @@
   }
   function frame(){
     if(!GATE.open){ draw(); GATE.paint(); return requestAnimationFrame(frame); } step(s,input);
-    if(s.over && s.score>best){ best=s.score; try{localStorage.setItem("galaga_best",String(best));}catch(e){} $("msg").textContent="Game over! Score "+s.score+"  ·  Best "+best; }
+    if(typeof Arcade!=="undefined")Arcade.stats.record("galaga",s.score); if(s.over && s.score>best){ best=s.score; try{localStorage.setItem("galaga_best",String(best));}catch(e){} $("msg").textContent="Game over! Score "+s.score+"  ·  Best "+best; }
     $("score").textContent=s.score; $("wave").textContent=s.wave; $("lives").textContent=Math.max(0,s.lives); draw(); requestAnimationFrame(frame); }
   const bindHold=(id,k)=>{ const el=$(id); const on=(e)=>{e.preventDefault();input[k]=true;}; const off=(e)=>{e.preventDefault();input[k]=false;};
     el.addEventListener("touchstart",on,{passive:false});el.addEventListener("touchend",off);el.addEventListener("mousedown",on);el.addEventListener("mouseup",off);el.addEventListener("mouseleave",off); };

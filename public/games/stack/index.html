@@ -41,6 +41,7 @@
     </div>
     <p class="hint">Tap / click / Space to drop the moving block. Overhang gets sliced off — perfect stacks stay wide.</p>
   </div>
+  <script src="/arcade.js"></script>
   <script>
   (function(){
     const cv=document.getElementById("c"),ctx=cv.getContext("2d"),W=cv.width,H=cv.height;
@@ -77,7 +78,7 @@
       if(cur.y-camY<H*0.35)camY=cur.y-H*0.35;
       spawn();
     }
-    function dead(){running=false;cancelAnimationFrame(raf);if(score>best){best=score;localStorage.setItem("stack_best",best);bestEl.textContent=best;}
+    function dead(){running=false;cancelAnimationFrame(raf);if(typeof Arcade!=="undefined")Arcade.stats.record("stack",score); if(score>best){best=score;localStorage.setItem("stack_best",best);bestEl.textContent=best;}
       ot.textContent="Toppled!";om.textContent="Height "+score+(score>=best?" · new best!":"");startBtn.textContent="Play again";ov.classList.remove("hidden");}
     function render(){
       ctx.clearRect(0,0,W,H);

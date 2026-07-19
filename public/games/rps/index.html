@@ -48,6 +48,7 @@
   <div class="streak">Win streak: <b id="streak">0</b> · Best: <b id="best">0</b></div>
   <div class="banner" id="banner"></div>
 </div>
+<script src="/arcade.js"></script>
 <script>
 (function(){
   const CHOICES=["rock","paper","scissors"];
@@ -72,7 +73,7 @@
     $("meHand").textContent=EMOJI[pick]; $("cpuHand").textContent=EMOJI[c];
     const r=round(pick,c);
     const res=$("result"); res.className="result "+r;
-    if(r==="win"){ you++; streak++; if(streak>best){ best=streak; try{localStorage.setItem("rps_best",String(best));}catch(e){} } res.textContent="You win the round!"; }
+    if(r==="win"){ you++; streak++; if(typeof Arcade!=="undefined")Arcade.stats.record("rps",streak); if(streak>best){ best=streak; try{localStorage.setItem("rps_best",String(best));}catch(e){} } res.textContent="You win the round!"; }
     else if(r==="lose"){ cpu++; streak=0; res.textContent="CPU takes the round."; }
     else res.textContent="Tie — go again.";
     render();

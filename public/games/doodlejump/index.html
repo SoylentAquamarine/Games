@@ -41,6 +41,7 @@
     </div>
     <p class="hint">Move: ← → / A D / tilt-tap left-right half of screen. You bounce automatically.</p>
   </div>
+  <script src="/arcade.js"></script>
   <script>
   (function(){
     const cv=document.getElementById("c"),ctx=cv.getContext("2d"),W=cv.width,H=cv.height;
@@ -74,7 +75,7 @@
       while(plats.length<9){const top=Math.min(...plats.map(p=>p.y));plats.push(mkPlat(Math.random()*(W-PW),top-58,Math.random()<0.25?1:0));}
       if(player.y>H)return dead();
     }
-    function dead(){running=false;cancelAnimationFrame(raf);if(score>best){best=score;localStorage.setItem("doodle_best",best);bestEl.textContent=best;}
+    function dead(){running=false;cancelAnimationFrame(raf);if(typeof Arcade!=="undefined")Arcade.stats.record("doodlejump",score); if(score>best){best=score;localStorage.setItem("doodle_best",best);bestEl.textContent=best;}
       ot.textContent="You fell!";om.textContent="Height "+score+(score>=best?" · new best!":"");startBtn.textContent="Play again";ov.classList.remove("hidden");}
     // The backdrop shifts band by band as you climb, so you can see at a glance
     // whether you are above your previous best.

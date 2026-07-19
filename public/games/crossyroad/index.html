@@ -108,7 +108,7 @@
   }
   function frame(){
     if(!GATE.open){ draw(); GATE.paint(); return requestAnimationFrame(frame); } step(s);
-    if(s.over && s.score>best){ best=s.score; try{localStorage.setItem("crossy_best",String(best));}catch(e){} $("msg").textContent="Ouch! Score "+s.score+"  ·  Best "+best; }
+    if(typeof Arcade!=="undefined")Arcade.stats.record("crossyroad",s.score); if(s.over && s.score>best){ best=s.score; try{localStorage.setItem("crossy_best",String(best));}catch(e){} $("msg").textContent="Ouch! Score "+s.score+"  ·  Best "+best; }
     $("score").textContent=s.score; $("best").textContent=best; draw(); requestAnimationFrame(frame); }
   function go(d){ if(s.over) return; hop(s,d); }
   document.querySelectorAll(".dpad button").forEach(b=>{ const d=b.getAttribute("data-d"); const f=(e)=>{e.preventDefault();go(d);}; b.addEventListener("click",f); b.addEventListener("touchstart",f,{passive:false}); });

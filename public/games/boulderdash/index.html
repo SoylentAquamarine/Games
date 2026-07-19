@@ -125,7 +125,7 @@
     if(!s.over&&!s.won){
       if(input && ++moveT>=5){ moveT=0; move(s,input); }   // slightly quicker: the board is bigger now
       if(++physT>=12){ physT=0; physicsStep(s); }
-      if((s.won||s.over)&&s.score>best){ best=s.score; try{localStorage.setItem("boulder_best",String(best));}catch(e){} }
+      if(typeof Arcade!=="undefined")Arcade.stats.record("boulderdash",s.score); if((s.won||s.over)&&s.score>best){ best=s.score; try{localStorage.setItem("boulder_best",String(best));}catch(e){} }
       if(s.won) $("msg").textContent="🎉 Escaped with "+s.gems+" eggs! Score "+s.score;
       else if(s.over) $("msg").textContent="Crushed by a rock! Score "+s.score;
     }

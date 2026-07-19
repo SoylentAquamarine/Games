@@ -54,6 +54,7 @@
   </div>
   <div class="hint">←/→ move · ↓ drop · ↑/Space/tap rotate</div>
 </div>
+<script src="/arcade.js"></script>
 <script>
 (function(){
   const C={ rows:18, cols:8, colors:["R","B","Y"] };
@@ -121,7 +122,7 @@
       nctx.fillStyle="rgba(255,255,255,.25)"; nctx.fillRect(x+i*sz+3,y+3,sz-8,3); });
   }
   function frame(){ if(!s.over&&!s.won){ if(++dropT>=34){ dropT=0; drop(); }
-    if((s.over||s.won)&&s.score>best){ best=s.score; try{localStorage.setItem("drmario_best",String(best));}catch(e){} }
+    if(typeof Arcade!=="undefined")Arcade.stats.record("drmario",s.score); if((s.over||s.won)&&s.score>best){ best=s.score; try{localStorage.setItem("drmario_best",String(best));}catch(e){} }
     if(s.won) $("msg").textContent="🎉 All viruses cleared! Score "+s.score;
     else if(s.over) $("msg").textContent="Bottle jammed! Score "+s.score; }
     $("score").textContent=s.score; $("viruses").textContent=countViruses(s.grid); $("best").textContent=best;

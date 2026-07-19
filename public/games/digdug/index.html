@@ -140,7 +140,7 @@
       if(++enemyT>=44){ enemyT=0; enemyStep(s); }
       if(++rockT>=10){ rockT=0; rockFall(s); }
       ensureLevel(s);
-      if(s.over && s.score>best){ best=s.score; try{localStorage.setItem("digdug_best",String(best));}catch(e){} $("msg").textContent="Game over! Score "+s.score+"  ·  Best "+best; }
+      if(typeof Arcade!=="undefined")Arcade.stats.record("digdug",s.score); if(s.over && s.score>best){ best=s.score; try{localStorage.setItem("digdug_best",String(best));}catch(e){} $("msg").textContent="Game over! Score "+s.score+"  ·  Best "+best; }
     }
     $("score").textContent=s.score; $("level").textContent=s.level; $("lives").textContent=Math.max(0,s.lives); draw(); requestAnimationFrame(frame);
   }

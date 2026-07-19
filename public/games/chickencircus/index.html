@@ -304,7 +304,7 @@
       else if(s.lives<lives0 && !s.over){ Arcade.sfx.death(); splash=Arcade.splash.death("SHE FELL!",s.lives+" left"); }
       if(s.over){
         Arcade.sfx.lose(); splash=Arcade.splash.death("GAME OVER","Score "+s.score);
-        if(s.score>best){ best=s.score; try{localStorage.setItem("circus_best",String(best));}catch(e){} }
+        if(typeof Arcade!=="undefined")Arcade.stats.record("chickencircus",s.score); if(s.score>best){ best=s.score; try{localStorage.setItem("circus_best",String(best));}catch(e){} }
         $("msg").textContent="💥 Game over — "+s.score+" points on wave "+s.wave+".";
       }
     }
