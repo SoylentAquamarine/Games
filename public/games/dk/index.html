@@ -51,10 +51,17 @@
   function move(s, dir){ if(s.over||s.won) return s; const p=s.player;
     if(dir==="left") p.col=Math.max(0,p.col-1);
     else if(dir==="right") p.col=Math.min(C.cols-1,p.col+1);
-    else if(dir==="up"){ const l=ladderAt(s,p.col,p.row,"up"); if(l) p.row=l.upper; }
-    else if(dir==="down"){ const l=ladderAt(s,p.col,p.row,"down"); if(l) p.row=l.lower; }
+    else if(dir==="up"){ const l=ladderAt(s,p.col,p.row,"up"); if(l){ p.row=l.upper; p.climb=26; } }
+    else if(dir==="down"){ const l=ladderAt(s,p.col,p.row,"down"); if(l){ p.row=l.lower; p.climb=26; } }
     if(p.row===0) s.won=true; return s; }
-  function jump(s){ if(!s.over&&!s.won) s.player.jump=16; return s; }
+  const JUMP_FRAMES=34, JUMP_APEX=30;      // longer, higher, and shaped like an arc
+  function jump(s){ if(!s.over&&!s.won && s.player.jump<=0) s.player.jump=JUMP_FRAMES; return s; }
+  // Height above the girder at this point in the jump: a parabola peaking mid-flight.
+  function jumpHeight(p){
+    if(!p.jump||p.jump<=0) return 0;
+    const u=1-(p.jump/JUMP_FRAMES);        // 0 at take-off, 1 on landing
+    return 4*JUMP_APEX*(u-u*u);
+  }
   function spawnBarrel(s){ s.barrels.push({col:0,row:0,dir:1,dodged:false}); }
   function barrelStep(s){ for(const b of s.barrels){
       const atEnd=(b.dir>0&&b.col>=C.cols-1)||(b.dir<0&&b.col<=0);
@@ -64,14 +71,22 @@
   function collide(s){ for(const b of s.barrels){ if(b.col===s.player.col&&b.row===s.player.row){
       if(s.player.jump>0){ if(!b.dodged){ b.dodged=true; s.score+=100; } }
       else { s.lives--; if(s.lives<=0) s.over=true; else resetPlayer(s); return s; } } } return s; }
-  window.__dk={ newState, move, jump, barrelStep, collide, ladderAt, spawnBarrel, C };
+  window.__dk={ newState, move, jump, jumpHeight, barrelStep, collide, ladderAt, spawnBarrel, C,
+                JUMP_FRAMES, JUMP_APEX };
 
   if(typeof document==="undefined") return;
   const $=(id)=>document.getElementById(id);
   const cv=$("game"), ctx=cv.getContext("2d"); const W=cv.width,H=cv.height, CW=W/C.cols, RH=H/C.rows;
   let s=newState(), best=0, barrelT=0, moveT=0, input=null;
   try{ best=parseInt(localStorage.getItem("dk_best")||"0")||0; }catch(e){}
-  const gy=(row)=>row*RH+RH*0.72; const cx=(col)=>col*CW+CW/2;
+  // Girders slope, alternating direction row to row, like the arcade cabinet.
+  // SLOPE is the total rise across the full width.
+  const SLOPE=16;
+  const rowDir=(row)=>(row%2?-1:1);                       // +1 = falls to the right
+  const gy=(row,col)=>{ const base=row*RH+RH*0.72;
+    const f2=(col==null?0.5:col/(C.cols-1));
+    return base + rowDir(row)*SLOPE*(f2-0.5); };
+  const cx=(col)=>col*CW+CW/2;
 
   // The game logic is cell-stepped, which looks jerky if drawn raw. Each entity keeps
   // an animated position that eases toward its logical cell; big jumps (row changes,
@@ -83,12 +98,21 @@
 
   function draw(){
     ctx.clearRect(0,0,W,H); ctx.fillStyle="#08040f"; ctx.fillRect(0,0,W,H);
-    for(let r=0;r<C.rows;r++){ ctx.fillStyle="#c9558a"; ctx.fillRect(0,gy(r)+6,W,5); ctx.fillStyle="#e07ab0"; for(let x=0;x<W;x+=12) ctx.fillRect(x,gy(r)+6,6,2); }
-    for(const l of s.ladders){ ctx.strokeStyle="#22d3ee"; ctx.lineWidth=2; const x=cx(l.col); ctx.beginPath(); ctx.moveTo(x-6,gy(l.upper)+8); ctx.lineTo(x-6,gy(l.lower)+8); ctx.moveTo(x+6,gy(l.upper)+8); ctx.lineTo(x+6,gy(l.lower)+8); ctx.stroke();
-      for(let y=gy(l.upper)+8;y<gy(l.lower)+8;y+=8){ ctx.beginPath(); ctx.moveTo(x-6,y); ctx.lineTo(x+6,y); ctx.stroke(); } }
+    for(let r=0;r<C.rows;r++){
+      const y0=gy(r,0)+6, y1=gy(r,C.cols-1)+6;
+      ctx.strokeStyle="#c9558a"; ctx.lineWidth=5; ctx.lineCap="butt";
+      ctx.beginPath(); ctx.moveTo(0,y0); ctx.lineTo(W,y1); ctx.stroke();
+      ctx.strokeStyle="#e07ab0"; ctx.lineWidth=2;               // rivets along the beam
+      for(let x=0;x<W;x+=12){ const yy=y0+(y1-y0)*(x/W);
+        ctx.beginPath(); ctx.moveTo(x,yy); ctx.lineTo(x+6,yy+(y1-y0)*(6/W)); ctx.stroke(); }
+    }
+    for(const l of s.ladders){ ctx.strokeStyle="#22d3ee"; ctx.lineWidth=2;
+      const x=cx(l.col), yTop=gy(l.upper,l.col)+8, yBot=gy(l.lower,l.col)+8;
+      ctx.beginPath(); ctx.moveTo(x-6,yTop); ctx.lineTo(x-6,yBot); ctx.moveTo(x+6,yTop); ctx.lineTo(x+6,yBot); ctx.stroke();
+      for(let y=yTop;y<yBot;y+=8){ ctx.beginPath(); ctx.moveTo(x-6,y); ctx.lineTo(x+6,y); ctx.stroke(); } }
     // goal / kong
     // the hen up top rolling eggs down, and the prize
-    { const kx=cx(1), ky=gy(0)-14;
+    { const kx=cx(1), ky=gy(0,1)-14;
       ctx.fillStyle="#c96f14"; ctx.beginPath();                                   // tail
       ctx.moveTo(kx-9,ky+2); ctx.lineTo(kx-20,ky-8); ctx.lineTo(kx-9,ky+9); ctx.closePath(); ctx.fill();
       ctx.fillStyle="#dc2626";                                                     // comb
@@ -99,8 +123,8 @@
       ctx.fillStyle="#fb923c"; ctx.beginPath();                                    // beak
       ctx.moveTo(kx+11,ky-4); ctx.lineTo(kx+20,ky-1); ctx.lineTo(kx+11,ky+2); ctx.closePath(); ctx.fill();
       ctx.fillStyle="#dc2626"; ctx.beginPath(); ctx.arc(kx+11,ky+4,3,0,7); ctx.fill(); }
-    ctx.font="20px system-ui"; ctx.textAlign="center"; ctx.fillText("🥚",cx(3),gy(0)-4);
-    for(const b of s.barrels){ ease(b,cx(b.col),gy(b.row)-4,0.18);
+    ctx.font="20px system-ui"; ctx.textAlign="center"; ctx.fillText("🥚",cx(3),gy(0,3)-4);
+    for(const b of s.barrels){ ease(b,cx(b.col),gy(b.row,b.col)-4,0.18);
       ctx.save(); ctx.translate(b.ax,b.ay); ctx.rotate(b.ax*0.06*b.dir);   // roll as it travels
       const er=CW*0.32;                                                    // tumbling egg
       ctx.fillStyle="#f3ead7"; ctx.strokeStyle="#c9bda3"; ctx.lineWidth=1.5;
@@ -109,8 +133,10 @@
       ctx.bezierCurveTo(-er*0.86,er*0.34,-er*0.72,-er,0,-er);
       ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore(); }
     // the farmer
-    const p=s.player; ease(p,cx(p.col),gy(p.row),0.3);
-    const py=p.ay-6-(p.jump>0?16:0);
+    const p=s.player;
+    if(p.climb>0) p.climb--;
+    ease(p, cx(p.col), gy(p.row,p.col), p.climb>0?0.10:0.26);   // slower, smoother on a ladder
+    const py=p.ay-6-jumpHeight(p);
     ctx.fillStyle="#d9c27a"; ctx.beginPath();                              // straw hat brim
     ctx.ellipse(p.ax,py-15,10,3.5,0,0,7); ctx.fill();
     ctx.fillRect(p.ax-5,py-20,10,5);                                       // hat crown
@@ -118,13 +144,19 @@
     ctx.fillStyle="#0b0c1a"; ctx.fillRect(p.ax-3,py-12,1.5,1.5); ctx.fillRect(p.ax+1.5,py-12,1.5,1.5);
     ctx.fillStyle="#2563eb"; ctx.fillRect(p.ax-6,py-9,12,9);               // denim overalls
     ctx.fillStyle="#dc2626"; ctx.fillRect(p.ax-6,py-9,12,3);               // shirt collar
-    ctx.fillStyle="#78350f"; ctx.fillRect(p.ax-5,py,3,3); ctx.fillRect(p.ax+2,py,3,3);   // boots
+    // boots: alternating rungs while climbing, tucked up mid-jump, a walk cycle otherwise
+    ctx.fillStyle="#78350f";
+    if(p.climb>0){ const k=Math.floor(Date.now()/110)%2;
+      ctx.fillRect(p.ax-5,py+(k?0:-3),3,4); ctx.fillRect(p.ax+2,py+(k?-3:0),3,4); }
+    else if(p.jump>0){ ctx.fillRect(p.ax-5,py-2,3,3); ctx.fillRect(p.ax+2,py-2,3,3); }
+    else { const k=Math.floor(Date.now()/140)%2;
+      ctx.fillRect(p.ax-5,py,3,k?4:2); ctx.fillRect(p.ax+2,py,3,k?2:4); }
     if(s.won||s.over){ ctx.fillStyle="rgba(0,0,0,.6)"; ctx.fillRect(0,0,W,H); ctx.fillStyle=s.won?"#34d399":"#f43f5e"; ctx.font="bold 22px system-ui"; ctx.fillText(s.won?"YOU MADE IT!":"GAME OVER",W/2,H/2-6); ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Score "+s.score+"  ·  Best "+best,W/2,H/2+16); }
   }
   function frame(){
     if(!s.over&&!s.won){
       if(s.player.jump>0) s.player.jump--;
-      if(input && ++moveT>=7){ moveT=0; move(s,input); }
+      if(input && ++moveT>=(s.player.climb>0?13:9)){ moveT=0; move(s,input); }   // slower overall, slower still on a ladder
       if(--s.spawnT<=0){ spawnBarrel(s); s.spawnT=100+Math.floor(Math.random()*60); }
       if(++barrelT>=16){ barrelT=0; barrelStep(s); }
       collide(s);
