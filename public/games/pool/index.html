@@ -138,6 +138,9 @@
       score:[0,0],              // carom points
       shots:0,                  // mini: shot counter
       msg:"", over:false, winner:null,
+      // "kitchen" on the break (behind the head string, as in the real game),
+      // "anywhere" after a scratch, null once the cue ball is settled.
+      inHand:"kitchen",
       firstHit:null, pottedThisShot:[], cueScratched:false,
     };
   }
@@ -166,7 +169,7 @@
     cue.vx=Math.cos(angle)*p; cue.vy=Math.sin(angle)*p;
     const e=english||{x:0,y:0};
     cue.spin={ x:Math.max(-1,Math.min(1,e.x)), y:Math.max(-1,Math.min(1,e.y)), a:angle, life:1 };
-    s.phase="rolling"; s.firstHit=null; s.pottedThisShot=[]; s.cueScratched=false;
+    s.phase="rolling"; s.firstHit=null; s.pottedThisShot=[]; s.cueScratched=false; s.inHand=null;
     s.shots++;
     return true;
   }
@@ -302,7 +305,7 @@
           if(g!=="eight"){ s.group[s.turn]=g; s.group[1-s.turn]= g==="solid"?"stripe":"solid";
             s.msg="Player "+(s.turn+1)+" is "+g+"s. "; }
         }
-        if(scratched){ respotCue(s); s.msg=(s.msg||"")+"Scratch — turn passes."; }
+        if(scratched){ respotCue(s); s.inHand="anywhere"; s.msg=(s.msg||"")+"Scratch — ball in hand."; }
         else if(potted.length && s.group[s.turn] && potted.some(n=>groupOf(n)===s.group[s.turn])){
           keepTurn=true; s.msg=(s.msg||"")+"Potted "+potted.join(", ")+" — shoot again.";
         } else if(potted.length) s.msg=(s.msg||"")+"Potted "+potted.join(", ")+".";
@@ -323,6 +326,23 @@
     while(tries++<200 && s.balls.some(b=>b!==nine&&!b.potted&&Math.hypot(b.x-x,b.y-y)<C.R*2.2)) x+=C.R*1.2;
     nine.x=Math.min(t2.x2-C.R,x); nine.y=y;
   }
+  // Where the cue ball may legally be placed right now.
+  function inHandZone(s){
+    const t=s.t;
+    if(s.inHand==="kitchen") return { x:t.x+C.R, y:t.y+C.R, x2:t.x+t.w*0.25, y2:t.y2-C.R };
+    return { x:t.x+C.R, y:t.y+C.R, x2:t.x2-C.R, y2:t.y2-C.R };
+  }
+  function canPlaceCue(s,x,y){
+    const z=inHandZone(s);
+    if(x<z.x||x>z.x2||y<z.y||y>z.y2) return false;
+    return !s.balls.some(b=>!b.cue&&live(b)&&Math.hypot(b.x-x,b.y-y)<C.R*2.05);
+  }
+  function placeCue(s,x,y){
+    if(!canPlaceCue(s,x,y)) return false;
+    const cue=s.balls.find(b=>b.cue);
+    cue.x=x; cue.y=y; cue.vx=0; cue.vy=0; cue.potted=false;
+    return true;
+  }
   function respotCue(s){
     const cue=s.balls.find(b=>b.cue), t=s.t;
     cue.potted=false; cue.vx=0; cue.vy=0;
@@ -338,7 +358,7 @@
     return s;
   }
 
-  window.__pool={ newState, rack, shoot, step, settle, endShot, moving, tableOf,
+  window.__pool={ inHandZone, canPlaceCue, placeCue, newState, rack, shoot, step, settle, endShot, moving, tableOf,
                   pocketsOf, groupOf, lowestOnTable, remainingOf, respotCue, C, TABLES };
 
   // -------------------------------------------------------------- wiring ---
@@ -362,12 +382,23 @@
     if(s.phase!=="aim"||s.over) return;
     ev.preventDefault();
     const p=canvasPos(ev), cue=cueBall();
-    if(!cue||cue.potted) return;
+    if(!cue) return;
+    // With ball in hand, a tap inside the legal zone drops the cue ball there
+    // instead of starting an aim — so you can choose your break spot.
+    if(s.inHand){
+      if(placeCue(s,p.x,p.y)){ placing=true; return; }
+      return;
+    }
+    if(cue.potted) return;
     if(Math.hypot(p.x-cue.x,p.y-cue.y)>60) return;   // must start near the cue ball
     aiming=true; aimFrom={x:cue.x,y:cue.y}; aimTo=p;
   }
-  function moveAim(ev){ if(!aiming) return; ev.preventDefault(); aimTo=canvasPos(ev); }
+  function moveAim(ev){
+    if(placing){ ev.preventDefault(); const p=canvasPos(ev); placeCue(s,p.x,p.y); return; }
+    if(!aiming) return; ev.preventDefault(); aimTo=canvasPos(ev);
+  }
   function endAim(ev){
+    if(placing){ placing=false; ev.preventDefault(); return; }
     if(!aiming) return;
     ev.preventDefault(); aiming=false;
     const cue=cueBall(); if(!cue) return;
@@ -379,6 +410,7 @@
     Arcade.sfx.hit();
     aimTo=null;
   }
+  let placing=false;
   cv.addEventListener("mousedown",beginAim); cv.addEventListener("touchstart",beginAim,{passive:false});
   addEventListener("mousemove",moveAim);     cv.addEventListener("touchmove",moveAim,{passive:false});
   addEventListener("mouseup",endAim);        cv.addEventListener("touchend",endAim,{passive:false});
@@ -461,6 +493,34 @@
       ctx.stroke();
       $("pfill").style.width=Math.round(Math.min(1,pull/(C.MAX_POWER*9))*100)+"%";
     } else if(s.phase==="aim") $("pfill").style.width="0%";
+
+    // Ball in hand: show the legal area and mark where the cue ball will sit.
+    if(s.inHand && s.phase==="aim" && !s.over){
+      const z=inHandZone(s);
+      ctx.save();
+      ctx.fillStyle="rgba(34,211,238,.10)";
+      ctx.fillRect(z.x-C.R,z.y-C.R,(z.x2-z.x)+C.R*2,(z.y2-z.y)+C.R*2);
+      ctx.strokeStyle="rgba(34,211,238,.55)"; ctx.lineWidth=1.5; ctx.setLineDash([5,5]);
+      ctx.strokeRect(z.x-C.R,z.y-C.R,(z.x2-z.x)+C.R*2,(z.y2-z.y)+C.R*2);
+      ctx.setLineDash([]);
+      ctx.fillStyle="rgba(34,211,238,.9)"; ctx.font="10px system-ui"; ctx.textAlign="center";
+      ctx.fillText(s.inHand==="kitchen"?"BREAK FROM ANYWHERE IN HERE":"BALL IN HAND — TAP TO PLACE",
+                   (z.x+z.x2)/2, z.y-C.R-5);
+      ctx.restore();
+    }
+
+    // Whose shot it is, and which group they are on.
+    if(!s.over && (s.mode==="eight"||s.mode==="nine")){
+      const g=s.group?s.group[s.turn]:null;
+      const label="PLAYER "+(s.turn+1)+(s.mode==="eight" ? (g? " · "+g.toUpperCase()+"S" : " · TABLE OPEN") : "");
+      ctx.save();
+      ctx.textAlign="center"; ctx.font="bold 13px system-ui";
+      const w=ctx.measureText(label).width+22;
+      ctx.fillStyle=s.turn===0?"rgba(250,204,21,.92)":"rgba(56,189,248,.92)";
+      ctx.beginPath(); ctx.roundRect(C.W/2-w/2, 4, w, 22, 11); ctx.fill();
+      ctx.fillStyle="#0b0c1a"; ctx.fillText(label, C.W/2, 19);
+      ctx.restore();
+    }
 
     if(s.over){
       ctx.fillStyle="rgba(0,0,0,.6)"; ctx.fillRect(0,0,C.W,C.H);
