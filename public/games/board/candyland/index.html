@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ChickenCandy Land — Games</title>
+  <title>Chickenland — Games</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🐔</text></svg>" />
   <style>
     :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;}
@@ -14,21 +14,13 @@
     .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
     .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
     .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
-    h1{margin:0;font-size:1.5rem;background:linear-gradient(120deg,#f472b6,#22d3ee);-webkit-background-clip:text;background-clip:text;color:transparent}
-    .board{display:flex;flex-direction:column;gap:4px;width:100%}
-    .brow{display:flex;gap:4px}
-    .brow.rev{flex-direction:row-reverse}
-    .sp{flex:1;aspect-ratio:1;border-radius:6px;position:relative;display:flex;align-items:center;justify-content:center;min-width:0}
-    .sp.start{background:#e6e6f0;color:#111;font-size:.6rem;font-weight:700}
-    .sp.end{background:linear-gradient(135deg,#f472b6,#22d3ee);font-size:1rem}
-    .sp.lic{box-shadow:inset 0 0 0 2px #111}
-    .tok{position:absolute;font-size:.8rem;line-height:1}
-    .tok.t0{top:0;left:1px}.tok.t1{top:0;right:1px}.tok.t2{bottom:0;left:1px}
+    h1{margin:0;font-size:1.5rem;background:linear-gradient(120deg,#f0902a,#4ade80);-webkit-background-clip:text;background-clip:text;color:transparent}
+    canvas{width:100%;height:auto;display:block;border-radius:14px;border:2px solid #2a2f55;background:#3f7a2e}
     .players{display:flex;gap:8px;width:100%}
     .pl{flex:1;background:var(--panel);border:1px solid rgba(255,255,255,.06);border-radius:10px;padding:6px;text-align:center;font-size:.82rem}
-    .pl.turn{border-color:var(--accent-2)}
-    .card{width:80px;height:56px;border-radius:10px;display:flex;align-items:center;justify-content:center;gap:4px;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.4)}
-    .chip{width:20px;height:20px;border-radius:5px;border:1px solid rgba(0,0,0,.3)}
+    .pl.turn{border-color:var(--accent-2);box-shadow:0 0 0 1px rgba(34,211,238,.35)}
+    .card{width:88px;height:60px;border-radius:10px;display:flex;align-items:center;justify-content:center;gap:5px;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.4)}
+    .chip{width:22px;height:22px;border-radius:6px;border:1px solid rgba(0,0,0,.3)}
     .status{min-height:1.2em;font-weight:600;color:#fde68a;text-align:center}
     .btns{display:flex;gap:10px}
     .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:11px 26px;border-radius:999px;cursor:pointer}
@@ -39,78 +31,312 @@
 </head>
 <body>
   <div class="wrap">
-    <div class="topbar"><a class="home" href="/">← Home</a><h1>🐔 ChickenCandy Land</h1><span style="width:56px"></span></div>
+    <div class="topbar"><a class="home" href="/">← Home</a><h1>🐔 Chickenland</h1><span style="width:56px"></span></div>
     <div class="players" id="players"></div>
-    <div class="board" id="board"></div>
+    <canvas id="board" width="480" height="620"></canvas>
     <div class="status" id="status">Draw a card to move!</div>
     <div class="card" id="card"></div>
     <div class="btns">
       <button class="btn" id="draw">Draw</button>
       <button class="btn ghost" id="new">New Game</button>
     </div>
-    <p class="hint">Draw a color card and hop to the next matching square. Double = the second one. Dark-edged licorice squares cost a turn. First to the castle wins!</p>
+    <p class="hint">Draw a colour card and hop along the lane to the next matching patch. Double = the second one. Mud puddles cost a turn. First one home to the barn wins!</p>
   </div>
   <script>
   (function(){
-    const COLORS=[["Red","#ef4444"],["Orange","#f97316"],["Yellow","#eab308"],["Green","#22c55e"],["Blue","#3b82f6"],["Purple","#a855f7"]];
-    const N=54, COLS=9;
+    // Barnyard palette — the six card colours are things you'd actually find
+    // in a farmyard, so the board reads as a place rather than a colour chart.
+    const COLORS=[["Barn Red","#d6453c"],["Corn","#f59e0b"],["Straw","#eab308"],
+                  ["Grass","#4ade80"],["Pond","#38bdf8"],["Plum","#c084fc"]];
+    const N=54;
     const TOKENS=["🐔","🐤","🐣"];
     const PNAMES=["You","CPU 1","CPU 2"];
-    const boardEl=document.getElementById("board"),playersEl=document.getElementById("players"),statusEl=document.getElementById("status"),cardEl=document.getElementById("card"),drawBtn=document.getElementById("draw");
-    let spaces,licorice,deck,pos,skip,turn,over;
+    let spaces,mud,deck,pos,skip,turn,over;
 
-    function buildSpaces(){spaces=[];for(let i=0;i<N;i++)spaces.push(i%6);licorice=new Set([12,31]);}
+    function buildSpaces(){spaces=[];for(let i=0;i<N;i++)spaces.push(i%6);mud=new Set([12,31]);}
     function buildDeck(){const d=[];for(let ci=0;ci<6;ci++){for(let k=0;k<7;k++)d.push({c:ci,double:false});for(let k=0;k<3;k++)d.push({c:ci,double:true});}return shuffle(d);}
     function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
-    function newGame(){buildSpaces();deck=buildDeck();pos=[-1,-1,-1];skip=[false,false,false];turn=0;over=false;
-      statusEl.textContent="Your turn — draw a card!";cardEl.innerHTML="";renderBoard();renderPlayers();drawBtn.disabled=false;}
-    function renderBoard(){
-      boardEl.innerHTML="";const rows=Math.ceil(N/COLS);
-      for(let r=0;r<rows;r++){const row=document.createElement("div");row.className="brow"+(r%2?" rev":"");
-        for(let c=0;c<COLS;c++){const i=r*COLS+c;if(i>=N)break;const sp=document.createElement("div");
-          sp.className="sp"+(licorice.has(i)?" lic":"");sp.style.background=COLORS[spaces[i]][1];sp.id="sp"+i;
-          if(i===N-1){sp.className="sp end";sp.textContent="🏰";}
-          row.appendChild(sp);}
-        boardEl.appendChild(row);}
-      // start markers + tokens
-      renderTokens();
-    }
-    function renderTokens(){
-      document.querySelectorAll(".tok").forEach(t=>t.remove());
-      pos.forEach((p,pi)=>{if(p<0)return;const cell=document.getElementById("sp"+Math.min(p,N-1));if(!cell)return;
-        const t=document.createElement("div");t.className="tok t"+pi;t.textContent=TOKENS[pi];cell.appendChild(t);});
-    }
-    function renderPlayers(){playersEl.innerHTML="";PNAMES.forEach((n,i)=>{const d=document.createElement("div");
-      d.className="pl"+(i===turn&&!over?" turn":"");d.innerHTML=TOKENS[i]+" "+n+"<br>"+(pos[i]<0?"start":(pos[i]>=N-1?"🏰":"sq "+(pos[i]+1)));playersEl.appendChild(d);});}
-    function showCard(card){cardEl.innerHTML="";const n=card.double?2:1;for(let k=0;k<n;k++){const chip=document.createElement("div");chip.className="chip";chip.style.background=COLORS[card.c][1];cardEl.appendChild(chip);}}
     function nextOf(color,from){let count=color.double?2:1,i=from;while(i<N-1){i++;if(i===N-1)return N-1;if(spaces[i]===color.c){count--;if(count===0)return i;}}return N-1;}
+
+    // expose the rules for tests before any DOM work
+    window.__cl={buildSpaces:()=>{buildSpaces();return{spaces,mud,licorice:mud};},nextOf,buildDeck};
+    if(typeof document==="undefined") return;
+
+    const cv=document.getElementById("board"),ctx=cv.getContext("2d");
+    const W=cv.width,H=cv.height;
+    const playersEl=document.getElementById("players"),statusEl=document.getElementById("status"),
+          cardEl=document.getElementById("card"),drawBtn=document.getElementById("draw");
+
+    // ---------------------------------------------------------------------
+    // The lane: a single winding path that snakes up the yard, the way the
+    // real board does — six sweeping bands joined by bulging U-turns.
+    // ---------------------------------------------------------------------
+    function laneCurve(){
+      const pts=[], BANDS=6, x0=52, x1=428, yBot=556, dy=92;
+      for(let b=0;b<BANDS;b++){
+        const y=yBot-b*dy, dir=b%2?-1:1;
+        const from=dir>0?x0:x1, to=dir>0?x1:x0;
+        for(let t=0;t<=1.0001;t+=0.02) pts.push({x:from+(to-from)*t, y:y+Math.sin(t*Math.PI*2)*15});
+        if(b<BANDS-1){
+          const cx=dir>0?x1:x0;
+          for(let t=0.06;t<=1.0001;t+=0.06) pts.push({x:cx+dir*26*Math.sin(t*Math.PI), y:y-dy*t});
+        }
+      }
+      return pts;
+    }
+    // Walk the curve at even arc-length so every patch is the same size apart,
+    // and keep the local heading so each one sits square to the lane.
+    function layout(){
+      const pts=laneCurve(), seg=[];
+      let total=0;
+      for(let i=1;i<pts.length;i++){ const d=Math.hypot(pts[i].x-pts[i-1].x,pts[i].y-pts[i-1].y); seg.push(d); total+=d; }
+      const out=[], step=total/(N-1);
+      let want=0, acc=0, i=1;
+      while(out.length<N && i<pts.length){
+        if(acc+seg[i-1]>=want){
+          const f=(want-acc)/seg[i-1];
+          const x=pts[i-1].x+(pts[i].x-pts[i-1].x)*f, y=pts[i-1].y+(pts[i].y-pts[i-1].y)*f;
+          const a=Math.atan2(pts[i].y-pts[i-1].y, pts[i].x-pts[i-1].x);
+          out.push({x,y,a});
+          want+=step;
+        } else { acc+=seg[i-1]; i++; }
+      }
+      while(out.length<N) out.push({...pts[pts.length-1], a:0});
+      return {tiles:out, curve:pts};
+    }
+    const LANE=layout(), TILES=LANE.tiles;
+
+    // ---------------------------------------------------------------------
+    // Scenery, drawn once behind the lane
+    // ---------------------------------------------------------------------
+    const DECOR=(function(){
+      const d=[];
+      const rnd=(s)=>{ let x=Math.sin(s)*10000; return x-Math.floor(x); };
+      for(let i=0;i<26;i++) d.push({k:"tuft", x:rnd(i)*W, y:120+rnd(i+90)*(H-160), s:0.7+rnd(i+40)*0.7});
+      return d;
+    })();
+    function barn(x,y,s){
+      ctx.save(); ctx.translate(x,y); ctx.scale(s,s);
+      ctx.fillStyle="#8b1f1a"; ctx.fillRect(-42,-30,84,52);
+      ctx.fillStyle="#a32a24"; ctx.beginPath(); ctx.moveTo(-50,-30); ctx.lineTo(0,-64); ctx.lineTo(50,-30); ctx.closePath(); ctx.fill();
+      ctx.fillStyle="#f4e4c1"; ctx.fillRect(-30,-30,6,52); ctx.fillRect(24,-30,6,52); ctx.fillRect(-42,-32,84,5);
+      ctx.fillStyle="#5c1512"; ctx.fillRect(-15,-8,30,30);
+      ctx.strokeStyle="#f4e4c1"; ctx.lineWidth=3;
+      ctx.beginPath(); ctx.moveTo(-15,-8); ctx.lineTo(15,22); ctx.moveTo(15,-8); ctx.lineTo(-15,22); ctx.stroke();
+      ctx.fillStyle="#f4e4c1"; ctx.beginPath(); ctx.arc(0,-42,7,0,7); ctx.fill();
+      ctx.restore();
+    }
+    function coop(x,y,s){
+      ctx.save(); ctx.translate(x,y); ctx.scale(s,s);
+      ctx.fillStyle="#9a6b3f"; ctx.fillRect(-22,-12,44,26);
+      ctx.fillStyle="#6f4a29"; ctx.beginPath(); ctx.moveTo(-27,-12); ctx.lineTo(0,-30); ctx.lineTo(27,-12); ctx.closePath(); ctx.fill();
+      ctx.fillStyle="#3b2412"; ctx.beginPath(); ctx.arc(0,4,8,Math.PI,0); ctx.fill();
+      ctx.restore();
+    }
+    function pond(x,y,rx,ry){
+      ctx.fillStyle="#2f7fb8"; ctx.beginPath(); ctx.ellipse(x,y,rx,ry,0,0,7); ctx.fill();
+      ctx.fillStyle="#4aa3d8"; ctx.beginPath(); ctx.ellipse(x,y-2,rx*0.8,ry*0.7,0,0,7); ctx.fill();
+      ctx.strokeStyle="rgba(255,255,255,.35)"; ctx.lineWidth=1.5;
+      for(let i=0;i<3;i++){ ctx.beginPath(); ctx.ellipse(x-rx*0.2,y-2+i*5,rx*0.35,2,0,0,Math.PI); ctx.stroke(); }
+    }
+    function hay(x,y,s){
+      ctx.save(); ctx.translate(x,y); ctx.scale(s,s);
+      ctx.fillStyle="#d9b866"; ctx.beginPath(); ctx.roundRect(-16,-11,32,22,7); ctx.fill();
+      ctx.strokeStyle="#b8963f"; ctx.lineWidth=1.5;
+      for(let i=-10;i<=10;i+=7){ ctx.beginPath(); ctx.moveTo(i,-11); ctx.lineTo(i,11); ctx.stroke(); }
+      ctx.restore();
+    }
+    function tuft(x,y,s){
+      ctx.save(); ctx.translate(x,y); ctx.scale(s,s);
+      ctx.strokeStyle="rgba(30,90,30,.5)"; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(-4,-7); ctx.moveTo(0,0); ctx.lineTo(0,-9); ctx.moveTo(0,0); ctx.lineTo(4,-7); ctx.stroke();
+      ctx.restore();
+    }
+    function fence(y){
+      ctx.strokeStyle="#c9a273"; ctx.lineWidth=4;
+      ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.moveTo(0,y+11); ctx.lineTo(W,y+11); ctx.stroke();
+      ctx.lineWidth=5;
+      for(let x=18;x<W;x+=52){ ctx.beginPath(); ctx.moveTo(x,y-8); ctx.lineTo(x,y+20); ctx.stroke(); }
+    }
+
+    // A proper chicken sprite — much bigger than the old emoji token.
+    function chicken(x,y,scale,tint,squash){
+      const s=scale*(squash||1), t=scale/(squash||1);
+      ctx.save(); ctx.translate(x,y);
+      ctx.fillStyle="rgba(0,0,0,.22)"; ctx.beginPath(); ctx.ellipse(0,t*11,s*10,t*3.5,0,0,7); ctx.fill();
+      ctx.fillStyle=tint.tail; ctx.beginPath(); ctx.moveTo(-s*7,-t*1); ctx.lineTo(-s*17,-t*10); ctx.lineTo(-s*8,t*6); ctx.closePath(); ctx.fill();
+      ctx.fillStyle="#dc2626";
+      ctx.fillRect(-s*4,-t*15,s*3,t*5); ctx.fillRect(-s*1,-t*17,s*3,t*6); ctx.fillRect(s*2,-t*15,s*3,t*5);
+      ctx.fillStyle=tint.body; ctx.beginPath(); ctx.arc(0,0,s*10,0,7); ctx.fill();
+      ctx.fillStyle=tint.wing; ctx.beginPath(); ctx.ellipse(-s*1,t*1,s*5,t*4,0.3,0,7); ctx.fill();
+      ctx.fillStyle="#fff"; ctx.beginPath(); ctx.arc(s*4,-t*3,s*2.6,0,7); ctx.fill();
+      ctx.fillStyle="#3b2412"; ctx.beginPath(); ctx.arc(s*4.6,-t*3,s*1.3,0,7); ctx.fill();
+      ctx.fillStyle="#facc15"; ctx.beginPath(); ctx.moveTo(s*8,-t*2); ctx.lineTo(s*14,t*0); ctx.lineTo(s*8,t*2); ctx.closePath(); ctx.fill();
+      ctx.fillStyle="#dc2626"; ctx.fillRect(s*7,t*2,s*3,t*3);
+      ctx.fillStyle="#facc15"; ctx.fillRect(-s*4,t*9,s*2,t*4); ctx.fillRect(s*2,t*9,s*2,t*4);
+      ctx.restore();
+    }
+    const TINTS=[{body:"#f0902a",wing:"#d97a1c",tail:"#c96f14"},
+                 {body:"#fde68a",wing:"#f7d354",tail:"#e8bf3a"},
+                 {body:"#e8e2d4",wing:"#d3cbb8",tail:"#bdb49e"}];
+
+    // ---------------------------------------------------------------------
+    // Animation: tokens hop patch to patch instead of teleporting.
+    // ---------------------------------------------------------------------
+    const HOP_FRAMES=11;
+    let anim=null;            // {pi, path:[idx...], step, t, onDone}
+    let confetti=[], winner=-1;
+    // Where a token actually sits right now, in pixels.
+    function tokenXY(pi){
+      const p=pos[pi];
+      const at=(i)=> i<0 ? {x:26,y:596,a:0} : TILES[Math.min(i,N-1)];
+      if(anim && anim.pi===pi){
+        const from=at(anim.step===0?anim.from:anim.path[anim.step-1]);
+        const to=at(anim.path[anim.step]);
+        const u=anim.t/HOP_FRAMES;
+        return {x:from.x+(to.x-from.x)*u, y:from.y+(to.y-from.y)*u-Math.sin(u*Math.PI)*22, hop:Math.sin(u*Math.PI)};
+      }
+      const t=at(p); return {x:t.x, y:t.y, hop:0};
+    }
+    // Fan tokens sharing a patch so none is hidden behind another.
+    function offsetFor(pi){
+      let n=0,idx=0;
+      for(let k=0;k<3;k++){ if(pos[k]===pos[pi]){ if(k===pi) idx=n; n++; } }
+      if(n<2) return {dx:0,dy:0};
+      return {dx:(idx-(n-1)/2)*13, dy:(idx-(n-1)/2)*4};
+    }
+
+    function render(){
+      // ground
+      ctx.fillStyle="#4c8f36"; ctx.fillRect(0,0,W,H);
+      ctx.fillStyle="#45832f";
+      for(let y=0;y<H;y+=26) ctx.fillRect(0,y,W,13);
+      // scenery behind the lane
+      pond(392,470,52,30);
+      coop(70,300,1.15);
+      hay(410,250,1.1); hay(382,268,0.9);
+      hay(64,150,1.0);
+      for(const d of DECOR) tuft(d.x,d.y,d.s);
+      fence(36);
+
+      // the lane itself: a dirt track under the patches
+      ctx.strokeStyle="#b98a52"; ctx.lineWidth=40; ctx.lineJoin="round"; ctx.lineCap="round";
+      ctx.beginPath();
+      LANE.curve.forEach((p,i)=> i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));
+      ctx.stroke();
+      ctx.strokeStyle="#caa06a"; ctx.lineWidth=32; ctx.stroke();
+
+      // start marker
+      ctx.fillStyle="#f4e4c1"; ctx.beginPath(); ctx.roundRect(6,578,52,34,8); ctx.fill();
+      ctx.fillStyle="#3b2412"; ctx.font="bold 12px system-ui"; ctx.textAlign="center"; ctx.fillText("START",32,599);
+
+      // patches
+      TILES.forEach((t,i)=>{
+        ctx.save(); ctx.translate(t.x,t.y); ctx.rotate(t.a);
+        const last=i===N-1;
+        if(last){
+          ctx.rotate(-t.a);              // the barn stands upright, not along the lane
+          barn(0,0,0.85);
+        } else {
+          ctx.fillStyle=COLORS[spaces[i]][1];
+          ctx.beginPath(); ctx.roundRect(-16,-13,32,26,8); ctx.fill();
+          ctx.strokeStyle="rgba(0,0,0,.28)"; ctx.lineWidth=1.6; ctx.stroke();
+          if(mud.has(i)){
+            ctx.fillStyle="#5b3a1e"; ctx.beginPath(); ctx.ellipse(0,0,11,8,0,0,7); ctx.fill();
+            ctx.fillStyle="#7a5330"; ctx.beginPath(); ctx.ellipse(-2,-1,6,4,0,0,7); ctx.fill();
+          }
+        }
+        ctx.restore();
+      });
+
+      // tokens, biggest last so the active one reads clearly
+      const order=[0,1,2].sort((a,b)=> (a===turn?1:0)-(b===turn?1:0));
+      for(const pi of order){
+        const p=tokenXY(pi), o=offsetFor(pi);
+        const squash=1+(p.hop||0)*0.12;
+        chicken(p.x+o.dx, p.y+o.dy-14, 1.0, TINTS[pi], squash);
+      }
+
+      // winner confetti
+      if(confetti.length){
+        for(const c of confetti){ ctx.fillStyle=c.col; ctx.save(); ctx.translate(c.x,c.y); ctx.rotate(c.a); ctx.fillRect(-3,-2,6,4); ctx.restore(); }
+      }
+      if(over && winner>=0){
+        ctx.fillStyle="rgba(0,0,0,.45)"; ctx.fillRect(0,H/2-46,W,92);
+        ctx.textAlign="center"; ctx.fillStyle="#fde68a"; ctx.font="bold 27px system-ui";
+        ctx.fillText(winner===0?"YOU WIN!":PNAMES[winner]+" WINS",W/2,H/2-2);
+        ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui";
+        ctx.fillText("Home to the barn 🏠",W/2,H/2+24);
+      }
+    }
+
+    function stepAnim(){
+      if(anim){
+        if(++anim.t>=HOP_FRAMES){
+          anim.t=0; anim.step++;
+          if(typeof Arcade!=="undefined") Arcade.sfx.step();
+          if(anim.step>=anim.path.length){ const done=anim.onDone; anim=null; renderPlayers(); if(done) done(); }
+        }
+      }
+      if(confetti.length){
+        for(const c of confetti){ c.x+=c.vx; c.y+=c.vy; c.vy+=0.12; c.a+=c.va; c.life--; }
+        confetti=confetti.filter(c=>c.life>0&&c.y<H+20);
+      }
+      render();
+      requestAnimationFrame(stepAnim);
+    }
+    function popConfetti(){
+      const cols=["#fde68a","#f0902a","#4ade80","#38bdf8","#c084fc","#f43f5e"];
+      for(let i=0;i<90;i++) confetti.push({x:W/2+(Math.random()-0.5)*180, y:H/2, vx:(Math.random()-0.5)*6,
+        vy:-3-Math.random()*5, a:Math.random()*7, va:(Math.random()-0.5)*0.4, life:120+Math.random()*60,
+        col:cols[Math.floor(Math.random()*cols.length)]});
+    }
+
+    function renderPlayers(){playersEl.innerHTML="";PNAMES.forEach((n,i)=>{const d=document.createElement("div");
+      d.className="pl"+(i===turn&&!over?" turn":"");
+      d.innerHTML=TOKENS[i]+" "+n+"<br>"+(pos[i]<0?"start":(pos[i]>=N-1?"🏠":"sq "+(pos[i]+1)));playersEl.appendChild(d);});}
+    function showCard(card){cardEl.innerHTML="";const n=card.double?2:1;for(let k=0;k<n;k++){const chip=document.createElement("div");chip.className="chip";chip.style.background=COLORS[card.c][1];cardEl.appendChild(chip);}}
+
+    function newGame(){buildSpaces();deck=buildDeck();pos=[-1,-1,-1];skip=[false,false,false];turn=0;over=false;
+      anim=null;confetti=[];winner=-1;
+      statusEl.textContent="Your turn — draw a card!";cardEl.innerHTML="";renderPlayers();drawBtn.disabled=false;}
+
     function draw(){
-      if(over)return;
+      if(over||anim)return;
       if(!deck.length)deck=buildDeck();
       const card=deck.pop();showCard(card);
-      const dest=nextOf(card,pos[turn]);pos[turn]=dest;
+      const from=pos[turn], dest=nextOf(card,from);
       let msg=PNAMES[turn]+" → "+COLORS[card.c][0]+(card.double?" (double)":"");
-      renderTokens();renderPlayers();
-      if(dest>=N-1){over=true;statusEl.textContent="🏰 "+PNAMES[turn]+" reached the castle — "+(turn===0?"you win!":"CPU wins.");drawBtn.disabled=true;return;}
-      if(licorice.has(dest)){skip[turn]=true;msg+=" — licorice! lose a turn.";}
-      statusEl.textContent=msg;
-      advance();
+      statusEl.textContent=msg+" — hopping…";
+      drawBtn.disabled=true;
+      // hop one patch at a time so you can follow the move
+      const path=[]; for(let i=from+1;i<=dest;i++) path.push(i);
+      if(!path.length) path.push(dest);
+      pos[turn]=dest;
+      anim={pi:turn, from, path, step:0, t:0, onDone:()=>{
+        if(dest>=N-1){ over=true; winner=turn; popConfetti();
+          if(typeof Arcade!=="undefined") Arcade.sfx.win();
+          statusEl.textContent="🏠 "+PNAMES[turn]+" got home — "+(turn===0?"you win!":"CPU wins.");
+          drawBtn.disabled=true; renderPlayers(); return; }
+        if(mud.has(dest)){ skip[turn]=true; msg+=" — stuck in the mud! lose a turn."; }
+        statusEl.textContent=msg;
+        advance();
+      }};
     }
     function advance(){
-      // move to next player, honoring skip
       let next=turn;
       for(let k=0;k<3;k++){next=(next+1)%3;if(skip[next]){skip[next]=false;continue;}break;}
       turn=next;renderPlayers();
       if(turn===0){drawBtn.disabled=false;statusEl.textContent+=" · Your turn.";}
-      else{drawBtn.disabled=true;setTimeout(()=>{if(!over)draw();},900);}
+      else{drawBtn.disabled=true;setTimeout(()=>{if(!over)draw();},700);}
     }
-    drawBtn.addEventListener("click",()=>{if(turn===0&&!over)draw();});
+    drawBtn.addEventListener("click",()=>{if(turn===0&&!over&&!anim)draw();});
     document.getElementById("new").addEventListener("click",newGame);
-    // expose for tests
-    window.__cl={buildSpaces:()=>{buildSpaces();return{spaces,licorice};},nextOf,buildDeck};
     newGame();
+    requestAnimationFrame(stepAnim);
   })();
   </script>
+  <script src="/arcade.js"></script>
   <script src="/comments.js" defer></script>
 </body>
 </html>
