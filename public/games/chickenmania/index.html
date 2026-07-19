@@ -57,33 +57,58 @@
     LIVES:3,
   };
 
-  // Eight formations, cycled by wave. Each moves differently.
+  // Eight formations, cycled by wave. Megamania's charm was that each wave moved
+  // in its own way — some marched in a tidy block, some were plainly strange, and
+  // several just scrolled past you so you had to wait for another pass.
+  //
+  //   slide  — classic block, turns at the wall
+  //   snake  — turns at the wall and steps down
+  //   sine   — the whole formation waves side to side
+  //   drift  — alternate rows slide opposite ways and wrap round the sides
+  //   cycle  — never turns; runs off the bottom and reappears at the top
+  //   bounce — descends while bobbing, and cycles round
+  //   wild   — every object flies its own way and ricochets; the messy one
   const WAVES = [
     { name:"Eggs",      shape:"egg",     pattern:"slide",  speed:0.75, drop:0.055 },
     { name:"Corn",      shape:"corn",    pattern:"sine",   speed:0.95, drop:0.050 },
     { name:"Feathers",  shape:"feather", pattern:"drift",  speed:0.85, drop:0.060 },
-    { name:"Seed",      shape:"seed",    pattern:"slide",  speed:1.15, drop:0.065 },
-    { name:"Buckets",   shape:"bucket",  pattern:"snake",  speed:1.00, drop:0.058 },
-    { name:"Worms",     shape:"worm",    pattern:"sine",   speed:1.25, drop:0.062 },
-    // "cycle": keeps descending and reappears at the top instead of turning at the wall.
-    // "drops": this formation randomly lobs egg missiles at you.
-    { name:"Nests",     shape:"nest",    pattern:"drift",  speed:1.10, drop:0.070, drops:true },
+    { name:"Seed",      shape:"seed",    pattern:"wild",   speed:1.05, drop:0.030 },
+    { name:"Buckets",   shape:"bucket",  pattern:"snake",  speed:1.00, drop:0.058, drops:"water" },
+    { name:"Worms",     shape:"worm",    pattern:"bounce", speed:1.25, drop:0.085 },
+    { name:"Nests",     shape:"nest",    pattern:"drift",  speed:1.10, drop:0.070, drops:"egg" },
     { name:"Cartons",   shape:"carton",  pattern:"cycle",  speed:1.35, drop:0.30 },
   ];
-  const EGG_SPEED=2.3, EGG_W=6, EGG_H=9, EGG_CHANCE=0.006;
+  const EGG_SPEED=2.3, EGG_W=6, EGG_H=9;
+  const DROP_RATE=0.00055;      // per enemy per frame — deliberately sparse
+  const ZIG_FRAMES=120;         // cycling waves flip direction every 2s
 
   const clamp=(v,a,b)=>v<a?a:v>b?b:v;
-  function waveDef(w){ return WAVES[(w-1)%WAVES.length]; }
+
+  // How many complete passes through the eight formations you've survived.
+  function cycleOf(wave){ return Math.floor((wave-1)/WAVES.length); }
+  // The same formation coming round again is faster, drops faster and throws more.
+  function waveDef(w){
+    const base=WAVES[(w-1)%WAVES.length], n=cycleOf(w);
+    if(n===0) return base;
+    const k=1+n*0.26;
+    return { ...base, speed:base.speed*k, drop:base.drop*k, dropMul:1+n*0.85 };
+  }
 
   function makeEnemies(wave){
     const def=waveDef(wave), out=[];
     const gapX=(C.W-C.COLS*C.E_W)/(C.COLS+1);
     for(let r=0;r<C.ROWS;r++) for(let c=0;c<C.COLS;c++){
-      out.push({
+      const e={
         x: gapX+c*(C.E_W+gapX), y: 34+r*26,
         row:r, col:c, alive:true,
         phase: (c*0.6 + r*1.3),           // per-enemy offset for wobble patterns
-      });
+      };
+      if(def.pattern==="wild"){           // its own heading, re-rolled as it goes
+        const a=(c*1.7+r*2.3)%(Math.PI*2);
+        e.vx=Math.cos(a)*def.speed*1.6; e.vy=Math.abs(Math.sin(a))*def.speed*0.8+0.25;
+        e.turn=40+((c*7+r*13)%50);
+      }
+      out.push(e);
     }
     return out;
   }
@@ -114,13 +139,41 @@
     s.t++;
     // Horizontal motion depends on the formation's pattern.
     if(def.pattern==="cycle"){
-      // Never turns at the wall — it just keeps marching down and wraps back in
-      // at the top, so the flock cycles through you.
+      // Never turns at the wall — it keeps marching down and wraps back in at the
+      // top, so the flock cycles through you. It zig-zags instead of always
+      // running one way: the heading flips every couple of seconds.
+      if(s.t % ZIG_FRAMES === 0) s.dir*=-1;
       for(const e of s.enemies){
         e.x+=s.dir*def.speed;
         if(e.x>C.W) e.x=-C.E_W; else if(e.x<-C.E_W) e.x=C.W;
         e.y+=def.drop;
         if(e.y>C.H) e.y=-C.E_H;          // out the bottom, back in at the top
+      }
+      return;
+    }
+    if(def.pattern==="bounce"){
+      // Rolls downward while bobbing, and cycles round like the carton wave.
+      for(const e of s.enemies){
+        e.x += Math.sin((s.t*0.045)+e.phase)*def.speed*1.4;
+        e.x = clamp(e.x,2,C.W-C.E_W-2);
+        e.y += def.drop + Math.sin((s.t*0.08)+e.phase)*0.55;
+        if(e.y>C.H) e.y=-C.E_H;
+      }
+      return;
+    }
+    if(def.pattern==="wild"){
+      // The messy wave: everything flies its own heading, ricochets off the
+      // sides and re-rolls now and then. Cycles top-to-bottom like the rest.
+      for(const e of s.enemies){
+        if(--e.turn<=0){
+          e.turn=40+Math.floor(Math.random()*60);
+          e.vx=(Math.random()*2-1)*def.speed*1.8;
+          e.vy=Math.random()*def.speed*0.9+0.2;
+        }
+        e.x+=e.vx; e.y+=e.vy;
+        if(e.x<0){ e.x=0; e.vx=Math.abs(e.vx); }
+        if(e.x>C.W-C.E_W){ e.x=C.W-C.E_W; e.vx=-Math.abs(e.vx); }
+        if(e.y>C.H) e.y=-C.E_H;
       }
       return;
     }
@@ -171,17 +224,21 @@
     moveEnemies(s);
 
     const def=waveDef(s.wave);
-    const cycling = def.pattern==="cycle";
+    // Any pattern that deliberately runs off the bottom and wraps round must be
+    // exempt from the floor-death rule, not just "cycle".
+    const cycling = def.pattern==="cycle" || def.pattern==="bounce" || def.pattern==="wild";
 
-    // Nest formations lob egg missiles at you.
+    // Nests lob eggs; buckets drip water. Both are sparse on the first pass and
+    // get heavier every time the formations come round again.
     if(!s.eggs) s.eggs=[];
     if(def.drops){
+      const rate=DROP_RATE*(def.dropMul||1);
       for(const e of s.enemies){
         if(!e.alive) continue;
-        if(Math.random()<EGG_CHANCE) s.eggs.push({x:e.x+C.E_W/2-EGG_W/2, y:e.y+C.E_H});
+        if(Math.random()<rate) s.eggs.push({ x:e.x+C.E_W/2-EGG_W/2, y:e.y+C.E_H, kind:def.drops });
       }
     }
-    for(const g of s.eggs) g.y+=EGG_SPEED;
+    for(const g of s.eggs) g.y += g.kind==="water" ? EGG_SPEED*1.35 : EGG_SPEED;
     s.eggs=s.eggs.filter(g=>g.y<C.H+12);
     for(const g of s.eggs){
       if(overlaps(g.x,g.y,EGG_W,EGG_H, s.ship.x,C.SHIP_Y,C.SHIP_W,C.SHIP_H)){ loseLife(s); return s; }
@@ -275,6 +332,10 @@
       ctx.fillStyle="#9a9ab5";
       ctx.beginPath(); ctx.moveTo(x+2,y+2); ctx.lineTo(x+w-2,y+2); ctx.lineTo(x+w-5,y+h); ctx.lineTo(x+5,y+h); ctx.closePath(); ctx.fill();
       ctx.strokeStyle="#c9c9e0"; ctx.lineWidth=1.4; ctx.beginPath(); ctx.arc(cx,y+2,w*0.32,Math.PI,0); ctx.stroke();
+      // a bead of water forming at the lip, on its own slow cycle
+      const bead=(Math.floor(Date.now()/90)+Math.round(x))%22;
+      if(bead<9){ ctx.fillStyle="#38bdf8"; ctx.beginPath();
+        ctx.arc(cx, y+h+1+bead*0.5, 1.6+bead*0.06, 0, 7); ctx.fill(); }
     } else if(shape==="worm"){
       ctx.strokeStyle="#f0616e"; ctx.lineWidth=3.5; ctx.lineCap="round";
       ctx.beginPath(); ctx.moveTo(x+3,cy);
@@ -319,8 +380,17 @@
     for(const e of s.enemies){ if(e.alive) drawEnemy(e,def.shape); }
 
     for(const g of s.eggs||[]){
-      ctx.fillStyle="#f3ead7"; ctx.strokeStyle="#c9bda3"; ctx.lineWidth=1;
-      ctx.beginPath(); ctx.ellipse(g.x+EGG_W/2,g.y+EGG_H/2,EGG_W/2,EGG_H/2,0,0,7); ctx.fill(); ctx.stroke();
+      if(g.kind==="water"){                       // a droplet: round below, pointed above
+        ctx.fillStyle="#38bdf8"; ctx.strokeStyle="#0284c7"; ctx.lineWidth=1;
+        ctx.beginPath(); ctx.moveTo(g.x+EGG_W/2, g.y);
+        ctx.quadraticCurveTo(g.x+EGG_W, g.y+EGG_H*0.62, g.x+EGG_W/2, g.y+EGG_H);
+        ctx.quadraticCurveTo(g.x, g.y+EGG_H*0.62, g.x+EGG_W/2, g.y);
+        ctx.closePath(); ctx.fill(); ctx.stroke();
+        ctx.fillStyle="rgba(255,255,255,.65)"; ctx.fillRect(g.x+EGG_W*0.3,g.y+EGG_H*0.55,1.4,2);
+      } else {
+        ctx.fillStyle="#f3ead7"; ctx.strokeStyle="#c9bda3"; ctx.lineWidth=1;
+        ctx.beginPath(); ctx.ellipse(g.x+EGG_W/2,g.y+EGG_H/2,EGG_W/2,EGG_H/2,0,0,7); ctx.fill(); ctx.stroke();
+      }
     }
     if(s.bullet){
       ctx.fillStyle=input.guided?"#34d399":"#22d3ee";
