@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Checkers — Games</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🔴</text></svg>" />
+  <title>Chicken Checkers — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🐔</text></svg>" />
   <style>
-    :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;--dark:#5b3a1e;--light:#c9a06a;}
+    :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;}
     *{box-sizing:border-box}
     html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
       background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.22),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.16),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;}
@@ -14,44 +14,43 @@
     .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
     .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
     .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
-    h1{margin:0;font-size:1.5rem;background:linear-gradient(120deg,#f43f5e,#22d3ee);-webkit-background-clip:text;background-clip:text;color:transparent}
-    .board{display:grid;grid-template-columns:repeat(8,1fr);width:100%;aspect-ratio:1;border:2px solid #3a2512;border-radius:8px;overflow:hidden}
-    .sq{display:flex;align-items:center;justify-content:center;position:relative}
-    .sq.d{background:var(--dark)}.sq.l{background:var(--light)}
-    .sq.playable{cursor:pointer}
-    .sq.sel{box-shadow:inset 0 0 0 3px #34d399}
-    .sq.move::after{content:"";position:absolute;width:26%;height:26%;border-radius:50%;background:rgba(52,211,153,.6)}
-    .pc{width:74%;height:74%;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1rem;box-shadow:0 2px 3px rgba(0,0,0,.5)}
-    .pc.r{background:radial-gradient(circle at 35% 30%,#ff7089,#c81e3a)}
-    .pc.b{background:radial-gradient(circle at 35% 30%,#5a5a66,#15151f)}
-    .pc.king::after{content:"♛";color:#fde68a}
+    h1{margin:0;font-size:1.4rem;background:linear-gradient(120deg,#f43f5e,#facc15);-webkit-background-clip:text;background-clip:text;color:transparent}
+    canvas{width:100%;height:auto;display:block;border:2px solid #3a2512;border-radius:10px;touch-action:manipulation}
     .status{min-height:1.2em;font-weight:600;color:#fde68a;text-align:center}
+    .turnbar{display:flex;gap:8px;width:100%}
+    .side{flex:1;background:var(--panel);border:1px solid rgba(255,255,255,.06);border-radius:10px;padding:6px;text-align:center;font-size:.82rem}
+    .side.on{border-color:var(--accent-2);box-shadow:0 0 0 1px rgba(34,211,238,.35)}
+    .btns{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
     .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:10px 22px;border-radius:999px;cursor:pointer}
+    .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,.18);color:var(--muted)}
+    .btn:disabled{opacity:.4;cursor:default}
     .hint{color:var(--muted);font-size:.82rem;text-align:center}
   </style>
 </head>
 <body>
   <div class="wrap">
-    <div class="topbar"><a class="home" href="/">← Home</a><h1>🔴 Checkers</h1><span style="width:56px"></span></div>
-    <div class="board" id="board"></div>
+    <div class="topbar"><a class="home" href="/">← Home</a><h1>🐔 Chicken Checkers</h1><span style="width:56px"></span></div>
+    <div class="turnbar">
+      <div class="side" id="sideYou">🔴 You</div>
+      <div class="side" id="sideCpu">⚫ CPU</div>
+    </div>
+    <canvas id="board" width="480" height="480"></canvas>
     <div class="status" id="status">Your move (red). Captures are mandatory.</div>
-    <button class="btn" id="new">New Game</button>
-    <p class="hint">Move diagonally. Jump to capture — captures are forced, and multi-jumps chain. Reach the far row to become a king ♛.</p>
+    <div class="btns">
+      <button class="btn ghost" id="undo">Undo</button>
+      <button class="btn" id="new">New Game</button>
+    </div>
+    <p class="hint">Move diagonally. Jump to capture — captures are forced, and multi-jumps chain. Reach the far row to become a king 👑. Undo steps all the way back to the start.</p>
   </div>
   <script>
   (function(){
     const N=8;
-    // pieces: 1=red(you, moves up, -1 row dir), 2=red king, -1=black(cpu, down), -2=black king. 0 empty. null = light square (unused)
-    const RED=1,BK=-1;
-    const boardEl=document.getElementById("board"),statusEl=document.getElementById("status");
-    let board,turn,sel,over,mustFrom,cells=[];
-
+    // pieces: 1=red(you, moves up), 2=red king, -1=black(cpu, down), -2=black king. 0 empty.
     function isRed(v){return v>0;}function isBlack(v){return v<0;}function isKing(v){return Math.abs(v)===2;}
     function newBoard(){const b=Array.from({length:N},()=>Array(N).fill(0));
       for(let r=0;r<N;r++)for(let c=0;c<N;c++){if((r+c)%2===1){if(r<3)b[r][c]=-1;else if(r>4)b[r][c]=1;}}return b;}
     function dirs(v){return isKing(v)?[[-1,-1],[-1,1],[1,-1],[1,1]]:(isRed(v)?[[-1,-1],[-1,1]]:[[1,-1],[1,1]]);}
     function own(v,side){return side>0?isRed(v):isBlack(v);}
-    // generate moves for a side (1=red,-1=black). Returns {moves:[{from,to,cap}], hasCap}
     function genMoves(b,side){
       const simple=[],caps=[];
       for(let r=0;r<N;r++)for(let c=0;c<N;c++){const v=b[r][c];if(v===0||!own(v,side))continue;
@@ -62,69 +61,206 @@
         }}
       return caps.length?{moves:caps,hasCap:true}:{moves:simple,hasCap:false};
     }
-    function capsFrom(b,r,c){const v=b[r][c],out=[];for(const[dr,dc]of dirs(v)){const r1=r+dr,c1=c+dc,r2=r+2*dr,c2=c+2*dc;
-      if(r2>=0&&r2<N&&c2>=0&&c2<N&&b[r2][c2]===0&&b[r1][c1]!==0&&own(b[r1][c1],-Math.sign(v)))out.push({from:[r,c],to:[r2,c2],cap:[r1,c1]});}return out;}
+    function capsFrom(b,r,c){const v=b[r][c],out=[];if(v===0)return out;
+      for(const[dr,dc]of dirs(v)){const r1=r+dr,c1=c+dc,r2=r+2*dr,c2=c+2*dc;
+        if(r2>=0&&r2<N&&c2>=0&&c2<N&&b[r2][c2]===0&&b[r1][c1]!==0&&own(b[r1][c1],-Math.sign(v)))out.push({from:[r,c],to:[r2,c2],cap:[r1,c1]});}
+      return out;}
     function applyMove(b,m){const[fr,fc]=m.from,[tr,tc]=m.to;let v=b[fr][fc];b[fr][fc]=0;
       if(m.cap)b[m.cap[0]][m.cap[1]]=0;
-      // king promotion
-      if(v===RED&&tr===0)v=2;if(v===BK&&tr===N-1)v=-2;
+      if(v===1&&tr===0)v=2; if(v===-1&&tr===N-1)v=-2;
       b[tr][tc]=v;return v;}
+    function chainLen(b,m){if(!m.cap)return 0;const nb=b.map(r=>r.slice());applyMove(nb,m);let n=1,cur=m;
+      while(true){const ch=capsFrom(nb,cur.to[0],cur.to[1]);if(!ch.length)break;cur=ch[0];applyMove(nb,cur);n++;}return n;}
 
-    function build(){boardEl.innerHTML="";cells=[];for(let r=0;r<N;r++){cells[r]=[];for(let c=0;c<N;c++){const d=document.createElement("div");
-      d.className="sq "+((r+c)%2?"d":"l");d.addEventListener("click",()=>click(r,c));boardEl.appendChild(d);cells[r][c]=d;}}}
-    function legalForHuman(){const g=genMoves(board,1);return g.moves;}
+    window.__checkers={newBoard,genMoves,applyMove,capsFrom,chainLen};
+    if(typeof document==="undefined") return;
+
+    const cv=document.getElementById("board"),ctx=cv.getContext("2d");
+    const SQ=cv.width/N;
+    const statusEl=document.getElementById("status"),undoBtn=document.getElementById("undo"),
+          sideYou=document.getElementById("sideYou"),sideCpu=document.getElementById("sideCpu");
+
+    let board,turn,sel,over,mustFrom;
+    // Every position before a move is pushed here, so Undo can walk right back
+    // to the opening board.
+    let history=[];
+    // A move in flight: the piece slides instead of teleporting.
+    let anim=null;
+    const SLIDE=20;              // frames per hop — deliberately unhurried
+    let cpuThinking=0;           // frames until the CPU commits its move
+
+    function snapshot(){return {board:board.map(r=>r.slice()),turn,over,mustFrom:mustFrom?mustFrom.slice():null};}
+    function restore(s){board=s.board.map(r=>r.slice());turn=s.turn;over=s.over;mustFrom=s.mustFrom?s.mustFrom.slice():null;sel=null;anim=null;cpuThinking=0;}
+
+    // ------------------------------------------------------------------ draw
+    function chickenFace(x,y,r,dark){
+      // beak + comb + eyes, sized to the piece so both colours read as chickens
+      ctx.fillStyle=dark?"#f8b4c0":"#ffe08a";
+      ctx.beginPath();ctx.moveTo(x-r*0.30,y+r*0.10);ctx.lineTo(x+r*0.30,y+r*0.10);ctx.lineTo(x,y+r*0.52);ctx.closePath();ctx.fill();
+      ctx.fillStyle=dark?"#e0e0ea":"#fff";
+      ctx.beginPath();ctx.arc(x-r*0.30,y-r*0.24,r*0.24,0,7);ctx.arc(x+r*0.30,y-r*0.24,r*0.24,0,7);ctx.fill();
+      ctx.fillStyle="#22131f";
+      ctx.beginPath();ctx.arc(x-r*0.26,y-r*0.22,r*0.12,0,7);ctx.arc(x+r*0.34,y-r*0.22,r*0.12,0,7);ctx.fill();
+      ctx.fillStyle=dark?"#c02b3f":"#e0342c";
+      ctx.beginPath();ctx.arc(x-r*0.20,y-r*0.62,r*0.16,0,7);ctx.arc(x,y-r*0.72,r*0.18,0,7);ctx.arc(x+r*0.20,y-r*0.62,r*0.16,0,7);ctx.fill();
+    }
+    function piece(x,y,v,lift){
+      const r=SQ*0.38, dark=isBlack(v);
+      ctx.save();
+      ctx.fillStyle="rgba(0,0,0,.4)";ctx.beginPath();ctx.ellipse(x,y+r*0.42+(lift||0)*0.5,r*0.92,r*0.32,0,0,7);ctx.fill();
+      const cy=y-(lift||0);
+      // body: unmistakably red or black, with a bright rim so both pop off the wood
+      const g=ctx.createRadialGradient(x-r*0.35,cy-r*0.35,r*0.15,x,cy,r);
+      if(dark){g.addColorStop(0,"#4a4a58");g.addColorStop(1,"#0e0e16");}
+      else{g.addColorStop(0,"#ff6b6b");g.addColorStop(1,"#c1121f");}
+      ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,cy,r,0,7);ctx.fill();
+      ctx.strokeStyle=dark?"#8f93a8":"#ffd0d0";ctx.lineWidth=3;ctx.stroke();
+      ctx.strokeStyle=dark?"rgba(255,255,255,.22)":"rgba(255,255,255,.32)";ctx.lineWidth=1.5;
+      ctx.beginPath();ctx.arc(x,cy,r*0.76,0,7);ctx.stroke();
+      chickenFace(x,cy,r,dark);
+      if(isKing(v)){ctx.font=Math.round(r*0.8)+"px serif";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText("👑",x,cy-r*0.06);}
+      ctx.restore();
+    }
+    function cxy(r,c){return {x:c*SQ+SQ/2, y:r*SQ+SQ/2};}
     function render(){
-      const moves=(turn===1&&!over)?legalForHuman():[];
+      for(let r=0;r<N;r++)for(let c=0;c<N;c++){
+        ctx.fillStyle=(r+c)%2?"#5b3a1e":"#c9a06a";
+        ctx.fillRect(c*SQ,r*SQ,SQ,SQ);
+      }
+      const myTurn=turn===1&&!over&&!anim&&!cpuThinking;
+      const moves=myTurn?legalForHuman():[];
       const fromSet=new Set(moves.map(m=>m.from[0]+","+m.from[1]));
       const selMoves=sel?moves.filter(m=>m.from[0]===sel[0]&&m.from[1]===sel[1]):[];
-      const toSet=new Set(selMoves.map(m=>m.to[0]+","+m.to[1]));
-      for(let r=0;r<N;r++)for(let c=0;c<N;c++){const el=cells[r][c];el.className="sq "+((r+c)%2?"d":"l");el.innerHTML="";
-        const v=board[r][c];
-        if(v!==0){const p=document.createElement("div");p.className="pc "+(isRed(v)?"r":"b")+(isKing(v)?" king":"");el.appendChild(p);}
-        if(turn===1&&!over&&fromSet.has(r+","+c))el.classList.add("playable");
-        if(sel&&sel[0]===r&&sel[1]===c)el.classList.add("sel");
-        if(toSet.has(r+","+c))el.classList.add("move");}
+      // highlight the pieces you may actually move — under a forced capture that
+      // is only the jumping piece, which is why nothing else responds
+      for(const k of fromSet){const[r,c]=k.split(",").map(Number);
+        ctx.strokeStyle="rgba(52,211,153,.9)";ctx.lineWidth=3;ctx.strokeRect(c*SQ+2,r*SQ+2,SQ-4,SQ-4);}
+      if(sel){ctx.fillStyle="rgba(52,211,153,.22)";ctx.fillRect(sel[1]*SQ,sel[0]*SQ,SQ,SQ);}
+      for(const m of selMoves){const p=cxy(m.to[0],m.to[1]);
+        ctx.fillStyle="rgba(52,211,153,.65)";ctx.beginPath();ctx.arc(p.x,p.y,SQ*0.16,0,7);ctx.fill();}
+
+      for(let r=0;r<N;r++)for(let c=0;c<N;c++){
+        const v=board[r][c];if(v===0)continue;
+        if(anim&&anim.hide&&anim.hide[0]===r&&anim.hide[1]===c)continue;
+        const p=cxy(r,c);piece(p.x,p.y,v,0);
+      }
+      if(anim){
+        const u=anim.t/SLIDE;
+        const a=cxy(anim.from[0],anim.from[1]), b=cxy(anim.to[0],anim.to[1]);
+        const x=a.x+(b.x-a.x)*u, y=a.y+(b.y-a.y)*u;
+        piece(x,y,anim.v,Math.sin(u*Math.PI)*(anim.cap?SQ*0.35:SQ*0.16));
+      }
+      if(over){
+        ctx.fillStyle="rgba(0,0,0,.55)";ctx.fillRect(0,cv.height/2-40,cv.width,80);
+        ctx.textAlign="center";ctx.fillStyle="#fde68a";ctx.font="bold 28px system-ui";
+        ctx.fillText(over===1?"YOU WIN!":"CPU WINS",cv.width/2,cv.height/2+10);
+      }
+      sideYou.className="side"+(turn===1&&!over?" on":"");
+      sideCpu.className="side"+(turn===-1&&!over?" on":"");
+      undoBtn.disabled=!history.length||!!anim;
     }
-    function newGame(){board=newBoard();turn=1;sel=null;over=false;mustFrom=null;statusEl.textContent="Your move (red). Captures are mandatory.";render();}
+
+    function legalForHuman(){return genMoves(board,1).moves;}
+
+    // --------------------------------------------------------------- turns
+    function say(t){statusEl.textContent=t;}
+    function newGame(){board=newBoard();turn=1;sel=null;over=false;mustFrom=null;history=[];anim=null;cpuThinking=0;
+      say("Your move (red). Captures are mandatory.");render();}
+
+    function startAnim(m,onDone){
+      const v=board[m.from[0]][m.from[1]];
+      anim={from:m.from,to:m.to,v,cap:m.cap,t:0,hide:m.from,onDone,move:m};
+    }
+    function tick(){
+      if(anim){
+        if(++anim.t>=SLIDE){
+          const m=anim.move,done=anim.onDone;
+          applyMove(board,m);
+          anim=null;
+          if(typeof Arcade!=="undefined") Arcade.sfx[m.cap?"hit":"step"]();
+          done&&done();
+        }
+      } else if(cpuThinking>0){
+        if(--cpuThinking===0) cpuMove();
+      }
+      render();
+      requestAnimationFrame(tick);
+    }
+
     function click(r,c){
-      if(over||turn!==1)return;
-      const moves=legalForHuman().filter(m=>!mustFrom||(m.from[0]===mustFrom[0]&&m.from[1]===mustFrom[1]));
+      if(over||anim||cpuThinking)return;
+      if(turn!==1){say("CPU is moving…");return;}
+      const all=legalForHuman();
+      const moves=all.filter(m=>!mustFrom||(m.from[0]===mustFrom[0]&&m.from[1]===mustFrom[1]));
       if(sel){const mv=moves.find(m=>m.from[0]===sel[0]&&m.from[1]===sel[1]&&m.to[0]===r&&m.to[1]===c);
         if(mv){doHuman(mv);return;}}
-      if(board[r][c]!==0&&isRed(board[r][c])&&moves.some(m=>m.from[0]===r&&m.from[1]===c)){sel=[r,c];render();return;}
+      if(board[r][c]!==0&&isRed(board[r][c])){
+        if(moves.some(m=>m.from[0]===r&&m.from[1]===c)){sel=[r,c];render();return;}
+        // tell the player why this piece will not budge
+        if(mustFrom) say("You must finish the jump with the highlighted chicken.");
+        else if(genMoves(board,1).hasCap) say("A jump is available — captures are forced, so you must take it.");
+        else say("That chicken has nowhere to go. Pick a highlighted one.");
+        sel=null;render();return;
+      }
       sel=null;render();
     }
     function doHuman(mv){
-      applyMove(board,mv);
-      if(mv.cap){const chain=capsFrom(board,mv.to[0],mv.to[1]);
-        if(chain.length){sel=[mv.to[0],mv.to[1]];mustFrom=[mv.to[0],mv.to[1]];render();statusEl.textContent="Jump again!";return;}}
-      sel=null;mustFrom=null;turn=-1;render();checkEndThen(cpuTurn);
+      history.push(snapshot());
+      sel=null;
+      startAnim(mv,()=>{
+        if(mv.cap){const chain=capsFrom(board,mv.to[0],mv.to[1]);
+          if(chain.length){sel=[mv.to[0],mv.to[1]];mustFrom=[mv.to[0],mv.to[1]];say("Jump again!");render();return;}}
+        mustFrom=null;
+        if(genMoves(board,-1).moves.length===0){finish(1);return;}
+        turn=-1;say("CPU is thinking…");cpuThinking=36;
+      });
     }
-    function checkEndThen(cb){
-      if(genMoves(board,turn).moves.length===0)return finish(turn===1?-1:1);
-      cb&&setTimeout(cb,600);
-    }
-    function cpuTurn(){
-      if(over)return;let g=genMoves(board,-1);if(!g.moves.length)return finish(1);
-      // pick move: prefer captures (forced already), maximize captures via chain + slight center/king bias
+    function cpuMove(){
+      if(over)return;
+      const g=genMoves(board,-1);
+      if(!g.moves.length){finish(1);return;}
       let best=g.moves[0],bs=-1e9;
       for(const m of g.moves){let s=m.cap?10:0;s+=chainLen(board,m);s+=(m.to[0])*0.2;s+=Math.random()*0.3;if(s>bs){bs=s;best=m;}}
-      // execute best, following its capture chain greedily
-      let cur=best;
-      applyMove(board,cur);
-      while(cur.cap){const ch=capsFrom(board,cur.to[0],cur.to[1]);if(!ch.length)break;cur=ch[0];applyMove(board,cur);}
-      turn=1;render();
-      if(genMoves(board,1).moves.length===0)return finish(-1);
-      statusEl.textContent="Your move.";
+      stepCpu(best);
     }
-    function chainLen(b,m){if(!m.cap)return 0;const nb=b.map(r=>r.slice());applyMove(nb,m);let n=1,cur=m;
-      while(true){const ch=capsFrom(nb,cur.to[0],cur.to[1]);if(!ch.length)break;cur=ch[0];applyMove(nb,cur);n++;}return n;}
-    function finish(winner){over=true;statusEl.textContent=winner===1?"🏆 You win!":"😔 CPU wins.";render();}
+    // The CPU animates each hop of its chain too, so you can follow what it did.
+    function stepCpu(m){
+      startAnim(m,()=>{
+        if(m.cap){const ch=capsFrom(board,m.to[0],m.to[1]);
+          if(ch.length){say("CPU jumps again!");stepCpu(ch[0]);return;}}
+        if(genMoves(board,1).moves.length===0){finish(-1);return;}
+        turn=1;
+        say(genMoves(board,1).hasCap?"Your move — you have a forced jump.":"Your move.");
+      });
+    }
+    function finish(winner){over=winner;turn=0;say(winner===1?"🏆 You win!":"😔 CPU wins.");render();}
+
+    // Undo rewinds to the last position where it was your move, so one press
+    // takes back your move and the CPU's reply together.
+    function undo(){
+      if(!history.length||anim)return;
+      let s=history.pop();
+      while(history.length&&s.turn!==1) s=history.pop();
+      restore(s);
+      say(history.length?"Took that back. Your move.":"Back to the start. Your move.");
+      render();
+    }
+
+    // live state, so the game can be driven and checked headlessly
+    window.__checkers.state=()=>({board:board.map(r=>r.slice()),turn,over,mustFrom,busy:!!anim||cpuThinking>0,history:history.length});
+    cv.addEventListener("click",(e)=>{
+      const rect=cv.getBoundingClientRect();
+      const c=Math.floor((e.clientX-rect.left)/rect.width*N);
+      const r=Math.floor((e.clientY-rect.top)/rect.height*N);
+      if(r>=0&&r<N&&c>=0&&c<N)click(r,c);
+    });
+    undoBtn.addEventListener("click",undo);
     document.getElementById("new").addEventListener("click",newGame);
-    window.__checkers={newBoard,genMoves,applyMove,capsFrom};
-    build();newGame();
+    newGame();
+    requestAnimationFrame(tick);
   })();
   </script>
+  <script src="/arcade.js"></script>
   <script src="/comments.js" defer></script>
 </body>
 </html>
