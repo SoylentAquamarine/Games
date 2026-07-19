@@ -119,6 +119,7 @@
     rows=14;grid=Array.from({length:rows},(_,r)=>Array(colsInRow(r)).fill(null));for(let r=0;r<5;r++)for(let c=0;c<colsInRow(r);c++)grid[r][c]=COLORS[(r+c)%COLORS.length];shooter={x:W/2,y:H-28};cur=COLORS[0];nextC=COLORS[1];aim={x:W/2,y:0};score=0;draw();
   })();
   </script>
+  <script src="/startgate.js" defer></script>
   <script src="/comments.js" defer></script>
 </body>
 </html>
