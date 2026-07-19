@@ -27,6 +27,10 @@
   .powerwrap{width:100%;max-width:560px;display:flex;align-items:center;gap:8px;font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
   .power{flex:1;height:10px;background:#141730;border-radius:999px;overflow:hidden;border:1px solid rgba(255,255,255,.08)}
   .power i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--good),#ffcf5a,var(--bad))}
+  .englishwrap{display:flex;align-items:center;gap:12px;max-width:560px}
+  #english{width:74px;height:74px;border-radius:50%;background:#141730;border:1px solid rgba(255,255,255,.15);cursor:pointer;flex:0 0 auto}
+  .ehint{font-size:.74rem;color:var(--muted);line-height:1.4}
+  .ehint b{color:var(--text)}
   .hint{font-size:.78rem;color:var(--muted);text-align:center;max-width:560px}
 </style>
 </head>
@@ -42,6 +46,10 @@
   <div class="hud" id="hud"></div>
   <canvas id="game" width="640" height="480"></canvas>
   <div class="powerwrap"><span>Power</span><div class="power"><i id="pfill"></i></div></div>
+  <div class="englishwrap">
+    <canvas id="english" width="74" height="74" title="Where to strike the cue ball"></canvas>
+    <div class="ehint"><b>English</b><br>Tap the cue ball to strike off-centre — high for follow, low for draw, side for swerve. Double-tap to centre it.</div>
+  </div>
   <div class="msg" id="msg">Drag back from the cue ball and release to shoot.</div>
   <p class="hint">Drag from the cue ball to aim — pull further back for more power, release to strike.
     <b>8-Ball</b>: pot your group then the 8. <b>9-Ball</b>: always hit the lowest ball first, sink the 9 to win.
@@ -65,7 +73,7 @@
     eight: { w:520, h:270, pockets:true },
     nine:  { w:520, h:270, pockets:true },
     carom: { w:500, h:260, pockets:false },
-    mini:  { w:360, h:190, pockets:true },
+    mini:  { w:360, h:190, pockets:"corners" },   // 4 corner pockets only, 9-ball rules
   };
   function tableOf(mode){
     const t=TABLES[mode]||TABLES.eight;
@@ -74,9 +82,10 @@
   }
   function pocketsOf(t){
     if(!t.pockets) return [];
+    const corners=[ {x:t.x,y:t.y},{x:t.x2,y:t.y},{x:t.x,y:t.y2},{x:t.x2,y:t.y2} ];
+    if(t.pockets==="corners") return corners;          // mini table: corners only
     const mx=(t.x+t.x2)/2;
-    return [ {x:t.x,y:t.y},{x:mx,y:t.y},{x:t.x2,y:t.y},
-             {x:t.x,y:t.y2},{x:mx,y:t.y2},{x:t.x2,y:t.y2} ];
+    return corners.concat([{x:mx,y:t.y},{x:mx,y:t.y2}]);
   }
 
   // Standard pool colours by number.
@@ -99,14 +108,14 @@
     }
 
     const nums = mode==="nine" ? [1,2,3,4,5,6,7,8,9]
-               : mode==="mini" ? [1,2,3,8,9,10,11]
+               : mode==="mini" ? [1,2,3,4,5,6,7,8,9]
                : [1,9,2,10,8,3,11,4,12,5,13,6,14,7,15];
     // Triangle (or diamond for 9-ball) with the apex toward the cue.
     const apexX = t.x + t.w*0.68, apexY = (t.y+t.y2)/2;
     const gap = C.R*2+0.6;
     let i=0, row=0;
     while(i<nums.length){
-      const count = mode==="nine" ? [1,2,3,2,1][row] : row+1;
+      const count = (mode==="nine"||mode==="mini") ? [1,2,3,2,1][row] : row+1;
       if(count==null) break;
       for(let k=0;k<count && i<nums.length;k++,i++){
         balls.push({ n:nums[i],
@@ -148,12 +157,15 @@
   const live=(b)=>!b.potted;
   function moving(s){ return s.balls.some(b=>live(b) && Math.hypot(b.vx,b.vy)>=C.STOP); }
 
-  function shoot(s, angle, power){
+  // english: {x:-1..1 side, y:-1..1 draw(-)/follow(+)} — where you strike the cue ball
+  function shoot(s, angle, power, english){
     if(s.phase!=="aim"||s.over) return false;
     const cue=s.balls.find(b=>b.cue);
     if(!cue||cue.potted) return false;
     const p=Math.max(0.5,Math.min(C.MAX_POWER,power));
     cue.vx=Math.cos(angle)*p; cue.vy=Math.sin(angle)*p;
+    const e=english||{x:0,y:0};
+    cue.spin={ x:Math.max(-1,Math.min(1,e.x)), y:Math.max(-1,Math.min(1,e.y)), a:angle, life:1 };
     s.phase="rolling"; s.firstHit=null; s.pottedThisShot=[]; s.cueScratched=false;
     s.shots++;
     return true;
@@ -168,6 +180,17 @@
     for(let k=0;k<sub;k++){ substep(s,1/sub); trackCarom(s); }   // tracked here so no caller can forget it
     for(const b of s.balls){
       if(!live(b)) continue;
+      // Side english curves the cue ball gently while it still has spin left.
+      if(b.spin && b.spin.life>0){
+        const sp=Math.hypot(b.vx,b.vy);
+        if(sp>C.STOP){
+          const nx=-b.vy/sp, ny=b.vx/sp;              // perpendicular to travel
+          b.vx += nx*b.spin.x*0.055*b.spin.life;
+          b.vy += ny*b.spin.x*0.055*b.spin.life;
+        }
+        b.spin.life*=0.97;
+        if(b.spin.life<0.05) b.spin=null;
+      }
       b.vx*=C.FRICTION; b.vy*=C.FRICTION;
       if(Math.hypot(b.vx,b.vy)<C.STOP){ b.vx=0; b.vy=0; }
     }
@@ -211,6 +234,14 @@
         const imp=sep;                              // equal mass, e=1
         a.vx+=imp*nx; a.vy+=imp*ny;
         b.vx-=imp*nx; b.vy-=imp*ny;
+        // Draw pulls the cue back off the object ball, follow sends it through.
+        const cb = a.cue?a:(b.cue?b:null);
+        if(cb && cb.spin){
+          const dir = cb===a ? 1 : -1;
+          cb.vx += nx*dir*cb.spin.y*2.6*cb.spin.life;
+          cb.vy += ny*dir*cb.spin.y*2.6*cb.spin.life;
+          cb.spin.life*=0.45;
+        }
         // remember what the cue struck first — several rules hang off it
         if((a.cue||b.cue) && s.firstHit===null){
           const other=a.cue?b:a;
@@ -242,23 +273,21 @@
       s.caromHits=new Set();
       if(s.score[s.turn]>=5){ s.over=true; s.winner=s.turn; s.msg="Player "+(s.turn+1)+" wins the carom match!"; }
     }
-    else if(s.mode==="mini"){
-      if(scratched){ respotCue(s); s.msg="Scratch — cue respotted."; }
-      else if(potted.length) s.msg="Potted "+potted.join(", ")+".";
-      else s.msg="No pot.";
-      if(s.balls.every(b=>b.cue||b.potted)){ s.over=true; s.winner=0; s.msg="Table cleared in "+s.shots+" shots!"; }
-      keepTurn=true;                                 // solo game
-    }
-    else if(s.mode==="nine"){
+    else if(s.mode==="nine"||s.mode==="mini"){
+      // Mini is 9-ball on a small four-pocket table, played solo against your
+      // own shot count rather than an opponent.
+      const solo = s.mode==="mini";
       const low=lowestOnTable(s);
       const legal = s.firstHit!==null && s.firstHit===s.lowBefore;
       if(potted.includes(9)){
-        if(legal && !scratched){ s.over=true; s.winner=s.turn; s.msg="Player "+(s.turn+1)+" sinks the 9 — game!"; }
+        if(legal && !scratched){ s.over=true; s.winner=solo?0:s.turn;
+          s.msg = solo ? ("Cleared to the 9 in "+s.shots+" shots!") : ("Player "+(s.turn+1)+" sinks the 9 — game!"); }
+        else if(solo){ respotNine(s); s.msg="Illegal 9 — respotted, keep going."; keepTurn=true; }
         else { s.over=true; s.winner=1-s.turn; s.msg="Illegal 9 — Player "+(2-s.turn)+" wins."; }
-      } else if(scratched){ respotCue(s); s.msg="Scratch — turn passes."; }
-      else if(!legal){ s.msg="Foul: you must hit the "+s.lowBefore+" first."; }
+      } else if(scratched){ respotCue(s); s.msg=solo?"Scratch — cue respotted.":"Scratch — turn passes."; if(solo) keepTurn=true; }
+      else if(!legal){ s.msg="Foul: you must hit the "+s.lowBefore+" first."; if(solo) keepTurn=true; }
       else if(potted.length){ keepTurn=true; s.msg="Potted "+potted.join(", ")+" — shoot again."; }
-      else s.msg="No pot.";
+      else { s.msg="No pot."; if(solo) keepTurn=true; }
     }
     else { // eight-ball
       if(potted.includes(8)){
@@ -287,6 +316,13 @@
     return s;
   }
 
+  function respotNine(s){
+    const nine=s.balls.find(b=>b.n===9); if(!nine) return;
+    nine.potted=false; nine.vx=0; nine.vy=0;
+    const t2=s.t; let x=t2.x+t2.w*0.68, y=(t2.y+t2.y2)/2, tries=0;
+    while(tries++<200 && s.balls.some(b=>b!==nine&&!b.potted&&Math.hypot(b.x-x,b.y-y)<C.R*2.2)) x+=C.R*1.2;
+    nine.x=Math.min(t2.x2-C.R,x); nine.y=y;
+  }
   function respotCue(s){
     const cue=s.balls.find(b=>b.cue), t=s.t;
     cue.potted=false; cue.vx=0; cue.vy=0;
@@ -312,6 +348,7 @@
   const ctx=cv.getContext("2d");
   let mode="eight", s=newState(mode);
   let aiming=false, aimFrom=null, aimTo=null, splash=null;
+  let english={x:0,y:0};          // where on the cue ball you strike
   s.lowBefore=lowestOnTable(s);
 
   function cueBall(){ return s.balls.find(b=>b.cue); }
@@ -338,7 +375,7 @@
     const pull=Math.hypot(dx,dy);
     if(pull<8){ aimTo=null; return; }
     const power=Math.min(C.MAX_POWER, pull/9);
-    shoot(s, Math.atan2(dy,dx), power);
+    shoot(s, Math.atan2(dy,dx), power, english);
     Arcade.sfx.hit();
     aimTo=null;
   }
@@ -449,6 +486,43 @@
     }
     draw(); hud(); requestAnimationFrame(frame);
   }
+  // ---- english picker: a cue ball you tap to choose the contact point ----
+  const eCv=$("english"), eCtx=eCv?eCv.getContext("2d"):null;
+  function drawEnglish(){
+    if(!eCtx) return;
+    const w=eCv.width, h=eCv.height, cx=w/2, cy=h/2, r=w/2-4;
+    eCtx.clearRect(0,0,w,h);
+    const g=eCtx.createRadialGradient(cx-5,cy-5,2,cx,cy,r);
+    g.addColorStop(0,"#ffffff"); g.addColorStop(0.55,"#f5f0e2"); g.addColorStop(1,"#b9b2a0");
+    eCtx.fillStyle=g; eCtx.beginPath(); eCtx.arc(cx,cy,r,0,7); eCtx.fill();
+    eCtx.strokeStyle="rgba(0,0,0,.35)"; eCtx.lineWidth=1; eCtx.stroke();
+    eCtx.strokeStyle="rgba(0,0,0,.12)";
+    eCtx.beginPath(); eCtx.moveTo(cx-r,cy); eCtx.lineTo(cx+r,cy); eCtx.moveTo(cx,cy-r); eCtx.lineTo(cx,cy+r); eCtx.stroke();
+    // the chosen contact point
+    eCtx.fillStyle="#dc2626";
+    eCtx.beginPath(); eCtx.arc(cx+english.x*r*0.72, cy-english.y*r*0.72, 6, 0, 7); eCtx.fill();
+    eCtx.strokeStyle="rgba(255,255,255,.8)"; eCtx.lineWidth=1.5; eCtx.stroke();
+  }
+  function setEnglish(ev){
+    if(!eCv) return;
+    ev.preventDefault();
+    const r0=eCv.getBoundingClientRect();
+    const px=((ev.touches?ev.touches[0].clientX:ev.clientX)-r0.left)/r0.width*eCv.width;
+    const py=((ev.touches?ev.touches[0].clientY:ev.clientY)-r0.top)/r0.height*eCv.height;
+    const cx=eCv.width/2, cy=eCv.height/2, r=eCv.width/2-4;
+    let dx=(px-cx)/(r*0.72), dy=-(py-cy)/(r*0.72);
+    const mag=Math.hypot(dx,dy);
+    if(mag>1){ dx/=mag; dy/=mag; }           // stay on the ball
+    english={x:dx,y:dy};
+    drawEnglish();
+  }
+  if(eCv){
+    eCv.addEventListener("mousedown",setEnglish);
+    eCv.addEventListener("touchstart",setEnglish,{passive:false});
+    eCv.addEventListener("dblclick",(ev)=>{ ev.preventDefault(); english={x:0,y:0}; drawEnglish(); });
+    drawEnglish();
+  }
+
   reset(); requestAnimationFrame(frame);
 })();
 </script>
