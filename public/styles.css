@@ -269,3 +269,13 @@ footer {
 .card { padding: 22px 14px; gap: 10px; }
 .card .cardtext { display: flex; flex-direction: column; align-items: center; gap: 3px; }
 .card .desc { font-size: 0.72rem; color: var(--muted); font-weight: 400; line-height: 1.25; text-align: center; }
+
+/* The "how this site gets made" note under the hero. */
+.vibe {
+  max-width: 62ch;
+  margin: 0.9em auto 0;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.vibe b { color: var(--text); }
