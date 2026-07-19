@@ -62,7 +62,9 @@
 <script>
 // ===== Adventure — pure world simulation (headless-testable via window.__adventure) =====
 (function(){
-  const SIZE=200, HS=8, OBJ=8, BW=14, DS=14, SPEED=3, DSPEED=2;
+  // Hero slowed 25% (was 3). The dragons are defined as multiples of SPEED, so
+  // they slow by the same ratio and the chase keeps its original balance.
+  const SIZE=200, HS=8, OBJ=8, BW=14, DS=14, SPEED=2.25, DSPEED=1.5;
   // A dragon bite costs 20% health and leaves the dragon stunned, so you always
   // get a window to escape. Stun lengths are in frames at ~60fps.
   const HIT_DMG=20, HIT_INV=45;
@@ -301,9 +303,28 @@
     function rr(x,y,w,h,c){ ctx.fillStyle=c; ctx.fillRect(x,y,w,h); }
     function drawObject(k,x,y){
       if(k==="sword"){ rr(x+2,y-1,4,11,"#d9d9e6"); rr(x,y+8,8,3,"#b8860b"); rr(x+3,y+8,2,4,"#8a6d1a"); }
-      else if(k==="goldkey"){                                   // gold, so it reads against the dark
-      rr(x,y+1,3,6,"#f5d020"); rr(x+1,y+1,4,2,"#f5d020"); rr(x+3,y,5,3,"#f5d020"); rr(x+6,y,2,5,"#f5d020");
-      rr(x+1,y+2,1,1,"#fff7cc"); }
+      else if(k==="goldkey"){
+        // Drawn as an actual key — ringed bow, shaft, two teeth — outlined in
+        // near-black first so the shape reads against the dark floor instead of
+        // blurring into a lump.
+        ctx.save();
+        ctx.strokeStyle="#241a04"; ctx.lineWidth=3; ctx.lineJoin="round"; ctx.lineCap="round";
+        for(const pass of ["stroke","fill"]){
+          if(pass==="fill"){ ctx.fillStyle="#f5d020"; ctx.strokeStyle="#f5d020"; ctx.lineWidth=2; }
+          // bow: a ring on the left
+          ctx.beginPath(); ctx.arc(x+3,y+5,3.2,0,7);
+          if(pass==="stroke") ctx.stroke(); else ctx.stroke();
+          // shaft running right, with two teeth hanging off the end
+          ctx.beginPath();
+          ctx.moveTo(x+6,y+5); ctx.lineTo(x+13,y+5);
+          ctx.moveTo(x+10,y+5); ctx.lineTo(x+10,y+8);
+          ctx.moveTo(x+13,y+5); ctx.lineTo(x+13,y+9);
+          if(pass==="stroke") ctx.stroke(); else ctx.stroke();
+        }
+        // punch the hole through the bow and add a highlight
+        ctx.fillStyle="#0c0c14"; ctx.beginPath(); ctx.arc(x+3,y+5,1.5,0,7); ctx.fill();
+        ctx.fillStyle="#fff7cc"; ctx.fillRect(x+1,y+2,1,1);
+        ctx.restore(); }
       else if(k==="bridge"){ rr(x-2,y,12,10,"#a9743a"); rr(x-2,y+2,12,2,"#5c3a18"); rr(x-2,y+6,12,2,"#5c3a18"); }
       else if(k==="chalice"){ ctx.fillStyle="#ffd94a"; ctx.fillRect(x,y,8,2); ctx.fillRect(x+1,y+2,6,3); ctx.fillRect(x+3,y+5,2,4); ctx.fillRect(x+1,y+9,6,2);
         ctx.fillStyle="#fff7cc"; ctx.fillRect(x+2,y+1,1,1); }
