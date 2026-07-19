@@ -66,6 +66,42 @@
     const DEATH_FRAMES=120, RESPAWN_INV=120, RESPAWN_FLASH=90;
     let dying=0, debris=[], gameOverPending=false, respawnFlash=0;
 
+    // Two hostiles share the sky with the eggs.
+    //  · the space-suit chicken buzzes past now and then from wave 3 — it flies
+    //    straight through and leaves, so it is a bonus you have to take quickly
+    //  · the space weasel arrives at wave 10 and behaves like an egg: it drifts
+    //    and wraps and stays until you kill it, but it shoots back
+    const FLYBY_FROM=3, WEASEL_FROM=10;
+    const FLYBY_GAP_MIN=60*60, FLYBY_GAP_MAX=60*140;   // roughly 1-2.5 minutes apart
+    const FLYBY_SHOT=90, WEASEL_SHOT=140;              // 1.5s and ~2.3s between shots
+    const FLYBY_SCORE=500, WEASEL_SCORE=250;
+    let flyby=null, flybyTimer=0, weasels=[], eBullets=[], pops=[];
+
+    function scheduleFlyby(){ flybyTimer=FLYBY_GAP_MIN+Math.floor(Math.random()*(FLYBY_GAP_MAX-FLYBY_GAP_MIN)); }
+    function spawnFlyby(){
+      const fromLeft=Math.random()<0.5, sp=1.5+Math.random()*0.9;
+      flyby={ x: fromLeft?-30:W+30, y: 40+Math.random()*(H-80),
+              vx: fromLeft?sp:-sp, vy:(Math.random()-0.5)*0.5, r:13, shot:FLYBY_SHOT, bob:0 };
+    }
+    function spawnWeasels(){
+      weasels=[];
+      if(wave<WEASEL_FROM) return;
+      const n=1+Math.floor((wave-WEASEL_FROM)/4);
+      for(let i=0;i<n;i++){
+        let x,y; do{ x=Math.random()*W; y=Math.random()*H; }while(ship&&Math.hypot(x-ship.x,y-ship.y)<150);
+        const a=Math.random()*Math.PI*2, sp=0.5+Math.random()*0.5;
+        weasels.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,r:14,shot:WEASEL_SHOT+Math.random()*60,wig:Math.random()*7});
+      }
+    }
+    // Enemies lead the shot slightly so they are a real threat, but not perfect.
+    function enemyFire(e){
+      if(!ship) return;
+      const a=Math.atan2(ship.y-e.y, ship.x-e.x)+(Math.random()-0.5)*0.25;
+      eBullets.push({x:e.x,y:e.y,vx:Math.cos(a)*3.4,vy:Math.sin(a)*3.4,life:150});
+      if(typeof Arcade!=="undefined") Arcade.sfx.shoot();
+    }
+    function pop(x,y,text){ pops.push({x,y,text,life:70}); }
+
     function newShip(){return {x:W/2,y:H/2,a:-Math.PI/2,vx:0,vy:0};}
     function makeRock(x,y,size){
       const verts=[],n=9+Math.floor(Math.random()*4);
@@ -76,7 +112,10 @@
     function spawnWave(){rocks=[];const count=3+wave;for(let i=0;i<count;i++){
       let x,y;do{x=Math.random()*W;y=Math.random()*H;}while(Math.hypot(x-ship.x,y-ship.y)<120);
       rocks.push(makeRock(x,y,3));}}
-    function reset(full){if(full){score=0;lives=3;wave=1;}dying=0;debris=[];gameOverPending=false;respawnFlash=0;ship=newShip();bullets=[];inv=90;spawnWave();scoreEl.textContent=score;livesEl.textContent=lives;}
+    function reset(full){if(full){score=0;lives=3;wave=1;}dying=0;debris=[];gameOverPending=false;respawnFlash=0;ship=newShip();bullets=[];inv=90;
+      flyby=null;flybyTimer=0;weasels=[];eBullets=[];pops=[];spawnWave();spawnWeasels();
+      if(wave>=FLYBY_FROM)scheduleFlyby();
+      scoreEl.textContent=score;livesEl.textContent=lives;}
     function start(){reset(true);ov.classList.add("hidden");running=true;loop();}
     function fire(){if(!ship)return;const now=performance.now();if(now-lastFire<220)return;lastFire=now;
       bullets.push({x:ship.x+Math.cos(ship.a)*14,y:ship.y+Math.sin(ship.a)*14,vx:Math.cos(ship.a)*6+ship.vx,vy:Math.sin(ship.a)*6+ship.vy,life:60});}
@@ -89,6 +128,10 @@
         rocks.forEach(r=>{r.x+=r.vx;r.y+=r.vy;r.rot+=r.vr;wrap(r);});
         bullets.forEach(b=>{b.x+=b.vx;b.y+=b.vy;b.life--;wrap(b);});
         bullets=bullets.filter(b=>b.life>0);
+        eBullets.forEach(b=>{b.x+=b.vx;b.y+=b.vy;b.life--;wrap(b);});
+        eBullets=eBullets.filter(b=>b.life>0);
+        if(flyby){ flyby.x+=flyby.vx; flyby.y+=flyby.vy; if(flyby.x<-50||flyby.x>W+50){flyby=null;scheduleFlyby();} }
+        weasels.forEach(wz=>{wz.x+=wz.vx;wz.y+=wz.vy;wrap(wz);});
         if(--dying<=0) afterDeath();
         return;
       }
@@ -99,6 +142,7 @@
       ship.vx*=0.99;ship.vy*=0.99;ship.x+=ship.vx;ship.y+=ship.vy;wrap(ship);
       if(keys.fire)fire();
       if(inv>0)inv--;
+      if(stepEnemies()) return;        // enemy fire can kill, which clears the ship
       bullets.forEach(b=>{b.x+=b.vx;b.y+=b.vy;b.life--;wrap(b);});
       bullets=bullets.filter(b=>b.life>0);
       rocks.forEach(r=>{r.x+=r.vx;r.y+=r.vy;r.rot+=r.vr;wrap(r);});
@@ -115,7 +159,56 @@
       }
       // ship-rock
       if(inv<=0){for(const r of rocks){if(Math.hypot(ship.x-r.x,ship.y-r.y)<r.r+8){die();break;}}}
-      if(rocks.length===0){wave++;ship=newShip();inv=RESPAWN_INV;spawnWave();}
+      if(rocks.length===0){wave++;ship=newShip();inv=RESPAWN_INV;spawnWave();spawnWeasels();
+        if(wave>=FLYBY_FROM&&flybyTimer<=0&&!flyby) scheduleFlyby(); }
+    }
+    function stepEnemies(){
+      pops.forEach(p=>{p.y-=0.5;p.life--;}); pops=pops.filter(p=>p.life>0);
+
+      // space-suit chicken: straight through the screen, then gone
+      if(wave>=FLYBY_FROM){
+        if(!flyby){ if(flybyTimer>0){ if(--flybyTimer<=0) spawnFlyby(); } else scheduleFlyby(); }
+        else {
+          flyby.x+=flyby.vx; flyby.y+=flyby.vy; flyby.bob+=0.12;
+          if(flyby.y<20||flyby.y>H-20) flyby.vy*=-1;
+          if(--flyby.shot<=0){ flyby.shot=FLYBY_SHOT; enemyFire(flyby); }
+          if(flyby.x<-50||flyby.x>W+50){ flyby=null; scheduleFlyby(); }   // straight through and away
+        }
+      }
+      // space weasels: drift and wrap like the eggs, but they shoot
+      for(const wz of weasels){
+        wz.x+=wz.vx; wz.y+=wz.vy; wz.wig+=0.18; wrap(wz);
+        if(--wz.shot<=0){ wz.shot=WEASEL_SHOT; enemyFire(wz); }
+      }
+      // enemy fire
+      eBullets.forEach(b=>{b.x+=b.vx;b.y+=b.vy;b.life--;wrap(b);});
+      eBullets=eBullets.filter(b=>b.life>0);
+
+      // your shots against them
+      for(let j=bullets.length-1;j>=0;j--){
+        const b=bullets[j];
+        if(flyby&&Math.hypot(b.x-flyby.x,b.y-flyby.y)<flyby.r+3){
+          bullets.splice(j,1); pop(flyby.x,flyby.y,"+"+FLYBY_SCORE); flyby=null; scheduleFlyby();
+          score+=FLYBY_SCORE; scoreEl.textContent=score;
+          if(typeof Arcade!=="undefined") Arcade.sfx.explode();
+          continue;
+        }
+        for(let i=weasels.length-1;i>=0;i--){
+          const wz=weasels[i];
+          if(Math.hypot(b.x-wz.x,b.y-wz.y)<wz.r+3){
+            bullets.splice(j,1); weasels.splice(i,1); pop(wz.x,wz.y,"+"+WEASEL_SCORE);
+            score+=WEASEL_SCORE; scoreEl.textContent=score;
+            if(typeof Arcade!=="undefined") Arcade.sfx.explode();
+            break;
+          }
+        }
+      }
+      // their shots, and the weasels themselves, against you
+      if(ship&&inv<=0){
+        for(const b of eBullets){ if(Math.hypot(b.x-ship.x,b.y-ship.y)<9){ eBullets=[]; die(); return true; } }
+        for(const wz of weasels){ if(Math.hypot(wz.x-ship.x,wz.y-ship.y)<wz.r+8){ die(); return true; } }
+      }
+      return false;
     }
     function die(){lives--;livesEl.textContent=lives;
       // Blow the ship apart into drifting shards for ~2s before the next one appears.
@@ -149,8 +242,38 @@
         r.verts.forEach((v,i)=>{const ang=i/r.verts.length*Math.PI*2;
           ctx.beginPath();ctx.arc(Math.cos(ang)*r.r*v*.45,Math.sin(ang)*r.r*v*.55,r.r*.09,0,7);ctx.fill();});
         ctx.restore();});
+      // space-suit chicken: helmeted, with a little jetpack flare
+      if(flyby){
+        const fx=flyby.x, fy=flyby.y+Math.sin(flyby.bob)*3, face=flyby.vx>0?1:-1;
+        ctx.save(); ctx.translate(fx,fy); ctx.scale(face,1);
+        ctx.fillStyle="#fb923c"; ctx.beginPath(); ctx.moveTo(-10,0); ctx.lineTo(-19,-5); ctx.lineTo(-19,5); ctx.closePath(); ctx.fill();
+        ctx.fillStyle="#cbd5e1"; ctx.fillRect(-13,-7,10,14);                 // suit pack
+        ctx.fillStyle="#f0902a"; ctx.beginPath(); ctx.arc(0,0,9,0,7); ctx.fill();
+        ctx.fillStyle="#dc2626"; ctx.fillRect(-3,-13,3,5); ctx.fillRect(1,-14,3,6);
+        ctx.fillStyle="#5a2a00"; ctx.fillRect(3,-3,3,3);
+        ctx.fillStyle="#facc15"; ctx.beginPath(); ctx.moveTo(7,0); ctx.lineTo(13,2); ctx.lineTo(7,4); ctx.closePath(); ctx.fill();
+        ctx.strokeStyle="rgba(186,230,253,.85)"; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(1,-1,13,0,7); ctx.stroke();
+        ctx.fillStyle="rgba(186,230,253,.16)"; ctx.beginPath(); ctx.arc(1,-1,13,0,7); ctx.fill();
+        ctx.restore();
+      }
+      // space weasels: long, low and mean
+      for(const wz of weasels){
+        ctx.save(); ctx.translate(wz.x,wz.y); ctx.rotate(Math.atan2(wz.vy,wz.vx));
+        ctx.fillStyle="#7c4a21"; ctx.beginPath(); ctx.ellipse(0,0,16,7,0,0,7); ctx.fill();
+        ctx.fillStyle="#a8683a"; ctx.beginPath(); ctx.ellipse(-4,1,11,4,0,0,7); ctx.fill();
+        ctx.strokeStyle="#7c4a21"; ctx.lineWidth=3; ctx.beginPath();
+        ctx.moveTo(-15,0); ctx.quadraticCurveTo(-24,Math.sin(wz.wig)*6,-29,Math.sin(wz.wig)*3); ctx.stroke();
+        ctx.fillStyle="#f43f5e"; ctx.beginPath(); ctx.arc(9,-2,2.3,0,7); ctx.fill();
+        ctx.fillStyle="#3b2412"; ctx.beginPath(); ctx.moveTo(6,-6); ctx.lineTo(9,-11); ctx.lineTo(11,-6); ctx.closePath(); ctx.fill();
+        ctx.restore();
+      }
       // bullets
       ctx.fillStyle="#22d3ee";bullets.forEach(b=>{ctx.beginPath();ctx.arc(b.x,b.y,2.2,0,7);ctx.fill();});
+      // enemy fire, in a colour that cannot be mistaken for yours
+      ctx.fillStyle="#f43f5e";eBullets.forEach(b=>{ctx.beginPath();ctx.arc(b.x,b.y,3,0,7);ctx.fill();});
+      // bonus score popups
+      ctx.textAlign="center"; ctx.font="bold 13px system-ui";
+      for(const p of pops){ ctx.fillStyle="rgba(250,204,21,"+Math.min(1,p.life/40)+")"; ctx.fillText(p.text,p.x,p.y); }
       // wreckage, drifting and fading over the 2s death animation
       if(dying>0){
         const fade=Math.min(1,dying/DEATH_FRAMES);
@@ -196,6 +319,7 @@
     reset(true);render();
   })();
   </script>
+  <script src="/arcade.js"></script>
   <script src="/comments.js" defer></script>
 </body>
 </html>
