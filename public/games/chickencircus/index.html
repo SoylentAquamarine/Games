@@ -37,7 +37,7 @@
     <button class="pad" data-d="right">▶</button>
     <button class="pad" id="swap">⇄ SWAP</button>
   </div>
-  <p class="hint">← → or the pad to slide the seesaw · <b>Space / SWAP</b> moves the waiting chicken to the other end. Catch the falling chicken on the <b>low end</b> — that flings her partner up into the balloons.
+  <p class="hint">← → or the pad to slide the seesaw · <b>Space / SWAP</b> moves the waiting chicken to the other end. Your partner waits on the end resting on the ground — catch the falling chicken on the <b>raised end</b> to fling her up into the balloons.
     The higher rows are worth more. Miss the seesaw and you lose a chicken. Pop every balloon to move on.</p>
 </div>
 <script src="/arcade.js"></script>
@@ -76,9 +76,10 @@
       chickens:[], balloons:makeBalloons(),
       score:0, lives:C.LIVES, wave:1, over:false, msg:"", t:0, popFlash:0,
     };
-    // One chicken waits on the high end, the other is dropped in above it.
+    // The waiting chicken sits on the end resting on the ground; catching her
+    // partner on the raised end is what throws her up.
     s.chickens=[
-      { x:endX(s,+1), y:endY(s,+1)-C.CH_R, vx:0, vy:0, flying:false },
+      { x:endX(s,-1), y:endY(s,-1)-C.CH_R, vx:0, vy:0, flying:false, side:-1 },
       { x:C.W/2,      y:60,                vx:1.6, vy:0, flying:true  },
     ];
     return s;
@@ -87,9 +88,21 @@
   function resetRound(s){
     s.x=C.W/2; s.tilt=-1;
     s.chickens=[
-      { x:endX(s,+1), y:endY(s,+1)-C.CH_R, vx:0, vy:0, flying:false },
+      { x:endX(s,-1), y:endY(s,-1)-C.CH_R, vx:0, vy:0, flying:false, side:-1 },
       { x:C.W/2,      y:60,                vx:1.6, vy:0, flying:true  },
     ];
+  }
+  // Launch the grounded partner. Catching on the raised end is the good hit and
+  // throws her full height; catching on her own end is a fumble that still lifts
+  // her, weakly — otherwise both chickens end up sitting on the plank and, with
+  // nothing in the air, the game has no way to advance and simply stops.
+  function launchPartner(s, partner, power, fromSide){
+    partner.flying=true;
+    partner.side=null;
+    partner.vy=-power;
+    partner.vx=(partner.x<C.W/2?1:-1)*(0.9+Math.random()*1.1);
+    partner.y=endY(s,fromSide)-C.CH_R;
+    partner.x=endX(s,fromSide);
   }
 
   function launchSpeed(impact){
@@ -102,6 +115,9 @@
     const waiting=s.chickens.find(c=>!c.flying);
     if(!waiting) return false;
     waiting.side = waiting.side===1 ? -1 : 1;
+    // Mirror the plank with her, so she is always the one resting on the ground
+    // and the end you have to aim for is always the empty raised one.
+    s.tilt = waiting.side;
     waiting.x=endX(s,waiting.side); waiting.y=endY(s,waiting.side)-C.CH_R;
     return true;
   }
@@ -166,6 +182,13 @@
       }
     }
 
+    // Safety net: nothing in this game moves unless a chicken is airborne, so a
+    // state with both on the plank is a dead game. Never let that stand.
+    if(!s.over && !s.chickens.some(c=>c.flying) && s.chickens.length>1){
+      const waiting=s.chickens[0];
+      launchPartner(s, waiting, C.LAUNCH_MIN, waiting.side==null?-s.tilt:waiting.side);
+    }
+
     if(s.balloons.every(b=>!b.alive)){
       s.wave++;
       s.balloons=makeBalloons();
@@ -180,21 +203,21 @@
   // high end is catapulted up. Landing on the high end is a soft, wasted landing.
   function land(s, ch, side){
     const impact=ch.vy;
-    ch.flying=false; ch.side=side; ch.vx=0; ch.vy=0;
+    const partner=s.chickens.find(c=>c!==ch);
+    // Landing on the raised end is the good catch: it drives that end down and
+    // throws the partner waiting on the ground end skyward.
+    const caughtHigh = (s.tilt !== side);
+
+    ch.flying=false; ch.vx=0; ch.vy=0;
+    s.tilt = side;                 // the end she landed on is now the low one
+    ch.side = side;
     ch.x=endX(s,side); ch.y=endY(s,side)-C.CH_R;
 
-    const partner=s.chickens.find(c=>c!==ch);
-    const wasLow = (s.tilt===side);
-    s.tilt = side;                 // the end she landed on is now down
-
-    if(partner && !partner.flying && wasLow){
-      partner.flying=true;
-      partner.side=null;
-      partner.vy=-launchSpeed(impact);
-      // a little outward drift so she doesn't fly perfectly vertically
-      partner.vx=(partner.x<C.W/2?1:-1)*(0.9+Math.random()*1.1);
-      partner.y=endY(s,-side)-C.CH_R;
-      partner.x=endX(s,-side);
+    if(partner && !partner.flying){
+      const power = caughtHigh
+        ? launchSpeed(impact)
+        : Math.max(C.LAUNCH_MIN, launchSpeed(impact)*0.5);   // fumble: a weak pop
+      launchPartner(s, partner, power, -side);
     }
   }
 
