@@ -89,8 +89,41 @@
     ctx.clearRect(0,0,W,H); ctx.fillStyle="#080a14"; ctx.fillRect(0,0,W,H);
     for(const k in s.mush){ const [c,r]=k.split(",").map(Number); const hp=s.mush[k]; ctx.fillStyle=hp>=3?"#8ad48a":hp===2?"#6aae5a":"#4a7a3a";
       ctx.fillRect(c*CELL+3,r*CELL+4,CELL-6,CELL-6); ctx.fillStyle="#c9f5c9"; ctx.fillRect(c*CELL+6,r*CELL+6,3,3); }
-    for(const t of s.trains){ for(let i=0;i<t.cells.length;i++){ const seg=t.cells[i]; ctx.fillStyle=i===0?"#ffcf5a":"#f0616e";
-      ctx.beginPath(); ctx.arc(seg.c*CELL+CELL/2, seg.r*CELL+CELL/2, CELL/2-2, 0,7); ctx.fill(); ctx.fillStyle="#0b0c1a"; if(i===0){ ctx.fillRect(seg.c*CELL+6,seg.r*CELL+6,2,2); ctx.fillRect(seg.c*CELL+CELL-8,seg.r*CELL+6,2,2); } } }
+    // The centipede steps a whole cell at a time, which looked like it was
+    // teleporting. Draw each segment part-way between where it was and where it
+    // is, using the same tick counter the logic runs on — the simulation stays
+    // exactly as it was, only the rendering is smoothed.
+    // After a step cells[i] holds what cells[i-1] held, so a segment's previous
+    // position is simply the cell behind it.
+    const u=Math.min(1, s.tc/Math.max(1,s.tickEvery));
+    for(const t of s.trains){
+      for(let i=t.cells.length-1;i>=0;i--){
+        const cur=t.cells[i], prev=t.cells[i+1]||cur;
+        const x=(prev.c+(cur.c-prev.c)*u)*CELL+CELL/2;
+        const y=(prev.r+(cur.r-prev.r)*u)*CELL+CELL/2;
+        const rad=CELL/2-2;
+        if(i===0){
+          // the head is a chicken, facing the way the train is travelling
+          ctx.save(); ctx.translate(x,y); ctx.scale(t.dir<0?-1:1,1);
+          ctx.fillStyle="#c96f14";                                  // tail feathers
+          ctx.beginPath(); ctx.moveTo(-rad*0.5,0); ctx.lineTo(-rad*1.5,-rad*0.7); ctx.lineTo(-rad*0.5,rad*0.5); ctx.closePath(); ctx.fill();
+          ctx.fillStyle="#dc2626";                                  // comb
+          ctx.beginPath(); ctx.arc(-rad*0.18,-rad*0.92,rad*0.24,0,7); ctx.arc(rad*0.14,-rad*1.02,rad*0.26,0,7); ctx.arc(rad*0.44,-rad*0.9,rad*0.22,0,7); ctx.fill();
+          ctx.fillStyle="#ffcf5a"; ctx.beginPath(); ctx.arc(0,0,rad,0,7); ctx.fill();
+          ctx.fillStyle="#fb923c";                                  // beak
+          ctx.beginPath(); ctx.moveTo(rad*0.7,-rad*0.05); ctx.lineTo(rad*1.5,rad*0.2); ctx.lineTo(rad*0.7,rad*0.4); ctx.closePath(); ctx.fill();
+          ctx.fillStyle="#dc2626"; ctx.beginPath(); ctx.arc(rad*0.66,rad*0.5,rad*0.2,0,7); ctx.fill();  // wattle
+          ctx.fillStyle="#fff"; ctx.beginPath(); ctx.arc(rad*0.3,-rad*0.28,rad*0.3,0,7); ctx.fill();
+          ctx.fillStyle="#0b0c1a"; ctx.beginPath(); ctx.arc(rad*0.38,-rad*0.28,rad*0.15,0,7); ctx.fill();
+          ctx.restore();
+        } else {
+          ctx.fillStyle="#f0616e";
+          ctx.beginPath(); ctx.arc(x,y,rad,0,7); ctx.fill();
+          ctx.fillStyle="#c9455a";
+          ctx.beginPath(); ctx.arc(x,y,rad*0.55,0,7); ctx.fill();
+        }
+      }
+    }
     // player
     ctx.fillStyle="#22d3ee"; ctx.fillRect(s.player.c*CELL+3, s.player.r*CELL+3, CELL-6, CELL-6); ctx.fillStyle="#7de8ff"; ctx.fillRect(s.player.c*CELL+CELL/2-2, s.player.r*CELL+1, 4, 4);
     if(s.bullet){ ctx.fillStyle="#fff"; ctx.fillRect(s.bullet.c*CELL+CELL/2-1, s.bullet.y-6, 3, 8); }

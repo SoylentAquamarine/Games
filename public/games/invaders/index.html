@@ -55,13 +55,15 @@
     const cv=document.getElementById("c"),ctx=cv.getContext("2d"),W=cv.width,H=cv.height;
     const scoreEl=document.getElementById("score"),livesEl=document.getElementById("lives"),waveEl=document.getElementById("wave");
     const ov=document.getElementById("ov"),ot=document.getElementById("ot"),om=document.getElementById("om"),startBtn=document.getElementById("start");
-    const COLS=8,ROWS=4,IW=24,IH=16,GAPX=14,GAPY=14;
+    const COLS=8,ROWS=4,IW=25,IH=17,GAPX=14,GAPY=14;   // sprites 5% larger
     let player,invaders,dir,drop,pBullet,eBullets,shields,score,lives,wave,running,raf,stepAcc,moveEvery;
     const keys={left:false,right:false};
     let best=+localStorage.getItem("invaders_best")||0;
-    // Bonus rooster across the top, worth 50-200 when shot.
-    const UFO_W=30, UFO_H=16, UFO_EVERY=()=>420+Math.floor(Math.random()*540);
-    let ufo=null, ufoTimer=UFO_EVERY(), ufoFlash=null;
+    // Bonus rooster across the top, worth 50-200 when shot. He is rare — 25 to
+    // 45 seconds apart — and once you shoot him he is gone for the rest of the
+    // wave rather than coming back around.
+    const UFO_W=30, UFO_H=16, UFO_EVERY=()=>1500+Math.floor(Math.random()*1200);
+    let ufo=null, ufoTimer=UFO_EVERY(), ufoFlash=null, ufoDone=false;
 
     function makeInvaders(){const arr=[];
       // centre the formation for the wider 4:3 board
@@ -73,7 +75,7 @@
     function reset(full){if(full){score=0;lives=3;wave=1;}
       player={x:W/2-16,y:H-30,w:32,h:12};
       invaders=makeInvaders();dir=1;drop=0;pBullet=null;eBullets=[];shields=makeShields();
-      ufo=null;ufoFlash=null;ufoTimer=UFO_EVERY();
+      ufo=null;ufoFlash=null;ufoTimer=UFO_EVERY();ufoDone=false;
       stepAcc=0;moveEvery=Math.max(10,42-wave*4);
       scoreEl.textContent=score;livesEl.textContent=lives;waveEl.textContent=wave;}
     function start(){reset(true);ov.classList.add("hidden");running=true;loop();}
@@ -86,7 +88,7 @@
       // player bullet
       if(pBullet){pBullet.y-=7;if(pBullet.y<-10)pBullet=null;}
       // bonus rooster: occasionally struts across the top for extra points
-      if(!ufo){ if(--ufoTimer<=0){ const fromLeft=Math.random()<0.5;
+      if(!ufo && !ufoDone){ if(--ufoTimer<=0){ const fromLeft=Math.random()<0.5;
           ufo={ x: fromLeft?-30:W+30, y:26, dir: fromLeft?1:-1,
                 pts:[50,100,150,200][Math.floor(Math.random()*4)] };
           ufoTimer=UFO_EVERY(); } }
@@ -95,13 +97,17 @@
         else if(pBullet && pBullet.x>ufo.x-2 && pBullet.x<ufo.x+UFO_W+2 && pBullet.y>ufo.y-2 && pBullet.y<ufo.y+UFO_H+2){
           score+=ufo.pts; scoreEl.textContent=score;
           ufoFlash={ x:ufo.x, y:ufo.y, pts:ufo.pts, life:60 };
-          ufo=null; pBullet=null; ufoTimer=UFO_EVERY();
+          ufo=null; pBullet=null; ufoDone=true;      // that is the last of him this wave
         } }
       if(ufoFlash && --ufoFlash.life<=0) ufoFlash=null;
       // invader step (block move on a timer)
       stepAcc++;
       const live=alive();
-      const speed=Math.max(6,moveEvery-(ROWS*COLS-live.length)*0.4);
+      // The original sped up because the hardware had fewer sprites to draw.
+      // Scale the step delay with the share of the flock still alive, so the
+      // last few come at you roughly four times faster than a full formation.
+      const frac=live.length/(ROWS*COLS);
+      const speed=Math.max(4, moveEvery*(0.26+0.74*frac));
       if(stepAcc>=speed){stepAcc=0;
         let edge=false;
         for(const iv of live){if((dir>0&&iv.x+IW>=W-6)||(dir<0&&iv.x<=6))edge=true;}
