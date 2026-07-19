@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>MasterChicken — Games</title>
+  <title>ChickenMind — Games</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🐔</text></svg>" />
   <style>
     :root{--bg:#0f1020;--panel:#1e2140;--panel2:#252a4d;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;}
@@ -39,7 +39,7 @@
 </head>
 <body>
   <div class="wrap">
-    <div class="topbar"><a class="home" href="/">← Home</a><h1>🐔 MasterChicken</h1><span style="width:64px"></span></div>
+    <div class="topbar"><a class="home" href="/">← Home</a><h1>🐔 ChickenMind</h1><span style="width:64px"></span></div>
     <div class="status" id="status">Crack the 4-color code in 10 tries.</div>
     <div class="board" id="board"></div>
     <div class="palette" id="palette"></div>
@@ -52,7 +52,7 @@
   </div>
   <script>
   (function(){
-    const COLORS=["#f43f5e","#fb923c","#eab308","#4ade80","#22d3ee","#7c5cff"];
+    const COLORS=["#f43f5e","#f97316","#fde047","#4ade80","#22d3ee","#7c5cff"];   // deeper orange, brighter yellow
     const LEN=4, ROWS=10;
     const boardEl=document.getElementById("board"),paletteEl=document.getElementById("palette"),statusEl=document.getElementById("status");
     let secret,row,guess,over,rowEls=[];

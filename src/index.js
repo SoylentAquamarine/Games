@@ -20,6 +20,9 @@ export default {
 
     // The card-games hub page was removed — every game links straight home now.
     // Redirect the old URL so existing links and bookmarks don't 404.
+    if (url.pathname === "/games/board" || url.pathname === "/games/board/") {
+      return Response.redirect(new URL("/", url).toString(), 301);
+    }
     if (url.pathname === "/games/cards" || url.pathname === "/games/cards/") {
       return Response.redirect(new URL("/", url).toString(), 301);
     }

@@ -87,6 +87,8 @@
   const $=(id)=>document.getElementById(id);
   const cv=$("game"), ctx=cv.getContext("2d");
   let s=newGame(), best=null, pointer={x:180,y:120};
+  // Opening call-to-arms, then it hands over to the normal wave flow.
+  let opening=170;
   try{ best=parseInt(localStorage.getItem("mc_best")||"")||null; }catch(e){}
 
   function draw(){
@@ -112,6 +114,15 @@
       ctx.fillStyle=g; ctx.beginPath(); ctx.arc(e.x,e.y,Math.max(1,e.r),0,7); ctx.fill(); }
     if(!s.over){ ctx.strokeStyle="rgba(255,255,255,.5)"; ctx.lineWidth=1; ctx.beginPath();
       ctx.moveTo(pointer.x-6,pointer.y); ctx.lineTo(pointer.x+6,pointer.y); ctx.moveTo(pointer.x,pointer.y-6); ctx.lineTo(pointer.x,pointer.y+6); ctx.stroke(); }
+    // Opening call-to-arms.
+    if(opening>0){
+      const j=()=>(Math.random()-0.5)*5;
+      ctx.font="bold 21px system-ui"; ctx.textAlign="center";
+      ctx.fillStyle="rgba(244,63,94,.55)"; ctx.fillText("INCOMING MISSILES",C.W/2+j(),C.H/2-14+j());
+      ctx.fillStyle="#ffcf5a";            ctx.fillText("INCOMING MISSILES",C.W/2+j(),C.H/2-14+j());
+      ctx.font="bold 15px system-ui"; ctx.fillStyle="#e6e6f0";
+      ctx.fillText("ALL CHICKENS REPORT",C.W/2+j()*0.5,C.H/2+12);
+    }
     // Between-wave announcement, jittering a couple of pixels each frame.
     if(!s.over && s.intermission>0){
       const j=()=>(Math.random()-0.5)*5;
@@ -125,7 +136,7 @@
       ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Score "+s.score+(best?"  ·  Best "+best:""),C.W/2,C.H/2+18); }
   }
   function hud(){ $("score").textContent=s.score; $("wave").textContent=s.wave; $("cities").textContent=s.cities.filter(c=>c.alive).length; }
-  function frame(){ tick(s);
+  function frame(){ if(opening>0){ opening--; } else tick(s);
     if(s.over && best!==s.score){ if(!best||s.score>best){ best=s.score; try{localStorage.setItem("mc_best",String(best));}catch(e){} $("msg").textContent="💥 All cities lost. Score "+s.score+" — New Game to retry."; } }
     draw(); hud(); requestAnimationFrame(frame); }
 
@@ -135,7 +146,7 @@
   function shoot(p){ pointer=p; if(!fire(s,p.x,p.y) && !s.over && p.y<C.GROUND_Y && s.bases.every(b=>b.ammo<=0)) $("msg").textContent="Out of ammo — reloads next wave!"; }
   cv.addEventListener("mousedown",(e)=>{ e.preventDefault(); shoot(canvasXY(e)); });
   cv.addEventListener("touchstart",(e)=>{ e.preventDefault(); shoot(canvasXY(e)); },{passive:false});
-  $("new").addEventListener("click",()=>{ s=newGame(); $("msg").textContent="Tap to detonate an interceptor and destroy incoming missiles."; });
+  $("new").addEventListener("click",()=>{ s=newGame(); opening=170; $("msg").textContent="Tap to detonate an interceptor and destroy incoming missiles."; });
   requestAnimationFrame(frame);
 })();
 </script>

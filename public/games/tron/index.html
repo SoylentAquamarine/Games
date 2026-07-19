@@ -129,7 +129,12 @@
       om.textContent = yDead&&cDead ? "Both birds crashed — round "+round+" again."
         : yDead ? "The CPU outlasted you. Back to round 1."
         : "You outlasted the CPU! Round "+round+" next — it gets smarter.";
-      startBtn.textContent="Play again";ov.classList.remove("hidden");updateRound();}
+      updateRound();
+      // Beating the CPU rolls straight into the next round instead of
+      // making you click Play again.
+      if(won){ ot.textContent="🏆 Round "+(round-1)+" cleared!"; ov.classList.remove("hidden");
+        setTimeout(()=>{ if(!running) start(); }, 1400); return; }
+      startBtn.textContent="Play again";ov.classList.remove("hidden");}
     function updateRound(){ const el=document.getElementById("round"); if(el) el.textContent=round; }
     function render(){
       ctx.clearRect(0,0,cv.width,cv.height);
