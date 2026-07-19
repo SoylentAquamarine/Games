@@ -35,8 +35,9 @@
   <div class="ctl">
     <button class="pad" data-d="left">◀</button>
     <button class="pad" data-d="right">▶</button>
+    <button class="pad" id="swap">⇄ SWAP</button>
   </div>
-  <p class="hint">← → or the pad to slide the seesaw. Catch the falling chicken on the <b>low end</b> — that flings her partner up into the balloons.
+  <p class="hint">← → or the pad to slide the seesaw · <b>Space / SWAP</b> moves the waiting chicken to the other end. Catch the falling chicken on the <b>low end</b> — that flings her partner up into the balloons.
     The higher rows are worth more. Miss the seesaw and you lose a chicken. Pop every balloon to move on.</p>
 </div>
 <script src="/arcade.js"></script>
@@ -47,7 +48,7 @@
     GROUND:340,
     SEESAW_HW:34, SEESAW_TILT:14, SEESAW_SPEED:4.4, PLANK_T:6,
     CH_R:9,
-    GRAV:0.30, LAUNCH_MIN:6.4, LAUNCH_MAX:12.4, BOUNCE_KEEP:1.02,
+    GRAV:0.15, LAUNCH_MIN:4.6, LAUNCH_MAX:9.2, BOUNCE_KEEP:1.02,   // slower fall, more hang time
     ROWS:3, PER_ROW:12, BAL_R:9, BAL_TOP:52, ROW_GAP:26,
     LIVES:3,
   };
@@ -95,13 +96,24 @@
     return clamp(C.LAUNCH_MIN + Math.abs(impact)*0.55, C.LAUNCH_MIN, C.LAUNCH_MAX);
   }
 
-  // input: {left,right}
+  // Swap the waiting chicken to the other end of the plank, so you can choose
+  // which side will be catapulted next.
+  function swapSide(s){
+    const waiting=s.chickens.find(c=>!c.flying);
+    if(!waiting) return false;
+    waiting.side = waiting.side===1 ? -1 : 1;
+    waiting.x=endX(s,waiting.side); waiting.y=endY(s,waiting.side)-C.CH_R;
+    return true;
+  }
+
+  // input: {left,right,swap}
   function step(s, input){
     if(s.over) return s;
     input=input||{};
     s.t++;
     if(s.popFlash>0) s.popFlash--;
 
+    if(input.swap){ swapSide(s); input.swap=false; }
     if(input.left)  s.x-=C.SEESAW_SPEED;
     if(input.right) s.x+=C.SEESAW_SPEED;
     s.x=clamp(s.x, C.SEESAW_HW+4, C.W-C.SEESAW_HW-4);
@@ -196,7 +208,7 @@
   function balloonsLeft(s){ return s.balloons.filter(b=>b.alive).length; }
   function result(s){ return s.over?{score:s.score,wave:s.wave}:null; }
 
-  window.__chickencircus={ newState, step, land, loseLife, makeBalloons, resetRound,
+  window.__chickencircus={ newState, step, land, loseLife, makeBalloons, resetRound, swapSide,
                            balloonsLeft, launchSpeed, endX, endY, result, C, ROW_POINTS };
 
   // ------------------------------------------------------------------ view ---
@@ -301,6 +313,7 @@
   addEventListener("keydown",(e)=>{
     if(e.key==="ArrowLeft"||e.key==="a"){ e.preventDefault(); input.left=true; begin(); }
     if(e.key==="ArrowRight"||e.key==="d"){ e.preventDefault(); input.right=true; begin(); }
+    if(e.key===" "){ e.preventDefault(); input.swap=true; begin(); }
   });
   addEventListener("keyup",(e)=>{
     if(e.key==="ArrowLeft"||e.key==="a") input.left=false;
@@ -321,6 +334,7 @@
     input.left = x < s.x; input.right = x >= s.x;
   },{passive:false});
   cv.addEventListener("touchend",()=>{ input.left=input.right=false; });
+  $("swap").addEventListener("click",(e)=>{ e.preventDefault(); input.swap=true; begin(); });
   $("new").addEventListener("click",()=>{ s=newState(); started=false; splash=null;
     $("msg").textContent="Slide the seesaw under the falling chicken — bounce her into the balloons."; });
 
