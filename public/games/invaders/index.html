@@ -57,7 +57,7 @@
     const ov=document.getElementById("ov"),ot=document.getElementById("ot"),om=document.getElementById("om"),startBtn=document.getElementById("start");
     const COLS=8,ROWS=4,IW=25,IH=17,GAPX=14,GAPY=14;   // sprites 5% larger
     let player,invaders,dir,drop,pBullet,eBullets,shields,score,lives,wave,running,raf,stepAcc,moveEvery;
-    const keys={left:false,right:false};
+    const keys={left:false,right:false,fire:false};
     let best=+localStorage.getItem("invaders_best")||0;
     // Bonus rooster across the top, worth 50-200 when shot. He is rare — 25 to
     // 45 seconds apart — and once you shoot him he is gone for the rest of the
@@ -79,26 +79,40 @@
       stepAcc=0;moveEvery=Math.max(10,42-wave*4);
       scoreEl.textContent=score;livesEl.textContent=lives;waveEl.textContent=wave;}
     function start(){reset(true);ov.classList.add("hidden");running=true;loop();}
+    // live state, so the game can be driven and checked headlessly
+    window.__invaders={ state:()=>({pBullet,keys,ufo,ufoDone,score,wave,lives,running}),
+                        setUfo:(u)=>{ufo=u;}, step:()=>update() };
     function loop(){if(!running)return;update();render();raf=requestAnimationFrame(loop);}
     function alive(){return invaders.filter(i=>i.alive);}
     function update(){
       // player
       if(keys.left)player.x-=4;if(keys.right)player.x+=4;
       player.x=Math.max(4,Math.min(W-player.w-4,player.x));
+      // Fire is a held state driven from the loop. It used to depend on the OS
+      // repeating the space key, and the OS only repeats the most recently
+      // pressed key — so pressing an arrow silently stopped continuous fire.
+      if(keys.fire) fire();
       // player bullet
       if(pBullet){pBullet.y-=7;if(pBullet.y<-10)pBullet=null;}
       // bonus rooster: occasionally struts across the top for extra points
-      if(!ufo && !ufoDone){ if(--ufoTimer<=0){ const fromLeft=Math.random()<0.5;
+      // Branch on whether he is on screen, NOT on whether he may still appear.
+      // Once ufoDone was set with no rooster live, the old test fell through to
+      // the movement branch and read ufo.x off null, throwing every frame and
+      // freezing the game the instant you shot him.
+      if(!ufo){
+        if(!ufoDone && --ufoTimer<=0){ const fromLeft=Math.random()<0.5;
           ufo={ x: fromLeft?-30:W+30, y:26, dir: fromLeft?1:-1,
                 pts:[50,100,150,200][Math.floor(Math.random()*4)] };
-          ufoTimer=UFO_EVERY(); } }
-      else { ufo.x+=ufo.dir*1.6;
+          ufoTimer=UFO_EVERY(); }
+      } else {
+        ufo.x+=ufo.dir*1.6;
         if(ufo.x<-40||ufo.x>W+40) ufo=null;
         else if(pBullet && pBullet.x>ufo.x-2 && pBullet.x<ufo.x+UFO_W+2 && pBullet.y>ufo.y-2 && pBullet.y<ufo.y+UFO_H+2){
           score+=ufo.pts; scoreEl.textContent=score;
           ufoFlash={ x:ufo.x, y:ufo.y, pts:ufo.pts, life:60 };
           ufo=null; pBullet=null; ufoDone=true;      // that is the last of him this wave
-        } }
+        }
+      }
       if(ufoFlash && --ufoFlash.life<=0) ufoFlash=null;
       // invader step (block move on a timer)
       stepAcc++;
@@ -220,10 +234,10 @@
         ctx.closePath(); ctx.fill(); ctx.stroke(); });
     }
     document.addEventListener("keydown",e=>{const m={ArrowLeft:"left",ArrowRight:"right",a:"left",d:"right"}[e.key];
-      if(m){e.preventDefault();keys[m]=true;}if(e.key===" "){e.preventDefault();fire();}});
-    document.addEventListener("keyup",e=>{const m={ArrowLeft:"left",ArrowRight:"right",a:"left",d:"right"}[e.key];if(m)keys[m]=false;});
+      if(m){e.preventDefault();keys[m]=true;}if(e.key===" "){e.preventDefault();keys.fire=true;}});
+    document.addEventListener("keyup",e=>{const m={ArrowLeft:"left",ArrowRight:"right",a:"left",d:"right"}[e.key];if(m)keys[m]=false;if(e.key===" ")keys.fire=false;});
     document.querySelectorAll(".pad button").forEach(b=>{const k=b.dataset.k;
-      const on=(e)=>{e.preventDefault();if(k==="fire")fire();else keys[k]=true;},off=(e)=>{e.preventDefault();if(k!=="fire")keys[k]=false;};
+      const on=(e)=>{e.preventDefault();keys[k]=true;},off=(e)=>{e.preventDefault();keys[k]=false;};
       b.addEventListener("touchstart",on,{passive:false});b.addEventListener("touchend",off,{passive:false});
       b.addEventListener("mousedown",on);b.addEventListener("mouseup",off);b.addEventListener("mouseleave",off);
     });
