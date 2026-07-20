@@ -29,7 +29,7 @@
 <body>
 <div class="wrap">
   <div class="topbar"><a class="home" href="/">← Home</a><h1>🐔 ChickenBert</h1><button class="btn" id="new">New Game</button></div>
-  <div class="hud"><span>Score: <b id="score">0</b></span><span>Level: <b id="level">1</b></span><span>Lives: <b id="lives">3</b></span></div>
+  <div class="hud"><span>Score: <b id="score">0</b></span><span>Level: <b id="level">1</b></span><span>Chickens: <b id="lives">🐔🐔🐔</b></span></div>
   <canvas id="game" width="480" height="360"></canvas>
   <div class="msg" id="msg">Hop on every cube to change its color — don't jump off the edge!</div>
   <div class="pad"><button data-d="ul">↖</button><button data-d="ur">↗</button><button data-d="dl">↙</button><button data-d="dr">↘</button></div>
@@ -38,31 +38,134 @@
 <script src="/arcade.js"></script>
 <script>
 (function(){
-  const C={ rows:7 };
-  function emptyGrid(){ const g=[]; for(let r=0;r<C.rows;r++){ g.push(new Array(r+1).fill(false)); } return g; }
+  const C={ rows:7, EXTRA_EVERY:10000, CHICKENS:3, PAD_ROWS:[2,4] };
+
+  // Five level shapes cycle, and each pass through them turns the pressure up
+  // rather than changing the rules again — so 25 levels is five passes over a set
+  // you already understand, each one harder than the last.
+  const BASE=[
+    { name:"Classic",     stages:1, toggle:false, pads:false },
+    { name:"Two Coats",   stages:2, toggle:false, pads:false },
+    { name:"Flip-Flop",   stages:1, toggle:true,  pads:false },
+    { name:"Warp Pads",   stages:1, toggle:false, pads:true  },
+    { name:"Three Coats", stages:3, toggle:false, pads:true  },
+  ];
+  function plan(level){
+    const b=BASE[(level-1)%BASE.length], cycle=Math.floor((level-1)/BASE.length);
+    return { ...b, level, cycle,
+      enemies:   Math.min(3, 1+cycle),          // more hunters each pass
+      weasel:    cycle>=1,                      // the second bad guy joins on pass 2
+      spawnEvery:Math.max(70, 200-cycle*30),    // and they arrive sooner
+      enemyEvery:Math.max(26, 48-cycle*5),      // and move quicker
+      flypast:   level%5===0,                   // spacesuit chicken between blocks
+    };
+  }
+
+  function emptyGrid(){ const g=[]; for(let r=0;r<C.rows;r++){ g.push(new Array(r+1).fill(0)); } return g; }
   function onPyramid(r,c){ return r>=0 && r<C.rows && c>=0 && c<=r; }
   function target(r,c,dir){ if(dir==="dl") return {row:r+1,col:c}; if(dir==="dr") return {row:r+1,col:c+1};
     if(dir==="ul") return {row:r-1,col:c-1}; return {row:r-1,col:c}; /* ur */ }
-  function allChanged(s){ for(let r=0;r<C.rows;r++) for(let c=0;c<=r;c++) if(!s.colored[r][c]) return false; return true; }
-  function resetBoard(s){ s.colored=emptyGrid(); s.colored[0][0]=true; s.q={row:0,col:0}; s.enemy=null; }
-  function newState(){ const s={ colored:emptyGrid(), q:{row:0,col:0}, enemy:null, lives:3, score:0, level:1, over:false }; s.colored[0][0]=true; return s; }
-  function hop(s, dir){
-    if(s.over) return s;
-    const t=target(s.q.row,s.q.col,dir);
-    if(!onPyramid(t.row,t.col)){ s.lives--; if(s.lives<=0){ s.over=true; } else { s.q={row:0,col:0}; } return s; }
-    s.q=t;
-    if(!s.colored[t.row][t.col]){ s.colored[t.row][t.col]=true; s.score+=25; }
-    if(s.enemy && s.enemy.row===t.row && s.enemy.col===t.col){ s.lives--; if(s.lives<=0) s.over=true; else { s.q={row:0,col:0}; } s.enemy=null; return s; }
-    if(allChanged(s)){ s.score+=100; s.level++; resetBoard(s); }
+
+  // A cube is finished once it has taken as many coats as the level asks for.
+  function done(s){ const need=plan(s.level).stages;
+    for(let r=0;r<C.rows;r++) for(let c=0;c<=r;c++) if(s.cube[r][c]<need) return false; return true; }
+  function allChanged(s){ return done(s); }
+
+  // Warp pads sit off the left and right edges on two rows. Stepping onto one
+  // carries you back to the apex instead of falling, and each is single use.
+  function padAt(s,row,col){
+    if(!plan(s.level).pads) return null;
+    if(!C.PAD_ROWS.includes(row)) return null;
+    const side = col===-1 ? "L" : col===row+1 ? "R" : null;
+    if(!side) return null;
+    const key=row+side;
+    return s.padsUsed.includes(key) ? null : key;
+  }
+
+  function resetBoard(s){
+    s.cube=emptyGrid(); s.q={row:0,col:0}; s.enemies=[]; s.padsUsed=[];
+    s.cube[0][0]=1;                                  // the apex starts with a coat
+  }
+  function newState(){
+    const s={ cube:emptyGrid(), q:{row:0,col:0}, enemies:[], padsUsed:[],
+              chickens:C.CHICKENS, nextExtra:C.EXTRA_EVERY, gotExtra:0,
+              score:0, level:1, over:false, warped:false };
+    s.cube[0][0]=1;
     return s;
   }
-  function spawnEnemy(s){ if(!s.enemy && !(s.q.row===0&&s.q.col===0)) s.enemy={row:0,col:0}; return s; }
-  function enemyStep(s, dir){ if(s.over||!s.enemy) return s; dir=dir||(Math.random()<0.5?"dl":"dr"); const t=target(s.enemy.row,s.enemy.col,dir);
-    if(!onPyramid(t.row,t.col)){ s.enemy=null; return s; }
-    s.enemy=t;
-    if(t.row===s.q.row&&t.col===s.q.col){ s.lives--; if(s.lives<=0) s.over=true; else { s.q={row:0,col:0}; } s.enemy=null; }
-    return s; }
-  window.__qbert={ newState, hop, target, onPyramid, allChanged, resetBoard, spawnEnemy, enemyStep, C };
+  function loseChicken(s){
+    s.chickens--;
+    if(s.chickens<=0){ s.over=true; return s; }
+    s.q={row:0,col:0}; s.enemies=[];
+    return s;
+  }
+  function awardExtras(s){
+    while(s.score>=s.nextExtra){ s.chickens++; s.nextExtra+=C.EXTRA_EVERY; s.gotExtra++; }
+  }
+
+  function hop(s, dir){
+    if(s.over) return s;
+    const p=plan(s.level);
+    const t=target(s.q.row,s.q.col,dir);
+    s.warped=false;
+
+    if(!onPyramid(t.row,t.col)){
+      const pad=padAt(s,t.row,t.col);
+      if(pad){ s.padsUsed.push(pad); s.q={row:0,col:0}; s.score+=50; s.warped=true; awardExtras(s); return s; }
+      return loseChicken(s);
+    }
+
+    s.q=t;
+    const cur=s.cube[t.row][t.col];
+    if(p.toggle){
+      s.cube[t.row][t.col] = cur>0 ? 0 : 1;      // land again and the coat comes off
+      if(cur===0) s.score+=25;
+    } else if(cur<p.stages){
+      s.cube[t.row][t.col]=cur+1; s.score+=25;
+    }
+    // a cube already at its final coat is left exactly as it is
+
+    for(const e of s.enemies){
+      if(e.row===t.row && e.col===t.col) return loseChicken(s);
+    }
+    awardExtras(s);
+    if(done(s)){ s.score+=100*p.level; s.level++; resetBoard(s); awardExtras(s); }
+    return s;
+  }
+
+  // Two hunters: the ball tumbles blindly down the pyramid, the weasel works out
+  // where you are and comes after you.
+  function spawnEnemy(s, kind){
+    const p=plan(s.level);
+    if(s.enemies.length>=p.enemies) return s;
+    if(s.q.row===0&&s.q.col===0) return s;
+    kind = kind || (p.weasel && s.enemies.length>0 ? "weasel" : "ball");
+    s.enemies.push({row:0,col:0,kind});
+    return s;
+  }
+  function enemyStep(s, dirOverride){
+    if(s.over) return s;
+    for(let i=s.enemies.length-1;i>=0;i--){
+      const e=s.enemies[i];
+      let dir=dirOverride;
+      if(!dir){
+        if(e.kind==="weasel"){
+          if(e.row<s.q.row) dir = (s.q.col>e.col) ? "dr" : "dl";
+          else if(e.row>s.q.row) dir = (s.q.col<e.col) ? "ul" : "ur";
+          else dir = (s.q.col>e.col) ? "dr" : "dl";
+        } else {
+          dir = Math.random()<0.5 ? "dl" : "dr";
+        }
+      }
+      const t=target(e.row,e.col,dir);
+      if(!onPyramid(t.row,t.col)){ s.enemies.splice(i,1); continue; }
+      e.row=t.row; e.col=t.col;
+      if(t.row===s.q.row&&t.col===s.q.col){ loseChicken(s); return s; }
+    }
+    return s;
+  }
+  window.__qbert={ newState, hop, target, onPyramid, done, allChanged, resetBoard,
+                   spawnEnemy, enemyStep, plan, padAt, loseChicken, awardExtras, BASE, C };
 
   if(typeof document==="undefined") return;
   const $=(id)=>document.getElementById(id);
@@ -73,37 +176,81 @@
   let s=newState(), best=0, hopAnim=0;
   try{ best=parseInt(localStorage.getItem("qbert_best")||"0")||0; }catch(e){}
   function cubeXY(r,c){ return { x: W/2 + (c - r/2)*CW, y: TOPY + r*ROWSTEP }; }
-  function drawCube(r,c,colored){ const {x,y}=cubeXY(r,c);
+  // Each coat has its own colour, so a two- or three-coat level reads at a glance.
+  const COAT=["#3b4fd6","#ffcf5a","#4ade80","#f43f5e"];
+  function drawCube(r,c,stage){ const {x,y}=cubeXY(r,c);
     // left & right faces
     ctx.fillStyle="#4a2ea8"; ctx.beginPath(); ctx.moveTo(x-CW/2,y+TH/2); ctx.lineTo(x-CW/2,y+TH/2+FH); ctx.lineTo(x,y+TH+FH); ctx.lineTo(x,y+TH); ctx.closePath(); ctx.fill();
     ctx.fillStyle="#361f80"; ctx.beginPath(); ctx.moveTo(x+CW/2,y+TH/2); ctx.lineTo(x+CW/2,y+TH/2+FH); ctx.lineTo(x,y+TH+FH); ctx.lineTo(x,y+TH); ctx.closePath(); ctx.fill();
     // top face
-    ctx.fillStyle= colored?"#ffcf5a":"#3b4fd6"; ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x+CW/2,y+TH/2); ctx.lineTo(x,y+TH); ctx.lineTo(x-CW/2,y+TH/2); ctx.closePath(); ctx.fill();
+    ctx.fillStyle=COAT[Math.min(stage,COAT.length-1)];
+    ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x+CW/2,y+TH/2); ctx.lineTo(x,y+TH); ctx.lineTo(x-CW/2,y+TH/2); ctx.closePath(); ctx.fill();
     ctx.strokeStyle="rgba(0,0,0,.25)"; ctx.stroke();
   }
-  let anim=null, eAnim=null, enemyT=0, spawnT=0;
-  // While a hop is in flight, the destination cube is drawn unlit — it should
-  // only change colour at the moment she actually lands on it.
+  function drawPad(row,side,used){
+    const c = side==="L" ? -1 : row+1;
+    const {x,y}=cubeXY(row,c);
+    ctx.save(); ctx.globalAlpha = used?0.25:1;
+    ctx.fillStyle="#22d3ee"; ctx.beginPath();
+    ctx.ellipse(x,y+TH/2,CW*0.34,TH*0.55,0,0,7); ctx.fill();
+    ctx.strokeStyle="#a5f3fc"; ctx.lineWidth=2; ctx.stroke();
+    ctx.restore();
+  }
+  let anim=null, eAnims=new Map(), enemyT=0, spawnT=0;
+  // While a hop is in flight the destination cube keeps the colour it had BEFORE
+  // the hop, so it changes exactly on landing. Storing the previous stage rather
+  // than forcing it unlit is what stops an already-finished cube flickering dark.
   let pendingCube=null;
   let levelBanner=0;                       // frames left on the LEVEL COMPLETE banner
   let bannerLevel=0;
+  let flypast=null;                        // spacesuit chicken between blocks
   function draw(){
     ctx.clearRect(0,0,W,H); ctx.fillStyle="#080a14"; ctx.fillRect(0,0,W,H);
+    const p=plan(s.level);
+    if(p.pads) for(const row of C.PAD_ROWS) for(const side of ["L","R"])
+      drawPad(row,side,s.padsUsed.includes(row+side));
     for(let r=0;r<C.rows;r++) for(let c=0;c<=r;c++){
       const held = pendingCube && pendingCube.row===r && pendingCube.col===c;
-      drawCube(r,c, held ? false : s.colored[r][c]);
+      drawCube(r,c, held ? pendingCube.prev : s.cube[r][c]);
     }
-    // enemy (Coily-style ball)
-    if(s.enemy){ const e=cubeXY(s.enemy.row,s.enemy.col);
-      let ex=e.x, ey=e.y;
-      // Bounce between cubes instead of teleporting, matching the player hop.
-      if(eAnim){ const t2=Math.min(1,(performance.now()-eAnim.t0)/200);
-        ex=eAnim.fx+(eAnim.tx-eAnim.fx)*t2; ey=eAnim.fy+(eAnim.ty-eAnim.fy)*t2 - Math.sin(t2*Math.PI)*20;
-        if(t2>=1) eAnim=null; }
-      const sq=eAnim?1+Math.sin(Math.min(1,(performance.now()-eAnim.t0)/200)*Math.PI)*0.22:1;
-      ctx.fillStyle="#ff3b6b"; ctx.beginPath(); ctx.ellipse(ex,ey+TH/2-5,10/sq,10*sq,0,0,7); ctx.fill();
-      ctx.strokeStyle="#ffe4ec"; ctx.lineWidth=2; ctx.stroke();
-      ctx.fillStyle="#fff"; ctx.fillRect(ex-4,ey+TH/2-8,3,3); ctx.fillRect(ex+2,ey+TH/2-8,3,3); }
+    // hunters
+    for(const e of s.enemies){
+      const key=e; const base=cubeXY(e.row,e.col);
+      let ex=base.x, ey=base.y;
+      const ea=eAnims.get(key);
+      if(ea){ const t2=Math.min(1,(performance.now()-ea.t0)/200);
+        ex=ea.fx+(ea.tx-ea.fx)*t2; ey=ea.fy+(ea.ty-ea.fy)*t2 - Math.sin(t2*Math.PI)*20;
+        if(t2>=1) eAnims.delete(key); }
+      if(e.kind==="weasel"){
+        ctx.save(); ctx.translate(ex,ey+TH/2-5);
+        ctx.fillStyle="#7c4a21"; ctx.beginPath(); ctx.ellipse(0,0,13,7,0,0,7); ctx.fill();
+        ctx.fillStyle="#a8683a"; ctx.beginPath(); ctx.ellipse(-3,1,9,4,0,0,7); ctx.fill();
+        ctx.fillStyle="#f43f5e"; ctx.beginPath(); ctx.arc(7,-2,2.2,0,7); ctx.fill();
+        ctx.fillStyle="#3b2412"; ctx.beginPath(); ctx.moveTo(4,-5); ctx.lineTo(7,-10); ctx.lineTo(9,-5); ctx.closePath(); ctx.fill();
+        ctx.restore();
+      } else {
+        const sq=ea?1+Math.sin(Math.min(1,(performance.now()-ea.t0)/200)*Math.PI)*0.22:1;
+        ctx.fillStyle="#ff3b6b"; ctx.beginPath(); ctx.ellipse(ex,ey+TH/2-5,10/sq,10*sq,0,0,7); ctx.fill();
+        ctx.strokeStyle="#ffe4ec"; ctx.lineWidth=2; ctx.stroke();
+        ctx.fillStyle="#fff"; ctx.fillRect(ex-4,ey+TH/2-8,3,3); ctx.fillRect(ex+2,ey+TH/2-8,3,3);
+      }
+    }
+    // spacesuit chicken drifting past every fifth level
+    if(flypast){
+      const fx=flypast.x, fy=flypast.y, r=11;
+      ctx.save(); ctx.translate(fx,fy); ctx.scale(flypast.vx>0?1:-1,1);
+      ctx.fillStyle="#fb923c"; ctx.beginPath(); ctx.moveTo(-r*0.9,0); ctx.lineTo(-r*1.9,-r*0.5); ctx.lineTo(-r*1.9,r*0.5); ctx.closePath(); ctx.fill();
+      ctx.fillStyle="#cbd5e1"; ctx.fillRect(-r*1.3,-r*0.7,r*0.9,r*1.4);
+      ctx.fillStyle="#f0902a"; ctx.beginPath(); ctx.arc(0,0,r*0.85,0,7); ctx.fill();
+      ctx.fillStyle="#dc2626"; ctx.beginPath();
+      ctx.arc(-r*0.25,-r*0.85,r*0.18,0,7); ctx.arc(r*0.05,-r*0.95,r*0.2,0,7); ctx.arc(r*0.35,-r*0.85,r*0.18,0,7); ctx.fill();
+      ctx.fillStyle="#fff"; ctx.beginPath(); ctx.arc(r*0.3,-r*0.2,r*0.24,0,7); ctx.fill();
+      ctx.fillStyle="#0b0c1a"; ctx.beginPath(); ctx.arc(r*0.36,-r*0.2,r*0.12,0,7); ctx.fill();
+      ctx.fillStyle="#facc15"; ctx.beginPath(); ctx.moveTo(r*0.75,0); ctx.lineTo(r*1.4,r*0.18); ctx.lineTo(r*0.75,r*0.3); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle="rgba(186,230,253,.85)"; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(0,-r*0.1,r*1.35,0,7); ctx.stroke();
+      ctx.fillStyle="rgba(186,230,253,.15)"; ctx.beginPath(); ctx.arc(0,-r*0.1,r*1.35,0,7); ctx.fill();
+      ctx.restore();
+    }
     // player (with jump arc)
     let px, py; const base=cubeXY(s.q.row,s.q.col);
     if(anim){ const t=Math.min(1,(performance.now()-anim.t0)/170); px=anim.fx+(anim.tx-anim.fx)*t; py=anim.fy+(anim.ty-anim.fy)*t - Math.sin(t*Math.PI)*22; if(t>=1) anim=null; }
@@ -132,55 +279,96 @@
     }
     if(s.over){ ctx.fillStyle="rgba(0,0,0,.6)"; ctx.fillRect(0,0,W,H); ctx.fillStyle="#f43f5e"; ctx.font="bold 24px system-ui"; ctx.textAlign="center"; ctx.fillText("GAME OVER",W/2,H/2-6); ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Score "+s.score+"  ·  Best "+best,W/2,H/2+16); }
   }
-  function go(dir){ if(s.over||anim||levelBanner>0) return; const lv=s.level; const lives0=s.lives; const from=cubeXY(s.q.row,s.q.col);
-    // Does this hop light the last cube? If so, colour it here and hold the
-    // board reset until the banner has had its two seconds.
+  function hud(){
+    $("score").textContent=s.score;
+    $("level").textContent=s.level;
+    $("lives").textContent="🐔".repeat(Math.max(0,s.chickens));
+  }
+  function go(dir){ if(s.over||anim||levelBanner>0) return;
+    const lv=s.level, chickens0=s.chickens, extras0=s.gotExtra;
+    const from=cubeXY(s.q.row,s.q.col);
     const tc=target(s.q.row,s.q.col,dir);
+    const p=plan(s.level);
+
+    // Would this hop finish the level? If so, apply it here and hold the board
+    // reset back so the banner can run with her stood on the last cube.
     let finishes=false;
-    if(onPyramid(tc.row,tc.col) && !s.colored[tc.row][tc.col] && !(s.enemy&&s.enemy.row===tc.row&&s.enemy.col===tc.col)){
-      let remaining=0;
-      for(let r=0;r<C.rows;r++) for(let c=0;c<=r;c++) if(!s.colored[r][c]) remaining++;
-      finishes = remaining===1;
+    if(onPyramid(tc.row,tc.col) && !s.enemies.some(e=>e.row===tc.row&&e.col===tc.col)){
+      const after=s.cube.map(row=>row.slice());
+      const cur=after[tc.row][tc.col];
+      if(p.toggle) after[tc.row][tc.col]= cur>0?0:1;
+      else if(cur<p.stages) after[tc.row][tc.col]=cur+1;
+      finishes = after.every(row=>row.every(v=>v>=p.stages));
     }
+
+    // Keep the cube's PREVIOUS colour on screen until she lands. An already
+    // finished cube therefore never flickers dark.
+    const prevStage = onPyramid(tc.row,tc.col) ? s.cube[tc.row][tc.col] : 0;
+
     if(finishes){
-      s.q=tc; s.colored[tc.row][tc.col]=true; s.score+=125;   // 25 for the cube + 100 level bonus
-      pendingCube={row:tc.row,col:tc.col};
+      const cur=s.cube[tc.row][tc.col];
+      s.q=tc;
+      if(p.toggle) s.cube[tc.row][tc.col]= cur>0?0:1; else if(cur<p.stages) s.cube[tc.row][tc.col]=cur+1;
+      s.score+=25+100*p.level;
+      awardExtras(s);
+      pendingCube={row:tc.row,col:tc.col,prev:prevStage};
       const to2=cubeXY(tc.row,tc.col);
       anim={fx:from.x,fy:from.y,tx:to2.x,ty:to2.y,t0:performance.now()};
       levelBanner=120; bannerLevel=s.level+1;                 // 120 frames ≈ 2s
       if(typeof Arcade!=="undefined"){ Arcade.sfx.jump(); Arcade.sfx.win(); }
-      $("msg").textContent="Level complete!";
-      $("score").textContent=s.score; $("level").textContent=s.level; $("lives").textContent=Math.max(0,s.lives);
+      $("msg").textContent="Level complete — "+plan(s.level+1).name+" next!";
+      hud();
       return;
     }
+
     hop(s,dir);
-    pendingCube={row:s.q.row,col:s.q.col};       // held unlit until she lands
+    pendingCube={row:s.q.row,col:s.q.col,prev:prevStage};
     if(typeof Arcade!=="undefined") Arcade.sfx.jump();
     const to=cubeXY(s.q.row,s.q.col); anim={fx:from.x,fy:from.y,tx:to.x,ty:to.y,t0:performance.now()};
-    if(s.level>lv) $("msg").textContent="Level "+s.level+"! Fresh pyramid.";
-    if(s.lives<lives0 && typeof Arcade!=="undefined") Arcade.sfx.death();
-    if(typeof Arcade!=="undefined")Arcade.stats.record("qbert",s.score); if(s.over && s.score>best){ best=s.score; try{localStorage.setItem("qbert_best",String(best));}catch(e){} $("msg").textContent="Fell off! Score "+s.score+"  ·  Best "+best; }
-    $("score").textContent=s.score; $("level").textContent=s.level; $("lives").textContent=Math.max(0,s.lives); }
+    if(s.warped){ $("msg").textContent="Warp pad! Back to the top."; if(typeof Arcade!=="undefined") Arcade.sfx.coin(); }
+    if(s.gotExtra>extras0){ $("msg").textContent="🐔 Extra chicken!"; if(typeof Arcade!=="undefined") Arcade.sfx.win(); }
+    if(s.chickens<chickens0 && typeof Arcade!=="undefined") Arcade.sfx.death();
+    if(typeof Arcade!=="undefined")Arcade.stats.record("qbert",s.score);
+    if(s.over && s.score>best){ best=s.score; try{localStorage.setItem("qbert_best",String(best));}catch(e){} $("msg").textContent="Out of chickens! Score "+s.score+"  ·  Best "+best; }
+    hud(); }
   function frame(){
     if(!GATE.open){ draw(); GATE.paint(); return requestAnimationFrame(frame); }
     if(anim && performance.now()-anim.t0>=170) pendingCube=null;
+    if(flypast){
+      flypast.x+=flypast.vx;
+      if(flypast.x<-60||flypast.x>W+60) flypast=null;
+    }
     if(levelBanner>0){
-      if(--levelBanner===0){ s.level++; resetBoard(s); enemyT=0; spawnT=0; eAnim=null;
-        $("level").textContent=s.level; $("msg").textContent="Level "+s.level+"! Fresh pyramid."; }
+      if(--levelBanner===0){
+        s.level++; resetBoard(s); enemyT=0; spawnT=0; eAnims.clear();
+        const np=plan(s.level);
+        // every fifth level, the spacesuit chicken drifts across before you start
+        if(np.flypast){ const fromLeft=Math.random()<0.5;
+          flypast={ x: fromLeft?-40:W+40, y: 34, vx:(fromLeft?1:-1)*1.7 }; }
+        $("level").textContent=s.level;
+        $("msg").textContent="Level "+s.level+" — "+np.name+
+          (np.stages>1?" ("+np.stages+" coats)":"")+(np.toggle?" (land twice to strip it)":"");
+      }
       draw(); return requestAnimationFrame(frame);
     }
     if(!s.over){
-      if(++spawnT>=200){ spawnT=0; spawnEnemy(s); }
-      if(s.enemy && ++enemyT>=48){ enemyT=0; const ef=s.enemy?cubeXY(s.enemy.row,s.enemy.col):null; enemyStep(s);
-        if(ef&&s.enemy){ const et=cubeXY(s.enemy.row,s.enemy.col); eAnim={fx:ef.x,fy:ef.y,tx:et.x,ty:et.y,t0:performance.now()}; } if(s.over && s.score>best){ best=s.score; try{localStorage.setItem("qbert_best",String(best));}catch(e){} }
-        $("lives").textContent=Math.max(0,s.lives); if(s.over) $("msg").textContent="Caught! Score "+s.score+"  ·  Best "+best; }
+      const p=plan(s.level);
+      if(++spawnT>=p.spawnEvery){ spawnT=0; spawnEnemy(s); }
+      if(s.enemies.length && ++enemyT>=p.enemyEvery){ enemyT=0;
+        const before=s.enemies.map(e=>({e, xy:cubeXY(e.row,e.col)}));
+        enemyStep(s);
+        for(const b of before){ if(s.enemies.includes(b.e)){
+          const et=cubeXY(b.e.row,b.e.col);
+          eAnims.set(b.e,{fx:b.xy.x,fy:b.xy.y,tx:et.x,ty:et.y,t0:performance.now()}); } }
+        if(s.over && s.score>best){ best=s.score; try{localStorage.setItem("qbert_best",String(best));}catch(e){} }
+        hud(); if(s.over) $("msg").textContent="Caught! Score "+s.score+"  ·  Best "+best; }
     }
     draw(); requestAnimationFrame(frame);
   }
   document.querySelectorAll(".pad button").forEach(b=>{ const d=b.getAttribute("data-d"); const f=(e)=>{e.preventDefault();go(d);}; b.addEventListener("click",f); b.addEventListener("touchstart",f,{passive:false}); });
   addEventListener("keydown",(e)=>{ const m={q:"ul",e:"ur",a:"dl",d:"dr"}[e.key.toLowerCase()]; if(m){ e.preventDefault(); go(m); } });
-  $("new").addEventListener("click",()=>{ s=newState(); levelBanner=0; pendingCube=null; anim=null; eAnim=null; $("score").textContent=0; $("level").textContent=1; $("lives").textContent=3; $("msg").textContent="Hop on every cube to change its color!"; });
-  $("score").textContent=0; $("level").textContent=1; $("lives").textContent=3;
+  $("new").addEventListener("click",()=>{ s=newState(); levelBanner=0; pendingCube=null; anim=null; eAnims.clear(); flypast=null; hud(); $("msg").textContent="Level 1 — Classic. Hop on every cube."; });
+  hud();
   requestAnimationFrame(frame);
 })();
 </script>
