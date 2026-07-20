@@ -72,17 +72,24 @@
     //    straight through and leaves, so it is a bonus you have to take quickly
     //  · the space weasel arrives at wave 10 and behaves like an egg: it drifts
     //    and wraps and stays until you kill it, but it shoots back
-    const FLYBY_FROM=3, WEASEL_FROM=10;
-    const FLYBY_GAP_MIN=60*60, FLYBY_GAP_MAX=60*140;   // roughly 1-2.5 minutes apart
+    const FLYBY_EVERY=5, WEASEL_FROM=10;               // a flyby between waves, every 5th
     const FLYBY_SHOT=90, WEASEL_SHOT=140;              // 1.5s and ~2.3s between shots
     const FLYBY_SCORE=500, WEASEL_SCORE=250;
-    let flyby=null, flybyTimer=0, weasels=[], eBullets=[], pops=[];
+    let flyby=null, weasels=[], eBullets=[], pops=[], interlude=false;
 
-    function scheduleFlyby(){ flybyTimer=FLYBY_GAP_MIN+Math.floor(Math.random()*(FLYBY_GAP_MAX-FLYBY_GAP_MIN)); }
+    // He crosses on a clear screen between waves, and deliberately not on your
+    // line — he passes by somewhere else and shoots across, rather than flying
+    // straight down your throat.
     function spawnFlyby(){
       const fromLeft=Math.random()<0.5, sp=1.5+Math.random()*0.9;
-      flyby={ x: fromLeft?-30:W+30, y: 40+Math.random()*(H-80),
-              vx: fromLeft?sp:-sp, vy:(Math.random()-0.5)*0.5, r:13, shot:FLYBY_SHOT, bob:0 };
+      const shipY=ship?ship.y:H/2;
+      const band=H-100;
+      let y=50+Math.random()*band;
+      // push him at least a third of the screen away from where you are
+      if(Math.abs(y-shipY)<H*0.33) y = shipY + (shipY<H/2 ? 1 : -1) * (H*0.33+Math.random()*H*0.2);
+      y=Math.max(40,Math.min(H-40,y));
+      flyby={ x: fromLeft?-30:W+30, y,
+              vx: fromLeft?sp:-sp, vy:0, r:13, shot:FLYBY_SHOT, bob:0 };
     }
     function spawnWeasels(){
       weasels=[];
@@ -110,12 +117,12 @@
       const ang=Math.random()*Math.PI*2,sp=(3-size)*0.4+0.3+Math.random()*0.5;
       return {x,y,size,r:size*14+6,vx:Math.cos(ang)*sp,vy:Math.sin(ang)*sp,verts,rot:Math.random()*Math.PI*2,vr:(Math.random()-.5)*0.04};
     }
-    function spawnWave(){rocks=[];const count=3+wave;for(let i=0;i<count;i++){
+    // Fewer eggs than before — the screen was a wall of them by wave 5.
+    function spawnWave(){rocks=[];const count=Math.min(7, 2+Math.ceil(wave*0.6));for(let i=0;i<count;i++){
       let x,y;do{x=Math.random()*W;y=Math.random()*H;}while(Math.hypot(x-ship.x,y-ship.y)<120);
       rocks.push(makeRock(x,y,3));}}
     function reset(full){if(full){score=0;lives=3;wave=1;}dying=0;debris=[];gameOverPending=false;respawnFlash=0;ship=newShip();bullets=[];inv=90;
-      flyby=null;flybyTimer=0;weasels=[];eBullets=[];pops=[];spawnWave();spawnWeasels();
-      if(wave>=FLYBY_FROM)scheduleFlyby();
+      flyby=null;interlude=false;weasels=[];eBullets=[];pops=[];spawnWave();spawnWeasels();
       scoreEl.textContent=score;livesEl.textContent=lives;}
     function start(){reset(true);ov.classList.add("hidden");running=true;loop();}
     function fire(){if(!ship)return;const now=performance.now();if(now-lastFire<220)return;lastFire=now;
@@ -131,7 +138,7 @@
         bullets=bullets.filter(b=>b.life>0);
         eBullets.forEach(b=>{b.x+=b.vx;b.y+=b.vy;b.life--;wrap(b);});
         eBullets=eBullets.filter(b=>b.life>0);
-        if(flyby){ flyby.x+=flyby.vx; flyby.y+=flyby.vy; if(flyby.x<-50||flyby.x>W+50){flyby=null;scheduleFlyby();} }
+        if(flyby){ flyby.x+=flyby.vx; flyby.y+=flyby.vy; if(flyby.x<-50||flyby.x>W+50){flyby=null;interlude=false;} }
         weasels.forEach(wz=>{wz.x+=wz.vx;wz.y+=wz.vy;wrap(wz);});
         if(--dying<=0) afterDeath();
         return;
@@ -160,21 +167,23 @@
       }
       // ship-rock
       if(inv<=0){for(const r of rocks){if(Math.hypot(ship.x-r.x,ship.y-r.y)<r.r+8){die();break;}}}
-      if(rocks.length===0){wave++;ship=newShip();inv=RESPAWN_INV;spawnWave();spawnWeasels();
-        if(wave>=FLYBY_FROM&&flybyTimer<=0&&!flyby) scheduleFlyby(); }
+      if(rocks.length===0 && !interlude){
+        // Every fifth wave, the space-suit chicken crosses the empty screen
+        // before the next batch of eggs arrives.
+        if(wave%FLYBY_EVERY===0 && !flyby){ interlude=true; spawnFlyby(); }
+        else { wave++;ship=newShip();inv=RESPAWN_INV;spawnWave();spawnWeasels(); }
+      }
+      // once he is gone, the next wave rolls in
+      if(interlude && !flyby){ interlude=false; wave++;ship=newShip();inv=RESPAWN_INV;spawnWave();spawnWeasels(); }
     }
     function stepEnemies(){
       pops.forEach(p=>{p.y-=0.5;p.life--;}); pops=pops.filter(p=>p.life>0);
 
       // space-suit chicken: straight through the screen, then gone
-      if(wave>=FLYBY_FROM){
-        if(!flyby){ if(flybyTimer>0){ if(--flybyTimer<=0) spawnFlyby(); } else scheduleFlyby(); }
-        else {
-          flyby.x+=flyby.vx; flyby.y+=flyby.vy; flyby.bob+=0.12;
-          if(flyby.y<20||flyby.y>H-20) flyby.vy*=-1;
-          if(--flyby.shot<=0){ flyby.shot=FLYBY_SHOT; enemyFire(flyby); }
-          if(flyby.x<-50||flyby.x>W+50){ flyby=null; scheduleFlyby(); }   // straight through and away
-        }
+      if(flyby){
+        flyby.x+=flyby.vx; flyby.bob+=0.12;
+        if(--flyby.shot<=0){ flyby.shot=FLYBY_SHOT; enemyFire(flyby); }
+        if(flyby.x<-50||flyby.x>W+50){ flyby=null; }   // straight through and away
       }
       // space weasels: drift and wrap like the eggs, but they shoot
       for(const wz of weasels){
@@ -189,7 +198,7 @@
       for(let j=bullets.length-1;j>=0;j--){
         const b=bullets[j];
         if(flyby&&Math.hypot(b.x-flyby.x,b.y-flyby.y)<flyby.r+3){
-          bullets.splice(j,1); pop(flyby.x,flyby.y,"+"+FLYBY_SCORE); flyby=null; scheduleFlyby();
+          bullets.splice(j,1); pop(flyby.x,flyby.y,"+"+FLYBY_SCORE); flyby=null;
           score+=FLYBY_SCORE; scoreEl.textContent=score;
           if(typeof Arcade!=="undefined") Arcade.sfx.explode();
           continue;

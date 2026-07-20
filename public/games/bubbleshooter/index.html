@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Bubble Shooter — Games</title>
+  <title>Egg Shooter — Games</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🫧</text></svg>" />
   <style>
     :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;}
@@ -27,13 +27,13 @@
 </head>
 <body>
   <div class="wrap">
-    <div class="topbar"><a class="home" href="/">← Home</a><h1>🫧 Bubble Shooter</h1><span style="width:56px"></span></div>
+    <div class="topbar"><a class="home" href="/">← Home</a><h1>🥚 Egg Shooter</h1><span style="width:56px"></span></div>
     <div class="stat">Score: <span id="score">0</span></div>
     <div class="board-wrap">
       <canvas id="c" width="360" height="440"></canvas>
-      <div class="overlay" id="ov"><h2 id="ot">🫧 Bubble Shooter</h2><p id="om">Aim and pop groups of 3+ same color.</p><button class="btn" id="start">Play</button></div>
+      <div class="overlay" id="ov"><h2 id="ot">🥚 Egg Shooter</h2><p id="om">Match 3+ eggs of a colour to crack them.</p><button class="btn" id="start">Play</button></div>
     </div>
-    <p class="hint">Move to aim, tap/click to shoot. Match 3+ same-color bubbles to pop them. Clear the board!</p>
+    <p class="hint">Move to aim, tap/click to lay an egg. Match 3+ of a colour to crack them. Clear the board!</p>
   </div>
   <script>
   (function(){
@@ -96,7 +96,7 @@
       if(!any)return end(true);
       if(low>LOSE)return end(false);
     }
-    function end(win){running=false;cancelAnimationFrame(raf);ot.textContent=win?"🎉 Board cleared!":"Bubbles reached the bottom!";om.textContent="Score "+score;startBtn.textContent="Play again";ov.classList.remove("hidden");}
+    function end(win){running=false;cancelAnimationFrame(raf);ot.textContent=win?"🎉 Board cleared!":"The eggs reached the bottom!";om.textContent="Score "+score;startBtn.textContent="Play again";ov.classList.remove("hidden");}
     function draw(){
       ctx.clearRect(0,0,W,H);
       ctx.strokeStyle="rgba(244,63,94,.35)";ctx.setLineDash([6,6]);ctx.beginPath();ctx.moveTo(0,LOSE);ctx.lineTo(W,LOSE);ctx.stroke();ctx.setLineDash([]);
@@ -104,11 +104,49 @@
       // aim guide
       if(running&&!fly){ctx.strokeStyle="rgba(255,255,255,.25)";ctx.beginPath();ctx.moveTo(shooter.x,shooter.y);ctx.lineTo(aim.x,aim.y);ctx.stroke();}
       if(fly)bubble(fly.x,fly.y,fly.color);
-      bubble(shooter.x,shooter.y,cur);
+      henShooter(shooter.x,shooter.y,cur);
       ctx.globalAlpha=.6;bubble(W-26,H-24,nextC,12);ctx.globalAlpha=1;
     }
-    function bubble(x,y,color,r){r=r||R;ctx.fillStyle=color;ctx.beginPath();ctx.arc(x,y,r-1,0,7);ctx.fill();
-      ctx.fillStyle="rgba(255,255,255,.3)";ctx.beginPath();ctx.arc(x-r*0.3,y-r*0.3,r*0.28,0,7);ctx.fill();}
+    // An egg rather than a ball: narrower at the top, speckled shell, highlight
+    // kept so the colours still read at a glance.
+    function bubble(x,y,color,r){
+      r=r||R;
+      const w=(r-1)*0.82, h=r-1;
+      ctx.save(); ctx.translate(x,y);
+      ctx.fillStyle=color;
+      ctx.beginPath();
+      ctx.moveTo(0,-h);
+      ctx.bezierCurveTo(w*0.95,-h*0.72, w*1.02,h*0.42, 0,h);
+      ctx.bezierCurveTo(-w*1.02,h*0.42, -w*0.95,-h*0.72, 0,-h);
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle="rgba(0,0,0,.22)"; ctx.lineWidth=1.2; ctx.stroke();
+      ctx.save(); ctx.clip();
+      ctx.fillStyle="rgba(0,0,0,.13)";
+      for(let i=0;i<5;i++){
+        const a=i*2.399, rr=r*0.55*(((i%3)+1)/3);
+        ctx.beginPath(); ctx.arc(Math.cos(a)*rr*0.7, Math.sin(a)*rr, r*0.11, 0, 7); ctx.fill();
+      }
+      ctx.restore();
+      ctx.fillStyle="rgba(255,255,255,.45)";
+      ctx.beginPath(); ctx.ellipse(-w*0.32,-h*0.42,r*0.20,r*0.28,-0.4,0,7); ctx.fill();
+      ctx.restore();
+    }
+    // The shooter is a hen, with the egg she is about to lay sitting under her.
+    function henShooter(x,y,color){
+      ctx.save(); ctx.translate(x,y);
+      ctx.fillStyle="#c96f14";
+      ctx.beginPath(); ctx.moveTo(-R*0.5,-R*0.7); ctx.lineTo(-R*1.5,-R*1.5); ctx.lineTo(-R*0.4,-R*0.2); ctx.closePath(); ctx.fill();
+      ctx.fillStyle="#f0902a";
+      ctx.beginPath(); ctx.ellipse(0,-R*0.85,R*0.95,R*0.78,0,0,7); ctx.fill();
+      ctx.fillStyle="#dc2626";
+      ctx.beginPath(); ctx.arc(-R*0.2,-R*1.72,R*0.2,0,7); ctx.arc(R*0.1,-R*1.82,R*0.22,0,7); ctx.arc(R*0.4,-R*1.7,R*0.2,0,7); ctx.fill();
+      ctx.fillStyle="#fff"; ctx.beginPath(); ctx.arc(R*0.42,-R*1.22,R*0.24,0,7); ctx.fill();
+      ctx.fillStyle="#0b0c1a"; ctx.beginPath(); ctx.arc(R*0.5,-R*1.22,R*0.12,0,7); ctx.fill();
+      ctx.fillStyle="#facc15";
+      ctx.beginPath(); ctx.moveTo(R*0.85,-R*1.05); ctx.lineTo(R*1.5,-R*0.9); ctx.lineTo(R*0.85,-R*0.78); ctx.closePath(); ctx.fill();
+      ctx.restore();
+      bubble(x,y,color);
+    }
     function setAim(clientX,clientY){const rect=cv.getBoundingClientRect();aim.x=(clientX-rect.left)/rect.width*W;aim.y=(clientY-rect.top)/rect.height*H;}
     cv.addEventListener("mousemove",e=>{if(running)setAim(e.clientX,e.clientY);draw();});
     cv.addEventListener("touchmove",e=>{if(running){setAim(e.touches[0].clientX,e.touches[0].clientY);e.preventDefault();draw();}},{passive:false});
