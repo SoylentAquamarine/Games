@@ -19,7 +19,7 @@
   .hud{width:100%;display:flex;justify-content:space-between;gap:8px;font-size:.82rem;color:var(--muted)}
   .hud b{color:var(--text)}
   .carry{min-height:1.2em;color:#f5d020;font-weight:700}
-  canvas{width:min(92vw,440px);height:min(92vw,440px);image-rendering:pixelated;border-radius:10px;border:2px solid #2a2f55;background:#000;touch-action:none}
+  canvas{width:min(92vw,440px);height:min(92vw,440px);border-radius:10px;border:2px solid #2a2f55;background:#000;touch-action:none}
   .msg{min-height:1.3em;font-weight:700;text-align:center;color:#fde68a}
   .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:9px 20px;border-radius:999px;cursor:pointer}
   .controls{display:flex;width:100%;justify-content:space-between;align-items:center;gap:14px;margin-top:2px}
@@ -53,7 +53,7 @@
     <p><b>Goal:</b> Retrieve the Enchanted Chalice (locked inside the Black Castle) and carry it back to the Gold Castle.</p>
     <p><b>Move</b> with the arrow keys / WASD or the on-screen pad. You can carry <b>one item</b> at a time — walk over an item to pick it up, press <b>Space</b> / “Drop&nbsp;/&nbsp;Use” to drop it.</p>
     <p><b>Sword:</b> touch a dragon while holding it to slay it. Without the sword, a dragon that catches you eats you (you respawn at the Gold Castle and drop what you held).</p>
-    <p><b>Gold Key:</b> touch the Black Castle gate holding it to open the castle. <b>Bridge:</b> carry it to walk straight through walls.</p>
+    <p><b>Keys:</b> each castle takes its own — the <b>Gold Key</b> opens the Gold Castle, the <b>Black Key</b> opens the Black Castle. Touch a gate while carrying its key. <b>Bridge:</b> carry it to walk straight through walls.</p>
     <p>Three dragons roam: <span style="color:#d8c020">Yellow</span>, <span style="color:#38b038">Green</span>, <span style="color:#d03020">Red</span>.</p>
   </details>
 </div>
@@ -72,7 +72,7 @@
   const clamp=(v,a,b)=>v<a?a:v>b?b:v;
   const overlap=(a,b)=>a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;
   const heroRect=(s)=>({x:s.hero.x,y:s.hero.y,w:HS,h:HS});
-  const LABEL={sword:"Sword",bridge:"Bridge",goldkey:"Gold Key",chalice:"Enchanted Chalice"};
+  const LABEL={sword:"Sword",bridge:"Bridge",goldkey:"Gold Key",blackkey:"Black Key",chalice:"Enchanted Chalice"};
 
   const ROOMS={
     commons:{ name:"The Commons", color:"#3a7d3a", exits:{N:"north",S:"south",E:"east",W:"west"},
@@ -156,16 +156,17 @@
   function newGame(){
     return {
       room:"commons", hero:{x:96,y:150,dir:"up"}, carry:null, won:false, dead:false,
-      gates:{black:false}, msg:"", dropLock:null,
+      gates:{gold:false, black:false}, msg:"", dropLock:null,
       hp:100, inv:0,
       objects:(function(){
         // Items scatter across the outdoor rooms each game; the chalice always
         // stays locked in the Black Castle, which is the point of the key.
-        const spots=pickRooms(3);
+        const spots=pickRooms(4);   // sword, bridge, gold key, black key
         return {
           sword:{room:spots[0],...freeSpot(spots[0],OBJ),carried:false},
           bridge:{room:spots[1],...freeSpot(spots[1],OBJ),carried:false},
           goldkey:{room:spots[2],...freeSpot(spots[2],OBJ),carried:false},
+          blackkey:{room:spots[3],...freeSpot(spots[3],OBJ),carried:false},
           chalice:{room:"blackIn",x:96,y:56,carried:false},
         };
       })(),
@@ -202,17 +203,19 @@
     if(cy>SIZE){ if(ex.S) enter(s,ex.S,"S",old); else s.hero.y=SIZE-HS; }
     else if(cy<0){ if(ex.N) enter(s,ex.N,"N",old); else s.hero.y=0; }
   }
+  // Each castle takes its own key: gold opens gold, black opens black.
   function castle(s){
     const c=ROOMS[s.room].castle; if(!c) return;
     if(!overlap(heroRect(s),c.gate)) return;
-    if(c.name==="Gold"){
-      if(s.carry==="chalice"){ s.won=true; s.msg="You returned the Chalice home. You win!"; return; }
-      s.room=c.interior; s.hero.x=96; s.hero.y=SIZE-BW-HS-4;
-    } else {
-      if(s.gates.black){ s.room=c.interior; s.hero.x=96; s.hero.y=SIZE-BW-HS-4; }
-      else if(s.carry==="goldkey"){ s.gates.black=true; s.msg="The Black Castle gate creaks open!"; }
-      else s.msg="The Black Castle is locked. Find the Gold Key.";
+    const isGold = c.name==="Gold";
+    const which  = isGold ? "gold" : "black";
+    const key    = isGold ? "goldkey" : "blackkey";
+    if(s.gates[which]){
+      if(isGold && s.carry==="chalice"){ s.won=true; s.msg="You returned the Chalice home. You win!"; return; }
+      s.room=c.interior; s.hero.x=96; s.hero.y=SIZE-BW-HS-4; return;
     }
+    if(s.carry===key){ s.gates[which]=true; s.msg="The "+c.name+" Castle gate creaks open!"; return; }
+    s.msg="The "+c.name+" Castle is locked. Find the "+LABEL[key]+".";
   }
   function pickup(s){
     // release the drop-lock once the hero has stepped off the just-dropped item
@@ -285,7 +288,7 @@
     const cv=document.getElementById("game"); if(!cv) return;
     const ctx=cv.getContext("2d");
   // Hold the loop until the player asks for it (comment: Press Spacebar To Begin)
-  const GATE = Arcade.startGate(cv, "Chicken Quest");
+  const GATE = Arcade.startGate(cv, "Chicken Adventure");
     let state=newGame(), dir=null, deathT=0, start=Date.now(), best=null;
     try{ best=parseInt(localStorage.getItem("adventure_best")||"")||null; }catch(e){}
 
@@ -301,30 +304,42 @@
     }
 
     function rr(x,y,w,h,c){ ctx.fillStyle=c; ctx.fillRect(x,y,w,h); }
-    function drawObject(k,x,y){
-      if(k==="sword"){ rr(x+2,y-1,4,11,"#d9d9e6"); rr(x,y+8,8,3,"#b8860b"); rr(x+3,y+8,2,4,"#8a6d1a"); }
-      else if(k==="goldkey"){
-        // Drawn as an actual key — ringed bow, shaft, two teeth — outlined in
-        // near-black first so the shape reads against the dark floor instead of
-        // blurring into a lump.
+    // Keys: ringed bow, shaft, two teeth, outlined first so the silhouette holds
+    // against the floor. The black key gets a pale outline instead of a dark one,
+    // otherwise a black key on a dark floor is invisible.
+    function drawKey(x,y,body,outline,hi){
+      ctx.save();
+      ctx.lineJoin="round"; ctx.lineCap="round";
+      for(const pass of ["outline","body"]){
+        ctx.strokeStyle = pass==="outline" ? outline : body;
+        ctx.lineWidth   = pass==="outline" ? 3.4 : 2;
+        ctx.beginPath(); ctx.arc(x+3,y+5,3.2,0,7); ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(x+6,y+5); ctx.lineTo(x+13,y+5);
+        ctx.moveTo(x+10,y+5); ctx.lineTo(x+10,y+8);
+        ctx.moveTo(x+13,y+5); ctx.lineTo(x+13,y+9);
+        ctx.stroke();
+      }
+      ctx.fillStyle=outline; ctx.beginPath(); ctx.arc(x+3,y+5,1.4,0,7); ctx.fill();
+      ctx.fillStyle=hi; ctx.fillRect(x+1,y+2,1,1);
+      ctx.restore();
+    }
+    function drawObject(k,x,y,dir){
+      if(k==="sword"){
+        // Point the blade the way you are walking, so carrying it reads as
+        // holding it out in front of you.
+        const ang={right:0,down:Math.PI/2,left:Math.PI,up:-Math.PI/2}[dir||"down"];
         ctx.save();
-        ctx.strokeStyle="#241a04"; ctx.lineWidth=3; ctx.lineJoin="round"; ctx.lineCap="round";
-        for(const pass of ["stroke","fill"]){
-          if(pass==="fill"){ ctx.fillStyle="#f5d020"; ctx.strokeStyle="#f5d020"; ctx.lineWidth=2; }
-          // bow: a ring on the left
-          ctx.beginPath(); ctx.arc(x+3,y+5,3.2,0,7);
-          if(pass==="stroke") ctx.stroke(); else ctx.stroke();
-          // shaft running right, with two teeth hanging off the end
-          ctx.beginPath();
-          ctx.moveTo(x+6,y+5); ctx.lineTo(x+13,y+5);
-          ctx.moveTo(x+10,y+5); ctx.lineTo(x+10,y+8);
-          ctx.moveTo(x+13,y+5); ctx.lineTo(x+13,y+9);
-          if(pass==="stroke") ctx.stroke(); else ctx.stroke();
-        }
-        // punch the hole through the bow and add a highlight
-        ctx.fillStyle="#0c0c14"; ctx.beginPath(); ctx.arc(x+3,y+5,1.5,0,7); ctx.fill();
-        ctx.fillStyle="#fff7cc"; ctx.fillRect(x+1,y+2,1,1);
+        ctx.translate(x+4,y+5); ctx.rotate(ang);
+        // drawn pointing right in local space: tip at +x
+        rr(-5,-2,11,4,"#d9d9e6");                       // blade
+        rr(-8,-4,3,8,"#b8860b");                        // guard
+        rr(-11,-1.5,3,3,"#8a6d1a");                     // pommel
+        ctx.fillStyle="#fff"; ctx.beginPath();
+        ctx.moveTo(6,-2); ctx.lineTo(10,0); ctx.lineTo(6,2); ctx.closePath(); ctx.fill();   // tip
         ctx.restore(); }
+      else if(k==="goldkey"){ drawKey(x,y,"#f5d020","#241a04","#fff7cc"); }
+      else if(k==="blackkey"){ drawKey(x,y,"#1b1b22","#c9c9dd","#ffffff"); }
       else if(k==="bridge"){ rr(x-2,y,12,10,"#a9743a"); rr(x-2,y+2,12,2,"#5c3a18"); rr(x-2,y+6,12,2,"#5c3a18"); }
       else if(k==="chalice"){ ctx.fillStyle="#ffd94a"; ctx.fillRect(x,y,8,2); ctx.fillRect(x+1,y+2,6,3); ctx.fillRect(x+3,y+5,2,4); ctx.fillRect(x+1,y+9,6,2);
         ctx.fillStyle="#fff7cc"; ctx.fillRect(x+2,y+1,1,1); }
@@ -338,13 +353,26 @@
       if(d.alive){ ctx.fillStyle="#ffef9f"; ctx.fillRect(d.x-2,d.y+3,3,2); } // mouth
       ctx.restore();
     }
+    // The gold castle is gold and the black castle is black, so you can tell at a
+    // glance which one you are standing at.
     function drawCastle(c,locked){
       const g=c.gate, x=g.x-4, y=g.y-16, w=g.w+8;
-      rr(x,y,w,20,"#8a8a99");
-      for(let i=0;i<w;i+=8){ rr(x+i,y-4,5,5,"#8a8a99"); }                 // battlements
-      // gate
-      rr(g.x,g.y-2,g.w,g.h+2, locked?"#5a3a12":"#000");
-      if(locked){ ctx.fillStyle="#3a2408"; for(let i=2;i<g.w;i+=6) ctx.fillRect(g.x+i,g.y-1,2,g.h); }
+      const gold = c.name==="Gold";
+      const wall = gold ? "#d9ad2b" : "#23232c";
+      const trim = gold ? "#f5d872" : "#4a4a5c";
+      rr(x,y,w,20,wall);
+      ctx.fillStyle="rgba(0,0,0,.22)"; ctx.fillRect(x,y+15,w,5);
+      for(let i=0;i<w;i+=8){ rr(x+i,y-4,5,5,wall); }                      // battlements
+      ctx.fillStyle=trim; ctx.fillRect(x,y,w,2);
+      // barred and keyed while locked, an open doorway once unlocked
+      rr(g.x,g.y-2,g.w,g.h+2, locked?(gold?"#8a6a12":"#15151b"):"#000");
+      if(locked){
+        ctx.fillStyle=gold?"#5c4708":"#0a0a0f";
+        for(let i=2;i<g.w;i+=6) ctx.fillRect(g.x+i,g.y-1,2,g.h);
+        ctx.fillStyle=gold?"#f5d020":"#8f93a8";                            // keyhole
+        ctx.beginPath(); ctx.arc(g.x+g.w/2,g.y+g.h*0.42,2.4,0,7); ctx.fill();
+        ctx.fillRect(g.x+g.w/2-1,g.y+g.h*0.42,2,4);
+      }
     }
     function draw(){
       ctx.clearRect(0,0,SIZE,SIZE);
@@ -352,7 +380,7 @@
       rr(0,0,SIZE,SIZE,"#000");
       ctx.fillStyle=room.color; for(const w of borderWalls(state.room)) ctx.fillRect(w.x,w.y,w.w,w.h);
       if(room.inner) for(const w of room.inner) rr(w.x,w.y,w.w,w.h,room.color);
-      if(room.castle) drawCastle(room.castle, room.castle.name==="Black" && !state.gates.black);
+      if(room.castle) drawCastle(room.castle, !state.gates[room.castle.name==="Gold"?"gold":"black"]);
       for(const k in state.objects){ const o=state.objects[k]; if(!o.carried&&o.room===state.room) drawObject(k,o.x,o.y); }
       for(const d of state.dragons) if(d.room===state.room) drawDragon(d);
       // hero — a chicken. Blinks while briefly invulnerable after a bite.
@@ -370,7 +398,7 @@
         ctx.fillStyle="#0b0c1a"; ctx.fillRect(cx-2,cy-2,1.5,1.5); ctx.fillRect(cx+1,cy-2,1.5,1.5);
       }
       if(state.carry){ const hx=state.hero.x, hy=state.hero.y; const ox={left:hx-9,right:hx+9,up:hx,down:hx}[state.hero.dir]||hx+9;
-        const oy={up:hy-9,down:hy+9,left:hy,right:hy}[state.hero.dir]||hy; drawObject(state.carry,ox,oy); }
+        const oy={up:hy-9,down:hy+9,left:hy,right:hy}[state.hero.dir]||hy; drawObject(state.carry,ox,oy,state.hero.dir); }
       if(state.won){ ctx.fillStyle="rgba(0,0,0,.55)"; ctx.fillRect(0,0,SIZE,SIZE); ctx.fillStyle="#ffd94a"; ctx.font="bold 16px system-ui"; ctx.textAlign="center"; ctx.fillText("YOU WIN!",100,100); }
       else if(state.dead){ ctx.fillStyle="rgba(120,0,0,.4)"; ctx.fillRect(0,0,SIZE,SIZE); }
     }
