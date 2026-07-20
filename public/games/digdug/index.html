@@ -44,7 +44,7 @@
 <script src="/arcade.js"></script>
 <script>
 (function(){
-  const C={ cols:24, rows:18, cell:20, reach:3, wobble:9 };
+  const C={ cols:24, rows:18, cell:20, reach:3, wobble:9, ENEMY_EVERY:44, MOVE_EVERY:7 };
   const DIRS={left:[-1,0],right:[1,0],up:[0,-1],down:[0,1]};
   function enemyAt(s,c,r){ return s.enemies.find(e=>e.alive&&e.c===c&&e.r===r)||null; }
   function newState(){
@@ -87,7 +87,7 @@
       if(step){ nc=step.c; nr=step.r; }          // follow the existing tunnel — no digging
       else { const ddc=s.player.c-e.c, ddr=s.player.r-e.r; nc=e.c; nr=e.r;   // boxed in: dig toward the player
         if(Math.abs(ddc)>=Math.abs(ddr) && ddc!==0) nc+=Math.sign(ddc); else if(ddr!==0) nr+=Math.sign(ddr); }
-      if(nc>=0&&nc<C.cols&&nr>=0&&nr<C.rows){ s.dirt[nr][nc]=false; e.c=nc; e.r=nr;
+      if(nc>=0&&nc<C.cols&&nr>=0&&nr<C.rows){ s.dirt[nr][nc]=false; e.pc=e.c; e.pr=e.r; e.c=nc; e.r=nr;
         if(nc===s.player.c&&nr===s.player.r){ s.lives--; if(s.lives<=0) s.over=true; else respawn(s); } } }
     return s; }
   function rockFall(s){ for(const rk of s.rocks){
@@ -115,12 +115,17 @@
     for(let r=0;r<C.rows;r++) for(let c=0;c<C.cols;c++){ if(s.dirt[r][c]){ const band=Math.floor(r/4); ctx.fillStyle=["#8a5a2a","#7a4a24","#6a3e1e","#5a3418"][band%4]; ctx.fillRect(c*CELL,r*CELL,CELL,CELL); }
       else { ctx.fillStyle= r<2?"#12305a":"#1a120c"; ctx.fillRect(c*CELL,r*CELL,CELL,CELL); } }
     for(const rk of s.rocks){ const wx=(rk.wob>0&&!rk.falling)?(Math.random()*4-2):0; ctx.fillStyle=rk.wob>0?"#b5b5c8":"#9a9ab5"; ctx.beginPath(); ctx.arc(rk.c*CELL+CELL/2+wx,rk.r*CELL+CELL/2,CELL/2-1,0,7); ctx.fill(); ctx.fillStyle="#6a6a85"; ctx.fillRect(rk.c*CELL+4+wx,rk.r*CELL+5,4,3); }
-    for(const e of s.enemies){ if(!e.alive) continue; const cx=e.c*CELL+CELL/2, cy=e.r*CELL+CELL/2;
-      if(e.ax==null||Math.hypot(cx-e.ax,cy-e.ay)>CELL*2.5){e.ax=cx;e.ay=cy;}
-      // Eased to span the 44-frame step interval — 0.3 arrived in ~10 frames and
-      // then sat still, which is what read as jumpy.
-      e.ax+=(cx-e.ax)*0.12; e.ay+=(cy-e.ay)*0.12;
-      const sz=CELL/2-1+e.inflate*2; ctx.fillStyle=e.inflate>0?"#ffcf5a":"#f0616e"; ctx.beginPath(); ctx.arc(e.ax,e.ay,sz,0,7); ctx.fill(); ctx.fillStyle="#fff"; ctx.fillRect(e.ax-CELL/2+5,e.ay-CELL/2+6,3,3); ctx.fillRect(e.ax+CELL/2-8,e.ay-CELL/2+6,3,3); }
+    // Enemies move a whole cell every ENEMY_EVERY frames. Exponential easing was
+    // used to smooth that, but it rushes at the start and crawls at the end and
+    // never quite arrives — which is exactly the pulsing. A straight lerp across
+    // the step interval gives constant speed, like the other games.
+    const ea=Math.min(1, enemyT/C.ENEMY_EVERY);
+    for(const e of s.enemies){ if(!e.alive) continue;
+      const pc=e.pc==null?e.c:e.pc, pr=e.pr==null?e.r:e.pr;
+      const jump=Math.abs(e.c-pc)>1||Math.abs(e.r-pr)>1;      // respawn: snap
+      const gx=jump?e.c:pc+(e.c-pc)*ea, gy=jump?e.r:pr+(e.r-pr)*ea;
+      const ax=gx*CELL+CELL/2, ay=gy*CELL+CELL/2;
+      const sz=CELL/2-1+e.inflate*2; ctx.fillStyle=e.inflate>0?"#ffcf5a":"#f0616e"; ctx.beginPath(); ctx.arc(ax,ay,sz,0,7); ctx.fill(); ctx.fillStyle="#fff"; ctx.fillRect(ax-CELL/2+5,ay-CELL/2+6,3,3); ctx.fillRect(ax+CELL/2-8,ay-CELL/2+6,3,3); }
     { const p=s.player, tx=p.c*CELL, ty=p.r*CELL; if(p.ax==null||Math.hypot(tx-p.ax,ty-p.ay)>CELL*2.5){p.ax=tx;p.ay=ty;} p.ax+=(tx-p.ax)*0.35; p.ay+=(ty-p.ay)*0.35;
       const cx=p.ax+CELL/2, cy=p.ay+CELL/2, rr=CELL/2-3, d=DIRS[p.dir];
       ctx.fillStyle="#dc2626";                                    // comb
@@ -136,8 +141,8 @@
   function frame(){
     if(!GATE.open){ draw(); GATE.paint(); return requestAnimationFrame(frame); }
     if(!s.over){
-      if(input && ++moveT>=6){ moveT=0; dig(s,input); }
-      if(++enemyT>=44){ enemyT=0; enemyStep(s); }
+      if(input && ++moveT>=C.MOVE_EVERY){ moveT=0; dig(s,input); }
+      if(++enemyT>=C.ENEMY_EVERY){ enemyT=0; enemyStep(s); }
       if(++rockT>=10){ rockT=0; rockFall(s); }
       ensureLevel(s);
       if(typeof Arcade!=="undefined")Arcade.stats.record("digdug",s.score); if(s.over && s.score>best){ best=s.score; try{localStorage.setItem("digdug_best",String(best));}catch(e){} $("msg").textContent="Game over! Score "+s.score+"  ·  Best "+best; }
@@ -147,7 +152,7 @@
   document.querySelectorAll(".dpad button").forEach(b=>{ const d=b.getAttribute("data-d"); const on=(e)=>{e.preventDefault();input=d;dig(s,d);moveT=0;}; const off=(e)=>{e.preventDefault();if(input===d)input=null;};
     b.addEventListener("touchstart",on,{passive:false}); b.addEventListener("touchend",off); b.addEventListener("mousedown",on); b.addEventListener("mouseup",off); b.addEventListener("mouseleave",off); });
   const pb=$("pump"); const pf=(e)=>{e.preventDefault(); const r=pump(s); if(r==="hit") $("msg").textContent="Pump!"; }; pb.addEventListener("touchstart",pf,{passive:false}); pb.addEventListener("mousedown",pf);
-  addEventListener("keydown",(e)=>{ const m={ArrowLeft:"left",ArrowRight:"right",ArrowUp:"up",ArrowDown:"down",a:"left",d:"right",w:"up",s:"down"}[e.key]; if(m){e.preventDefault(); input=m; dig(s,m); moveT=0;} if(e.key===" "){e.preventDefault(); pump(s);} });
+  addEventListener("keydown",(e)=>{ const m={ArrowLeft:"left",ArrowRight:"right",ArrowUp:"up",ArrowDown:"down",a:"left",d:"right",w:"up",s:"down"}[e.key]; if(m){e.preventDefault(); input=m; if(!e.repeat){ dig(s,m); moveT=0; }} if(e.key===" "){e.preventDefault(); pump(s);} });
   addEventListener("keyup",(e)=>{ const m={ArrowLeft:"left",ArrowRight:"right",ArrowUp:"up",ArrowDown:"down",a:"left",d:"right",w:"up",s:"down"}[e.key]; if(m&&input===m)input=null; });
   $("new").addEventListener("click",()=>{ s=newState(); input=null; $("msg").textContent="Dig tunnels and pump the monsters!"; });
   requestAnimationFrame(frame);
