@@ -32,6 +32,10 @@
   .ehint{font-size:.74rem;color:var(--muted);line-height:1.4}
   .ehint b{color:var(--text)}
   .hint{font-size:.78rem;color:var(--muted);text-align:center;max-width:560px}
+  details{width:100%;max-width:560px;background:var(--panel);border:1px solid rgba(255,255,255,.06);border-radius:10px;padding:6px 12px;font-size:.82rem;color:var(--muted)}
+  details summary{cursor:pointer;color:var(--text);font-weight:600}
+  details p{margin:8px 0;line-height:1.5}
+  details b{color:var(--text)}
 </style>
 </head>
 <body>
@@ -52,6 +56,24 @@
   </div>
   <div class="msg" id="msg">Drag back from the cue ball and release to shoot.</div>
   <button class="btn" id="placeok" style="display:none">✓ Break from here</button>
+  <button class="mode" id="diamonds">📐 Diamond system</button>
+  <details id="diamondhelp"><summary>The diamond system — banking by numbers</summary>
+    <p>The white sights on the rails are <b>diamonds</b>. They split the table into
+      eighths along the long rails and quarters along the short ones, and they let you
+      work out a bank shot by arithmetic instead of by feel — the trick Donald runs
+      through in <i>Donald in Mathmagic Land</i>.</p>
+    <p><b>The corner-5 method.</b> Turn on the numbers above and you get two sets:</p>
+    <p>· <b>Gold</b> along the bottom rail — where your <b>cue ball</b> is. The corner
+      pocket counts as 5, and the numbers fall to 1 as you move away from it.<br>
+      · <b>Cyan</b> up the right rail — the <b>target</b> you want the ball to reach.</p>
+    <p><b>Subtract</b>: cue position − target = the diamond to aim at on the far rail.
+      Sitting on 4 and want to reach the 2? Aim at diamond 2. On 5 aiming for 1?
+      Strike diamond 4. Hit that spot with a smooth, centred stroke and the angles do
+      the rest.</p>
+    <p>It works because the ball leaves a cushion at the same angle it arrives — so the
+      path is fixed by geometry, not luck. Side spin changes the rebound, so keep the
+      English centred while you are counting diamonds.</p>
+  </details>
   <p class="hint">Drag from the cue ball to aim — pull further back for more power, release to strike.
     <b>8-Ball</b>: pot your group then the 8. <b>9-Ball</b>: always hit the lowest ball first, sink the 9 to win.
     <b>Billiards</b>: no pockets — score by hitting both other balls in one shot. <b>Mini</b>: clear the small table in as few shots as you can.</p>
@@ -425,6 +447,11 @@
     b.textContent = s.inHand==="kitchen" ? "✓ Break from here" : "✓ Place it here";
   }
   $("placeok").addEventListener("click",()=>{ s.inHand=null; updatePlaceBtn(); });
+  $("diamonds").addEventListener("click",()=>{
+    showNumbers=!showNumbers;
+    $("diamonds").classList.toggle("on",showNumbers);
+    if(showNumbers) $("diamondhelp").open=true;
+  });
   cv.addEventListener("mousedown",beginAim); cv.addEventListener("touchstart",beginAim,{passive:false});
   addEventListener("mousemove",moveAim);     cv.addEventListener("touchmove",moveAim,{passive:false});
   addEventListener("mouseup",endAim);        cv.addEventListener("touchend",endAim,{passive:false});
@@ -471,6 +498,55 @@
       ctx.fillText(String(b.n),b.x,b.y+0.5); }
   }
 
+  // ---------------------------------------------------------------- diamonds ---
+  // Real tables carry sights on the rails: 3 along each short rail and 6 along
+  // each long one, dividing the playing surface into quarters and eighths. They
+  // are what the diamond system in Donald in Mathmagic Land counts off.
+  let showNumbers=false;
+  function diamondPoints(t){
+    const out=[];
+    // Long rails divide into eighths. The middle position is where the side
+    // pocket sits, so it carries no sight — that is why a real table shows 6 a
+    // side and 18 in total, even though the system counts 8 sections.
+    const hasSide = t.pockets===true;
+    for(let i=1;i<=7;i++){
+      if(hasSide && i===4) continue;
+      const x=t.x+t.w*i/8;
+      out.push({x, y:t.y-9,  rail:"top"});
+      out.push({x, y:t.y2+9, rail:"bottom"});
+    }
+    for(let i=1;i<=3;i++){            // short rails: 3 sights => 4 sections
+      const y=t.y+t.h*i/4;
+      out.push({x:t.x-9,  y, rail:"left"});
+      out.push({x:t.x2+9, y, rail:"right"});
+    }
+    return out;
+  }
+  function drawDiamonds(t){
+    for(const d of diamondPoints(t)){
+      ctx.save(); ctx.translate(d.x,d.y); ctx.rotate(Math.PI/4);
+      ctx.fillStyle="#f3ead7"; ctx.fillRect(-3,-3,6,6);
+      ctx.strokeStyle="rgba(0,0,0,.4)"; ctx.lineWidth=1; ctx.strokeRect(-3,-3,6,6);
+      ctx.restore();
+    }
+    if(!showNumbers) return;
+    // Corner-5 numbering: the long rail you shoot FROM counts 5 down to 1 toward
+    // the far corner, and the far short rail counts the aim points 1 to 4.
+    ctx.font="bold 9px system-ui"; ctx.textAlign="center"; ctx.textBaseline="middle";
+    for(let i=0;i<=4;i++){
+      const y=t.y2+9, x=t.x+t.w*(4-i)/8;      // bottom rail, near half
+      ctx.fillStyle="#0b0c1a"; ctx.beginPath(); ctx.arc(x,y,7,0,7); ctx.fill();
+      ctx.fillStyle="#ffcf5a"; ctx.fillText(String(i+1),x,y+.5);
+    }
+    for(let i=1;i<=4;i++){
+      const x=t.x2+9, y=t.y2-t.h*i/8;          // right short rail, aim points
+      ctx.fillStyle="#0b0c1a"; ctx.beginPath(); ctx.arc(x,y,7,0,7); ctx.fill();
+      ctx.fillStyle="#22d3ee"; ctx.fillText(String(i),x,y+.5);
+    }
+    ctx.fillStyle="rgba(255,255,255,.75)"; ctx.font="10px system-ui";
+    ctx.fillText("cue position − target = rail to aim at", (t.x+t.x2)/2, t.y2+30);
+  }
+
   function draw(){
     const t=s.t;
     ctx.clearRect(0,0,C.W,C.H);
@@ -484,6 +560,7 @@
     // head string, a nod to a real table
     ctx.strokeStyle="rgba(255,255,255,.08)"; ctx.beginPath();
     ctx.moveTo(t.x+t.w*0.25,t.y); ctx.lineTo(t.x+t.w*0.25,t.y2); ctx.stroke();
+    drawDiamonds(t);
     // pockets
     for(const p of pocketsOf(t)){
       ctx.fillStyle="#07110a"; ctx.beginPath(); ctx.arc(p.x,p.y,C.POCKET_R,0,7); ctx.fill();
