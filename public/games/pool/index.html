@@ -51,6 +51,7 @@
     <div class="ehint"><b>English</b><br>Tap the cue ball to strike off-centre — high for follow, low for draw, side for swerve. Double-tap to centre it.</div>
   </div>
   <div class="msg" id="msg">Drag back from the cue ball and release to shoot.</div>
+  <button class="btn" id="placeok" style="display:none">✓ Break from here</button>
   <p class="hint">Drag from the cue ball to aim — pull further back for more power, release to strike.
     <b>8-Ball</b>: pot your group then the 8. <b>9-Ball</b>: always hit the lowest ball first, sink the 9 to win.
     <b>Billiards</b>: no pockets — score by hitting both other balls in one shot. <b>Mini</b>: clear the small table in as few shots as you can.</p>
@@ -383,11 +384,16 @@
     ev.preventDefault();
     const p=canvasPos(ev), cue=cueBall();
     if(!cue) return;
-    // With ball in hand, a tap inside the legal zone drops the cue ball there
-    // instead of starting an aim — so you can choose your break spot.
+    // With ball in hand, tapping the legal zone moves the cue ball. Grabbing the
+    // cue ball itself confirms the spot and goes straight into the aim, so there
+    // is always a way out of placement without hunting for a button.
     if(s.inHand){
-      if(placeCue(s,p.x,p.y)){ placing=true; return; }
-      return;
+      if(Math.hypot(p.x-cue.x,p.y-cue.y)<=C.R*2.5){
+        s.inHand=null; updatePlaceBtn();
+      } else {
+        if(placeCue(s,p.x,p.y)) placing=true;
+        return;
+      }
     }
     if(cue.potted) return;
     if(Math.hypot(p.x-cue.x,p.y-cue.y)>60) return;   // must start near the cue ball
@@ -411,6 +417,14 @@
     aimTo=null;
   }
   let placing=false;
+  // An explicit way to leave placement, as well as just grabbing the cue ball.
+  function updatePlaceBtn(){
+    const b=$("placeok"); if(!b) return;
+    const show = !!s.inHand && s.phase==="aim" && !s.over;
+    b.style.display = show ? "" : "none";
+    b.textContent = s.inHand==="kitchen" ? "✓ Break from here" : "✓ Place it here";
+  }
+  $("placeok").addEventListener("click",()=>{ s.inHand=null; updatePlaceBtn(); });
   cv.addEventListener("mousedown",beginAim); cv.addEventListener("touchstart",beginAim,{passive:false});
   addEventListener("mousemove",moveAim);     cv.addEventListener("touchmove",moveAim,{passive:false});
   addEventListener("mouseup",endAim);        cv.addEventListener("touchend",endAim,{passive:false});
@@ -544,7 +558,7 @@
         if(s.over) Arcade.sfx.win();
       }
     }
-    draw(); hud(); requestAnimationFrame(frame);
+    draw(); hud(); updatePlaceBtn(); requestAnimationFrame(frame);
   }
   // ---- english picker: a cue ball you tap to choose the contact point ----
   const eCv=$("english"), eCtx=eCv?eCv.getContext("2d"):null;

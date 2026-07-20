@@ -46,7 +46,7 @@
   const C = {
     W:480, H:360,
     GROUND:340,
-    SEESAW_HW:34, SEESAW_TILT:14, SEESAW_SPEED:4.4, PLANK_T:6,
+    SEESAW_HW:37, SEESAW_TILT:15, SEESAW_SPEED:4.4, PLANK_T:7,
     CH_R:9,
     GRAV:0.15, LAUNCH_MIN:4.6, LAUNCH_MAX:9.2, BOUNCE_KEEP:1.02,   // slower fall, more hang time
     ROWS:3, PER_ROW:12, BAL_R:9, BAL_TOP:52, ROW_GAP:26,
@@ -164,14 +164,18 @@
         }
       }
 
-      // the plank
+      // The plank. Each half of it catches — the old test only accepted a narrow
+      // band near the tip, so plenty of landings that looked dead-on missed.
+      // The halves meet in the middle, so take whichever end she is nearer to
+      // rather than always testing the left one first.
       if(ch.vy>0){
-        for(const side of [-1,1]){
-          const ex=endX(s,side), ey=endY(s,side);
-          if(Math.abs(ch.x-ex)<=C.SEESAW_HW*0.62 && ch.y+C.CH_R>=ey-2 && ch.y+C.CH_R<=ey+12){
-            land(s, ch, side);
-            break;
-          }
+        const near = ch.x < s.x ? -1 : 1;
+        const ey=endY(s,near);
+        // Measured from the middle of the plank, so the zone is the plank itself
+        // plus her radius — anywhere over either half catches. Measuring from the
+        // tip instead would have reached well past the end of the board.
+        if(Math.abs(ch.x-s.x)<=C.SEESAW_HW+C.CH_R && ch.y+C.CH_R>=ey-2 && ch.y+C.CH_R<=ey+14){
+          land(s, ch, near);
         }
       }
 
