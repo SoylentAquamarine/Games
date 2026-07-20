@@ -47,7 +47,7 @@
   const C={ cols:12, rows:6 };
   const LADDERS=[{col:9,lower:5,upper:4},{col:2,lower:4,upper:3},{col:9,lower:3,upper:2},{col:4,lower:2,upper:1},{col:8,lower:1,upper:0}];
   function ladderAt(s,col,row,dir){ if(dir==="up") return s.ladders.find(L=>L.lower===row&&L.col===col)||null; return s.ladders.find(L=>L.upper===row&&L.col===col)||null; }
-  function newState(){ return { ladders:LADDERS.map(l=>({...l})), player:{col:1,row:C.rows-1,jump:0}, barrels:[], score:0, lives:3, over:false, won:false, spawnT:40 }; }
+  function newState(){ return { ladders:LADDERS.map(l=>({...l})), player:{col:1,row:C.rows-1,jump:0}, barrels:[], score:0, lives:3, over:false, won:false, spawnT:90 }; }
   function resetPlayer(s){ s.player.col=1; s.player.row=C.rows-1; s.player.jump=0; }
   function move(s, dir){ if(s.over||s.won) return s; const p=s.player;
     if(dir==="left") p.col=Math.max(0,p.col-1);
@@ -63,11 +63,20 @@
     const u=1-(p.jump/JUMP_FRAMES);        // 0 at take-off, 1 on landing
     return 4*JUMP_APEX*(u-u*u);
   }
-  function spawnBarrel(s){ s.barrels.push({col:0,row:0,dir:1,dodged:false}); }
+  // Girders alternate their slope row to row. An egg always rolls DOWN its
+  // girder — it used to keep whatever direction it had, so on half the rows it
+  // visibly rolled uphill.
+  const rowDir=(row)=>(row%2?-1:1);                       // +1 = falls to the right
+  function spawnBarrel(s){ s.barrels.push({col:0,row:0,dir:rowDir(0),dodged:false}); }
   function barrelStep(s){ for(const b of s.barrels){
+      b.dir=rowDir(b.row);                                 // always downhill
       const atEnd=(b.dir>0&&b.col>=C.cols-1)||(b.dir<0&&b.col<=0);
-      if(atEnd){ if(b.row<C.rows-1){ b.row++; b.dir=-b.dir; } else b.remove=true; }
-      else { const l=s.ladders.find(L=>L.upper===b.row&&L.col===b.col); if(l&&Math.random()<0.3) b.row=l.lower; else b.col+=b.dir; } }
+      if(atEnd){
+        // drop to the girder below, or off the bottom of the screen and gone
+        if(b.row<C.rows-1){ b.row++; b.dir=rowDir(b.row); } else b.remove=true;
+      }
+      else { const l=s.ladders.find(L=>L.upper===b.row&&L.col===b.col);
+        if(l&&Math.random()<0.3){ b.row=l.lower; b.dir=rowDir(b.row); } else b.col+=b.dir; } }
     s.barrels=s.barrels.filter(b=>!b.remove); return s; }
   function collide(s){ for(const b of s.barrels){ if(b.col===s.player.col&&b.row===s.player.row){
       if(s.player.jump>0){ if(!b.dodged){ b.dodged=true; s.score+=100; } }
@@ -85,7 +94,6 @@
   // Girders slope, alternating direction row to row, like the arcade cabinet.
   // SLOPE is the total rise across the full width.
   const SLOPE=16;
-  const rowDir=(row)=>(row%2?-1:1);                       // +1 = falls to the right
   const gy=(row,col)=>{ const base=row*RH+RH*0.72;
     const f2=(col==null?0.5:col/(C.cols-1));
     return base + rowDir(row)*SLOPE*(f2-0.5); };
@@ -160,8 +168,8 @@
     if(!GATE.open){ draw(); GATE.paint(); return requestAnimationFrame(frame); }
     if(!s.over&&!s.won){
       if(s.player.jump>0) s.player.jump--;
-      if(input && ++moveT>=(s.player.climb>0?13:9)){ moveT=0; move(s,input); }   // slower overall, slower still on a ladder
-      if(--s.spawnT<=0){ spawnBarrel(s); s.spawnT=100+Math.floor(Math.random()*60); }
+      if(input && ++moveT>=(s.player.climb>0?18:13)){ moveT=0; move(s,input); }   // slower overall, slower still on a ladder
+      if(--s.spawnT<=0){ spawnBarrel(s); s.spawnT=190+Math.floor(Math.random()*90); }   // fewer eggs on the girders
       if(++barrelT>=16){ barrelT=0; barrelStep(s); }
       collide(s);
       if(s.won) s.score+=500;
