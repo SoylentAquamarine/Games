@@ -19,7 +19,9 @@
   .hud{width:100%;display:flex;justify-content:space-between;gap:8px;font-size:.82rem;color:var(--muted)}
   .hud b{color:var(--text)}
   .carry{min-height:1.2em;color:#f5d020;font-weight:700}
-  canvas{width:min(92vw,440px);height:min(92vw,440px);border-radius:10px;border:2px solid #2a2f55;background:#000;touch-action:none}
+  canvas#game{width:min(92vw,440px);height:min(92vw,440px);border-radius:10px;border:2px solid #2a2f55;background:#000;touch-action:none}
+  canvas#map{width:120px;height:140px;border-radius:8px;border:1px solid rgba(255,255,255,.14);background:#0b0c1a}
+  .maplabel{font-size:.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
   .msg{min-height:1.3em;font-weight:700;text-align:center;color:#fde68a}
   .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:9px 20px;border-radius:999px;cursor:pointer}
   .controls{display:flex;width:100%;justify-content:space-between;align-items:center;gap:14px;margin-top:2px}
@@ -47,7 +49,11 @@
       <button class="u" data-dir="up">▲</button><button class="l" data-dir="left">◀</button>
       <button class="r" data-dir="right">▶</button><button class="d" data-dir="down">▼</button>
     </div>
-    <div class="rightctl"><button class="drop" id="dropbtn">Drop / Use</button></div>
+    <div class="rightctl">
+      <button class="drop" id="dropbtn">Drop / Use</button>
+      <canvas id="map" width="120" height="140" title="Rooms you have explored"></canvas>
+      <div class="maplabel">Map</div>
+    </div>
   </div>
   <details><summary>How to play</summary>
     <p><b>Goal:</b> Retrieve the Enchanted Chalice (locked inside the Black Castle) and carry it back to the Gold Castle.</p>
@@ -74,35 +80,64 @@
   const heroRect=(s)=>({x:s.hero.x,y:s.hero.y,w:HS,h:HS});
   const LABEL={sword:"Sword",bridge:"Bridge",goldkey:"Gold Key",blackkey:"Black Key",chalice:"Enchanted Chalice"};
 
+  // Every outdoor room sits on a real map grid, and the doorways are DERIVED from
+  // those coordinates rather than hand-written. That is what makes the world
+  // coherent: walking left, up, right, down always brings you back where you
+  // started, because each exit is simply "the room in the next cell over".
+  //
+  //        x=0        x=1        x=2        x=3        x=4
+  //  y=0                         granary    aviary
+  //  y=1   maze2      grotto     belfry
+  //  y=2   maze1      west       north
+  //  y=3   roost      ravine     commons    east       blackgate
+  //  y=4   henhouse   orchard    south      crypt
+  //  y=5                         catacomb
   const ROOMS={
-    commons:{ name:"The Commons", color:"#3a7d3a", exits:{N:"north",S:"south",E:"east",W:"west"},
+    commons:{ name:"The Commons", color:"#3a7d3a", gx:2, gy:3,
       castle:{name:"Gold",gate:{x:84,y:66,w:32,h:20},interior:"goldIn"} },
-    north:{ name:"Blue Antechamber", color:"#2b52a0", exits:{S:"commons",N:"belfry"} },
-    south:{ name:"Violet Hollow", color:"#6a2d8a", exits:{N:"commons",S:"catacomb"},
+    north:{ name:"Blue Antechamber", color:"#2b52a0", gx:2, gy:2 },
+    south:{ name:"Violet Hollow", color:"#6a2d8a", gx:2, gy:4,
       inner:[{x:40,y:96,w:52,h:12},{x:108,y:96,w:52,h:12}] },
-    east:{ name:"Teal Corridor", color:"#1f8a76", exits:{W:"commons",E:"blackgate"} },
-    blackgate:{ name:"The Black Gate", color:"#2a2a2a", exits:{W:"east"},
+    east:{ name:"Teal Corridor", color:"#1f8a76", gx:3, gy:3 },
+    blackgate:{ name:"The Black Gate", color:"#2a2a2a", gx:4, gy:3,
       inner:[{x:36,y:112,w:128,h:12}],
       castle:{name:"Black",gate:{x:84,y:52,w:32,h:20},interior:"blackIn"} },
-    west:{ name:"West Woods", color:"#3a6a2a", exits:{E:"commons",N:"grotto",W:"maze1"} },
-    grotto:{ name:"The Grotto", color:"#1f5a6a", exits:{S:"west",E:"ravine"} },
-    maze1:{ name:"Twisting Maze", color:"#6a5a2a", exits:{E:"west",W:"maze2"}, inner:[{x:40,y:60,w:12,h:120},{x:120,y:20,w:12,h:120}] },
-    maze2:{ name:"Deep Maze", color:"#5a3a6a", exits:{E:"maze1",S:"roost"}, inner:[{x:60,y:0,w:12,h:130},{x:132,y:70,w:12,h:130}] },
-    belfry:{ name:"The Belfry", color:"#2b4a8a", exits:{S:"north",N:"granary"} },
-    catacomb:{ name:"The Catacomb", color:"#3a2a3a", exits:{N:"south",E:"crypt"}, inner:[{x:90,y:40,w:12,h:100}] },
-    crypt:{ name:"The Crypt", color:"#242438", exits:{W:"catacomb",S:"orchard"} },
-    orchard:{ name:"The Orchard", color:"#2f6b34", exits:{N:"crypt",W:"henhouse"} },
-    henhouse:{ name:"The Henhouse", color:"#7a5a2a", exits:{E:"orchard",N:"ravine"},
+    west:{ name:"West Woods", color:"#3a6a2a", gx:1, gy:2 },
+    grotto:{ name:"The Grotto", color:"#1f5a6a", gx:1, gy:1 },
+    maze1:{ name:"Twisting Maze", color:"#6a5a2a", gx:0, gy:2, inner:[{x:40,y:60,w:12,h:120},{x:120,y:20,w:12,h:120}] },
+    maze2:{ name:"Deep Maze", color:"#5a3a6a", gx:0, gy:1, inner:[{x:60,y:0,w:12,h:130},{x:132,y:70,w:12,h:130}] },
+    belfry:{ name:"The Belfry", color:"#2b4a8a", gx:2, gy:1 },
+    catacomb:{ name:"The Catacomb", color:"#3a2a3a", gx:2, gy:5, inner:[{x:90,y:40,w:12,h:100}] },
+    crypt:{ name:"The Crypt", color:"#242438", gx:3, gy:4 },
+    orchard:{ name:"The Orchard", color:"#2f6b34", gx:1, gy:4 },
+    henhouse:{ name:"The Henhouse", color:"#7a5a2a", gx:0, gy:4,
       inner:[{x:60,y:70,w:80,h:12}] },
-    ravine:{ name:"Sunken Ravine", color:"#2a4a5a", exits:{S:"henhouse",W:"grotto",E:"roost"},
+    ravine:{ name:"Sunken Ravine", color:"#2a4a5a", gx:1, gy:3,
       inner:[{x:30,y:110,w:60,h:12},{x:110,y:60,w:60,h:12}] },
-    roost:{ name:"The High Roost", color:"#5a4a7a", exits:{W:"ravine",N:"maze2"} },
-    granary:{ name:"The Granary", color:"#6a5a3a", exits:{S:"belfry",E:"aviary"},
+    roost:{ name:"The High Roost", color:"#5a4a7a", gx:0, gy:3 },
+    granary:{ name:"The Granary", color:"#6a5a3a", gx:2, gy:0,
       inner:[{x:70,y:40,w:12,h:90}] },
-    aviary:{ name:"The Aviary", color:"#3a5a6a", exits:{W:"granary"} },
+    aviary:{ name:"The Aviary", color:"#3a5a6a", gx:3, gy:0 },
+    // Castle interiors sit off the grid — you leave the way you came in.
     goldIn:{ name:"Inside the Gold Castle", color:"#12101c", exits:{S:"commons"}, exitReturn:{x:96,y:96} },
     blackIn:{ name:"Inside the Black Castle", color:"#12101c", exits:{S:"blackgate"}, exitReturn:{x:96,y:80} },
   };
+
+  // Build every doorway from the grid, so reciprocity is guaranteed by
+  // construction rather than by remembering to write both halves.
+  const GRID_DIRS={ N:[0,-1], S:[0,1], E:[1,0], W:[-1,0] };
+  (function wireGrid(){
+    const at={};
+    for(const [id,r] of Object.entries(ROOMS)) if(r.gx!=null) at[r.gx+","+r.gy]=id;
+    for(const [id,r] of Object.entries(ROOMS)){
+      if(r.gx==null) continue;
+      r.exits={};
+      for(const [d,[dx,dy]] of Object.entries(GRID_DIRS)){
+        const n=at[(r.gx+dx)+","+(r.gy+dy)];
+        if(n) r.exits[d]=n;
+      }
+    }
+  })();
 
   function borderWalls(id){
     const ex=ROOMS[id].exits||{}, g0=80,g1=120, W=[];
@@ -157,6 +192,7 @@
     return {
       room:"commons", hero:{x:96,y:150,dir:"up"}, carry:null, won:false, dead:false,
       gates:{gold:false, black:false}, msg:"", dropLock:null,
+      visited:{commons:true},        // rooms drawn on the overworld map
       hp:100, inv:0,
       objects:(function(){
         // Items scatter across the outdoor rooms each game; the chalice always
@@ -265,6 +301,7 @@
     if(dx) s.hero.dir=dx>0?"right":"left"; else if(dy) s.hero.dir=dy>0?"down":"up";
     const wasRoom=s.room;
     moveHero(s,dx,dy); transition(s); castle(s); pickup(s);
+    if(s.visited) s.visited[s.room]=true;       // fills in the overworld map
     if(s.room!==wasRoom) placeDragonsAway(s);   // fresh room: give the hero room to react
     for(const d of s.dragons) dragonStep(s,d);
     return s;
@@ -374,6 +411,52 @@
         ctx.fillRect(g.x+g.w/2-1,g.y+g.h*0.42,2,4);
       }
     }
+    // Overworld map: only rooms you have actually stood in appear, drawn on the
+    // same grid the doorways come from, so it matches the world exactly.
+    const mapCv=$("map"), mapCtx=mapCv&&mapCv.getContext("2d");
+    function drawMap(){
+      if(!mapCtx) return;
+      const W=mapCv.width, H=mapCv.height;
+      mapCtx.clearRect(0,0,W,H);
+      mapCtx.fillStyle="#0b0c1a"; mapCtx.fillRect(0,0,W,H);
+      const cells=Object.entries(ROOMS).filter(([,r])=>r.gx!=null);
+      let maxX=0, maxY=0;
+      for(const [,r] of cells){ maxX=Math.max(maxX,r.gx); maxY=Math.max(maxY,r.gy); }
+      const pad=6, cw=(W-pad*2)/(maxX+1), ch=(H-pad*2)/(maxY+1);
+      const sz=Math.min(cw,ch)-2;
+      const px=(gx)=>pad+gx*cw+(cw-sz)/2, py=(gy)=>pad+gy*ch+(ch-sz)/2;
+      const seen=(id)=>state.visited&&state.visited[id];
+
+      // corridors between explored neighbours
+      mapCtx.strokeStyle="rgba(230,230,240,.28)"; mapCtx.lineWidth=1.5;
+      for(const [id,r] of cells){
+        if(!seen(id)) continue;
+        for(const [d,dest] of Object.entries(r.exits||{})){
+          if(!seen(dest)) continue;
+          const o=ROOMS[dest];
+          mapCtx.beginPath();
+          mapCtx.moveTo(px(r.gx)+sz/2, py(r.gy)+sz/2);
+          mapCtx.lineTo(px(o.gx)+sz/2, py(o.gy)+sz/2);
+          mapCtx.stroke();
+        }
+      }
+      for(const [id,r] of cells){
+        if(!seen(id)) continue;
+        const x=px(r.gx), y=py(r.gy), here=state.room===id ||
+          (ROOMS[state.room] && ROOMS[state.room].gx==null && r.castle &&
+           r.castle.interior===state.room);          // inside a castle: light its room
+        mapCtx.fillStyle=r.color;
+        mapCtx.fillRect(x,y,sz,sz);
+        if(r.castle){                                 // mark the two castles
+          mapCtx.fillStyle=r.castle.name==="Gold"?"#f5d020":"#c9c9dd";
+          mapCtx.fillRect(x+sz/2-2,y+sz/2-4,4,7);
+          mapCtx.fillRect(x+sz/2-4,y+sz/2-6,8,3);
+        }
+        mapCtx.strokeStyle=here?"#22d3ee":"rgba(0,0,0,.5)";
+        mapCtx.lineWidth=here?2:1;
+        mapCtx.strokeRect(x+.5,y+.5,sz-1,sz-1);
+      }
+    }
     function draw(){
       ctx.clearRect(0,0,SIZE,SIZE);
       const room=ROOMS[state.room];
@@ -408,7 +491,7 @@
       if(state.won){ /* frozen */ }
       else if(state.dead){ deathT+=16; if(deathT>1200){ respawn(state); deathT=0; } }
       else { tick(state,dir); if(state.won){ const t=(Date.now()-start)/1000; if(!best||t<best){ best=t; try{ localStorage.setItem("adventure_best",String(Math.floor(t))); }catch(e){} } } }
-      draw(); hud(); requestAnimationFrame(frame);
+      draw(); drawMap(); hud(); requestAnimationFrame(frame);
     }
 
     const KEY={ArrowUp:"up",ArrowDown:"down",ArrowLeft:"left",ArrowRight:"right",w:"up",s:"down",a:"left",d:"right",W:"up",S:"down",A:"left",D:"right"};
