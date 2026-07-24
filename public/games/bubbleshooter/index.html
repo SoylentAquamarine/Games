@@ -52,9 +52,14 @@
       ov.classList.add("hidden");running=true;draw();}
     function randColor(){const present=new Set();for(const row of grid)for(const v of row)if(v)present.add(v);
       const pool=present.size?[...present]:COLORS;return pool[Math.floor(Math.random()*pool.length)];}
+    // Every egg travels at the same speed now. It used to speed up shot by shot:
+    // shoot() started a fresh animation loop each time, and the old loop never
+    // stopped, so N shots meant N loops all moving the egg at once. The loop now
+    // ends the moment the egg settles, so exactly one runs — and 16 is the speed
+    // the second shot used to reach, which felt right.
     function shoot(){if(fly||!running)return;const dx=aim.x-shooter.x,dy=aim.y-shooter.y;const len=Math.hypot(dx,dy)||1;
-      if(dy>-4)return;const sp=8;fly={x:shooter.x,y:shooter.y,vx:dx/len*sp,vy:dy/len*sp,color:cur};loop();}
-    function loop(){if(!running){return;}update();draw();raf=requestAnimationFrame(loop);}
+      if(dy>-4)return;const sp=16;fly={x:shooter.x,y:shooter.y,vx:dx/len*sp,vy:dy/len*sp,color:cur};loop();}
+    function loop(){if(!running||!fly){draw();return;}update();draw();raf=requestAnimationFrame(loop);}
     function update(){
       if(!fly)return;
       fly.x+=fly.vx;fly.y+=fly.vy;
