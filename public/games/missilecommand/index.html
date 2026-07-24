@@ -34,21 +34,46 @@
 <script src="/arcade.js"></script>
 <script>
 (function(){
-  const C={ W:360,H:300, GROUND_Y:280, N_CITIES:6, EXP_MAX_R:30, EXP_GROW:1.0, EXP_LIFE:55, ENEMY_SPEED:0.55, INT_SPEED:6, BASE_AMMO:10, BASE_X:[20,180,340], CITY_X:[60,100,140,220,260,300], INTERMISSION:120 };   // 2s pause between waves at 60fps
+  const C={ W:360,H:300, GROUND_Y:280, N_CITIES:6, EXP_MAX_R:30, EXP_GROW:1.0, EXP_LIFE:55, ENEMY_SPEED:0.55, INT_SPEED:6, BASE_AMMO:10, BASE_X:[20,180,340], CITY_X:[60,100,140,220,260,300], INTERMISSION:120, RECOVER_EVERY:8000, FLYBY_EVERY:5, BOMB_SPEED:1.1 };   // 2s pause between waves
   const dist=(ax,ay,bx,by)=>Math.hypot(ax-bx,ay-by);
 
   function newGame(){
     // Two groups of three, tucked between the three bases so nothing overlaps.
     const cities=C.CITY_X.map(x=>({x,alive:true}));
     const bases=C.BASE_X.map(x=>({x,ammo:C.BASE_AMMO,dead:false}));
-    const s={cities,bases,enemies:[],interceptors:[],explosions:[],score:0,wave:0,waveLeftToSpawn:0,spawnTimer:0,spawnEvery:80,intermission:null,enemySpeed:C.ENEMY_SPEED,over:false};
+    const s={cities,bases,enemies:[],interceptors:[],explosions:[],score:0,wave:0,waveLeftToSpawn:0,spawnTimer:0,spawnEvery:80,intermission:null,enemySpeed:C.ENEMY_SPEED,over:false,
+      nextRecover:C.RECOVER_EVERY, flyby:null, bombs:[], flybyMsg:0};
     startWave(s); return s;
   }
   // Every per-wave growth term is scaled by 0.9, so the curve rises the same
   // shape but 10% less steeply: fewer missiles per wave, a longer gap between
   // launches, and a gentler speed climb.
-  function startWave(s){ s.wave++; s.waveLeftToSpawn=Math.round(3+s.wave*1.8); s.spawnEvery=Math.max(24,90-s.wave*7.2); s.spawnTimer=25; s.enemySpeed=C.ENEMY_SPEED+s.wave*0.09;
-    if(s.bases) for(const b of s.bases) if(!b.dead) b.ammo=C.BASE_AMMO; }   // ammo replenishes, but a destroyed launcher stays dead
+  // Eased further: fewer extra missiles per wave, a gap that closes more slowly,
+  // and a speed climb that is both gentler and capped, so the ramp is a long
+  // shallow slope rather than a wall by wave 8.
+  function startWave(s){ s.wave++;
+    s.waveLeftToSpawn=Math.round(3+s.wave*1.25);
+    s.spawnEvery=Math.max(30,92-s.wave*5);
+    s.spawnTimer=25;
+    s.enemySpeed=Math.min(1.25, C.ENEMY_SPEED+s.wave*0.06);
+    if(s.bases) for(const b of s.bases) if(!b.dead) b.ammo=C.BASE_AMMO;
+    // the bomber chicken flies over on the intermission before every 5th wave
+    if(s.wave%C.FLYBY_EVERY===0){
+      const fromLeft=Math.random()<0.5;
+      s.flyby={ x: fromLeft?-24:C.W+24, y:34, vx:(fromLeft?1:-1)*1.4, dropT:40, alive:true };
+      s.flybyMsg=90;
+    }
+  }
+  // Score milestones rebuild a lost coop, or failing that a dead launcher.
+  function recover(s){
+    while(s.score>=s.nextRecover){
+      s.nextRecover+=C.RECOVER_EVERY;
+      const city=s.cities.find(c=>!c.alive);
+      if(city){ city.alive=true; city.rebuilt=30; continue; }
+      const base=s.bases.find(b=>b.dead);
+      if(base){ base.dead=false; base.ammo=C.BASE_AMMO; base.rebuilt=30; }
+    }
+  }
   // Each round gets its own missile and trail colours, cycling through a set of
   // clearly distinct hues so you can tell waves apart at a glance.
   const WAVE_COLORS=[
@@ -97,6 +122,9 @@
     for(const e of s.explosions) stepExplosion(e);
     for(const e of s.explosions){ if(e.life<=0) continue; for(const m of s.enemies){ if(explosionHits(e,m)){ m.alive=false; s.score+=25;
       if(typeof Arcade!=="undefined") Arcade.sfx.hit(); } } }
+    stepFlyby(s);
+    if(s.flybyMsg>0) s.flybyMsg--;
+    recover(s);
     s.enemies=s.enemies.filter(m=>m.alive);
     s.explosions=s.explosions.filter(e=>e.life>0);
     // Breather between waves: hold for 2 seconds and announce the next one.
@@ -108,7 +136,38 @@
     if(s.cities.every(c=>!c.alive)) s.over=true;
     return s;
   }
-  window.__mc={ newGame, startWave, spawnEnemy, stepEnemy, fire, stepExplosion, explosionHits, cityIndexAtX, tick, dist, C };
+  function stepFlyby(s){
+    // the spacesuit chicken crosses the top dropping bombs; explosions kill both
+    if(s.flyby){
+      const fb=s.flyby;
+      fb.x+=fb.vx;
+      if(--fb.dropT<=0 && fb.x>10 && fb.x<C.W-10){
+        fb.dropT=45+Math.floor(Math.random()*30);
+        const targets=[...s.cities.filter(c=>c.alive), ...s.bases.filter(b=>!b.dead)];
+        const tgt=targets.length?targets[Math.floor(Math.random()*targets.length)]:{x:fb.x};
+        s.bombs.push({x:fb.x,y:fb.y+6,tx:tgt.x,ty:C.GROUND_Y});
+      }
+      // a blast catching the chicken is worth a bonus and ends the run
+      for(const e of s.explosions){ if(e.life>0 && dist(e.x,e.y,fb.x,fb.y)<=e.r+8){ s.score+=1000; s.flyby=null; break; } }
+      if(s.flyby && (fb.x<-30||fb.x>C.W+30)) s.flyby=null;
+    }
+    // bombs fall like enemy missiles and can be shot down
+    for(const b of s.bombs){
+      const dx=b.tx-b.x, dy=b.ty-b.y, d=Math.hypot(dx,dy)||1;
+      b.x+=dx/d*C.BOMB_SPEED; b.y+=dy/d*C.BOMB_SPEED;
+      if(b.y>=C.GROUND_Y){ b.dead=true;
+        const bi=s.bases.findIndex(x=>!x.dead && Math.abs(x.x-b.x)<=14);
+        if(bi>=0){ s.bases[bi].dead=true; s.bases[bi].ammo=0; }
+        else { const ci=cityIndexAtX(s.cities,b.x); if(ci>=0&&s.cities[ci].alive){ s.cities[ci].alive=false;
+          if(typeof Arcade!=="undefined") Arcade.sfx.death(); } }
+      }
+    }
+    for(const e of s.explosions){ if(e.life<=0) continue;
+      for(const b of s.bombs){ if(!b.dead && dist(e.x,e.y,b.x,b.y)<=e.r+3){ b.dead=true; s.score+=50;
+        if(typeof Arcade!=="undefined") Arcade.sfx.hit(); } } }
+    s.bombs=s.bombs.filter(b=>!b.dead);
+  }
+  window.__mc={ newGame, startWave, spawnEnemy, stepEnemy, fire, stepExplosion, explosionHits, cityIndexAtX, tick, stepFlyby, recover, dist, C };
 
   if(typeof document==="undefined") return;
   const $=(id)=>document.getElementById(id);
@@ -129,7 +188,9 @@
         ctx.fillStyle="#dc2626"; ctx.beginPath();                                                 // pitched roof
         ctx.moveTo(c.x-17,C.GROUND_Y-16); ctx.lineTo(c.x,C.GROUND_Y-26); ctx.lineTo(c.x+17,C.GROUND_Y-16); ctx.closePath(); ctx.fill();
         ctx.fillStyle="#78350f"; ctx.fillRect(c.x-5,C.GROUND_Y-11,10,11);                         // doorway
-        ctx.fillStyle="#facc15"; ctx.beginPath(); ctx.arc(c.x,C.GROUND_Y-6,3,0,7); ctx.fill(); }  // hen peeking out
+        ctx.fillStyle="#facc15"; ctx.beginPath(); ctx.arc(c.x,C.GROUND_Y-6,3,0,7); ctx.fill();     // hen peeking out
+        if(c.rebuilt>0){ ctx.strokeStyle="rgba(52,211,153,"+(c.rebuilt/30)+")"; ctx.lineWidth=2;   // rebuild glow
+          ctx.strokeRect(c.x-16,C.GROUND_Y-27,32,27); c.rebuilt--; } }
       else { ctx.fillStyle="#3a2f2f"; ctx.fillRect(c.x-12,C.GROUND_Y-5,24,5); } }
     // missile bases with ammo count
     for(const b of s.bases){
@@ -144,6 +205,26 @@
     for(const m of s.enemies){ ctx.strokeStyle="rgba("+wc.trail+",.55)"; ctx.lineWidth=1.4; ctx.beginPath(); ctx.moveTo(m.ox,m.oy); ctx.lineTo(m.x,m.y); ctx.stroke();
       ctx.fillStyle=wc.missile; ctx.beginPath(); ctx.arc(m.x,m.y,2.8,0,7); ctx.fill();
       ctx.fillStyle="rgba(255,255,255,.85)"; ctx.beginPath(); ctx.arc(m.x,m.y,1.1,0,7); ctx.fill(); }
+    // the bomber chicken's bombs, in a warning red
+    for(const b of s.bombs){ ctx.strokeStyle="rgba(244,63,94,.5)"; ctx.lineWidth=1.4;
+      ctx.beginPath(); ctx.moveTo(b.x-(b.tx-b.x)*0.04,b.y-(b.ty-b.y)*0.04); ctx.lineTo(b.x,b.y); ctx.stroke();
+      ctx.fillStyle="#f43f5e"; ctx.beginPath(); ctx.arc(b.x,b.y,3,0,7); ctx.fill();
+      ctx.fillStyle="#fde68a"; ctx.beginPath(); ctx.arc(b.x,b.y,1.2,0,7); ctx.fill(); }
+    // the bomber himself
+    if(s.flyby){
+      const fb=s.flyby, r=9;
+      ctx.save(); ctx.translate(fb.x,fb.y); ctx.scale(fb.vx>0?1:-1,1);
+      ctx.fillStyle="#fb923c"; ctx.beginPath(); ctx.moveTo(-r*0.9,0); ctx.lineTo(-r*1.9,-r*0.5); ctx.lineTo(-r*1.9,r*0.5); ctx.closePath(); ctx.fill();
+      ctx.fillStyle="#cbd5e1"; ctx.fillRect(-r*1.3,-r*0.7,r*0.9,r*1.4);
+      ctx.fillStyle="#f0902a"; ctx.beginPath(); ctx.arc(0,0,r*0.85,0,7); ctx.fill();
+      ctx.fillStyle="#dc2626"; ctx.beginPath(); ctx.arc(-r*0.2,-r*0.9,r*0.18,0,7); ctx.arc(r*0.1,-r*1.0,r*0.2,0,7); ctx.arc(r*0.4,-r*0.9,r*0.18,0,7); ctx.fill();
+      ctx.fillStyle="#fff"; ctx.beginPath(); ctx.arc(r*0.3,-r*0.2,r*0.24,0,7); ctx.fill();
+      ctx.fillStyle="#0b0c1a"; ctx.beginPath(); ctx.arc(r*0.36,-r*0.2,r*0.12,0,7); ctx.fill();
+      ctx.fillStyle="#facc15"; ctx.beginPath(); ctx.moveTo(r*0.75,0); ctx.lineTo(r*1.4,r*0.18); ctx.lineTo(r*0.75,r*0.3); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle="rgba(186,230,253,.85)"; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(0,-r*0.1,r*1.35,0,7); ctx.stroke();
+      ctx.fillStyle="rgba(186,230,253,.15)"; ctx.beginPath(); ctx.arc(0,-r*0.1,r*1.35,0,7); ctx.fill();
+      ctx.restore();
+    }
     for(const e of s.explosions){ const g=ctx.createRadialGradient(e.x,e.y,0,e.x,e.y,Math.max(1,e.r));
       g.addColorStop(0,"rgba(255,255,255,.95)"); g.addColorStop(.5,"rgba(34,211,238,.7)"); g.addColorStop(1,"rgba(124,92,255,0)");
       ctx.fillStyle=g; ctx.beginPath(); ctx.arc(e.x,e.y,Math.max(1,e.r),0,7); ctx.fill(); }
@@ -166,6 +247,12 @@
       ctx.fillStyle="#ffcf5a";            ctx.fillText("NEXT WAVE COMING",C.W/2+j(),C.H/2+j());
       ctx.fillStyle="#e6e6f0"; ctx.font="13px system-ui";
       ctx.fillText("Wave "+(s.wave+1)+" · ammo reloaded",C.W/2,C.H/2+24);
+    }
+    // the bomber's arrival, called out over the intermission
+    if(!s.over && s.flybyMsg>0){
+      const j=()=>(Math.random()-0.5)*4;
+      ctx.font="bold 16px system-ui"; ctx.textAlign="center";
+      ctx.fillStyle="#f43f5e"; ctx.fillText("🚀 BOMBER CHICKEN — shoot it down!",C.W/2+j(),C.H/2+48+j());
     }
     if(s.over){ ctx.fillStyle="rgba(0,0,0,.55)"; ctx.fillRect(0,0,C.W,C.H); ctx.fillStyle="#f43f5e"; ctx.font="bold 26px system-ui"; ctx.textAlign="center"; ctx.fillText("GAME OVER",C.W/2,C.H/2-6);
       ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Score "+s.score+(best?"  ·  Best "+best:""),C.W/2,C.H/2+18); }
