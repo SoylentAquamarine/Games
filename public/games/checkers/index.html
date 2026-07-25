@@ -120,22 +120,40 @@
       ctx.beginPath();ctx.arc(x,cy,r*0.76,0,7);ctx.stroke();
       chickenFace(x,cy,r,dark);
       if(isKing(v)){
-        // a proper little crown sitting on the chicken's head, rather than an emoji
-        const cw=r*0.86, ch=r*0.42, top=cy-r*0.78;
-        ctx.fillStyle="#f5d020";
+        // A big, unmistakable gold crown sitting across the piece — bold dark
+        // outline so it reads at any size, jewels on the band and a shine.
+        const cw=r*1.25, ch=r*0.62, top=cy-r*0.30;
+        const pts=[
+          [x-cw/2, top+ch],
+          [x-cw/2, top+ch*0.20],
+          [x-cw*0.28, top+ch*0.62],
+          [x-cw*0.13, top-ch*0.18],
+          [x,        top+ch*0.52],
+          [x+cw*0.13, top-ch*0.18],
+          [x+cw*0.28, top+ch*0.62],
+          [x+cw/2, top+ch*0.20],
+          [x+cw/2, top+ch],
+        ];
         ctx.beginPath();
-        ctx.moveTo(x-cw/2, top+ch);
-        ctx.lineTo(x-cw/2, top+ch*0.25);
-        ctx.lineTo(x-cw*0.25, top+ch*0.68);
-        ctx.lineTo(x, top-ch*0.10);
-        ctx.lineTo(x+cw*0.25, top+ch*0.68);
-        ctx.lineTo(x+cw/2, top+ch*0.25);
-        ctx.lineTo(x+cw/2, top+ch);
-        ctx.closePath(); ctx.fill();
-        ctx.strokeStyle="#8a6d1a"; ctx.lineWidth=1.5; ctx.stroke();
-        ctx.fillStyle="#fff7cc"; ctx.fillRect(x-cw/2, top+ch*0.72, cw, ch*0.22);
-        ctx.fillStyle="#e0342c";
-        ctx.beginPath(); ctx.arc(x, top+ch*0.42, r*0.10, 0, 7); ctx.fill();
+        ctx.moveTo(pts[0][0],pts[0][1]);
+        for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i][0],pts[i][1]);
+        ctx.closePath();
+        // dark halo first, so the gold pops off any square colour
+        ctx.strokeStyle="#1a1205"; ctx.lineWidth=4; ctx.lineJoin="round"; ctx.stroke();
+        const g=ctx.createLinearGradient(0,top,0,top+ch);
+        g.addColorStop(0,"#fff3b0"); g.addColorStop(0.5,"#f5d020"); g.addColorStop(1,"#c99a12");
+        ctx.fillStyle=g; ctx.fill();
+        ctx.strokeStyle="#8a6d1a"; ctx.lineWidth=1; ctx.stroke();
+        // jewelled band
+        ctx.fillStyle="#e0342c"; ctx.fillRect(x-cw/2, top+ch*0.62, cw, ch*0.30);
+        ctx.strokeStyle="#1a1205"; ctx.lineWidth=1.5; ctx.strokeRect(x-cw/2, top+ch*0.62, cw, ch*0.30);
+        // three gems along the points
+        for(const jx of [-cw*0.28, 0, cw*0.28]){
+          ctx.fillStyle= jx===0 ? "#22d3ee" : "#f43f5e";
+          ctx.beginPath(); ctx.arc(x+jx, top+ch*0.30, r*0.11, 0, 7); ctx.fill();
+          ctx.strokeStyle="#1a1205"; ctx.lineWidth=1; ctx.stroke();
+          ctx.fillStyle="rgba(255,255,255,.7)"; ctx.beginPath(); ctx.arc(x+jx-r*0.03, top+ch*0.26, r*0.03, 0, 7); ctx.fill();
+        }
       }
       ctx.restore();
     }
