@@ -136,7 +136,10 @@
       ctx.fillStyle="#dc2626"; ctx.beginPath(); ctx.arc(kx+11,ky+4,3,0,7); ctx.fill(); }
     ctx.font="20px system-ui"; ctx.textAlign="center"; ctx.fillText("🥚",cx(3),gy(0,3)-4);
     for(const b of s.barrels){ ease(b,cx(b.col),gy(b.row,b.col)-4,0.18);
-      ctx.save(); ctx.translate(b.ax,b.ay); ctx.rotate(b.ax*0.06*b.dir);   // roll as it travels
+      // Spin follows the egg's actual screen movement, so it always rolls the way
+      // it travels. The old `*b.dir` factor flipped the spin on every leftward
+      // ramp — which is why half the ramps rotated the wrong way.
+      ctx.save(); ctx.translate(b.ax,b.ay); ctx.rotate(b.ax*0.06);
       const er=CW*0.32;                                                    // tumbling egg
       ctx.fillStyle="#f3ead7"; ctx.strokeStyle="#c9bda3"; ctx.lineWidth=1.5;
       ctx.beginPath(); ctx.moveTo(0,-er);
