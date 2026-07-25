@@ -215,23 +215,26 @@
       // hero chicken (blink when invulnerable)
       if(player.inv<=0||Math.floor(player.inv/5)%2===0){
         const s=player.size, hx=player.x+s/2, hy=player.y+s/2;
-        ctx.fillStyle="#c96f14";                                     // tail feathers
-        ctx.beginPath(); ctx.moveTo(hx-s*0.30,hy); ctx.lineTo(hx-s*0.62,hy-s*0.24); ctx.lineTo(hx-s*0.30,hy+s*0.26); ctx.closePath(); ctx.fill();
-        ctx.fillStyle="#dc2626";                                     // comb
-        ctx.beginPath(); ctx.arc(hx-s*0.14,hy-s*0.42,s*0.10,0,7); ctx.arc(hx,hy-s*0.48,s*0.11,0,7); ctx.arc(hx+s*0.14,hy-s*0.42,s*0.10,0,7); ctx.fill();
+        // The whole chicken now turns to face the way you walk: drawn in a local
+        // frame that faces +x (forward), then rotated by the travel direction, so
+        // the tail always trails behind rather than sitting on the left.
+        const ang = player.dir===3?0 : player.dir===1?Math.PI/2 : player.dir===2?Math.PI : -Math.PI/2;
+        ctx.save(); ctx.translate(hx,hy); ctx.rotate(ang);
+        ctx.fillStyle="#c96f14";                                     // tail feathers (trailing, -x)
+        ctx.beginPath(); ctx.moveTo(-s*0.30,0); ctx.lineTo(-s*0.62,-s*0.24); ctx.lineTo(-s*0.30,s*0.26); ctx.closePath(); ctx.fill();
         ctx.fillStyle="#facc15";                                     // body
-        ctx.beginPath(); ctx.arc(hx,hy,s*0.40,0,7); ctx.fill();
+        ctx.beginPath(); ctx.arc(0,0,s*0.40,0,7); ctx.fill();
         ctx.fillStyle="#fde68a";                                     // wing
-        ctx.beginPath(); ctx.ellipse(hx-s*0.06,hy+s*0.06,s*0.22,s*0.13,0,0,7); ctx.fill();
-        // beak points the way you're facing, replacing the old facing marker
-        ctx.fillStyle="#fb923c"; ctx.beginPath();
-        if(player.dir===0){ ctx.moveTo(hx-4,hy-s*0.36); ctx.lineTo(hx+4,hy-s*0.36); ctx.lineTo(hx,hy-s*0.60); }
-        else if(player.dir===1){ ctx.moveTo(hx-4,hy+s*0.36); ctx.lineTo(hx+4,hy+s*0.36); ctx.lineTo(hx,hy+s*0.60); }
-        else if(player.dir===2){ ctx.moveTo(hx-s*0.36,hy-4); ctx.lineTo(hx-s*0.36,hy+4); ctx.lineTo(hx-s*0.60,hy); }
-        else { ctx.moveTo(hx+s*0.36,hy-4); ctx.lineTo(hx+s*0.36,hy+4); ctx.lineTo(hx+s*0.60,hy); }
-        ctx.closePath(); ctx.fill();
-        ctx.fillStyle="#0b0c1a";                                     // eyes
-        ctx.beginPath(); ctx.arc(hx-s*0.14,hy-s*0.12,s*0.06,0,7); ctx.arc(hx+s*0.14,hy-s*0.12,s*0.06,0,7); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(-s*0.02,s*0.10,s*0.22,s*0.13,0,0,7); ctx.fill();
+        ctx.fillStyle="#dc2626";                                     // comb, up over the leading head
+        ctx.beginPath(); ctx.arc(s*0.16,-s*0.34,s*0.10,0,7); ctx.arc(s*0.28,-s*0.30,s*0.11,0,7); ctx.arc(s*0.36,-s*0.20,s*0.10,0,7); ctx.fill();
+        ctx.fillStyle="#fb923c";                                     // beak, leading (+x)
+        ctx.beginPath(); ctx.moveTo(s*0.40,-4); ctx.lineTo(s*0.40,4); ctx.lineTo(s*0.62,0); ctx.closePath(); ctx.fill();
+        ctx.fillStyle="#dc2626";                                     // wattle under the beak
+        ctx.beginPath(); ctx.arc(s*0.40,s*0.06,s*0.05,0,7); ctx.fill();
+        ctx.fillStyle="#fff"; ctx.beginPath(); ctx.arc(s*0.22,-s*0.14,s*0.09,0,7); ctx.fill();   // eye white
+        ctx.fillStyle="#0b0c1a"; ctx.beginPath(); ctx.arc(s*0.26,-s*0.14,s*0.05,0,7); ctx.fill(); // pupil
+        ctx.restore();
       }
       // sword
       if(player.atk>6){ctx.fillStyle="#fde68a";const cx=player.x+player.size/2,cy=player.y+player.size/2,len=26;
