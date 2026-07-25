@@ -33,7 +33,7 @@
   <div class="wrap">
     <div class="topbar"><a class="home" href="/">← Home</a><h1>🐔 Chickenland</h1><span style="width:56px"></span></div>
     <div class="players" id="players"></div>
-    <canvas id="board" width="480" height="620"></canvas>
+    <canvas id="board" width="620" height="480"></canvas>
     <div class="status" id="status">Draw a card to move!</div>
     <div class="card" id="card"></div>
     <div class="btns">
@@ -72,15 +72,17 @@
     // The lane: a single winding path that snakes up the yard, the way the
     // real board does — six sweeping bands joined by bulging U-turns.
     // ---------------------------------------------------------------------
+    // Horizontal board: the lane snakes across in six vertical bands running left
+    // to right, joined by U-turns, starting bottom-left and ending top-right.
     function laneCurve(){
-      const pts=[], BANDS=6, x0=52, x1=428, yBot=556, dy=92;
+      const pts=[], BANDS=6, y0=52, y1=428, xLeft=60, dx=92;
       for(let b=0;b<BANDS;b++){
-        const y=yBot-b*dy, dir=b%2?-1:1;
-        const from=dir>0?x0:x1, to=dir>0?x1:x0;
-        for(let t=0;t<=1.0001;t+=0.02) pts.push({x:from+(to-from)*t, y:y+Math.sin(t*Math.PI*2)*15});
+        const x=xLeft+b*dx, dir=b%2?-1:1;             // odd bands run up, even run down
+        const from=dir>0?y1:y0, to=dir>0?y0:y1;
+        for(let t=0;t<=1.0001;t+=0.02) pts.push({x:x+Math.sin(t*Math.PI*2)*15, y:from+(to-from)*t});
         if(b<BANDS-1){
-          const cx=dir>0?x1:x0;
-          for(let t=0.06;t<=1.0001;t+=0.06) pts.push({x:cx+dir*26*Math.sin(t*Math.PI), y:y-dy*t});
+          const cy=dir>0?y0:y1;
+          for(let t=0.06;t<=1.0001;t+=0.06) pts.push({x:x+dx*t, y:cy+dir*26*Math.sin(t*Math.PI)});
         }
       }
       return pts;
@@ -213,12 +215,12 @@
       ctx.fillStyle="#45832f";
       for(let y=0;y<H;y+=26) ctx.fillRect(0,y,W,13);
       // scenery behind the lane
-      pond(392,470,52,30);
-      coop(70,300,1.15);
-      hay(410,250,1.1); hay(382,268,0.9);
-      hay(64,150,1.0);
+      pond(300,432,54,28);
+      coop(560,90,1.1);
+      hay(300,60,1.05); hay(276,74,0.85);
+      hay(560,410,1.0);
       for(const d of DECOR) tuft(d.x,d.y,d.s);
-      fence(36);
+      fence(20);
 
       // the lane itself: a dirt track under the patches
       ctx.strokeStyle="#b98a52"; ctx.lineWidth=40; ctx.lineJoin="round"; ctx.lineCap="round";
@@ -227,9 +229,9 @@
       ctx.stroke();
       ctx.strokeStyle="#caa06a"; ctx.lineWidth=32; ctx.stroke();
 
-      // start marker
-      ctx.fillStyle="#f4e4c1"; ctx.beginPath(); ctx.roundRect(6,578,52,34,8); ctx.fill();
-      ctx.fillStyle="#3b2412"; ctx.font="bold 12px system-ui"; ctx.textAlign="center"; ctx.fillText("START",32,599);
+      // start marker, pinned to the first patch wherever the lane begins
+      { const t0=TILES[0]; ctx.fillStyle="#f4e4c1"; ctx.beginPath(); ctx.roundRect(t0.x-26,t0.y-34,52,20,7); ctx.fill();
+        ctx.fillStyle="#3b2412"; ctx.font="bold 11px system-ui"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText("START",t0.x,t0.y-24); ctx.textBaseline="alphabetic"; }
 
       // patches
       TILES.forEach((t,i)=>{
@@ -298,38 +300,49 @@
       d.innerHTML=TOKENS[i]+" "+n+"<br>"+(pos[i]<0?"start":(pos[i]>=N-1?"🏠":"sq "+(pos[i]+1)));playersEl.appendChild(d);});}
     function showCard(card){cardEl.innerHTML="";const n=card.double?2:1;for(let k=0;k<n;k++){const chip=document.createElement("div");chip.className="chip";chip.style.background=COLORS[card.c][1];cardEl.appendChild(chip);}}
 
+    // Whose turn it is, in plain words. "YOUR TURN" for you, "CPU 1'S TURN" etc.
+    function turnLabel(){ return turn===0 ? "YOUR TURN" : PNAMES[turn].toUpperCase()+"'S TURN"; }
+    function announceTurn(){ if(!over){ statusEl.textContent = turnLabel() + (turn===0 ? " — draw a card!" : "…"); } }
+
     function newGame(){buildSpaces();deck=buildDeck();pos=[-1,-1,-1];skip=[false,false,false];turn=0;over=false;
       anim=null;confetti=[];winner=-1;
-      statusEl.textContent="Your turn — draw a card!";cardEl.innerHTML="";renderPlayers();drawBtn.disabled=false;}
+      cardEl.innerHTML="";renderPlayers();announceTurn();drawBtn.disabled=false;}
 
+    // A turn runs in beats so it never feels rushed: announce whose turn, a pause,
+    // draw the card (shown while you read it), a pause, then the piece hops.
     function draw(){
       if(over||anim)return;
       if(!deck.length)deck=buildDeck();
       const card=deck.pop();showCard(card);
       const from=pos[turn], dest=nextOf(card,from);
-      let msg=PNAMES[turn]+" → "+COLORS[card.c][0]+(card.double?" (double)":"");
-      statusEl.textContent=msg+" — hopping…";
+      const msg=PNAMES[turn]+" drew "+COLORS[card.c][0]+(card.double?" (double)":"");
+      statusEl.textContent=msg;
       drawBtn.disabled=true;
-      // hop one patch at a time so you can follow the move
-      const path=[]; for(let i=from+1;i<=dest;i++) path.push(i);
-      if(!path.length) path.push(dest);
-      pos[turn]=dest;
-      anim={pi:turn, from, path, step:0, t:0, onDone:()=>{
-        if(dest>=N-1){ over=true; winner=turn; popConfetti();
-          if(typeof Arcade!=="undefined") Arcade.sfx.win();
-          statusEl.textContent="🏠 "+PNAMES[turn]+" got home — "+(turn===0?"you win!":"CPU wins.");
-          drawBtn.disabled=true; renderPlayers(); return; }
-        if(mud.has(dest)){ skip[turn]=true; msg+=" — stuck in the mud! lose a turn."; }
-        statusEl.textContent=msg;
-        advance();
-      }};
+      // a beat to read the card, then the move
+      setTimeout(()=>{
+        if(over)return;
+        const path=[]; for(let i=from+1;i<=dest;i++) path.push(i);
+        if(!path.length) path.push(dest);
+        pos[turn]=dest;
+        statusEl.textContent=msg+" — hopping…";
+        anim={pi:turn, from, path, step:0, t:0, onDone:()=>{
+          if(dest>=N-1){ over=true; winner=turn; popConfetti();
+            if(typeof Arcade!=="undefined") Arcade.sfx.win();
+            statusEl.textContent="🏠 "+PNAMES[turn]+" got home — "+(turn===0?"you win!":"CPU wins.");
+            drawBtn.disabled=true; renderPlayers(); return; }
+          let endMsg=msg;
+          if(mud.has(dest)){ skip[turn]=true; endMsg+=" — stuck in the mud! lose a turn."; }
+          statusEl.textContent=endMsg;
+          setTimeout(()=>{ if(!over) advance(); }, 600);   // a beat before the next player
+        }};
+      }, 700);
     }
     function advance(){
       let next=turn;
       for(let k=0;k<3;k++){next=(next+1)%3;if(skip[next]){skip[next]=false;continue;}break;}
-      turn=next;renderPlayers();
-      if(turn===0){drawBtn.disabled=false;statusEl.textContent+=" · Your turn.";}
-      else{drawBtn.disabled=true;setTimeout(()=>{if(!over)draw();},700);}
+      turn=next;renderPlayers();announceTurn();
+      if(turn===0){ drawBtn.disabled=false; }
+      else { drawBtn.disabled=true; setTimeout(()=>{ if(!over) draw(); }, 1000); }   // CPU thinks, then draws
     }
     drawBtn.addEventListener("click",()=>{if(turn===0&&!over&&!anim)draw();});
     document.getElementById("new").addEventListener("click",newGame);
