@@ -35,7 +35,7 @@
     <div class="topbar"><a class="home" href="/">← Home</a><h1>🐔 Chicken Invaders</h1><span style="width:64px"></span></div>
     <div class="scores">
       <div class="stat"><div class="label">Score</div><div class="value" id="score">0</div></div>
-      <div class="stat"><div class="label">Lives</div><div class="value" id="lives">3</div></div>
+      <div class="stat"><div class="label">Chickens</div><div class="value" id="lives">🐔🐔🐔</div></div>
       <div class="stat"><div class="label">Wave</div><div class="value" id="wave">1</div></div>
     </div>
     <div class="board-wrap">
@@ -57,6 +57,9 @@
     const ov=document.getElementById("ov"),ot=document.getElementById("ot"),om=document.getElementById("om"),startBtn=document.getElementById("start");
     const COLS=8,ROWS=4,IW=25,IH=17,GAPX=14,GAPY=14;   // sprites 5% larger
     let player,invaders,dir,drop,pBullet,eBullets,shields,score,lives,wave,running,raf,stepAcc,moveEvery;
+    let dying=0,deathDebris=[],levelCard=0;   // death animation, then a 'level N / chickens left' card
+    const DEATH_FRAMES=60, CARD_FRAMES=90;
+    function renderLives(){livesEl.textContent='🐔'.repeat(Math.max(0,lives));}
     const keys={left:false,right:false,fire:false};
     let best=+localStorage.getItem("invaders_best")||0;
     // Bonus rooster across the top, worth 50-200 when shot. He is rare — 25 to
@@ -77,14 +80,20 @@
       invaders=makeInvaders();dir=1;drop=0;pBullet=null;eBullets=[];shields=makeShields();
       ufo=null;ufoFlash=null;ufoTimer=UFO_EVERY();ufoDone=false;
       stepAcc=0;moveEvery=Math.max(10,42-wave*4);
-      scoreEl.textContent=score;livesEl.textContent=lives;waveEl.textContent=wave;}
+      scoreEl.textContent=score;renderLives();waveEl.textContent=wave;}
     function start(){reset(true);ov.classList.add("hidden");running=true;loop();}
     // live state, so the game can be driven and checked headlessly
-    window.__invaders={ state:()=>({pBullet,keys,ufo,ufoDone,score,wave,lives,running}),
-                        setUfo:(u)=>{ufo=u;}, step:()=>update() };
+    window.__invaders={ state:()=>({pBullet,keys,ufo,ufoDone,score,wave,lives,running,dying,levelCard,
+                          invadersAlive:invaders?invaders.filter(i=>i.alive).length:0,
+                          shieldsUp:shields?shields.filter(s=>s.hp>0).length:0}),
+                        setUfo:(u)=>{ufo=u;}, hit:()=>die(), step:()=>update() };
     function loop(){if(!running)return;update();render();raf=requestAnimationFrame(loop);}
     function alive(){return invaders.filter(i=>i.alive);}
     function update(){
+      // hold the board frozen while the fighter blows up, then show the card
+      if(dying>0){ for(const d of deathDebris){ d.x+=d.vx; d.y+=d.vy; d.vy+=0.12; d.rot+=d.vr; d.life--; }
+        if(--dying<=0){ levelCard=CARD_FRAMES; player.x=W/2-16; } return; }
+      if(levelCard>0){ if(--levelCard<=0){/* resume */} return; }
       // player
       if(keys.left)player.x-=4;if(keys.right)player.x+=4;
       player.x=Math.max(4,Math.min(W-player.w-4,player.x));
@@ -157,10 +166,16 @@
       if(live.length===0){wave++;waveEl.textContent=wave;reset(false);}
     }
     function fire(){if(!running||pBullet)return;pBullet={x:player.x+player.w/2,y:player.y-6};}
-    function die(overrun){lives--;livesEl.textContent=lives;eBullets=[];
+    function die(overrun){lives--;renderLives();eBullets=[];
       if(lives<=0||overrun){running=false;cancelAnimationFrame(raf);if(typeof Arcade!=="undefined")Arcade.stats.record("invaders",score); if(score>best){best=score;localStorage.setItem("invaders_best",best);}
         ot.textContent=overrun&&lives>0?"Overrun!":"Game Over";om.textContent="Score "+score+(score>=best?" · best!":"");startBtn.textContent="Play again";ov.classList.remove("hidden");return;}
-      player.x=W/2-16;}
+      // your fighter bursts apart, then a title card, then you carry on from the
+      // same board — invaders and shields are left exactly where they were.
+      dying=DEATH_FRAMES; deathDebris=[];
+      const cx=player.x+player.w/2, cy=player.y+player.h/2;
+      for(let i=0;i<16;i++){ const a=Math.random()*Math.PI*2, sp=1+Math.random()*3;
+        deathDebris.push({x:cx,y:cy,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-1,life:DEATH_FRAMES,rot:Math.random()*7,vr:(Math.random()-0.5)*0.4}); }
+      if(typeof Arcade!=="undefined") Arcade.sfx.death();}
     // Four chicken breeds — one per invader row.
     // 0 red hen · 1 brown hen · 2 yellow chick · 3 white rooster
     function drawChicken(x,y,w,h,style,flap){
@@ -229,8 +244,15 @@
       }
       // shields
       shields.forEach(s=>{if(s.hp<=0)return;ctx.fillStyle=s.hp===2?"#4ade80":"#166534";ctx.fillRect(s.x,s.y,7,7);});
-      // player
-      ctx.fillStyle="#22d3ee";ctx.fillRect(player.x,player.y,player.w,player.h);ctx.fillRect(player.x+player.w/2-2,player.y-6,4,6);
+      // player — replaced by tumbling debris while blowing up
+      if(dying>0){
+        ctx.fillStyle="#22d3ee";
+        for(const d of deathDebris){ ctx.save(); ctx.translate(d.x,d.y); ctx.rotate(d.rot);
+          ctx.globalAlpha=Math.max(0,d.life/DEATH_FRAMES); ctx.fillRect(-3,-2,6,4); ctx.restore(); }
+        ctx.globalAlpha=1;
+      } else if(levelCard<=0){
+        ctx.fillStyle="#22d3ee";ctx.fillRect(player.x,player.y,player.w,player.h);ctx.fillRect(player.x+player.w/2-2,player.y-6,4,6);
+      }
       // bullets
       if(pBullet){ctx.fillStyle="#facc15";ctx.fillRect(pBullet.x-1.5,pBullet.y-8,3,10);}
       // the chickens drop eggs, not bullets
@@ -241,6 +263,15 @@
         ctx.bezierCurveTo(ex+rr*0.72,ey-rr,ex+rr*0.86,ey+rr*0.34,ex,ey+rr);
         ctx.bezierCurveTo(ex-rr*0.86,ey+rr*0.34,ex-rr*0.72,ey-rr,ex,ey-rr);
         ctx.closePath(); ctx.fill(); ctx.stroke(); });
+      // the title card between lives: which level, and chickens remaining
+      if(levelCard>0){
+        ctx.fillStyle="rgba(5,6,15,.78)"; ctx.fillRect(0,H/2-46,W,92);
+        ctx.textAlign="center";
+        ctx.fillStyle="#facc15"; ctx.font="bold 22px system-ui";
+        ctx.fillText("WAVE "+wave, W/2, H/2-8);
+        ctx.fillStyle="#e6e6f0"; ctx.font="18px system-ui";
+        ctx.fillText("Chickens left: "+"🐔".repeat(Math.max(0,lives)), W/2, H/2+22);
+      }
     }
     document.addEventListener("keydown",e=>{const m={ArrowLeft:"left",ArrowRight:"right",a:"left",d:"right"}[e.key];
       if(m){e.preventDefault();keys[m]=true;}if(e.key===" "){e.preventDefault();keys.fire=true;}});
