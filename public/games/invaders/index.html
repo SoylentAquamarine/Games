@@ -136,10 +136,19 @@
       // collisions: player bullet vs invaders
       if(pBullet){for(const iv of live){if(pBullet.x>iv.x&&pBullet.x<iv.x+IW&&pBullet.y>iv.y&&pBullet.y<iv.y+IH){
         iv.alive=false;pBullet=null;score+=(ROWS-iv.row)*10+10;scoreEl.textContent=score;break;}}}
-      // bullets vs shields
-      const hitShield=(b,up)=>{for(const s of shields){if(s.hp>0&&b.x>s.x&&b.x<s.x+8&&b.y>s.y&&b.y<s.y+8){s.hp--;return true;}}return false;};
-      if(pBullet&&hitShield(pBullet))pBullet=null;
-      eBullets=eBullets.filter(b=>!hitShield(b));
+      // Bullets vs shields — sweep the whole path the bullet covered this frame,
+      // not just its final point. Fast enemy bombs move more than a shield cell's
+      // height per frame at higher waves, so a point check let them step clean
+      // over a block. `delta` is the signed distance moved (down +, up -).
+      const hitShield=(b,delta)=>{
+        const y0=b.y-delta, lo=Math.min(y0,b.y), hi=Math.max(y0,b.y);
+        for(const s of shields){
+          if(s.hp>0 && b.x>s.x && b.x<s.x+8 && hi>=s.y && lo<=s.y+8){ s.hp--; return true; }
+        }
+        return false;
+      };
+      if(pBullet&&hitShield(pBullet,-7))pBullet=null;
+      eBullets=eBullets.filter(b=>!hitShield(b,b.vy));
       // enemy bullets vs player
       for(const b of eBullets){if(b.x>player.x&&b.x<player.x+player.w&&b.y>player.y&&b.y<player.y+player.h){eBullets=eBullets.filter(x=>x!==b);die();break;}}
       // invaders reach player line
