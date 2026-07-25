@@ -57,6 +57,9 @@ export default {
     if (url.pathname === "/api/admin/data" && request.method === "GET") {
       return handleAdminData(request, env);
     }
+    if (url.pathname === "/api/admin/comments/archive" && request.method === "GET") {
+      return handleAdminArchive(request, env, url);
+    }
     if (url.pathname === "/api/admin/comments" && request.method === "GET") {
       return handleAdminComments(request, env, url);
     }
@@ -248,9 +251,14 @@ async function handleAdminComments(request, env, url) {
   return json({ ok: true, games, counts });
 }
 
-// POST /api/admin/comments  {game, ts, action: "approve"|"reject"|"pending"|"delete"}
-// `ts` may be an array to act on several at once; omit it with action=delete to
-// clear a whole game's list.
+// POST /api/admin/comments  {game, ts, action: "approve"|"reject"|"pending"|"archive"|"delete"}
+// `ts` may be an array to act on several at once; omit it with action=archive or
+// delete to move/clear a whole game's list.
+//
+// "archive" is the normal way to finish with a comment: it is moved to
+// archive:<slug> with a processedAt stamp, so processed feedback is never lost
+// and can be reviewed later. "delete" is the hard remove and is kept only for
+// spam. Every archived comment keeps its original text, status and timestamp.
 async function handleAdminCommentAction(request, env) {
   if (!adminOk(request, env)) return json({ error: "unauth" }, 401);
   let body;
@@ -258,7 +266,7 @@ async function handleAdminCommentAction(request, env) {
   const slug = (body.game || "").toString();
   const action = (body.action || "").toString();
   if (!SLUG_RE.test(slug)) return json({ error: "bad_slug" }, 400);
-  if (!["approve", "reject", "pending", "delete"].includes(action)) return json({ error: "bad_action" }, 400);
+  if (!["approve", "reject", "pending", "archive", "delete"].includes(action)) return json({ error: "bad_action" }, 400);
 
   const key = "comments:" + slug;
   const raw = await env.ACCOUNTS.get(key);
@@ -271,6 +279,20 @@ async function handleAdminCommentAction(request, env) {
     const before = list.length;
     list = stamps ? list.filter(c => !stamps.has(Number(c.ts))) : [];
     changed = before - list.length;
+  } else if (action === "archive") {
+    const moving = list.filter(c => !stamps || stamps.has(Number(c.ts)));
+    if (moving.length) {
+      const akey = "archive:" + slug;
+      const araw = await env.ACCOUNTS.get(akey);
+      const archive = araw ? JSON.parse(araw) : [];
+      const now = Date.now();
+      for (const c of moving) archive.push({ ...c, processedAt: now });
+      // newest first, and cap so the archive can never grow without bound
+      archive.sort((a, b) => (b.processedAt || 0) - (a.processedAt || 0));
+      await env.ACCOUNTS.put(akey, JSON.stringify(archive.slice(0, 500)));
+      list = list.filter(c => stamps ? !stamps.has(Number(c.ts)) : false);
+      changed = moving.length;
+    }
   } else {
     const status = action === "approve" ? "approved" : action === "reject" ? "rejected" : "pending";
     for (const c of list) {
@@ -280,6 +302,31 @@ async function handleAdminCommentAction(request, env) {
   }
   await env.ACCOUNTS.put(key, JSON.stringify(list));
   return json({ ok: true, changed, remaining: list.length });
+}
+
+// GET /api/admin/comments/archive[?game=<slug>] — the kept record of processed
+// comments, newest first, either for one game or across all of them.
+async function handleAdminArchive(request, env, url) {
+  if (!adminOk(request, env)) return json({ error: "unauth" }, 401);
+  const one = url.searchParams.get("game");
+  if (one) {
+    if (!SLUG_RE.test(one)) return json({ error: "bad_slug" }, 400);
+    const raw = await env.ACCOUNTS.get("archive:" + one);
+    return json({ ok: true, game: one, comments: raw ? JSON.parse(raw) : [] });
+  }
+  const games = [];
+  let cursor, total = 0;
+  do {
+    const r = await env.ACCOUNTS.list({ prefix: "archive:", cursor });
+    for (const k of r.keys) {
+      const raw = await env.ACCOUNTS.get(k.name);
+      const list = raw ? JSON.parse(raw) : [];
+      if (list.length) { games.push({ game: k.name.slice("archive:".length), comments: list }); total += list.length; }
+    }
+    cursor = r.list_complete ? undefined : r.cursor;
+  } while (cursor);
+  games.sort((a, b) => a.game.localeCompare(b.game));
+  return json({ ok: true, games, total });
 }
 
 // ---------------------------------------------------------------------------
