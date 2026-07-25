@@ -67,8 +67,9 @@
     function moveTo(clientY){const rect=cv.getBoundingClientRect();you=(clientY-rect.top)/rect.height*H-PH/2;you=Math.max(0,Math.min(H-PH,you));}
     cv.addEventListener("mousemove",e=>{if(running)moveTo(e.clientY);});
     cv.addEventListener("touchmove",e=>{if(running){moveTo(e.touches[0].clientY);e.preventDefault();}},{passive:false});
-    document.addEventListener("keydown",e=>{if(e.key==="ArrowUp")upKey=true;if(e.key==="ArrowDown")downKey=true;});
-    document.addEventListener("keyup",e=>{if(e.key==="ArrowUp")upKey=false;if(e.key==="ArrowDown")downKey=false;});
+    // Swallow the arrows so they steer the paddle instead of scrolling the page.
+    document.addEventListener("keydown",e=>{if(e.key==="ArrowUp"){upKey=true;e.preventDefault();}if(e.key==="ArrowDown"){downKey=true;e.preventDefault();}},{passive:false});
+    document.addEventListener("keyup",e=>{if(e.key==="ArrowUp"){upKey=false;e.preventDefault();}if(e.key==="ArrowDown"){downKey=false;e.preventDefault();}},{passive:false});
     startBtn.addEventListener("click",newGame);
     reset();render();
   })();
