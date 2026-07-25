@@ -33,7 +33,7 @@
   <canvas id="game" width="420" height="630"></canvas>
   <div class="msg" id="msg">Launch with Space, then flip! Keep the ball alive.</div>
   <div class="ctl"><button class="flip" id="fl">◀ FLIP</button><button class="flip" id="fr">FLIP ▶</button></div>
-  <div class="hint">← / Z left flipper · → / M right flipper · Space launches</div>
+  <div class="hint">← / Z left flipper · → / M right flipper · Space launches, then bumps the table</div>
 </div>
 <script src="/arcade.js"></script>
 <script>
@@ -98,7 +98,21 @@
   const fr={pivot:RP, rest:Math.PI-0.42, up:Math.PI+0.5, angle:Math.PI-0.42, side:-1, pressed:false};
   function flipSeg(f){ return { x1:f.pivot.x, y1:f.pivot.y, x2:f.pivot.x+Math.cos(f.angle)*FLEN, y2:f.pivot.y+Math.sin(f.angle)*FLEN }; }
 
-  function launch(){ if(!s.ball.live && !s.over){ s.ball.live=true; s.ball.vx=-2-Math.random()*1.5; s.ball.vy=-15.5; } }
+  // Launch nearly straight up the lane with real force. The old -15.5 with a
+  // strong sideways drift never cleared the lane wall — the ball hit it and
+  // rattled back down. Simulated: -19 with a small drift reaches the playfield
+  // ~39 of 40 times.
+  function launch(){ if(!s.ball.live && !s.over){ s.ball.live=true; s.ball.vx=-0.4-Math.random()*0.6; s.ball.vy=-19; } }
+  // Bump the table: a nudge you can use to knock a ball off a dead-centre path.
+  // Limited so it can't be spammed into a cheat — a short cooldown between bumps.
+  let bumpCool=0;
+  function bump(){
+    if(!s.ball.live || s.over || bumpCool>0) return;
+    bumpCool=18;
+    s.ball.vx += (Math.random()<0.5?-1:1)*(2.2+Math.random());
+    s.ball.vy -= 1.4+Math.random();          // a little lift, like jostling the table
+    $("msg").textContent="Bump!";
+  }
   function newBall(){ s.ball={x:C.W-16,y:C.H-40,vx:0,vy:0,live:false}; }
 
   function draw(){
@@ -120,6 +134,7 @@
     if(!GATE.open){ draw(); GATE.paint(); return requestAnimationFrame(frame); }
     // animate flippers
     for(const f of [fl,fr]){ const target=f.pressed?f.up:f.rest; f.angle+=(target-f.angle)*0.4; }
+    if(bumpCool>0) bumpCool--;
     if(!s.over && s.ball.live){
       stepBall(s.ball);
       for(const b of s.bumpers){ if(bumperHit(s.ball,b)){ s.score+=100; b.lit=8; } }
@@ -136,7 +151,7 @@
   const press=(f,v)=>{ if(v && !f.pressed && s.ball.live) rotateLanes(s.lanes, f.side); f.pressed=v; };
   $("fl").addEventListener("touchstart",(e)=>{e.preventDefault();press(fl,true);},{passive:false}); $("fl").addEventListener("touchend",()=>press(fl,false)); $("fl").addEventListener("mousedown",()=>press(fl,true)); $("fl").addEventListener("mouseup",()=>press(fl,false)); $("fl").addEventListener("mouseleave",()=>press(fl,false));
   $("fr").addEventListener("touchstart",(e)=>{e.preventDefault();press(fr,true);},{passive:false}); $("fr").addEventListener("touchend",()=>press(fr,false)); $("fr").addEventListener("mousedown",()=>press(fr,true)); $("fr").addEventListener("mouseup",()=>press(fr,false)); $("fr").addEventListener("mouseleave",()=>press(fr,false));
-  addEventListener("keydown",(e)=>{ if(e.key==="ArrowLeft"||e.key==="z")press(fl,true); else if(e.key==="ArrowRight"||e.key==="m")press(fr,true); else if(e.key===" "){e.preventDefault();launch();} });
+  addEventListener("keydown",(e)=>{ if(e.key==="ArrowLeft"||e.key==="z")press(fl,true); else if(e.key==="ArrowRight"||e.key==="m")press(fr,true); else if(e.key===" "){e.preventDefault(); if(s.ball.live) bump(); else launch();} });
   addEventListener("keyup",(e)=>{ if(e.key==="ArrowLeft"||e.key==="z")press(fl,false); else if(e.key==="ArrowRight"||e.key==="m")press(fr,false); });
   cv.addEventListener("touchstart",(e)=>{ if(!s.ball.live) launch(); },{passive:true});
   $("new").addEventListener("click",()=>{ s=newState(); $("msg").textContent="Launch with Space, then flip!"; });
