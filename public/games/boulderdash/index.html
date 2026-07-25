@@ -30,7 +30,7 @@
 <body>
 <div class="wrap">
   <div class="topbar"><a class="home" href="/">← Home</a><h1>🥚 ChickenDash</h1><button class="btn" id="new">New Game</button></div>
-  <div class="hud"><span>Eggs: <b id="gems">0</b>/<b id="need">0</b></span><span>Score: <b id="score">0</b></span><span>Best: <b id="best">0</b></span></div>
+  <div class="hud"><span>Eggs: <b id="gems">0</b>/<b id="need">0</b></span><span>Chickens: <b id="chix">🐔🐔🐔</b></span><span>Score: <b id="score">0</b></span><span>Best: <b id="best">0</b></span></div>
   <canvas id="game" width="616" height="462"></canvas>
   <div class="msg" id="msg">Dig for eggs, dodge falling rocks, then reach the exit!</div>
   <div class="dpad"><button class="u" data-d="up">▲</button><button class="l" data-d="left">◀</button><button class="dn" data-d="down">▼</button><button class="r" data-d="right">▶</button></div>
@@ -39,21 +39,37 @@
 <script src="/arcade.js"></script>
 <script>
 (function(){
-  const C={ cols:28, rows:21, cell:22 };   // board 75% larger; cell size unchanged
+  const C={ cols:28, rows:21, cell:22, CHICKENS:3, EXTRA:500 };   // board 75% larger; cell size unchanged
   const DIRS={left:[-1,0],right:[1,0],up:[0,-1],down:[0,1]};
-  function newState(){
+  // Each screen is generated fresh; a little denser as the levels climb.
+  function buildLevel(level){
     const g=[]; for(let r=0;r<C.rows;r++){ const row=[]; for(let c=0;c<C.cols;c++){
       if(r===0||c===0||r===C.rows-1||c===C.cols-1) row.push("wall"); else row.push("dirt"); } g.push(row); }
-    const s={ grid:g, player:{c:1,r:1}, gems:0, need:0, score:0, over:false, won:false };
     g[1][1]="empty";
-    // scatter boulders + gems
-    const TARGET=Math.round(24*(C.cols*C.rows)/(16*12));   // keep the original density
+    let need=0;
+    const TARGET=Math.round(24*(C.cols*C.rows)/(16*12)) + (level-1)*3;
+    const boulderChance=Math.min(0.72, 0.55+(level-1)*0.04);
     let placed=0, tries=0; while(placed<TARGET && ++tries<20000){ const r=2+Math.floor(Math.random()*(C.rows-3)), c=2+Math.floor(Math.random()*(C.cols-3));
-      if(g[r][c]==="dirt" && !(r<=2&&c<=2)){ g[r][c]=Math.random()<0.55?"boulder":"gem"; if(g[r][c]==="gem") s.need++; placed++; } }
-    s.need=Math.max(6,Math.min(s.need, 14));
+      if(g[r][c]==="dirt" && !(r<=2&&c<=2)){ g[r][c]=Math.random()<boulderChance?"boulder":"gem"; if(g[r][c]==="gem") need++; placed++; } }
+    need=Math.max(6,Math.min(need, 14));
     g[C.rows-2][C.cols-2]="exit";
-    return s;
+    return {grid:g, need};
   }
+  function newState(){
+    const {grid,need}=buildLevel(1);
+    return { grid, need, player:{c:1,r:1}, gems:0, score:0, level:1,
+             chickens:C.CHICKENS, nextExtra:C.EXTRA, crushed:false, over:false, won:false };
+  }
+  // Advance to the next screen — a new board, keeping your chickens and score.
+  function nextScreen(s){
+    s.level++; const {grid,need}=buildLevel(s.level);
+    s.grid=grid; s.need=need; s.gems=0; s.player={c:1,r:1}; s.won=false; s.crushed=false;
+  }
+  // Lose a chicken but keep the board as it is — respawn at the start with all
+  // your dug tunnels and collected eggs intact. Out of chickens ends the run.
+  function loseChicken(s){ s.chickens--; if(s.chickens<=0) s.over=true; return s; }
+  function respawnPlayer(s){ s.player={c:1,r:1}; s.grid[1][1]="empty"; s.crushed=false; }
+  function awardExtras(s){ while(s.score>=s.nextExtra){ s.chickens++; s.nextExtra+=C.EXTRA; } }
   function inb(c,r){ return c>=0&&c<C.cols&&r>=0&&r<C.rows; }
   function move(s, dir){ if(s.over||s.won) return s; const d=DIRS[dir]; if(!d) return s; const nc=s.player.c+d[0], nr=s.player.r+d[1];
     if(!inb(nc,nr)) return s; const t=s.grid[nr][nc];
@@ -67,7 +83,7 @@
   function physicsStep(s){ // scan bottom-up so a falling stack resolves in one pass
     for(let r=C.rows-2;r>=1;r--) for(let c=1;c<C.cols-1;c++){ const cell=s.grid[r][c]; if(cell!=="boulder"&&cell!=="gem") continue;
       const below=s.grid[r+1][c];
-      if(below==="empty"){ s.grid[r+1][c]=cell; s.grid[r][c]="empty"; if(s.player.c===c&&s.player.r===r+1) s.over=true; }
+      if(below==="empty"){ s.grid[r+1][c]=cell; s.grid[r][c]="empty"; if(s.player.c===c&&s.player.r===r+1) s.crushed=true; }
       else if(below==="boulder"||below==="gem"||below==="wall"){
         // roll off a rounded object to the side if both the side and the cell below the side are empty
         if(below!=="wall"){
@@ -77,7 +93,7 @@
       }
     }
     return s; }
-  window.__boulderdash={ newState, move, physicsStep, inb, C };
+  window.__boulderdash={ newState, buildLevel, nextScreen, loseChicken, respawnPlayer, awardExtras, move, physicsStep, inb, C };
 
   if(typeof document==="undefined") return;
   const $=(id)=>document.getElementById(id);
@@ -85,6 +101,9 @@
   // Hold the loop until the player asks for it (comment: Press Spacebar To Begin)
   const GATE = Arcade.startGate(cv, "Boulder Chicken");
   let s=newState(), best=0, physT=0, input=null, moveT=0;
+  let dying=0, deadDebris=[], banner=0, bannerText="", flypast=null;
+  const chixEl=$("chix");
+  function renderChix(){ chixEl.textContent="🐔".repeat(Math.max(0,s.chickens)); }
   try{ best=parseInt(localStorage.getItem("boulder_best")||"0")||0; }catch(e){}
 
   function draw(){
@@ -92,7 +111,13 @@
     for(let r=0;r<C.rows;r++) for(let c=0;c<C.cols;c++){ const t=s.grid[r][c]; const x=c*CELL,y=r*CELL;
       if(t==="wall"){ ctx.fillStyle="#5a5f7a"; ctx.fillRect(x,y,CELL,CELL); ctx.fillStyle="#40445c"; ctx.fillRect(x+2,y+2,CELL-4,CELL-4); }
       else if(t==="dirt"){ ctx.fillStyle="#4a3420"; ctx.fillRect(x,y,CELL,CELL); ctx.fillStyle="#5a4028"; for(let i=0;i<3;i++) ctx.fillRect(x+3+i*6,y+4+((i*7)%12),2,2); }
-      else if(t==="empty"){ ctx.fillStyle="#12141f"; ctx.fillRect(x,y,CELL,CELL); }
+      else if(t==="empty"){
+        // a dim cave floor rather than flat black, lit a touch toward the middle
+        ctx.fillStyle="#241d2b"; ctx.fillRect(x,y,CELL,CELL);
+        ctx.fillStyle="#2c2334"; ctx.fillRect(x+2,y+2,CELL-4,CELL-4);
+        ctx.fillStyle="rgba(0,0,0,.28)"; const n=((c*7+r*13)%4);
+        for(let i=0;i<n;i++) ctx.fillRect(x+3+((i*11+r)%14), y+3+((i*7+c)%14), 2,2);
+      }
       else if(t==="boulder"){ ctx.fillStyle="#12141f"; ctx.fillRect(x,y,CELL,CELL); ctx.fillStyle="#9a9ab5"; ctx.beginPath(); ctx.arc(x+CELL/2,y+CELL/2,CELL/2-2,0,7); ctx.fill(); ctx.fillStyle="#c9c9e0"; ctx.beginPath(); ctx.arc(x+CELL/2-3,y+CELL/2-3,3,0,7); ctx.fill(); }
       else if(t==="gem"){ ctx.fillStyle="#12141f"; ctx.fillRect(x,y,CELL,CELL);   // eggs to collect
         const ex=x+CELL/2, ey=y+CELL/2, er=CELL*0.36;
@@ -118,24 +143,66 @@
       ctx.fillStyle="#fb923c"; ctx.beginPath();                                                    // beak
       ctx.moveTo(hx+CELL*0.30,hy-CELL*0.06); ctx.lineTo(hx+CELL*0.56,hy+CELL*0.02); ctx.lineTo(hx+CELL*0.30,hy+CELL*0.10); ctx.closePath(); ctx.fill();
       ctx.fillStyle="#0b0c1a"; ctx.fillRect(hx-CELL*0.16,hy-CELL*0.14,3,3); ctx.fillRect(hx+CELL*0.06,hy-CELL*0.14,3,3); }
-    if(s.won||s.over){ ctx.fillStyle="rgba(0,0,0,.6)"; ctx.fillRect(0,0,W,H); ctx.fillStyle=s.won?"#34d399":"#f43f5e"; ctx.font="bold 22px system-ui"; ctx.textAlign="center"; ctx.fillText(s.won?"ESCAPED!":"CRUSHED!",W/2,H/2-6); ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Score "+s.score+"  ·  Best "+best,W/2,H/2+16); }
+    // spacesuit chicken drifting across between screens
+    if(flypast){ const fx=flypast.x, fy=flypast.y, rr=14;
+      ctx.save(); ctx.translate(fx,fy); ctx.scale(flypast.vx>0?1:-1,1);
+      ctx.fillStyle="#fb923c"; ctx.beginPath(); ctx.moveTo(-rr*0.9,0); ctx.lineTo(-rr*1.9,-rr*0.5); ctx.lineTo(-rr*1.9,rr*0.5); ctx.closePath(); ctx.fill();
+      ctx.fillStyle="#cbd5e1"; ctx.fillRect(-rr*1.3,-rr*0.7,rr*0.9,rr*1.4);
+      ctx.fillStyle="#f0902a"; ctx.beginPath(); ctx.arc(0,0,rr*0.85,0,7); ctx.fill();
+      ctx.fillStyle="#dc2626"; ctx.beginPath(); ctx.arc(-rr*0.2,-rr*0.9,rr*0.18,0,7); ctx.arc(rr*0.1,-rr*1.0,rr*0.2,0,7); ctx.arc(rr*0.4,-rr*0.9,rr*0.18,0,7); ctx.fill();
+      ctx.fillStyle="#fff"; ctx.beginPath(); ctx.arc(rr*0.3,-rr*0.2,rr*0.24,0,7); ctx.fill();
+      ctx.fillStyle="#0b0c1a"; ctx.beginPath(); ctx.arc(rr*0.36,-rr*0.2,rr*0.12,0,7); ctx.fill();
+      ctx.fillStyle="#facc15"; ctx.beginPath(); ctx.moveTo(rr*0.75,0); ctx.lineTo(rr*1.4,rr*0.18); ctx.lineTo(rr*0.75,rr*0.3); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle="rgba(186,230,253,.85)"; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(0,-rr*0.1,rr*1.35,0,7); ctx.stroke();
+      ctx.fillStyle="rgba(186,230,253,.15)"; ctx.beginPath(); ctx.arc(0,-rr*0.1,rr*1.35,0,7); ctx.fill();
+      ctx.restore();
+    }
+    // the death shards
+    if(dying>0){ ctx.fillStyle="#ffcf5a"; for(const d of deadDebris){ ctx.save(); ctx.translate(d.x,d.y); ctx.rotate(d.rot); ctx.globalAlpha=Math.max(0,d.life/90); ctx.fillRect(-3,-3,6,6); ctx.restore(); } ctx.globalAlpha=1; }
+    // CHICKEN DOWN, shaking for two seconds
+    if(dying>0){
+      const sh=Math.max(0,(dying-40)/80)*7+2, ox=(Math.random()*2-1)*sh, oy=(Math.random()*2-1)*sh;
+      ctx.textAlign="center"; ctx.font="bold 30px system-ui"; ctx.lineWidth=5; ctx.strokeStyle="#0a0c18";
+      ctx.strokeText("CHICKEN DOWN",W/2+ox,H/2+oy); ctx.fillStyle="#f43f5e"; ctx.fillText("CHICKEN DOWN",W/2+ox,H/2+oy);
+    }
+    // between-screen banner
+    if(banner>0){ ctx.fillStyle="rgba(5,6,15,.72)"; ctx.fillRect(0,H/2-40,W,80); ctx.textAlign="center";
+      ctx.fillStyle="#34d399"; ctx.font="bold 22px system-ui"; ctx.fillText(bannerText,W/2,H/2-4);
+      ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Chickens: "+"🐔".repeat(Math.max(0,s.chickens)),W/2,H/2+20); }
+    if(s.over){ ctx.fillStyle="rgba(0,0,0,.6)"; ctx.fillRect(0,0,W,H); ctx.fillStyle="#f43f5e"; ctx.font="bold 22px system-ui"; ctx.textAlign="center"; ctx.fillText("OUT OF CHICKENS",W/2,H/2-6); ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Reached screen "+s.level+" · Score "+s.score+"  ·  Best "+best,W/2,H/2+16); }
   }
   function frame(){
     if(!GATE.open){ draw(); GATE.paint(); return requestAnimationFrame(frame); }
-    if(!s.over&&!s.won){
-      if(input && ++moveT>=5){ moveT=0; move(s,input); }   // slightly quicker: the board is bigger now
+    if(flypast){ flypast.x+=flypast.vx; if(flypast.x<-40||flypast.x>W+40) flypast=null; }
+    if(dying>0){
+      for(const d of deadDebris){ d.x+=d.vx; d.y+=d.vy; d.vy+=0.15; d.rot+=d.vr; d.life--; }
+      if(--dying<=0){ loseChicken(s); if(!s.over) respawnPlayer(s); }
+    } else if(banner>0){
+      if(--banner<=0){ nextScreen(s); if(s.level%5===0){ const fl=Math.random()<0.5; flypast={x:fl?-30:W+30,y:36,vx:(fl?1:-1)*2.4}; } }
+    } else if(!s.over&&!s.won){
+      if(input && ++moveT>=5){ moveT=0; move(s,input); awardExtras(s); }
       if(++physT>=12){ physT=0; physicsStep(s); }
-      if(typeof Arcade!=="undefined")Arcade.stats.record("boulderdash",s.score); if((s.won||s.over)&&s.score>best){ best=s.score; try{localStorage.setItem("boulder_best",String(best));}catch(e){} }
-      if(s.won) $("msg").textContent="🎉 Escaped with "+s.gems+" eggs! Score "+s.score;
-      else if(s.over) $("msg").textContent="Crushed by a rock! Score "+s.score;
+      if(typeof Arcade!=="undefined")Arcade.stats.record("boulderdash",s.score);
+      if(s.crushed){ // start the CHICKEN DOWN sequence
+        dying=120; deadDebris=[]; const p=s.player;
+        for(let i=0;i<14;i++){ const a=Math.random()*Math.PI*2, sp=1+Math.random()*2.6;
+          deadDebris.push({x:p.c*CELL+CELL/2,y:p.r*CELL+CELL/2,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-1,life:90,rot:Math.random()*7,vr:(Math.random()-0.5)*0.4}); }
+        if(typeof Arcade!=="undefined") Arcade.sfx.death();
+        $("msg").textContent="CHICKEN DOWN!";
+      } else if(s.won){ // screen cleared
+        banner=90; bannerText="SCREEN "+s.level+" CLEARED"; s.score+=100;
+        if(typeof Arcade!=="undefined") Arcade.sfx.win();
+        $("msg").textContent="🎉 Screen "+s.level+" cleared! Score "+s.score;
+      }
+      if(s.over && s.score>best){ best=s.score; try{localStorage.setItem("boulder_best",String(best));}catch(e){} }
     }
-    $("gems").textContent=s.gems; $("need").textContent=s.need; $("score").textContent=s.score; $("best").textContent=best; draw(); requestAnimationFrame(frame);
+    $("gems").textContent=s.gems; $("need").textContent=s.need; $("score").textContent=s.score; $("best").textContent=best; renderChix(); draw(); requestAnimationFrame(frame);
   }
   document.querySelectorAll(".dpad button").forEach(b=>{ const d=b.getAttribute("data-d"); const on=(e)=>{e.preventDefault();input=d;move(s,d);moveT=0;}; const off=(e)=>{e.preventDefault();if(input===d)input=null;};
     b.addEventListener("touchstart",on,{passive:false}); b.addEventListener("touchend",off); b.addEventListener("mousedown",on); b.addEventListener("mouseup",off); b.addEventListener("mouseleave",off); });
   addEventListener("keydown",(e)=>{ const m={ArrowLeft:"left",ArrowRight:"right",ArrowUp:"up",ArrowDown:"down",a:"left",d:"right",w:"up",s:"down"}[e.key]; if(m){ e.preventDefault(); input=m; move(s,m); moveT=0; } });
   addEventListener("keyup",(e)=>{ const m={ArrowLeft:"left",ArrowRight:"right",ArrowUp:"up",ArrowDown:"down",a:"left",d:"right",w:"up",s:"down"}[e.key]; if(m&&input===m)input=null; });
-  $("new").addEventListener("click",()=>{ s=newState(); input=null; $("msg").textContent="Dig for gems, dodge boulders, reach the exit!"; });
+  $("new").addEventListener("click",()=>{ s=newState(); input=null; dying=0; deadDebris=[]; banner=0; flypast=null; renderChix(); $("msg").textContent="Dig for eggs, dodge falling rocks, reach the exit!"; });
   requestAnimationFrame(frame);
 })();
 </script>
