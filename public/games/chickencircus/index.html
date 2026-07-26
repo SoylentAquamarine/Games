@@ -51,6 +51,7 @@
     GRAV:0.15, LAUNCH_MIN:4.6, LAUNCH_MAX:9.2, BOUNCE_KEEP:1.02,   // slower fall, more hang time
     ROWS:3, PER_ROW:12, BAL_R:9, BAL_TOP:52, ROW_GAP:26,
     LIVES:3,
+    SOLID_CATCH:0.55,      // catch quality above this = a predictable outward launch; below = a random hop
   };
   const ROW_POINTS=[30,20,10];                 // top row is worth the most
   const ROW_COLOR=["#f472b6","#38bdf8","#facc15"];
@@ -96,11 +97,21 @@
   // throws her full height; catching on her own end is a fumble that still lifts
   // her, weakly — otherwise both chickens end up sitting on the plank and, with
   // nothing in the air, the game has no way to advance and simply stops.
-  function launchPartner(s, partner, power, fromSide){
+  function launchPartner(s, partner, power, fromSide, quality){
+    quality = (quality==null) ? 1 : quality;
     partner.flying=true;
     partner.side=null;
     partner.vy=-power;
-    partner.vx=(partner.x<C.W/2?1:-1)*(0.9+Math.random()*1.1);
+    if(quality>=C.SOLID_CATCH){
+      // A square catch flings her predictably OUT toward that end's corner, so you
+      // can aim: launched off the left end she arcs left; off the right end, right.
+      const t=(quality-C.SOLID_CATCH)/(1-C.SOLID_CATCH);        // 0..1 across the solid band
+      partner.vx = fromSide * (1.6 + t*0.9);                    // steady outward drift
+    } else {
+      // A near miss is a weird little hop that can go anywhere — like the real game.
+      const wild = 1.2 + (C.SOLID_CATCH-quality)/C.SOLID_CATCH * 2.4;
+      partner.vx = (Math.random()*2-1) * wild;
+    }
     partner.y=endY(s,fromSide)-C.CH_R;
     partner.x=endX(s,fromSide);
   }
@@ -175,7 +186,8 @@
         // plus her radius — anywhere over either half catches. Measuring from the
         // tip instead would have reached well past the end of the board.
         if(Math.abs(ch.x-s.x)<=C.SEESAW_HW+C.CH_R && ch.y+C.CH_R>=ey-2 && ch.y+C.CH_R<=ey+14){
-          land(s, ch, near);
+          const off = Math.abs(ch.x - endX(s,near));    // 0 = dead on the tip, ~HW = out by the pivot
+          land(s, ch, near, off);
         }
       }
 
@@ -205,12 +217,15 @@
 
   // A chicken lands on one end; if that end is the LOW one, the partner on the
   // high end is catapulted up. Landing on the high end is a soft, wasted landing.
-  function land(s, ch, side){
+  function land(s, ch, side, offset){
     const impact=ch.vy;
     const partner=s.chickens.find(c=>c!==ch);
     // Landing on the raised end is the good catch: it drives that end down and
     // throws the partner waiting on the ground end skyward.
     const caughtHigh = (s.tilt !== side);
+    // How squarely she hit the end: dead on the tip is a solid catch (predictable
+    // outward launch); out toward the pivot is a sloppy one (a random hop).
+    const quality = clamp(1 - (offset||0)/C.SEESAW_HW, 0, 1);
 
     ch.flying=false; ch.vx=0; ch.vy=0;
     s.tilt = side;                 // the end she landed on is now the low one
@@ -221,7 +236,7 @@
       const power = caughtHigh
         ? launchSpeed(impact)
         : Math.max(C.LAUNCH_MIN, launchSpeed(impact)*0.5);   // fumble: a weak pop
-      launchPartner(s, partner, power, -side);
+      launchPartner(s, partner, power, -side, quality);
     }
   }
 
