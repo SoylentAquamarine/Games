@@ -42,7 +42,7 @@
     const cities=C.CITY_X.map(x=>({x,alive:true}));
     const bases=C.BASE_X.map(x=>({x,ammo:C.BASE_AMMO,dead:false}));
     const s={cities,bases,enemies:[],interceptors:[],explosions:[],score:0,wave:0,waveLeftToSpawn:0,spawnTimer:0,spawnEvery:80,intermission:null,enemySpeed:C.ENEMY_SPEED,over:false,
-      nextRecover:C.RECOVER_EVERY, flyby:null, bombs:[], flybyMsg:0};
+      nextRecover:C.RECOVER_EVERY, flyers:[], chickensLeft:0, chickenWave:false, chickenSpawnT:0, bombs:[], flybyMsg:0};
     startWave(s); return s;
   }
   // Every per-wave growth term is scaled by 0.9, so the curve rises the same
@@ -57,12 +57,16 @@
     s.spawnTimer=25;
     s.enemySpeed=Math.min(1.25, C.ENEMY_SPEED+s.wave*0.06);
     if(s.bases) for(const b of s.bases) if(!b.dead) b.ammo=C.BASE_AMMO;
-    // the bomber chicken flies over on the intermission before every 5th wave
+    // Every 5th wave is a chicken raid: no missiles at all, just a squad of five
+    // spacesuit chickens streaming across the top dropping their own bombs.
     if(s.wave%C.FLYBY_EVERY===0){
-      const fromLeft=Math.random()<0.5;
-      s.flyby={ x: fromLeft?-24:C.W+24, y:34, vx:(fromLeft?1:-1)*1.4, dropT:40, alive:true };
-      s.flybyMsg=90;
-    }
+      s.chickenWave=true; s.chickensLeft=5; s.waveLeftToSpawn=0; s.chickenSpawnT=10; s.flybyMsg=90;
+    } else { s.chickenWave=false; s.chickensLeft=0; }
+  }
+  function spawnChicken(s){
+    const fromLeft=Math.random()<0.5;
+    s.flyers.push({ x: fromLeft?-24:C.W+24, y:24+Math.random()*26, vx:(fromLeft?1:-1)*(1.7+Math.random()*0.5), dropT:20+Math.floor(Math.random()*25), alive:true });
+    s.chickensLeft--;
   }
   // Score milestones rebuild a lost coop, or failing that a dead launcher.
   function recover(s){
@@ -128,7 +132,7 @@
     s.enemies=s.enemies.filter(m=>m.alive);
     s.explosions=s.explosions.filter(e=>e.life>0);
     // Breather between waves: hold for 2 seconds and announce the next one.
-    if(s.waveLeftToSpawn===0 && s.enemies.length===0 && s.explosions.length===0 && s.interceptors.length===0){
+    if(s.waveLeftToSpawn===0 && s.chickensLeft===0 && s.flyers.length===0 && s.bombs.length===0 && s.enemies.length===0 && s.explosions.length===0 && s.interceptors.length===0){
       if(s.intermission==null) s.intermission=C.INTERMISSION;
       if(s.intermission>0){ s.intermission--; }
       else { s.intermission=null; startWave(s); }
@@ -137,9 +141,11 @@
     return s;
   }
   function stepFlyby(s){
-    // the spacesuit chicken crosses the top dropping bombs; explosions kill both
-    if(s.flyby){
-      const fb=s.flyby;
+    // release the squad a little apart so they stream across rather than arrive together
+    if(s.chickensLeft>0){ if(--s.chickenSpawnT<=0){ spawnChicken(s); s.chickenSpawnT=48+Math.floor(Math.random()*34); } }
+    // each spacesuit chicken crosses the top dropping bombs; a blast kills it for a bonus
+    for(const fb of s.flyers){
+      if(!fb.alive) continue;
       fb.x+=fb.vx;
       if(--fb.dropT<=0 && fb.x>10 && fb.x<C.W-10){
         fb.dropT=45+Math.floor(Math.random()*30);
@@ -147,10 +153,10 @@
         const tgt=targets.length?targets[Math.floor(Math.random()*targets.length)]:{x:fb.x};
         s.bombs.push({x:fb.x,y:fb.y+6,tx:tgt.x,ty:C.GROUND_Y});
       }
-      // a blast catching the chicken is worth a bonus and ends the run
-      for(const e of s.explosions){ if(e.life>0 && dist(e.x,e.y,fb.x,fb.y)<=e.r+8){ s.score+=1000; s.flyby=null; break; } }
-      if(s.flyby && (fb.x<-30||fb.x>C.W+30)) s.flyby=null;
+      for(const e of s.explosions){ if(e.life>0 && dist(e.x,e.y,fb.x,fb.y)<=e.r+8){ s.score+=1000; fb.alive=false; if(typeof Arcade!=="undefined") Arcade.sfx.hit(); break; } }
+      if(fb.alive && (fb.x<-30||fb.x>C.W+30)) fb.alive=false;
     }
+    s.flyers=s.flyers.filter(f=>f.alive);
     // bombs fall like enemy missiles and can be shot down
     for(const b of s.bombs){
       const dx=b.tx-b.x, dy=b.ty-b.y, d=Math.hypot(dx,dy)||1;
@@ -167,7 +173,7 @@
         if(typeof Arcade!=="undefined") Arcade.sfx.hit(); } } }
     s.bombs=s.bombs.filter(b=>!b.dead);
   }
-  window.__mc={ newGame, startWave, spawnEnemy, stepEnemy, fire, stepExplosion, explosionHits, cityIndexAtX, tick, stepFlyby, recover, dist, C };
+  window.__mc={ newGame, startWave, spawnEnemy, spawnChicken, stepEnemy, fire, stepExplosion, explosionHits, cityIndexAtX, tick, stepFlyby, recover, dist, C };
 
   if(typeof document==="undefined") return;
   const $=(id)=>document.getElementById(id);
@@ -210,9 +216,9 @@
       ctx.beginPath(); ctx.moveTo(b.x-(b.tx-b.x)*0.04,b.y-(b.ty-b.y)*0.04); ctx.lineTo(b.x,b.y); ctx.stroke();
       ctx.fillStyle="#f43f5e"; ctx.beginPath(); ctx.arc(b.x,b.y,3,0,7); ctx.fill();
       ctx.fillStyle="#fde68a"; ctx.beginPath(); ctx.arc(b.x,b.y,1.2,0,7); ctx.fill(); }
-    // the bomber himself
-    if(s.flyby){
-      const fb=s.flyby, r=9;
+    // the bomber squad
+    for(const fb of s.flyers){
+      const r=9;
       ctx.save(); ctx.translate(fb.x,fb.y); ctx.scale(fb.vx>0?1:-1,1);
       ctx.fillStyle="#fb923c"; ctx.beginPath(); ctx.moveTo(-r*0.9,0); ctx.lineTo(-r*1.9,-r*0.5); ctx.lineTo(-r*1.9,r*0.5); ctx.closePath(); ctx.fill();
       ctx.fillStyle="#cbd5e1"; ctx.fillRect(-r*1.3,-r*0.7,r*0.9,r*1.4);
@@ -252,7 +258,7 @@
     if(!s.over && s.flybyMsg>0){
       const j=()=>(Math.random()-0.5)*4;
       ctx.font="bold 16px system-ui"; ctx.textAlign="center";
-      ctx.fillStyle="#f43f5e"; ctx.fillText("🚀 BOMBER CHICKEN — shoot it down!",C.W/2+j(),C.H/2+48+j());
+      ctx.fillStyle="#f43f5e"; ctx.fillText("🚀 CHICKEN RAID — shoot them down!",C.W/2+j(),C.H/2+48+j());
     }
     if(s.over){ ctx.fillStyle="rgba(0,0,0,.55)"; ctx.fillRect(0,0,C.W,C.H); ctx.fillStyle="#f43f5e"; ctx.font="bold 26px system-ui"; ctx.textAlign="center"; ctx.fillText("GAME OVER",C.W/2,C.H/2-6);
       ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Score "+s.score+(best?"  ·  Best "+best:""),C.W/2,C.H/2+18); }
