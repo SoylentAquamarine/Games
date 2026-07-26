@@ -10,15 +10,15 @@
   *{box-sizing:border-box}
   html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
     background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.2),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.14),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;touch-action:none;}
-  .wrap{max-width:460px;margin:0 auto;padding:14px 12px 30px;display:flex;flex-direction:column;align-items:center;gap:10px}
+  .wrap{max-width:690px;margin:0 auto;padding:14px 12px 30px;display:flex;flex-direction:column;align-items:center;gap:10px}
   .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
   .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
   .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
   h1{margin:0;font-size:1.3rem;background:linear-gradient(120deg,#ffcf5a,#f0616e);-webkit-background-clip:text;background-clip:text;color:transparent}
   .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:9px 16px;border-radius:999px;cursor:pointer}
-  .hud{width:100%;max-width:600px;display:flex;justify-content:space-between;font-size:.85rem;color:var(--muted)}
+  .hud{width:100%;max-width:690px;display:flex;justify-content:space-between;font-size:.85rem;color:var(--muted)}
   .hud b{color:var(--text)}
-  canvas{width:100%;max-width:752px;aspect-ratio:4/3;image-rendering:pixelated;border-radius:10px;border:2px solid #2a2f55;background:#08040f;touch-action:none}
+  canvas{width:100%;max-width:1128px;aspect-ratio:4/3;image-rendering:pixelated;border-radius:10px;border:2px solid #2a2f55;background:#08040f;touch-action:none}
   .msg{min-height:1.3em;font-weight:800;text-align:center}
   .ctl{display:flex;gap:10px;align-items:center}
   .cbtn{background:var(--panel);color:var(--text);border:1px solid rgba(255,255,255,.12);border-radius:12px;width:60px;height:52px;font-size:1.3rem;cursor:pointer;user-select:none}
@@ -31,7 +31,7 @@
 <div class="wrap">
   <div class="topbar"><a class="home" href="/">← Home</a><h1>🐔 Chicken Joust</h1><button class="btn" id="new">New Game</button></div>
   <div class="hud"><span>Score: <b id="score">0</b></span><span>Wave: <b id="wave">1</b></span><span>Lives: <b id="lives">3</b></span></div>
-  <canvas id="game" width="752" height="564"></canvas>
+  <canvas id="game" width="1128" height="846"></canvas>
   <div class="msg" id="msg">Flap to fly. Hit an enemy from ABOVE to win the joust!</div>
   <div class="ctl"><button class="cbtn" id="bl">◀</button><button class="flap" id="bf">FLAP</button><button class="cbtn" id="br">▶</button></div>
   <div class="hint">Space/↑ flap · ←/→ steer · win when you're higher on contact</div>
@@ -41,17 +41,30 @@
 (function(){
   // Scaled up 25% from 600x450. Speeds and gravity scale with the screen so the
   // arc of a flap covers the same fraction of the arena as before.
-  const C={ W:752,H:564, GRAV:0.401, FLAP:-6.77, MOVE:0.564, MAXVX:4.51, LAVA:549, PW:25,PH:23, TOL:10,
+  // The game is authored in a base 752x564 design space, then scaled: the SCREEN
+  // (canvas) is 50% bigger and the board + sprites + physics are 25% bigger, which
+  // leaves more open flying room around a chunkier board.
+  const BASE={ W:752, H:564, LAVA:549, PW:25, PH:23, TOL:10, LAND_BAND:16 };
+  const SCREEN=1.5, BOARD=1.25;
+  const C={ W:Math.round(BASE.W*SCREEN), H:Math.round(BASE.H*SCREEN),
+            GRAV:0.401*BOARD, FLAP:-6.77*BOARD, MOVE:0.564*BOARD, MAXVX:4.51*BOARD,
+            PW:Math.round(BASE.PW*BOARD), PH:Math.round(BASE.PH*BOARD), TOL:BASE.TOL*BOARD,
+            LAND_BAND:BASE.LAND_BAND*BOARD, LAVA:Math.round(BASE.H*SCREEN-(BASE.H-BASE.LAVA)*BOARD),
             NEST:0, SPAWN_FRAMES:48, INVULN_FRAMES:96, FLIP_CHANCE:0.004 };   // NEST = which platform is the respawn nest
+  // Map a base-space point/box into the scaled world: content is centred
+  // horizontally and anchored to the bottom of the taller canvas.
+  const sx=(bx)=>C.W/2+(bx-BASE.W/2)*BOARD;
+  const sy=(by)=>C.H-(BASE.H-by)*BOARD;
   const rov=(a,b)=>a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;
   const rect=(o)=>({x:o.x,y:o.y,w:C.PW,h:C.PH});
   function joustResult(ay, by){ if(ay < by-C.TOL) return "aWins"; if(by < ay-C.TOL) return "bWins"; return "bounce"; }
-  const PLATS=[{x:0,y:470,w:150,h:13},{x:602,y:470,w:150,h:13},{x:313,y:376,w:125,h:13},{x:75,y:263,w:113,h:13},{x:564,y:263,w:113,h:13},{x:320,y:175,w:113,h:13}];
+  const PLATS_BASE=[{x:0,y:470,w:150,h:13},{x:602,y:470,w:150,h:13},{x:313,y:376,w:125,h:13},{x:75,y:263,w:113,h:13},{x:564,y:263,w:113,h:13},{x:320,y:175,w:113,h:13}];
+  const PLATS=PLATS_BASE.map(p=>({x:sx(p.x), y:sy(p.y), w:p.w*BOARD, h:p.h*BOARD}));
   function land(o){ o.onGround=false;
     for(const p of PLATS){
       if(!(o.x+C.PW>p.x && o.x<p.x+p.w)) continue;
       // settling onto the top of an island
-      if(o.vy>=0 && o.y+C.PH>=p.y && o.y+C.PH<=p.y+16){ o.y=p.y-C.PH; o.vy=0; o.onGround=true; }
+      if(o.vy>=0 && o.y+C.PH>=p.y && o.y+C.PH<=p.y+C.LAND_BAND){ o.y=p.y-C.PH; o.vy=0; o.onGround=true; }
       // clipping the underside — bounce off instead of rising straight through it
       else if(o.vy<0 && o.y<p.y+p.h && o.y+C.PH>p.y+p.h){ o.y=p.y+p.h; o.vy=Math.abs(o.vy)*0.35; }
     }
