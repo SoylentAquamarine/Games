@@ -41,7 +41,8 @@
 (function(){
   // Scaled up 25% from 600x450. Speeds and gravity scale with the screen so the
   // arc of a flap covers the same fraction of the arena as before.
-  const C={ W:752,H:564, GRAV:0.401, FLAP:-6.77, MOVE:0.564, MAXVX:4.51, LAVA:549, PW:25,PH:23, TOL:10 };
+  const C={ W:752,H:564, GRAV:0.401, FLAP:-6.77, MOVE:0.564, MAXVX:4.51, LAVA:549, PW:25,PH:23, TOL:10,
+            NEST:0, SPAWN_FRAMES:48, INVULN_FRAMES:96, FLIP_CHANCE:0.004 };   // NEST = which platform is the respawn nest
   const rov=(a,b)=>a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;
   const rect=(o)=>({x:o.x,y:o.y,w:C.PW,h:C.PH});
   function joustResult(ay, by){ if(ay < by-C.TOL) return "aWins"; if(by < ay-C.TOL) return "bWins"; return "bounce"; }
@@ -65,27 +66,57 @@
     land(o);
     return o;
   }
-  function makeWave(s){ s.wave++; s.enemies=[]; const n=2+s.wave; for(let i=0;i<n;i++){ s.enemies.push({x:40+Math.random()*(C.W-80),y:40+Math.random()*170,vx:(Math.random()<.5?-1:1)*1.5,vy:0,facing:1,alive:true,flapT:Math.random()*30}); } }
-  function newState(){ const s={ player:{x:60,y:355,vx:0,vy:0,facing:1,onGround:false}, enemies:[], score:0, wave:0, lives:3, over:false }; makeWave(s); return s; }
+  function makeWave(s){ s.wave++; s.enemies=[]; const n=2+s.wave; for(let i=0;i<n;i++){ const d=(Math.random()<.5?-1:1); s.enemies.push({x:40+Math.random()*(C.W-80),y:40+Math.random()*170,vx:d*1.5,vy:0,facing:d,dir:d,alive:true,flapT:Math.random()*30}); } }
+  // Drop the player onto the nest and start the hatch: a short animation while she
+  // climbs out, then a longer safe window where nothing can hit her.
+  function spawnOnNest(s){
+    const nest=PLATS[C.NEST], p=s.player;
+    p.x=nest.x+nest.w/2-C.PW/2; p.y=nest.y-C.PH;
+    p.vx=0; p.vy=0; p.facing=1; p.onGround=true;
+    p.spawning=C.SPAWN_FRAMES; p.invuln=C.SPAWN_FRAMES+C.INVULN_FRAMES;
+  }
+  function newState(){ const s={ player:{x:60,y:355,vx:0,vy:0,facing:1,onGround:false,spawning:0,invuln:0}, enemies:[], score:0, wave:0, lives:3, over:false }; makeWave(s); spawnOnNest(s); return s; }
+  // Enemies cruise left-to-right or right-to-left and flap to stay aloft, flipping
+  // now and then — they no longer home in on the player.
+  function moveEnemy(s, e){
+    e.flapT--;
+    if(e.dir==null) e.dir = e.vx<0?-1:1;
+    if(Math.random()<C.FLIP_CHANCE) e.dir=-e.dir;
+    e.facing=e.dir;
+    const ei={flap:e.flapT<=0, left:e.dir<0, right:e.dir>0};
+    if(e.flapT<=0) e.flapT=18+Math.random()*22;
+    physics(e, ei);
+    if(e.y+C.PH>=C.LAVA) e.alive=false;
+  }
   function step(s, input){
     if(s.over) return s;
-    physics(s.player, input);
-    if(s.player.y+C.PH>=C.LAVA){ die(s); return s; }
+    const p=s.player;
+    if(p.invuln>0) p.invuln--;
+    // Hatching: she sits in the nest, immune, while the world keeps moving.
+    if(p.spawning>0){
+      p.spawning--;
+      for(const e of s.enemies){ if(e.alive) moveEnemy(s,e); }
+      s.enemies=s.enemies.filter(e=>e.alive);
+      if(s.enemies.length===0) makeWave(s);
+      return s;
+    }
+    physics(p, input);
+    if(p.y+C.PH>=C.LAVA){ die(s); return s; }
+    const vulnerable = p.invuln<=0;          // the safe window ignores all jousts
     for(const e of s.enemies){ if(!e.alive) continue;
-      e.flapT--; const ei={flap:e.flapT<=0, left:e.x>s.player.x+30, right:e.x<s.player.x-30}; if(e.flapT<=0) e.flapT=18+Math.random()*22;
-      physics(e, ei);
-      if(e.y+C.PH>=C.LAVA){ e.alive=false; continue; }
-      if(rov(rect(s.player),rect(e))){ const r=joustResult(s.player.y, e.y);
-        if(r==="aWins"){ e.alive=false; s.score+=500; s.player.vy=C.FLAP*0.6; }
+      moveEnemy(s,e);
+      if(!e.alive) continue;
+      if(vulnerable && rov(rect(p),rect(e))){ const r=joustResult(p.y, e.y);
+        if(r==="aWins"){ e.alive=false; s.score+=500; p.vy=C.FLAP*0.6; }
         else if(r==="bWins"){ die(s); return s; }
-        else { s.player.vx=-s.player.vx; e.vx=-e.vx; s.player.x-=s.player.facing*4; } }
+        else { p.vx=-p.vx; e.vx=-e.vx; p.x-=p.facing*4; } }
     }
     s.enemies=s.enemies.filter(e=>e.alive);
     if(s.enemies.length===0) makeWave(s);
     return s;
   }
-  function die(s){ s.lives--; if(s.lives<=0){ s.over=true; } else { s.player.x=60; s.player.y=230; s.player.vx=0; s.player.vy=0; } }
-  window.__joust={ newState, step, physics, joustResult, makeWave, PLATS, C };
+  function die(s){ s.lives--; if(s.lives<=0){ s.over=true; } else { spawnOnNest(s); } }
+  window.__joust={ newState, step, physics, joustResult, makeWave, moveEnemy, spawnOnNest, die, PLATS, C };
 
   if(typeof document==="undefined") return;
   const $=(id)=>document.getElementById(id);
@@ -112,12 +143,38 @@
     ctx.moveTo(-P/2,-2); ctx.lineTo(-P/2-7,-9); ctx.lineTo(-P/2,4); ctx.closePath(); ctx.fill();
     ctx.fillStyle="#e6e6f0"; ctx.fillRect(-2,-9,7,6);                                      // rider
     ctx.restore(); }
+  // The respawn hatch: an egg that cracks open, then the chick rises with a sparkle.
+  function drawHatch(o){
+    const cx=o.x+C.PW/2, cy=o.y+C.PH/2, t=1-o.spawning/C.SPAWN_FRAMES;   // 0..1
+    ctx.save();
+    ctx.strokeStyle="rgba(255,207,90,"+(0.7*(1-t)).toFixed(2)+")"; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(cx,cy,7+t*16,0,7); ctx.stroke();
+    ctx.restore();
+    if(t<0.55){ // egg with a widening crack
+      ctx.fillStyle="#f3ead7"; ctx.beginPath(); ctx.ellipse(cx,cy+2,9,12,0,0,7); ctx.fill();
+      ctx.strokeStyle="#c9bda3"; ctx.lineWidth=1.5; ctx.beginPath();
+      ctx.moveTo(cx-9,cy); ctx.lineTo(cx-3,cy-2-t*4); ctx.lineTo(cx+2,cy+1); ctx.lineTo(cx+9,cy-1); ctx.stroke();
+    } else { // the chick emerging
+      bird(o,"#22d3ee");
+    }
+  }
   function draw(){
     ctx.clearRect(0,0,W,H); ctx.fillStyle="#08040f"; ctx.fillRect(0,0,W,H);
     ctx.fillStyle="#8a1e1e"; ctx.fillRect(0,C.LAVA,W,H-C.LAVA); ctx.fillStyle="#f0616e"; for(let x=0;x<W;x+=16) ctx.fillRect(x,C.LAVA+(Math.sin(Date.now()/200+x)*2),8,3);
-    for(const p of PLATS){ ctx.fillStyle="#5a4a6a"; ctx.fillRect(p.x,p.y,p.w,p.h); ctx.fillStyle="#7a6a8a"; ctx.fillRect(p.x,p.y,p.w,3); }
+    for(let i=0;i<PLATS.length;i++){ const p=PLATS[i];
+      if(i===C.NEST){ // the respawn nest: a woven twig platform with a couple of eggs
+        ctx.fillStyle="#6b4a2a"; ctx.fillRect(p.x,p.y,p.w,p.h);
+        ctx.strokeStyle="#8a6238"; ctx.lineWidth=2;
+        for(let x=p.x+4;x<p.x+p.w-2;x+=9){ ctx.beginPath(); ctx.moveTo(x,p.y+p.h); ctx.lineTo(x+6,p.y+1); ctx.stroke(); }
+        ctx.fillStyle="#4a3320"; ctx.fillRect(p.x,p.y,p.w,3);
+        ctx.fillStyle="#f3ead7"; const ex=p.x+p.w/2;
+        for(const dx of [-9,3]){ ctx.beginPath(); ctx.ellipse(ex+dx,p.y-3,4,6,0,0,7); ctx.fill(); }
+      } else { ctx.fillStyle="#5a4a6a"; ctx.fillRect(p.x,p.y,p.w,p.h); ctx.fillStyle="#7a6a8a"; ctx.fillRect(p.x,p.y,p.w,3); } }
     for(const e of s.enemies) if(e.alive) bird(e,"#f0616e");
-    bird(s.player,"#22d3ee");
+    // the player: hatch animation while spawning, a blink through the safe window
+    const pl=s.player;
+    if(pl.spawning>0){ drawHatch(pl); }
+    else if(pl.invuln<=0 || Math.floor(Date.now()/90)%2===0){ bird(pl,"#22d3ee"); }
     if(s.over){ ctx.fillStyle="rgba(0,0,0,.6)"; ctx.fillRect(0,0,W,H); ctx.fillStyle="#f43f5e"; ctx.font="bold 24px system-ui"; ctx.textAlign="center"; ctx.fillText("GAME OVER",W/2,H/2-6); ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Score "+s.score+"  ·  Best "+best,W/2,H/2+16); }
   }
   function frame(){
