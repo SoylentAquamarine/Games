@@ -30,7 +30,7 @@
 <body>
 <div class="wrap">
   <div class="topbar"><a class="home" href="/">← Home</a><h1>🐔 Chicken Patrol</h1><button class="btn" id="new">New Game</button></div>
-  <div class="hud"><span>Score: <b id="score">0</b></span><span>Lives: <b id="lives">3</b></span><span>Best: <b id="best">0</b></span></div>
+  <div class="hud"><span>Score: <b id="score">0</b></span><span>Chickens: <b id="lives">🐔🐔🐔</b></span><span>Best: <b id="best">0</b></span></div>
   <canvas id="game" width="720" height="360"></canvas>
   <div class="msg" id="msg">Jump craters, shoot the rocks. Keep the buggy rolling!</div>
   <div class="ctl"><button class="cbtn" id="bjump">▲ JUMP</button><button class="cbtn fire" id="bfire">FIRE</button></div>
@@ -39,7 +39,7 @@
 <script src="/arcade.js"></script>
 <script>
 (function(){
-  const C={ W:720,H:360, GROUND:316, BUGGY_X:70, BW:44, BH:22, GRAV:0.7, JUMP_V:-11, SPEED0:3.2, SPEEDMAX:6.5, BSPEED:9, MAX_VOLLEYS:2 };
+  const C={ W:720,H:360, GROUND:316, BUGGY_X:70, BW:44, BH:22, GRAV:0.7, JUMP_V:-11, SPEED0:3.2, SPEEDMAX:6.5, BSPEED:9, MAX_VOLLEYS:2, CHICKENS:3, EXTRA:1500, BOARD_DIST:5000, FLYBY_SCORE:500 };
   const rov=(a,b)=>a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;
   function buggyRect(s){ return {x:C.BUGGY_X,y:s.y,w:C.BW,h:C.BH}; }
   // Three background bands scrolling at different rates — distant hills barely
@@ -49,7 +49,7 @@
     { speed:0.30, y:C.GROUND-62, h:48, color:"#33244f", step:104, amp:24 },
     { speed:0.62, y:C.GROUND-30, h:30, color:"#432f63", step:70,  amp:15 },
   ];
-  function newState(){ return { y:C.GROUND-C.BH, vy:0, onGround:true, obstacles:[], bullets:[], scroll:[0,0,0], speed:C.SPEED0, dist:0, score:0, lives:3, over:false, spawnGap:60, volleys:0, nextVid:0 }; }
+  function newState(){ return { y:C.GROUND-C.BH, vy:0, onGround:true, obstacles:[], bullets:[], scroll:[0,0,0], speed:C.SPEED0, dist:0, score:0, lives:C.CHICKENS, nextExtra:C.EXTRA, gotExtra:0, board:1, over:false, spawnGap:60, volleys:0, nextVid:0, justCrashed:false, newBoard:false, flyby:null, flybyDone:false }; }
   function step(s, input){
     if(s.over) return s;
     // buggy vertical
@@ -65,6 +65,20 @@
     s.volleys=new Set(s.bullets.map(b=>b.vid)).size;   // a volley is live while any of its shots is
     s.dist+=s.speed; s.score=Math.floor(s.dist/10);
     if(s.speed<C.SPEEDMAX) s.speed+=0.0016;
+    // an extra chicken as the score climbs
+    while(s.score>=s.nextExtra){ s.lives++; s.nextExtra+=C.EXTRA; s.gotExtra++; }
+    // each stretch of ground is a "board"; announce a new one at the milestone
+    if(s.dist >= s.board*C.BOARD_DIST){ s.board++; s.newBoard=true; s.flybyDone=false; s.flyby=null; }
+    // the spacesuit chicken drifts over once a board — bonus if the up-shot hits it
+    if(!s.flybyDone && !s.flyby && Math.random()<0.006){
+      const fromLeft=Math.random()<0.5;
+      s.flyby={ x: fromLeft?-24:C.W+24, y:52+Math.random()*40, vx:(fromLeft?1:-1)*(1.8+Math.random()*0.8), r:12 };
+    }
+    if(s.flyby){
+      s.flyby.x+=s.flyby.vx;
+      for(const b of s.bullets){ if(!b.dead && Math.hypot(b.x-s.flyby.x,b.y-s.flyby.y)<s.flyby.r+4){ s.score+=C.FLYBY_SCORE; s.flybyHit=true; b.dead=true; s.flyby=null; s.flybyDone=true; break; } }
+      if(s.flyby && (s.flyby.x<-40||s.flyby.x>C.W+40)){ s.flyby=null; s.flybyDone=true; }
+    }
     // bullets destroy rocks
     for(const b of s.bullets){
       if(b.dir==="up") continue;                       // the upward shot is for what flies over
@@ -84,7 +98,7 @@
     }
     return s;
   }
-  function crash(s){ s.lives--; if(s.lives<=0){ s.over=true; } else { s.obstacles=[]; s.y=C.GROUND-C.BH; s.vy=0; s.onGround=true; } }
+  function crash(s){ s.lives--; s.justCrashed=true; if(s.lives<=0){ s.over=true; } else { s.obstacles=[]; s.bullets=[]; s.y=C.GROUND-C.BH; s.vy=0; s.onGround=true; } }
   // One press fires three ways at once: ahead, behind, and straight up.
   // Forward and back clear rocks; the upward shot is what reaches the hawks.
   function fire(s){
@@ -130,6 +144,24 @@
       else { ctx.fillStyle="#9a8aa5"; ctx.beginPath(); ctx.arc(o.x+o.w/2,o.y+o.h,o.w/2,Math.PI,0); ctx.fill(); ctx.fillStyle="#7a6a85"; ctx.fillRect(o.x+3,o.y+6,4,3); } }
     for(const b of s.bullets){ ctx.fillStyle = b.dir==="up" ? "#22d3ee" : "#ffcf5a";
       if(b.dir==="up") ctx.fillRect(b.x,b.y,3,7); else ctx.fillRect(b.x,b.y,7,3); }
+    // the spacesuit chicken drifting across, once a board
+    if(s.flyby){ const f=s.flyby;
+      ctx.fillStyle="#e6e6f0"; ctx.beginPath(); ctx.arc(f.x,f.y,7,0,7); ctx.fill();           // helmet
+      ctx.fillStyle="#facc15"; ctx.beginPath(); ctx.arc(f.x,f.y,4.5,0,7); ctx.fill();          // head
+      ctx.fillStyle="#0b1030"; ctx.fillRect(f.x-2,f.y-1,1.5,1.5); ctx.fillRect(f.x+1,f.y-1,1.5,1.5);
+      ctx.fillStyle="#fb923c"; ctx.fillRect(f.x+(f.vx<0?-6:4),f.y,3,2);                          // beak
+      ctx.fillStyle="#cbd5e1"; ctx.fillRect(f.x-3,f.y+6,6,6); }                                  // suit
+    if(dying>0){
+      // buggy in pieces
+      for(const d of debris){ if(d.life<=0) continue; ctx.save(); ctx.translate(d.x,d.y); ctx.rotate(d.rot);
+        ctx.fillStyle = d.life>40? "#22d3ee" : (d.life>18? "#fb923c" : "#7a2a2a"); ctx.fillRect(-3,-2,6,4); ctx.restore(); }
+      if(banner>0||s.over){} // (banner/over drawn below)
+      // draw the board banner / game over below; skip the intact buggy
+      wheel=(wheel+s.speed*0.3)%(Math.PI*2);
+      if(banner>0){ ctx.fillStyle="#facc15"; ctx.font="bold 22px system-ui"; ctx.textAlign="center"; ctx.fillText("BOARD "+s.board,W/2,64); }
+      if(s.over){ ctx.fillStyle="rgba(0,0,0,.6)"; ctx.fillRect(0,0,W,H); ctx.fillStyle="#f43f5e"; ctx.font="bold 24px system-ui"; ctx.textAlign="center"; ctx.fillText("GAME OVER",W/2,H/2-6); ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Score "+s.score+"  ·  Best "+best,W/2,H/2+16); }
+      return;
+    }
     // buggy
     wheel=(wheel+s.speed*0.3)%(Math.PI*2);
     ctx.fillStyle="#22d3ee"; ctx.fillRect(C.BUGGY_X,s.y,C.BW,C.BH-6); ctx.fillRect(C.BUGGY_X+8,s.y-8,C.BW-20,10);
@@ -140,21 +172,40 @@
       ctx.fillStyle="#0b1030"; ctx.fillRect(hx-3,hy-2,2,2); ctx.fillRect(hx+1,hy-2,2,2);
       ctx.fillStyle="#fb923c"; ctx.fillRect(hx+4,hy,4,2); }
     ctx.fillStyle="#0b0c1a"; for(const wx of [C.BUGGY_X+9,C.BUGGY_X+C.BW-9]){ ctx.beginPath(); ctx.arc(wx,s.y+C.BH-4,6,0,7); ctx.fill(); ctx.strokeStyle="#5a5f7a"; ctx.beginPath(); ctx.moveTo(wx,s.y+C.BH-4); ctx.lineTo(wx+Math.cos(wheel)*5,s.y+C.BH-4+Math.sin(wheel)*5); ctx.stroke(); }
+    if(banner>0){ ctx.fillStyle="#facc15"; ctx.font="bold 22px system-ui"; ctx.textAlign="center"; ctx.fillText("BOARD "+s.board,W/2,64); }
     if(s.over){ ctx.fillStyle="rgba(0,0,0,.6)"; ctx.fillRect(0,0,W,H); ctx.fillStyle="#f43f5e"; ctx.font="bold 24px system-ui"; ctx.textAlign="center"; ctx.fillText("GAME OVER",W/2,H/2-6); ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Score "+s.score+"  ·  Best "+best,W/2,H/2+16); }
   }
   function frame(){
     if(!GATE.open){ draw(); GATE.paint(); return requestAnimationFrame(frame); }
-    if(!s.over){ if(--s.spawnGap<=0){ spawn(s); s.spawnGap=Math.max(28, 70-Math.floor(s.speed*4)); } step(s,input); input.jump=false;
-      if(typeof Arcade!=="undefined")Arcade.stats.record("moonpatrol",s.score); if(s.over && s.score>best){ best=s.score; try{localStorage.setItem("moon_best",String(best));}catch(e){} $("msg").textContent="Crashed! Score "+s.score+"  ·  Best "+best; } }
-    $("score").textContent=s.score; $("lives").textContent=Math.max(0,s.lives); $("best").textContent=best; draw(); requestAnimationFrame(frame);
+    if(banner>0) banner--;
+    if(dying>0){
+      for(const d of debris){ d.x+=d.vx; d.y+=d.vy; d.vy+=0.35; d.rot+=d.vr; d.life--; }
+      if(--dying<=0 && !s.over){ /* resume from the same point */ }
+    } else if(!s.over){
+      if(--s.spawnGap<=0){ spawn(s); s.spawnGap=Math.max(28, 70-Math.floor(s.speed*4)); }
+      step(s,input); input.jump=false;
+      if(s.newBoard){ s.newBoard=false; banner=110; if(typeof Arcade!=="undefined") Arcade.sfx.wave(); $("msg").textContent="Board "+s.board+"!"; }
+      if(s.flybyHit){ s.flybyHit=false; if(typeof Arcade!=="undefined") Arcade.sfx.win(); $("msg").textContent="🚀 Space chicken! +"+C.FLYBY_SCORE; }
+      if(s.justCrashed){ s.justCrashed=false;
+        dying=70; debris=[]; const bx=C.BUGGY_X+C.BW/2, by=s.y+C.BH/2;
+        for(let i=0;i<16;i++){ const a=Math.random()*Math.PI*2, sp=1.4+Math.random()*3.2;
+          debris.push({x:bx,y:by,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-1.6,life:70,rot:Math.random()*7,vr:(Math.random()-0.5)*0.5}); }
+        if(typeof Arcade!=="undefined") Arcade.sfx.explode();
+        $("msg").textContent = s.over ? "Out of chickens! Score "+s.score : "CHICKEN DOWN — "+s.lives+" left"; }
+      if(typeof Arcade!=="undefined")Arcade.stats.record("moonpatrol",s.score);
+      if(s.over && s.score>best){ best=s.score; try{localStorage.setItem("moon_best",String(best));}catch(e){} }
+    }
+    $("score").textContent=s.score; renderChix(); $("best").textContent=best; draw(); requestAnimationFrame(frame);
   }
-  function jump(){ if(!s.over) input.jump=true; }
+  let dying=0, debris=[], banner=0;
+  function renderChix(){ $("lives").textContent="🐔".repeat(Math.max(0,s.lives)); }
+  function jump(){ if(!s.over && dying<=0) input.jump=true; }
   addEventListener("keydown",(e)=>{ if(e.key===" "||e.key==="ArrowUp"||e.key==="w"){ e.preventDefault(); jump(); } else if(e.key==="f"||e.key==="Control"){ e.preventDefault(); fire(s); } });
   cv.addEventListener("touchstart",(e)=>{ e.preventDefault(); jump(); },{passive:false});
   const jb=$("bjump"), fb=$("bfire");
   jb.addEventListener("touchstart",(e)=>{e.preventDefault();jump();},{passive:false}); jb.addEventListener("mousedown",jump);
   fb.addEventListener("touchstart",(e)=>{e.preventDefault();fire(s);},{passive:false}); fb.addEventListener("mousedown",()=>fire(s));
-  $("new").addEventListener("click",()=>{ s=newState(); input={jump:false}; $("msg").textContent="Jump craters, shoot the rocks!"; });
+  $("new").addEventListener("click",()=>{ s=newState(); input={jump:false}; dying=0; debris=[]; banner=0; renderChix(); $("msg").textContent="Jump craters, shoot the rocks!"; });
   requestAnimationFrame(frame);
 })();
 </script>
