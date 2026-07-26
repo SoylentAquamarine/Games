@@ -106,6 +106,15 @@
     if(o.ax==null || Math.abs(tx-o.ax)>CW*1.6 || Math.abs(ty-o.ay)>RH*1.2){ o.ax=tx; o.ay=ty; return; }
     o.ax+=(tx-o.ax)*k; o.ay+=(ty-o.ay)*k;
   }
+  // The farmer walks at a steady pace instead of easing. Exponential ease restarts
+  // from a near-stop at every cell, so it lurched fast-then-slow each step — that is
+  // the "accelerates too much / jerky" feel. A constant-speed glide reads as walking.
+  function glide(o, tx, ty, spx, spy){
+    if(o.ax==null || Math.abs(tx-o.ax)>CW*1.6 || Math.abs(ty-o.ay)>RH*1.2){ o.ax=tx; o.ay=ty; return; }
+    const dx=tx-o.ax, dy=ty-o.ay;
+    o.ax += Math.abs(dx)<=spx ? dx : Math.sign(dx)*spx;
+    o.ay += Math.abs(dy)<=spy ? dy : Math.sign(dy)*spy;
+  }
 
   function draw(){
     ctx.clearRect(0,0,W,H); ctx.fillStyle="#08040f"; ctx.fillRect(0,0,W,H);
@@ -149,7 +158,7 @@
     // the farmer
     const p=s.player;
     if(p.climb>0) p.climb--;
-    ease(p, cx(p.col), gy(p.row,p.col), p.climb>0?0.10:0.26);   // slower, smoother on a ladder
+    glide(p, cx(p.col), gy(p.row,p.col), CW/12, p.climb>0?RH/16:RH/12);   // steady walk; gentler climb rate
     const py=p.ay-6-jumpHeight(p);
     ctx.fillStyle="#d9c27a"; ctx.beginPath();                              // straw hat brim
     ctx.ellipse(p.ax,py-15,10,3.5,0,0,7); ctx.fill();
