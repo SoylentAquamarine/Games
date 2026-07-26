@@ -75,7 +75,7 @@
     const FLYBY_EVERY=5, WEASEL_FROM=10;               // a flyby between waves, every 5th
     const FLYBY_SHOT=90, WEASEL_SHOT=140;              // 1.5s and ~2.3s between shots
     const FLYBY_SCORE=500, WEASEL_SCORE=250;
-    let flyby=null, weasels=[], eBullets=[], pops=[], interlude=false;
+    let flyby=null, weasels=[], eBullets=[], pops=[], interlude=false, flybyWave=-1;
 
     // He crosses on a clear screen between waves, and deliberately not on your
     // line — he passes by somewhere else and shoots across, rather than flying
@@ -121,7 +121,7 @@
     function spawnWave(){rocks=[];const count=Math.min(7, 2+Math.ceil(wave*0.6));for(let i=0;i<count;i++){
       let x,y;do{x=Math.random()*W;y=Math.random()*H;}while(Math.hypot(x-ship.x,y-ship.y)<120);
       rocks.push(makeRock(x,y,3));}}
-    function reset(full){if(full){score=0;lives=3;wave=1;}dying=0;debris=[];gameOverPending=false;respawnFlash=0;ship=newShip();bullets=[];inv=90;
+    function reset(full){if(full){score=0;lives=3;wave=1;flybyWave=-1;}dying=0;debris=[];gameOverPending=false;respawnFlash=0;ship=newShip();bullets=[];inv=90;
       flyby=null;interlude=false;weasels=[];eBullets=[];pops=[];spawnWave();spawnWeasels();
       scoreEl.textContent=score;livesEl.textContent=lives;}
     function start(){reset(true);ov.classList.add("hidden");running=true;loop();}
@@ -170,7 +170,9 @@
       if(rocks.length===0 && !interlude){
         // Every fifth wave, the space-suit chicken crosses the empty screen
         // before the next batch of eggs arrives.
-        if(wave%FLYBY_EVERY===0 && !flyby){ interlude=true; spawnFlyby(); }
+        // one pass per 5-wave milestone — the sentinel stops it re-spawning if
+        // you die mid-flyby (interlude resets but the wave hasn't advanced yet)
+        if(wave%FLYBY_EVERY===0 && flybyWave!==wave){ interlude=true; flybyWave=wave; spawnFlyby(); }
         else { wave++;ship=newShip();inv=RESPAWN_INV;spawnWave();spawnWeasels(); }
       }
       // once he is gone, the next wave rolls in
