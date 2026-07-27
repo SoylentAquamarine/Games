@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Chicken Position — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='64'>🏁</text></svg>" />
+  <style>
+    :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;}
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+      background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.2),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.14),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;touch-action:none;}
+    .wrap{max-width:560px;margin:0 auto;padding:14px 12px 30px;display:flex;flex-direction:column;align-items:center;gap:10px}
+    .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
+    .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+    h1{margin:0;font-size:1.3rem;background:linear-gradient(120deg,#f43f5e,#22d3ee);-webkit-background-clip:text;background-clip:text;color:transparent}
+    .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:9px 16px;border-radius:999px;cursor:pointer}
+    .hud{width:100%;max-width:480px;display:flex;justify-content:space-between;font-size:.85rem;color:var(--muted)}
+    .hud b{color:var(--text)}
+    canvas{border-radius:10px;border:2px solid #2a2f55;background:#87b7e8;touch-action:none}
+    .msg{min-height:1.3em;font-weight:800;text-align:center}
+    .ctl{display:flex;gap:8px;align-items:center;margin-top:2px}
+    .cbtn{background:var(--panel);color:var(--text);border:1px solid rgba(255,255,255,.1);border-radius:10px;width:58px;height:50px;font-size:1.3rem;cursor:pointer;user-select:none}
+    .cbtn:active{background:var(--accent);color:#0b0c1a}
+    .gas{background:var(--accent-2);color:#0b0c1a;border:none;border-radius:10px;padding:0 20px;height:50px;font-weight:800;cursor:pointer}
+    .hint{font-size:.78rem;color:var(--muted);text-align:center}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar"><a class="home" href="/">← Home</a><h1>🏁 Chicken Position</h1><button class="btn" id="new">New Game</button></div>
+  <div class="hud"><span>Score: <b id="score">0</b></span><span>Speed: <b id="spd">0</b></span><span>Time: <b id="time">0</b></span><span>Best: <b id="best">0</b></span></div>
+  <canvas id="game" width="480" height="360"></canvas>
+  <div class="msg" id="msg">Gas to go, steer through the bends, reach each checkpoint before TIME runs out!</div>
+  <div class="ctl"><button class="cbtn" id="bl">◀</button><button class="gas" id="bg">GAS</button><button class="cbtn" id="bk">BRAKE</button><button class="cbtn" id="br">▶</button></div>
+  <p class="hint">Arrows/A·D steer · ↑/Space/W gas · ↓/S brake. Curves throw you wide — steer into them. Off-track slows you; hit a rival and you spin out.</p>
+</div>
+<script src="/arcade.js"></script>
+<script>
+(function(){
+  const C={ W:480, H:360, HORIZON:0.42,
+    MAXSPD:12, ACCEL:0.08, BRAKE:0.32, DRAG:0.05, OFFSPD:4.0,
+    STEER:0.019, CENTRIFUGAL:0.013, LOOK:1100, BEND:0.9,
+    CAR_LEN:230, CAR_WIDE:0.30, CRASH_FRAMES:70,
+    CHECK_DIST:6500, CHECK_BONUS:42, TIME_START:80, TIME_RATE:0.028 };
+  const clamp=(v,a,b)=>v<a?a:v>b?b:v;
+  // The course: a windy track. curveAt>0 bends right, <0 bends left.
+  function curveAt(pos){ return Math.sin(pos*0.00058)*0.7 + Math.sin(pos*0.00131+2)*0.3; }
+  const RIVAL_COLORS=["#f43f5e","#22d3ee","#a3e635","#c084fc","#fb923c"];
+
+  function newState(){
+    const cars=[];
+    for(let i=0;i<5;i++) cars.push({ pos:(i+2)*C.CAR_LEN*4, x:(Math.random()*2-1)*0.7,
+      speed:C.MAXSPD*(0.4+Math.random()*0.28), col:RIVAL_COLORS[i%RIVAL_COLORS.length] });
+    return { pos:0, playerX:0, speed:0, cars, score:0, time:C.TIME_START,
+      nextCheck:C.CHECK_DIST, checkFlash:0, crashT:0, spins:0, offroad:false, over:false, won:false };
+  }
+  function crash(s){ if(s.crashT>0) return; s.crashT=C.CRASH_FRAMES; s.speed=0; s.spins++; }
+  function tickTime(s){ s.time-=C.TIME_RATE; if(s.time<=0){ s.time=0; s.over=true; } }
+
+  function step(s, input){
+    if(s.over) return s;
+    input=input||{};
+    if(s.crashT>0){ s.crashT--; s.speed=0; tickTime(s); return s; }
+    // speed
+    if(input.gas) s.speed=Math.min(C.MAXSPD, s.speed+C.ACCEL);
+    else if(input.brake) s.speed=Math.max(0, s.speed-C.BRAKE);
+    else s.speed=Math.max(0, s.speed-C.DRAG);
+    const sf=s.speed/C.MAXSPD;
+    s.pos += s.speed;
+    // curves throw you toward the outside
+    const curve=curveAt(s.pos);
+    s.playerX -= curve * sf * C.CENTRIFUGAL;
+    // steering, more effective the faster you go
+    if(input.left)  s.playerX -= C.STEER*(0.35+0.65*sf);
+    if(input.right) s.playerX += C.STEER*(0.35+0.65*sf);
+    // off the track
+    s.offroad = Math.abs(s.playerX)>1;
+    if(s.offroad){ s.speed=Math.min(s.speed,C.OFFSPD); s.playerX=clamp(s.playerX,-1.5,1.5); }
+    // rivals
+    for(const o of s.cars){ o.pos += o.speed;
+      const rel=o.pos - s.pos;
+      if(rel>0 && rel<C.CAR_LEN && Math.abs(o.x - s.playerX)<C.CAR_WIDE) crash(s);
+      if(rel < -C.CAR_LEN*4){ o.pos = s.pos + C.CAR_LEN*(50+Math.random()*70); o.x=(Math.random()*2-1)*0.75; o.speed=C.MAXSPD*(0.4+Math.random()*0.28); }
+    }
+    s.score=Math.floor(s.pos/40);
+    if(s.checkFlash>0) s.checkFlash--;
+    if(s.pos>=s.nextCheck){ s.nextCheck+=C.CHECK_DIST; s.time+=C.CHECK_BONUS; s.checkFlash=45; s.laps=(s.laps||0)+1; }
+    tickTime(s);
+    return s;
+  }
+
+  window.__chickenposition={ newState, step, curveAt, crash, C };
+
+  // ---- rendering / wiring --------------------------------------------------
+  if(typeof document==="undefined"||!document.getElementById) return;
+  const $=(id)=>document.getElementById(id);
+  const cv=$("game"); if(!cv) return; const ctx=cv.getContext("2d");
+  if(typeof Arcade!=="undefined"&&Arcade.fitScreen) Arcade.fitScreen(cv,"medium");
+  let s=newState(), best=0, input={left:false,right:false,gas:false,brake:false}, GATE=null;
+  try{ best=parseInt(localStorage.getItem("chickenposition_best")||"0")||0; }catch(e){}
+
+  const hY=()=>C.H*C.HORIZON;
+  // road centre + half width at a given screen row, given the accumulated curve
+  function roadAt(y, offset, halfW){ return C.W/2 + offset - s.playerX*halfW*0.9; }
+
+  function drawScene(){
+    const H=C.H,W=C.W, horizon=hY();
+    // sky + distant hills
+    ctx.fillStyle="#87b7e8"; ctx.fillRect(0,0,W,horizon+2);
+    ctx.fillStyle="#6fa3d8"; ctx.beginPath(); ctx.moveTo(0,horizon); for(let x=0;x<=W;x+=40){ ctx.lineTo(x,horizon-8-8*Math.sin(x*0.05+s.pos*0.0006)); } ctx.lineTo(W,horizon); ctx.closePath(); ctx.fill();
+    // ground base
+    ctx.fillStyle="#3f8b3a"; ctx.fillRect(0,horizon,W,H-horizon);
+    // project the road scanline by scanline
+    let dxx=0, offset=0;
+    for(let y=Math.floor(horizon); y<H; y++){
+      const persp=(y-horizon)/(H-horizon);            // 0 at horizon, 1 near
+      const look = s.pos + (1-persp)*C.LOOK;
+      dxx += curveAt(look) * C.BEND * (1-persp);
+      offset += dxx;
+      const halfW = 8 + persp*persp*(W*0.62);
+      const cx = roadAt(y, offset, halfW);
+      const band = Math.floor((s.pos*0.06 + (1-persp)*40)) % 2;
+      // grass stripes
+      ctx.fillStyle = band? "#3f8b3a" : "#398034"; ctx.fillRect(0,y,W,1);
+      // road
+      ctx.fillStyle = band? "#4a4f5b" : "#454a56"; ctx.fillRect(cx-halfW,y,halfW*2,1);
+      // rumble strips
+      const rw=Math.max(2,halfW*0.10);
+      ctx.fillStyle = band? "#f4f4f4" : "#f43f5e";
+      ctx.fillRect(cx-halfW,y,rw,1); ctx.fillRect(cx+halfW-rw,y,rw,1);
+      // centre line (dashed by band, thinner far away)
+      if(band){ ctx.fillStyle="#e8e8b0"; const cw=Math.max(1,halfW*0.04); ctx.fillRect(cx-cw,y,cw*2,1); }
+    }
+    // rivals, far to near so nearer ones overlap
+    const ordered=s.cars.filter(o=>{ const r=o.pos-s.pos; return r>0 && r<C.LOOK*1.1; }).sort((a,b)=> (b.pos-s.pos)-(a.pos-s.pos));
+    for(const o of ordered){
+      const rel=o.pos-s.pos; const persp=1-clamp(rel/C.LOOK,0,1);
+      const y = horizon + persp*(H-horizon);
+      // recompute offset at this depth (approx via same accumulation to y)
+      const {cx,halfW}=projectAt(y);
+      const scale = (persp*persp)*1.1+0.06;
+      const cw=42*scale, ch=30*scale;
+      const x = cx + o.x*halfW;
+      drawCar(x-cw/2, y-ch, cw, ch, o.col);
+    }
+    // player car, fixed near the bottom, leaning with steering
+    const lean = (input.right?1:0)-(input.left?1:0);
+    drawCar(W/2-26 + lean*6 - s.playerX*8, H-52, 52, 40, "#ffcf5a", true, s.crashT>0);
+    if(s.offroad && !s.over){ ctx.fillStyle="rgba(120,200,120,.14)"; ctx.fillRect(0,0,W,H); }
+    if(s.checkFlash>0){ ctx.fillStyle="#ffcf5a"; ctx.font="bold 22px system-ui"; ctx.textAlign="center"; ctx.fillText("CHECKPOINT! +"+C.CHECK_BONUS,W/2,horizon-14); }
+    if(s.over){ ctx.fillStyle="rgba(0,0,0,.6)"; ctx.fillRect(0,0,W,H);
+      ctx.fillStyle="#f43f5e"; ctx.font="bold 24px system-ui"; ctx.textAlign="center"; ctx.fillText("TIME UP",W/2,H/2-6);
+      ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Score "+s.score+"  ·  Best "+best,W/2,H/2+16); }
+  }
+  // re-run the scanline accumulation down to row y to find the road there
+  function projectAt(y){ const H=C.H,W=C.W,horizon=hY(); let dxx=0,offset=0,cx=W/2,halfW=8;
+    for(let yy=Math.floor(horizon); yy<=y && yy<H; yy++){ const persp=(yy-horizon)/(H-horizon);
+      const look=s.pos+(1-persp)*C.LOOK; dxx+=curveAt(look)*C.BEND*(1-persp); offset+=dxx;
+      halfW=8+persp*persp*(W*0.62); cx=W/2+offset - s.playerX*halfW*0.9; }
+    return {cx,halfW}; }
+
+  function drawCar(x,y,w,h,col,isPlayer,crashed){
+    ctx.save(); ctx.translate(x+w/2,y+h/2);
+    if(crashed){ ctx.rotate(Math.sin(Date.now()/40)*0.5); }
+    ctx.fillStyle="#0b0c1a"; ctx.fillRect(-w/2,-h*0.30,w*0.14,h*0.3); ctx.fillRect(w/2-w*0.14,-h*0.30,w*0.14,h*0.3);
+    ctx.fillRect(-w/2,h*0.10,w*0.14,h*0.34); ctx.fillRect(w/2-w*0.14,h*0.10,w*0.14,h*0.34);
+    ctx.fillStyle=col; ctx.beginPath();
+    ctx.moveTo(0,-h/2); ctx.lineTo(w*0.30,-h*0.06); ctx.lineTo(w*0.30,h*0.42); ctx.lineTo(-w*0.30,h*0.42); ctx.lineTo(-w*0.30,-h*0.06); ctx.closePath(); ctx.fill();
+    ctx.fillStyle="#0b0c1a"; ctx.fillRect(-w*0.34,h*0.40,w*0.68,Math.max(2,h*0.09));
+    // cockpit chicken (bigger on the player)
+    const r=Math.max(2,h*0.14);
+    ctx.fillStyle="#facc15"; ctx.beginPath(); ctx.arc(0,0,r,0,7); ctx.fill();
+    ctx.fillStyle="#dc2626"; ctx.fillRect(-r*0.6,-r-2,r*0.4,r*0.4); ctx.fillRect(0,-r-3,r*0.4,r*0.5); ctx.fillRect(r*0.5,-r-2,r*0.4,r*0.4);
+    ctx.fillStyle="#0b0c1a"; ctx.fillRect(-r*0.5,-r*0.3,1.5,1.5); ctx.fillRect(r*0.3,-r*0.3,1.5,1.5);
+    ctx.restore();
+  }
+
+  function frame(){
+    if(GATE && !GATE.open){ drawScene(); GATE.paint(); return requestAnimationFrame(frame); }
+    if(!s.over){ const wasCrash=s.crashT, wasCheck=s.checkFlash; step(s,input);
+      if(typeof Arcade!=="undefined"){ Arcade.stats.record("chickenposition",s.score);
+        if(s.crashT>wasCrash) Arcade.sfx.explode();
+        if(s.checkFlash>wasCheck) Arcade.sfx.coin(); }
+      if(s.over){ if(s.score>best){ best=s.score; try{localStorage.setItem("chickenposition_best",String(best));}catch(e){} } $("msg").textContent="Time up! Score "+s.score; }
+      else $("msg").textContent = s.crashT>0 ? "Spun out!" : (s.offroad ? "Off the track — steer back on!" : "");
+    }
+    $("score").textContent=s.score; $("spd").textContent=Math.round(s.speed/C.MAXSPD*300); $("time").textContent=Math.ceil(s.time); $("best").textContent=best;
+    drawScene(); requestAnimationFrame(frame);
+  }
+  const press=(k,v)=>{ input[k]=v; };
+  addEventListener("keydown",e=>{ const m={ArrowLeft:"left",ArrowRight:"right",ArrowUp:"gas",ArrowDown:"brake",a:"left",d:"right",w:"gas",s:"brake"," ":"gas"}[e.key]; if(m){e.preventDefault(); press(m,true);} });
+  addEventListener("keyup",e=>{ const m={ArrowLeft:"left",ArrowRight:"right",ArrowUp:"gas",ArrowDown:"brake",a:"left",d:"right",w:"gas",s:"brake"," ":"gas"}[e.key]; if(m){ press(m,false);} });
+  const hold=(id,k)=>{ const el=$(id); const on=(e)=>{e.preventDefault();press(k,true);}; const off=(e)=>{e.preventDefault();press(k,false);};
+    el.addEventListener("touchstart",on,{passive:false}); el.addEventListener("touchend",off); el.addEventListener("mousedown",on); el.addEventListener("mouseup",off); el.addEventListener("mouseleave",off); };
+  hold("bl","left"); hold("br","right"); hold("bg","gas"); hold("bk","brake");
+  $("new").addEventListener("click",()=>{ s=newState(); $("msg").textContent="Green light — GO!"; });
+  GATE = (typeof Arcade!=="undefined"&&Arcade.startGate) ? Arcade.startGate(cv,"Chicken Position") : {open:true,paint:()=>{}};
+  requestAnimationFrame(frame);
+})();
+</script>
+<script src="/comments.js" defer></script>
+</body>
+</html>
