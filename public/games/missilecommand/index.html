@@ -34,7 +34,7 @@
 <script src="/arcade.js"></script>
 <script>
 (function(){
-  const C={ W:360,H:300, GROUND_Y:280, N_CITIES:6, EXP_MAX_R:30, EXP_GROW:1.0, EXP_LIFE:55, ENEMY_SPEED:0.55, INT_SPEED:6, BASE_AMMO:10, BASE_X:[20,180,340], CITY_X:[60,100,140,220,260,300], INTERMISSION:120, RECOVER_EVERY:8000, FLYBY_EVERY:5, BOMB_SPEED:1.1 };   // 2s pause between waves
+  const C={ W:360,H:300, GROUND_Y:280, N_CITIES:6, EXP_MAX_R:30, EXP_GROW:1.0, EXP_LIFE:55, ENEMY_SPEED:0.55, INT_SPEED:6, BASE_AMMO:10, BASE_X:[20,180,340], CITY_X:[60,100,140,220,260,300], INTERMISSION:120, RECOVER_EVERY:8000, FLYBY_EVERY:5, BOMB_SPEED:1.1, MAX_RAID_BOMBS:2 };   // at most 2 chicken bombs on screen so you can keep up
   const dist=(ax,ay,bx,by)=>Math.hypot(ax-bx,ay-by);
 
   function newGame(){
@@ -149,9 +149,11 @@
       fb.x+=fb.vx;
       if(--fb.dropT<=0 && fb.x>10 && fb.x<C.W-10){
         fb.dropT=45+Math.floor(Math.random()*30);
-        const targets=[...s.cities.filter(c=>c.alive), ...s.bases.filter(b=>!b.dead)];
-        const tgt=targets.length?targets[Math.floor(Math.random()*targets.length)]:{x:fb.x};
-        s.bombs.push({x:fb.x,y:fb.y+6,tx:tgt.x,ty:C.GROUND_Y});
+        if(s.bombs.length < C.MAX_RAID_BOMBS){        // never more than two bombs falling at once
+          const targets=[...s.cities.filter(c=>c.alive), ...s.bases.filter(b=>!b.dead)];
+          const tgt=targets.length?targets[Math.floor(Math.random()*targets.length)]:{x:fb.x};
+          s.bombs.push({x:fb.x,y:fb.y+6,tx:tgt.x,ty:C.GROUND_Y});
+        }
       }
       for(const e of s.explosions){ if(e.life>0 && dist(e.x,e.y,fb.x,fb.y)<=e.r+8){ s.score+=1000; fb.alive=false; if(typeof Arcade!=="undefined") Arcade.sfx.hit(); break; } }
       if(fb.alive && (fb.x<-30||fb.x>C.W+30)) fb.alive=false;
