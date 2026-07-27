@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Candy Match — Games</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🍬</text></svg>" />
+  <title>Chicken Match — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🐔</text></svg>" />
   <style>
     :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;--grid:#2a2050;}
     *{box-sizing:border-box}
@@ -32,7 +32,7 @@
 </head>
 <body>
   <div class="wrap">
-    <div class="topbar"><a class="home" href="/">← Home</a><h1>🍬 Candy Match</h1><span style="width:56px"></span></div>
+    <div class="topbar"><a class="home" href="/">← Home</a><h1>🐔 Chicken Match</h1><span style="width:56px"></span></div>
     <div class="scores">
       <div class="stat"><div class="label">Score</div><div class="value" id="score">0</div></div>
       <div class="stat"><div class="label">Target</div><div class="value" id="target">1000</div></div>
@@ -41,11 +41,27 @@
     <div class="board" id="board"></div>
     <div class="status" id="status">Swap two neighbors to match 3+.</div>
     <button class="btn" id="new">New Game</button>
-    <p class="hint">Click a candy, then a neighbor, to swap. Match 3+ in a row/column. Chains score more!</p>
+    <p class="hint">Click a chicken, then a neighbor, to swap. Match 3+ in a row/column. Chains score more!</p>
   </div>
   <script>
   (function(){
-    const SIZE=8, NCOL=6, GEMS=["🔴","🟡","🟢","🔵","🟣","🟠"];
+    const SIZE=8, NCOL=6;
+    // six hens in clearly distinct colours — the head colour is what you match on
+    const COLORS=["#ef4444","#facc15","#22c55e","#3b82f6","#a855f7","#f97316"];
+    function darken(hex,f){ const n=parseInt(hex.slice(1),16); let r=(n>>16)&255,g=(n>>8)&255,b=n&255;
+      r=Math.round(r*(1-f)); g=Math.round(g*(1-f)); b=Math.round(b*(1-f));
+      return "#"+((1<<24)|(r<<16)|(g<<8)|b).toString(16).slice(1); }
+    // a little chicken head tinted to the tile's colour, sized to fill the cell
+    function chickenSVG(v){ const col=COLORS[v], comb=darken(col,0.32);
+      return '<svg viewBox="0 0 24 24" width="84%" height="84%" style="display:block">'
+        + '<path d="M8 6 q1.2 -2.4 2.6 -0.2 q1.2 -2.4 2.6 -0.2 q1.4 -2 2.8 0.4" fill="'+comb+'"/>'
+        + '<circle cx="12" cy="13.5" r="7.4" fill="'+col+'"/>'
+        + '<circle cx="10" cy="16" r="3" fill="rgba(255,255,255,.18)"/>'
+        + '<circle cx="14.6" cy="11.6" r="1.5" fill="#0b0c1a"/>'
+        + '<circle cx="15.1" cy="11.1" r="0.5" fill="#fff"/>'
+        + '<path d="M19 12.6 l4.2 1.6 l-4.2 1.6 z" fill="#fb923c"/>'
+        + '<path d="M18.6 15.6 q1.2 1.8 -0.4 3.2" stroke="#dc2626" stroke-width="1.5" fill="none"/>'
+        + '</svg>'; }
     const TARGET=1000, MOVES=25;
     const boardEl=document.getElementById("board"),scoreEl=document.getElementById("score"),movesEl=document.getElementById("moves"),targetEl=document.getElementById("target"),statusEl=document.getElementById("status");
     let board,sel,score,moves,busy,over,cells=[];
@@ -65,7 +81,7 @@
       for(let r=0;r<SIZE;r++){cells[r]=[];for(let c=0;c<SIZE;c++){const d=document.createElement("div");d.className="cell";
         d.addEventListener("click",()=>click(r,c));boardEl.appendChild(d);cells[r][c]=d;}}}
     function render(){for(let r=0;r<SIZE;r++)for(let c=0;c<SIZE;c++){const v=board[r][c];const el=cells[r][c];
-      el.textContent=v>=0?GEMS[v]:"";el.classList.toggle("sel",!!(sel&&sel[0]===r&&sel[1]===c));}}
+      el.innerHTML=v>=0?chickenSVG(v):"";el.classList.toggle("sel",!!(sel&&sel[0]===r&&sel[1]===c));}}
 
     function newGame(){board=gen();sel=null;score=0;moves=MOVES;over=false;busy=false;
       scoreEl.textContent=0;movesEl.textContent=MOVES;targetEl.textContent=TARGET;statusEl.textContent="Swap two neighbors to match 3+.";render();}
