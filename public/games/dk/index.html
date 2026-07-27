@@ -191,11 +191,14 @@
     }
     $("score").textContent=s.score; $("lives").textContent=Math.max(0,s.lives); $("best").textContent=best; draw(); requestAnimationFrame(frame);
   }
-  document.querySelectorAll(".dpad button").forEach(b=>{ const d=b.getAttribute("data-d"); const on=(e)=>{e.preventDefault(); if(d==="up"||d==="down"){ move(s,d); } else { input=d; move(s,d); moveT=0; } }; const off=(e)=>{e.preventDefault(); if(input===d)input=null;};
+  document.querySelectorAll(".dpad button").forEach(b=>{ const d=b.getAttribute("data-d"); const on=(e)=>{e.preventDefault(); input=d; move(s,d); moveT=0; }; const off=(e)=>{e.preventDefault(); if(input===d)input=null;};
     b.addEventListener("touchstart",on,{passive:false}); b.addEventListener("touchend",off); b.addEventListener("mousedown",on); b.addEventListener("mouseup",off); b.addEventListener("mouseleave",off); });
   const jb=$("jump"); const jf=(e)=>{e.preventDefault();jump(s);}; jb.addEventListener("touchstart",jf,{passive:false}); jb.addEventListener("mousedown",jf);
-  addEventListener("keydown",(e)=>{ const m={ArrowLeft:"left",ArrowRight:"right",ArrowUp:"up",ArrowDown:"down",a:"left",d:"right",w:"up",s:"down"}[e.key]; if(m){e.preventDefault(); if(m==="up"||m==="down") move(s,m); else { input=m; move(s,m); moveT=0; } } if(e.key===" "){e.preventDefault(); jump(s);} });
-  addEventListener("keyup",(e)=>{ const m={ArrowLeft:"left",ArrowRight:"right"}[e.key]; if(m&&input===m)input=null; });
+  // All movement is held-key: one step on press, then the frame loop repeats at a
+  // fixed cadence. Ignoring the OS key-repeat (e.repeat) is what stops the farmer
+  // from bolting across the screen at the keyboard's repeat rate.
+  addEventListener("keydown",(e)=>{ const m={ArrowLeft:"left",ArrowRight:"right",ArrowUp:"up",ArrowDown:"down",a:"left",d:"right",w:"up",s:"down"}[e.key]; if(m){e.preventDefault(); if(e.repeat) return; input=m; move(s,m); moveT=0; } if(e.key===" "){e.preventDefault(); if(!e.repeat) jump(s);} });
+  addEventListener("keyup",(e)=>{ const m={ArrowLeft:"left",ArrowRight:"right",ArrowUp:"up",ArrowDown:"down",a:"left",d:"right",w:"up",s:"down"}[e.key]; if(m&&input===m)input=null; });
   $("new").addEventListener("click",()=>{ s=newState(); input=null; $("msg").textContent="Climb to the top — jump the barrels!"; });
   requestAnimationFrame(frame);
 })();
