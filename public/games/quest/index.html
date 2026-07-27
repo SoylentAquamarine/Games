@@ -218,8 +218,13 @@
         // The whole chicken now turns to face the way you walk: drawn in a local
         // frame that faces +x (forward), then rotated by the travel direction, so
         // the tail always trails behind rather than sitting on the left.
-        const ang = player.dir===3?0 : player.dir===1?Math.PI/2 : player.dir===2?Math.PI : -Math.PI/2;
-        ctx.save(); ctx.translate(hx,hy); ctx.rotate(ang);
+        // Face the way you walk. Left mirrors horizontally — a 180° rotate would
+        // flip the hen upside down; up and down turn a quarter turn.
+        ctx.save(); ctx.translate(hx,hy);
+        if(player.dir===2) ctx.scale(-1,1);                 // left
+        else if(player.dir===0) ctx.rotate(-Math.PI/2);     // up
+        else if(player.dir===1) ctx.rotate(Math.PI/2);      // down
+        // dir 3 (right): drawn as-is, facing +x
         ctx.fillStyle="#c96f14";                                     // tail feathers (trailing, -x)
         ctx.beginPath(); ctx.moveTo(-s*0.30,0); ctx.lineTo(-s*0.62,-s*0.24); ctx.lineTo(-s*0.30,s*0.26); ctx.closePath(); ctx.fill();
         ctx.fillStyle="#facc15";                                     // body
@@ -240,8 +245,29 @@
       if(player.atk>6){ctx.fillStyle="#fde68a";const cx=player.x+player.size/2,cy=player.y+player.size/2,len=26;
         if(player.dir===0)ctx.fillRect(cx-3,cy-len,6,len);else if(player.dir===1)ctx.fillRect(cx-3,cy,6,len);
         else if(player.dir===2)ctx.fillRect(cx-len,cy-3,len,6);else ctx.fillRect(cx,cy-3,len,6);}
+      drawMinimap();
       // flash message
       if(flashT>0){ctx.fillStyle="rgba(0,0,0,.6)";ctx.fillRect(W/2-90,6,180,24);ctx.fillStyle="#fde68a";ctx.font="14px system-ui";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(flashMsg,W/2,18);}
+    }
+    // Overhead map, like Adventure's: the RX×RY dungeon grid with explored rooms
+    // filled, the current room lit, and the triforce/key rooms marked once seen.
+    function drawMinimap(){
+      const cell=13, gap=2, pad=6;
+      const gw=RX*cell+(RX-1)*gap, gh=RY*cell+(RY-1)*gap;
+      const ox=W-gw-pad-4, oy=pad+8;
+      ctx.fillStyle="rgba(11,12,26,.72)"; ctx.fillRect(ox-4,oy-4,gw+8,gh+8);
+      ctx.strokeStyle="rgba(255,255,255,.18)"; ctx.lineWidth=1; ctx.strokeRect(ox-4,oy-4,gw+8,gh+8);
+      ctx.fillStyle="rgba(230,230,240,.6)"; ctx.font="7px monospace"; ctx.textAlign="left"; ctx.textBaseline="alphabetic";
+      ctx.fillText("MAP",ox-4,oy-6);
+      for(let gy=0;gy<RY;gy++)for(let gx=0;gx<RX;gx++){
+        const rm=rooms[gy][gx], cx=ox+gx*(cell+gap), cy=oy+gy*(cell+gap), here=(room[0]===gx&&room[1]===gy);
+        if(rm.visited){
+          ctx.fillStyle = here?"#22d3ee":"#3a3f63"; ctx.fillRect(cx,cy,cell,cell);
+          if(gx===TRI[0]&&gy===TRI[1]){ ctx.fillStyle="#f5d020"; ctx.beginPath(); ctx.moveTo(cx+cell/2,cy+3); ctx.lineTo(cx+cell-3,cy+cell-3); ctx.lineTo(cx+3,cy+cell-3); ctx.closePath(); ctx.fill(); }
+          else if(gx===KEYROOM[0]&&gy===KEYROOM[1]){ ctx.fillStyle="#ffd54a"; ctx.fillRect(cx+cell/2-1,cy+4,2,cell-7); ctx.beginPath(); ctx.arc(cx+cell/2,cy+5,2.2,0,7); ctx.fill(); }
+        } else { ctx.strokeStyle="rgba(255,255,255,.15)"; ctx.lineWidth=1; ctx.strokeRect(cx+0.5,cy+0.5,cell-1,cell-1); }
+        if(here){ ctx.strokeStyle="#e6e6f0"; ctx.lineWidth=1.5; ctx.strokeRect(cx+0.5,cy+0.5,cell-1,cell-1); }
+      }
     }
     function attack(){if(player.atk<=0)player.atk=18;}
     function updateHud(){let h="";for(let i=0;i<player.maxhp;i++)h+=i<player.hp?"❤":"🖤";heartsEl.textContent=h;lootEl.textContent="💎 "+player.rupees+" · 🗝️ "+keys;}
