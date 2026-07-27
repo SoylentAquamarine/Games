@@ -54,7 +54,7 @@
     BULLET_W:3, BULLET_H:8, BULLET_SPEED:5.2, GUIDE_SPEED:2.8,
     E_W:20, E_H:14, COLS:7, ROWS:2,
     WAVE_BONUS:150,
-    LIVES:3, EXTRA_EVERY:100000,
+    LIVES:3,
   };
 
   // Eight formations, cycled by wave. Megamania's charm was that each wave moved
@@ -71,29 +71,32 @@
   // Each enemy type owns exactly one movement — it is that object's signature and
   // never changes between cycles, so you learn "feathers come down chaotically,
   // cartons zigzag" and that stays true all game.
+  // Every formation can shoot; `shootFrom` is the loop (cycle) it starts on, so
+  // more of the flock opens fire each time round and by loop 3 the whole board
+  // is dropping bullets. Buckets and Nests fire from the very first pass.
   const WAVES = [
-    { name:"Eggs",      shape:"egg",     pattern:"slide",  speed:0.75, drop:0.055 },
-    { name:"Corn",      shape:"corn",    pattern:"sine",   speed:0.95, drop:0.050 },
-    { name:"Feathers",  shape:"feather", pattern:"wild",   speed:0.85, drop:0.060 },
-    { name:"Seed",      shape:"seed",    pattern:"drift",  speed:1.05, drop:0.030 },
-    { name:"Buckets",   shape:"bucket",  pattern:"snake",  speed:1.00, drop:0.058, drops:"water" },
-    { name:"Worms",     shape:"worm",    pattern:"bounce", speed:1.25, drop:0.085 },
-    { name:"Nests",     shape:"nest",    pattern:"sine",   speed:1.10, drop:0.070, drops:"egg" },
-    { name:"Cartons",   shape:"carton",  pattern:"cycle",  speed:1.35, drop:0.30 },
+    { name:"Eggs",      shape:"egg",     pattern:"slide",  speed:0.75, drop:0.055, drops:"egg",   shootFrom:3 },
+    { name:"Corn",      shape:"corn",    pattern:"sine",   speed:0.95, drop:0.050, drops:"egg",   shootFrom:2 },
+    { name:"Feathers",  shape:"feather", pattern:"wild",   speed:0.85, drop:0.060, drops:"egg",   shootFrom:2 },
+    { name:"Seed",      shape:"seed",    pattern:"drift",  speed:1.05, drop:0.030, drops:"egg",   shootFrom:3 },
+    { name:"Buckets",   shape:"bucket",  pattern:"snake",  speed:1.00, drop:0.058, drops:"water", shootFrom:0 },
+    { name:"Worms",     shape:"worm",    pattern:"bounce", speed:1.25, drop:0.085, drops:"egg",   shootFrom:1 },
+    { name:"Nests",     shape:"nest",    pattern:"sine",   speed:1.10, drop:0.070, drops:"egg",   shootFrom:0 },
+    { name:"Cartons",   shape:"carton",  pattern:"cycle",  speed:1.35, drop:0.30,  drops:"egg",   shootFrom:1 },
   ];
   const EGG_SPEED=2.3, EGG_W=6, EGG_H=9;
-  const DROP_RATE=0.00055;      // per enemy per frame — deliberately sparse
+  const DROP_RATE=0.00095;      // per enemy per frame — climbs 10% each loop
   const ZIG_FRAMES=120;         // cycling waves flip direction every 2s
 
   const clamp=(v,a,b)=>v<a?a:v>b?b:v;
 
   // How many complete passes through the eight formations you've survived.
   function cycleOf(wave){ return Math.floor((wave-1)/WAVES.length); }
-  // Every formation that comes round again is 5% faster and throws 5% more,
+  // Every formation that comes round again is 10% faster and throws 10% more,
   // compounding so it keeps climbing. The movement pattern is deliberately NOT
   // rotated: each object keeps its signature all game, so feathers always come
   // down chaotically and cartons always zigzag.
-  const RAMP=1.05;
+  const RAMP=1.10;
   function waveDef(w){
     const base=WAVES[(w-1)%WAVES.length], n=cycleOf(w);
     if(n===0) return base;
@@ -125,7 +128,7 @@
       ship:{ x:C.W/2-C.SHIP_W/2 },
       bullet:null,
       enemies:makeEnemies(1),
-      wave:1, score:0, lives:C.LIVES, nextExtra:C.EXTRA_EVERY, gotExtra:0,
+      wave:1, score:0, lives:C.LIVES,
       dir:1, t:0,
       eggs:[],
       over:false, cleared:false, msg:"",
@@ -244,7 +247,7 @@
     // Nests lob eggs; buckets drip water. Both are sparse on the first pass and
     // get heavier every time the formations come round again.
     if(!s.eggs) s.eggs=[];
-    if(def.drops){
+    if(def.drops && cycleOf(s.wave) >= (def.shootFrom||0)){
       const rate=DROP_RATE*(def.dropMul||1);
       for(const e of s.enemies){
         if(!e.alive) continue;
@@ -284,9 +287,6 @@
       s.enemies=makeEnemies(s.wave);
       s.bullet=null; s.eggs=[]; s.dir=1; s.t=0; s.cleared=true;
     }
-    // an extra chicken every 100,000 points — checked last so a bonus earned by
-    // clearing a wave is awarded on the same frame
-    while(s.score >= s.nextExtra){ s.lives++; s.nextExtra += C.EXTRA_EVERY; s.gotExtra++; }
     return s;
   }
 
@@ -457,17 +457,11 @@
     if(splash && Arcade.splash.tick(splash)) splash=null;
 
     if(started&&!s.over&&!splash){
-      const wasWave=s.wave, wasLives=s.lives, wasExtra=s.gotExtra, hadBullet=!!s.bullet, aliveBefore=s.enemies.filter(e=>e.alive).length;
+      const wasWave=s.wave, wasLives=s.lives, hadBullet=!!s.bullet, aliveBefore=s.enemies.filter(e=>e.alive).length;
       autoFire();                 // holding the fire button re-fires as soon as the shot clears
       if(!hadBullet && s.bullet) Arcade.sfx.shoot();
       step(s,input);
       if(s.enemies.filter(e=>e.alive).length < aliveBefore) Arcade.sfx.hit();
-      if(s.gotExtra>wasExtra){
-        // One announcement only — the splash. It used to also rewrite the message
-        // line, which read as two separate bonuses firing.
-        Arcade.sfx.win();
-        splash=Arcade.splash.message("EXTRA CHICKEN!","Next at "+s.nextExtra.toLocaleString(),90);
-      }
       if(s.wave>wasWave){
         Arcade.sfx.wave();
         splash=Arcade.splash.wave(s.wave, waveDef(s.wave).name);
