@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Chicken Jhong — Tiles</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='64'>🀄</text></svg>" />
+  <style>
+    :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;}
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+      background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.2),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.14),transparent 60%),var(--bg);}
+    .wrap{max-width:760px;margin:0 auto;padding:14px 12px 40px;display:flex;flex-direction:column;align-items:center;gap:14px}
+    .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
+    .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+    .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+    h1{margin:0;font-size:1.4rem;background:linear-gradient(120deg,#f43f5e,#22d3ee);-webkit-background-clip:text;background-clip:text;color:transparent}
+    .lead{color:var(--muted);font-size:.9rem;text-align:center;max-width:560px}
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:12px;width:100%}
+    .tile{background:linear-gradient(#fffdf7,#efe9dc);border:1.4px solid #c9a24b;border-radius:10px;padding:10px 6px 8px;display:flex;flex-direction:column;align-items:center;gap:4px;box-shadow:0 3px 0 rgba(0,0,0,.25)}
+    .tile .face{font-size:38px;line-height:1}
+    .tile .name{font-size:.66rem;color:#6b6350;font-weight:700;text-transform:uppercase;letter-spacing:.03em}
+    .note{color:var(--muted);font-size:.78rem;text-align:center;max-width:560px}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar"><a class="home" href="/">← Home</a><h1>🀄 Chicken Jhong — Tiles</h1><a class="home" href="./">◂ Play</a></div>
+  <p class="lead">The chicken-themed tile set. Match two of the same to clear them. Tell me which faces to change, add, or theme differently — this is board 1's set, with room for more.</p>
+  <div class="grid" id="grid"></div>
+  <p class="note">This is the starting set. Comment below with any tweaks to the tile art or suits, and I'll fold them in (and build out the remaining boards).</p>
+</div>
+<script>
+  const FACES=[
+    ["🐔","Hen"],["🐓","Rooster"],["🐥","Chick"],["🐣","Hatch"],["🥚","Egg"],
+    ["🪺","Nest"],["🪶","Feather"],["🌽","Corn"],["🌾","Grain"],["🌻","Sun"],
+    ["🌰","Seed"],["🐛","Worm"],["🍄","Toadstool"],["🐌","Snail"],["☀️","Day"],
+    ["🌙","Night"],["⭐","Star"],["🔥","Fire"],["💧","Water"],["🥇","Prize"]
+  ];
+  const grid=document.getElementById("grid");
+  for(const [face,name] of FACES){
+    const d=document.createElement("div"); d.className="tile";
+    d.innerHTML='<div class="face">'+face+'</div><div class="name">'+name+'</div>';
+    grid.appendChild(d);
+  }
+</script>
+<script src="/comments.js" defer></script>
+</body>
+</html>
