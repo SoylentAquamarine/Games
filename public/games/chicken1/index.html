@@ -41,19 +41,22 @@
   const C={ W:480, H:360, ROADW:264, CARW:26, CARH:40, PLAYER_Y:292,
     MAXSPD:9.2, ACCEL:0.075, BRAKE:0.26, DRAG:0.045, IDLE:1.1, OFFSPD:3.2, STEER:3.3,
     SPAWN_GAP:56, LIVES:3 };
-  C.LEFT = (C.W-C.ROADW)/2; C.RIGHT = C.LEFT+C.ROADW;   // tarmac edges
   const clamp=(v,a,b)=>v<a?a:v>b?b:v;
   const rov=(ax,ay,aw,ah,bx,by,bw,bh)=> ax<bx+bw&&ax+aw>bx&&ay<by+bh&&ay+ah>by;
   const RIVAL_COLORS=["#f43f5e","#22d3ee","#a3e635","#c084fc","#fb923c"];
+  // The track winds: the road centre slides left/right with distance. Everything
+  // (tarmac edges, rivals, off-track test) is measured from this curved centre.
+  function roadCenterX(worldY){ return C.W/2 + Math.sin(worldY*0.0016)*54 + Math.sin(worldY*0.0031+1)*20; }
 
   function newState(){ return {
     x: C.W/2 - C.CARW/2, speed:0, dist:0, scroll:0,
     traffic:[], spawnT:40, lives:C.LIVES, score:0, offroad:false, crashT:0, over:false }; }
 
   function spawnTraffic(s){
-    const x = C.LEFT+6 + Math.random()*(C.ROADW-12-C.CARW);
-    s.traffic.push({ x, y:-C.CARH-8, speed:1.6+Math.random()*3.4, hit:false,
-      col:RIVAL_COLORS[Math.floor(Math.random()*RIVAL_COLORS.length)] });
+    const lane = (Math.random()*2-1)*(C.ROADW/2 - C.CARW/2 - 8);
+    const y=-C.CARH-8;
+    s.traffic.push({ lane, y, x: roadCenterX(s.scroll + (C.PLAYER_Y - y)) + lane - C.CARW/2,
+      speed:1.6+Math.random()*3.0, hit:false, col:RIVAL_COLORS[Math.floor(Math.random()*RIVAL_COLORS.length)] });
   }
   function crash(s){ s.lives--; s.speed=0; s.crashT=48;
     if(s.lives<=0){ s.over=true; } }
@@ -71,15 +74,16 @@
     if(input.left)  s.x-=C.STEER;
     if(input.right) s.x+=C.STEER;
     s.x=clamp(s.x, 6, C.W-6-C.CARW);
-    // off the tarmac drags you down
-    const pcx=s.x+C.CARW/2;
-    s.offroad = pcx < C.LEFT+4 || pcx > C.RIGHT-4;
-    if(s.offroad) s.speed=Math.min(s.speed, C.OFFSPD);
     // advance
     s.dist+=s.speed; s.scroll+=s.speed;
     s.score=Math.floor(s.dist/18);
-    // rivals drift toward you by the speed difference
-    for(const t of s.traffic){ t.y += (s.speed - t.speed); }
+    // off the tarmac drags you down — the edges move with the curve
+    const pc=roadCenterX(s.scroll), pcx=s.x+C.CARW/2;
+    s.offroad = pcx < pc - C.ROADW/2 + 4 || pcx > pc + C.ROADW/2 - 4;
+    if(s.offroad) s.speed=Math.min(s.speed, C.OFFSPD);
+    // rivals drift toward you by the speed difference; their x rides the curve
+    for(const t of s.traffic){ t.y += (s.speed - t.speed);
+      t.x = roadCenterX(s.scroll + (C.PLAYER_Y - t.y)) + t.lane - C.CARW/2; }
     // spawn
     if(--s.spawnT<=0){ spawnTraffic(s); s.spawnT=Math.max(26, C.SPAWN_GAP - Math.floor(s.dist/1400)); }
     // collisions
@@ -87,11 +91,11 @@
       if(t.hit) continue;
       if(rov(s.x,C.PLAYER_Y,C.CARW,C.CARH, t.x,t.y,C.CARW,C.CARH)){ t.hit=true; crash(s); break; }
     }
-    s.traffic=s.traffic.filter(t=>t.y<C.H+48 && !t.hit);
+    s.traffic=s.traffic.filter(t=>t.y<C.H+48 && t.y>-140 && !t.hit);
     return s;
   }
 
-  window.__chicken1={ newState, step, spawnTraffic, crash, C };
+  window.__chicken1={ newState, step, spawnTraffic, crash, roadCenterX, C };
 
   // ---- rendering / wiring --------------------------------------------------
   if(typeof document==="undefined"||!document.getElementById) return;
@@ -121,16 +125,19 @@
   }
 
   function draw(){
+    const W=C.W,H=C.H, half=C.ROADW/2;
     // grass
-    ctx.fillStyle="#1c6b2e"; ctx.fillRect(0,0,C.W,C.H);
-    ctx.fillStyle="#175c27"; for(let y=(-s.scroll*0.6%40); y<C.H; y+=40){ ctx.fillRect(0,y,C.LEFT,20); ctx.fillRect(C.RIGHT,y,C.W-C.RIGHT,20); }
-    // tarmac
-    ctx.fillStyle="#3a3f4b"; ctx.fillRect(C.LEFT,0,C.ROADW,C.H);
-    // rumble strips
-    for(let y=(-s.scroll%36); y<C.H; y+=36){ const on=(Math.floor((y+s.scroll)/36)%2)===0;
-      ctx.fillStyle=on?"#f43f5e":"#f4f4f4"; ctx.fillRect(C.LEFT-6,y,6,18); ctx.fillRect(C.RIGHT,y,6,18); }
-    // centre dashes
-    ctx.fillStyle="#e8e8b0"; for(let y=(-s.scroll%54); y<C.H; y+=54){ ctx.fillRect(C.W/2-2,y,4,26); }
+    ctx.fillStyle="#1c6b2e"; ctx.fillRect(0,0,W,H);
+    // per-row curved tarmac — worldY grows up the screen (ahead) and, as you
+    // drive forward, grows at each row, so the whole scene scrolls DOWN toward you.
+    for(let y=0;y<H;y++){
+      const worldY = s.scroll + (C.PLAYER_Y - y);
+      const cx = roadCenterX(worldY);
+      if(Math.floor(worldY/26)%2){ ctx.fillStyle="#175c27"; ctx.fillRect(0,y,W,1); }   // grass motion stripe
+      ctx.fillStyle = (Math.floor(worldY/26)%2)? "#3a3f4b":"#363b46"; ctx.fillRect(cx-half,y,C.ROADW,1);
+      ctx.fillStyle = (Math.floor(worldY/18)%2)? "#f43f5e":"#f4f4f4"; ctx.fillRect(cx-half-6,y,6,1); ctx.fillRect(cx+half,y,6,1);
+      if(Math.floor(worldY/54)%2===0){ ctx.fillStyle="#e8e8b0"; ctx.fillRect(cx-2,y,4,1); }
+    }
     // rivals
     for(const t of s.traffic){ if(t.y>-C.CARH && t.y<C.H) carArt(t.x,t.y,t.col,true); }
     // player (blink briefly after a crash)

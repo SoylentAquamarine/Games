@@ -44,8 +44,10 @@
     CAR_LEN:230, CAR_WIDE:0.30, CRASH_FRAMES:70,
     CHECK_DIST:6500, CHECK_BONUS:42, TIME_START:80, TIME_RATE:0.028 };
   const clamp=(v,a,b)=>v<a?a:v>b?b:v;
-  // The course: a windy track. curveAt>0 bends right, <0 bends left.
-  function curveAt(pos){ return Math.sin(pos*0.00058)*0.7 + Math.sin(pos*0.00131+2)*0.3; }
+  // The course: a windy track. curveAt>0 bends right, <0 bends left. It ramps in
+  // from dead straight over the first stretch so you don't start mid-corner.
+  function curveAt(pos){ const ramp=Math.min(1, pos/4000);
+    return (Math.sin(pos*0.00058)*0.7 + Math.sin(pos*0.00131)*0.3)*ramp; }
   const RIVAL_COLORS=["#f43f5e","#22d3ee","#a3e635","#c084fc","#fb923c"];
 
   function newState(){
@@ -101,64 +103,55 @@
   try{ best=parseInt(localStorage.getItem("chickenposition_best")||"0")||0; }catch(e){}
 
   const hY=()=>C.H*C.HORIZON;
-  // road centre + half width at a given screen row, given the accumulated curve
-  function roadAt(y, offset, halfW){ return C.W/2 + offset - s.playerX*halfW*0.9; }
+  const rowCX=new Array(C.H), rowHW=new Array(C.H);   // road centre + half-width per screen row
 
   function drawScene(){
-    const H=C.H,W=C.W, horizon=hY();
+    const H=C.H,W=C.W, horizon=Math.floor(hY());
     // sky + distant hills
     ctx.fillStyle="#87b7e8"; ctx.fillRect(0,0,W,horizon+2);
     ctx.fillStyle="#6fa3d8"; ctx.beginPath(); ctx.moveTo(0,horizon); for(let x=0;x<=W;x+=40){ ctx.lineTo(x,horizon-8-8*Math.sin(x*0.05+s.pos*0.0006)); } ctx.lineTo(W,horizon); ctx.closePath(); ctx.fill();
-    // ground base
     ctx.fillStyle="#3f8b3a"; ctx.fillRect(0,horizon,W,H-horizon);
-    // project the road scanline by scanline
+    // Project the road from the BOTTOM up: the player's row starts centred
+    // (offset 0) so the car always sits on the road; the curve accumulates into
+    // the distance. This is what keeps the start on-track and kills the artifacts.
     let dxx=0, offset=0;
-    for(let y=Math.floor(horizon); y<H; y++){
-      const persp=(y-horizon)/(H-horizon);            // 0 at horizon, 1 near
+    for(let y=H-1; y>=horizon; y--){
+      const persp=(y-horizon)/(H-horizon);            // ~1 near the player, 0 at the horizon
+      const halfW = 8 + persp*persp*(W*0.62);
+      rowHW[y]=halfW; rowCX[y]=W/2 + offset - s.playerX*halfW;
       const look = s.pos + (1-persp)*C.LOOK;
       dxx += curveAt(look) * C.BEND * (1-persp);
       offset += dxx;
-      const halfW = 8 + persp*persp*(W*0.62);
-      const cx = roadAt(y, offset, halfW);
-      const band = Math.floor((s.pos*0.06 + (1-persp)*40)) % 2;
-      // grass stripes
+    }
+    // paint the road rows
+    for(let y=horizon; y<H; y++){
+      const cx=rowCX[y], halfW=rowHW[y];
+      const persp=(y-horizon)/(H-horizon);
+      const band = Math.floor(s.pos*0.06 + (1-persp)*40) % 2;
       ctx.fillStyle = band? "#3f8b3a" : "#398034"; ctx.fillRect(0,y,W,1);
-      // road
       ctx.fillStyle = band? "#4a4f5b" : "#454a56"; ctx.fillRect(cx-halfW,y,halfW*2,1);
-      // rumble strips
       const rw=Math.max(2,halfW*0.10);
-      ctx.fillStyle = band? "#f4f4f4" : "#f43f5e";
-      ctx.fillRect(cx-halfW,y,rw,1); ctx.fillRect(cx+halfW-rw,y,rw,1);
-      // centre line (dashed by band, thinner far away)
+      ctx.fillStyle = band? "#f4f4f4" : "#f43f5e"; ctx.fillRect(cx-halfW,y,rw,1); ctx.fillRect(cx+halfW-rw,y,rw,1);
       if(band){ ctx.fillStyle="#e8e8b0"; const cw=Math.max(1,halfW*0.04); ctx.fillRect(cx-cw,y,cw*2,1); }
     }
-    // rivals, far to near so nearer ones overlap
+    // rivals, far to near, placed from the same per-row projection
     const ordered=s.cars.filter(o=>{ const r=o.pos-s.pos; return r>0 && r<C.LOOK*1.1; }).sort((a,b)=> (b.pos-s.pos)-(a.pos-s.pos));
     for(const o of ordered){
-      const rel=o.pos-s.pos; const persp=1-clamp(rel/C.LOOK,0,1);
-      const y = horizon + persp*(H-horizon);
-      // recompute offset at this depth (approx via same accumulation to y)
-      const {cx,halfW}=projectAt(y);
-      const scale = (persp*persp)*1.1+0.06;
-      const cw=42*scale, ch=30*scale;
-      const x = cx + o.x*halfW;
-      drawCar(x-cw/2, y-ch, cw, ch, o.col);
+      const rel=o.pos-s.pos, persp=1-clamp(rel/C.LOOK,0,1);
+      const y=clamp(Math.round(horizon + persp*(H-horizon)), horizon, H-1);
+      const cx=rowCX[y], halfW=rowHW[y];
+      const scale=(persp*persp)*1.1+0.06, cw=42*scale, ch=30*scale;
+      drawCar(cx + o.x*halfW - cw/2, y-ch, cw, ch, o.col);
     }
-    // player car, fixed near the bottom, leaning with steering
+    // player car — screen-centred at the bottom (the road shifts under it), leaning with steering
     const lean = (input.right?1:0)-(input.left?1:0);
-    drawCar(W/2-26 + lean*6 - s.playerX*8, H-52, 52, 40, "#ffcf5a", true, s.crashT>0);
+    drawCar(W/2-26 + lean*6, H-52, 52, 40, "#ffcf5a", true, s.crashT>0);
     if(s.offroad && !s.over){ ctx.fillStyle="rgba(120,200,120,.14)"; ctx.fillRect(0,0,W,H); }
     if(s.checkFlash>0){ ctx.fillStyle="#ffcf5a"; ctx.font="bold 22px system-ui"; ctx.textAlign="center"; ctx.fillText("CHECKPOINT! +"+C.CHECK_BONUS,W/2,horizon-14); }
     if(s.over){ ctx.fillStyle="rgba(0,0,0,.6)"; ctx.fillRect(0,0,W,H);
       ctx.fillStyle="#f43f5e"; ctx.font="bold 24px system-ui"; ctx.textAlign="center"; ctx.fillText("TIME UP",W/2,H/2-6);
       ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Score "+s.score+"  ·  Best "+best,W/2,H/2+16); }
   }
-  // re-run the scanline accumulation down to row y to find the road there
-  function projectAt(y){ const H=C.H,W=C.W,horizon=hY(); let dxx=0,offset=0,cx=W/2,halfW=8;
-    for(let yy=Math.floor(horizon); yy<=y && yy<H; yy++){ const persp=(yy-horizon)/(H-horizon);
-      const look=s.pos+(1-persp)*C.LOOK; dxx+=curveAt(look)*C.BEND*(1-persp); offset+=dxx;
-      halfW=8+persp*persp*(W*0.62); cx=W/2+offset - s.playerX*halfW*0.9; }
-    return {cx,halfW}; }
 
   function drawCar(x,y,w,h,col,isPlayer,crashed){
     ctx.save(); ctx.translate(x+w/2,y+h/2);
