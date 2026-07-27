@@ -131,6 +131,7 @@
       wave:1, score:0, lives:C.LIVES,
       dir:1, t:0,
       eggs:[],
+      mode:"play", onekill:null,
       over:false, cleared:false, msg:"",
       hitFlash:0,
     };
@@ -237,6 +238,8 @@
       if(s.bullet.y+C.BULLET_H<0) s.bullet=null;
     }
 
+    if(s.mode==="onekill"){ oneKillStep(s); return s; }
+
     moveEnemies(s);
 
     const def=waveDef(s.wave);
@@ -283,6 +286,7 @@
     // wave cleared
     if(s.enemies.every(e=>!e.alive)){
       s.score+=C.WAVE_BONUS*s.wave;               // clearing a flock is the bonus
+      if(s.wave % WAVES.length === 0){ startOneKill(s); return s; }   // finished a full loop → ONE SHOT ONE KILL
       s.wave++;
       s.enemies=makeEnemies(s.wave);
       s.bullet=null; s.eggs=[]; s.dir=1; s.t=0; s.cleared=true;
@@ -304,9 +308,49 @@
     return s;
   }
 
+  // ---- ONE SHOT ONE KILL bonus round --------------------------------------
+  // Fires after every full loop of the eight formations. A shaky title holds for
+  // ~3s, then ten spacesuit chickens spiral across Galaga-style (not shooting);
+  // shooting one is worth 25,000. When they've all spiralled off (or been shot),
+  // play resumes on the next wave.
+  const OK={ T:140, LOOPS:2, AMP:44, TITLE:180, SCORE:25000, N:10 };
+  function startOneKill(st){
+    st.mode="onekill"; st.bullet=null; st.eggs=[];
+    const chickens=[];
+    for(let i=0;i<OK.N;i++){ const dir=i%2===0?1:-1;
+      chickens.push({ dir, delay:i*9, age:0, done:false, hit:false,
+        startX: dir>0?-24:C.W+24, endX: dir>0?C.W+24:-24,
+        yBase: 42+(i%5)*22, x:-999, y:-999 }); }
+    st.onekill={ chickens, titleT:OK.TITLE, t:0, hits:0 };
+  }
+  function oneKillStep(st){
+    const b=st.onekill; if(!b) return;
+    if(b.titleT>0){ b.titleT--; return; }   // hold on the shaky title
+    b.t++;
+    for(const ch of b.chickens){ if(ch.done) continue;
+      ch.age++;
+      if(ch.age<ch.delay) continue;
+      const p=(ch.age-ch.delay)/OK.T;
+      if(p>=1){ ch.done=true; continue; }    // spiralled off the far side
+      ch.x=ch.startX+(ch.endX-ch.startX)*p;
+      ch.y=ch.yBase+Math.sin(p*OK.LOOPS*Math.PI*2)*OK.AMP;
+    }
+    if(st.bullet){
+      for(const ch of b.chickens){ if(ch.done||ch.age<ch.delay) continue;
+        if(overlaps(st.bullet.x,st.bullet.y,C.BULLET_W,C.BULLET_H, ch.x,ch.y,C.E_W,C.E_H)){
+          ch.done=true; ch.hit=true; st.bullet=null; st.score+=OK.SCORE; b.hits++; break; } }
+    }
+    if(b.chickens.every(c=>c.done)) endOneKill(st);
+  }
+  function endOneKill(st){
+    st.mode="play"; st.onekill=null;
+    st.wave++; st.enemies=makeEnemies(st.wave);
+    st.bullet=null; st.eggs=[]; st.dir=1; st.t=0; st.cleared=true;
+  }
+
   function result(s){ return s.over?{score:s.score,wave:s.wave}:null; }
 
-  window.__chickenmania={ newState, step, fire, loseLife, makeEnemies, moveEnemies, waveDef, result, overlaps, C, WAVES };
+  window.__chickenmania={ newState, step, fire, loseLife, makeEnemies, moveEnemies, waveDef, startOneKill, oneKillStep, endOneKill, result, overlaps, C, WAVES, OK };
 
   // ---- rendering / wiring --------------------------------------------------
   if(typeof document==="undefined"||!document.getElementById) return;
@@ -391,6 +435,31 @@
     ctx.fillStyle="#22d3ee"; ctx.fillRect(x,y+h-3,w,3);
   }
 
+  // a spacesuit chicken for the bonus round
+  function drawSpaceChicken(x,y){
+    const r=C.E_W*0.5, cx=x+C.E_W/2, cy=y+C.E_H/2;
+    ctx.fillStyle="rgba(251,146,60,.5)"; ctx.beginPath(); ctx.ellipse(cx,cy+r*1.05,r*0.4,r*0.6,0,0,7); ctx.fill();
+    ctx.fillStyle="#f0902a"; ctx.beginPath(); ctx.arc(cx,cy,r,0,7); ctx.fill();
+    ctx.fillStyle="#dc2626"; ctx.beginPath(); ctx.arc(cx-r*0.3,cy-r*0.85,r*0.16,0,7); ctx.arc(cx,cy-r*0.95,r*0.18,0,7); ctx.arc(cx+r*0.3,cy-r*0.85,r*0.16,0,7); ctx.fill();
+    ctx.fillStyle="#facc15"; ctx.beginPath(); ctx.moveTo(cx+r*0.7,cy); ctx.lineTo(cx+r*1.15,cy+r*0.15); ctx.lineTo(cx+r*0.7,cy+r*0.28); ctx.closePath(); ctx.fill();
+    ctx.fillStyle="#fff"; ctx.beginPath(); ctx.arc(cx+r*0.28,cy-r*0.2,r*0.2,0,7); ctx.fill();
+    ctx.fillStyle="#0b0c1a"; ctx.beginPath(); ctx.arc(cx+r*0.34,cy-r*0.2,r*0.1,0,7); ctx.fill();
+    ctx.strokeStyle="rgba(186,230,253,.9)"; ctx.lineWidth=1.5; ctx.beginPath(); ctx.arc(cx,cy-r*0.1,r*1.3,0,7); ctx.stroke();
+  }
+  function drawOneKill(){
+    const b=s.onekill; if(!b) return;
+    for(const ch of b.chickens){ if(ch.done||ch.age<ch.delay) continue; drawSpaceChicken(ch.x,ch.y); }
+    if(b.titleT>0){
+      const j=()=>(Math.random()-0.5)*6; ctx.textAlign="center";
+      ctx.font="bold 20px system-ui";
+      ctx.fillStyle="rgba(244,63,94,.5)"; ctx.fillText("ONE SHOT ONE KILL",C.W/2+j(),C.H/2+j());
+      ctx.fillStyle="#ffcf5a"; ctx.fillText("ONE SHOT ONE KILL",C.W/2+j(),C.H/2+j());
+      ctx.fillStyle="#e6e6f0"; ctx.font="11px system-ui"; ctx.fillText("space chickens — 25,000 each!",C.W/2,C.H/2+22);
+    } else {
+      ctx.fillStyle="rgba(255,207,90,.85)"; ctx.font="10px monospace"; ctx.textAlign="center";
+      ctx.fillText("ONE SHOT ONE KILL · 25,000 EACH",C.W/2,16);
+    }
+  }
   function draw(){
     ctx.clearRect(0,0,C.W,C.H);
     ctx.fillStyle="#070a16"; ctx.fillRect(0,0,C.W,C.H);
@@ -399,7 +468,8 @@
     for(let i=0;i<34;i++){ const x=(i*67)%C.W, y=(i*113+Math.floor(s.t*0.35))%C.H; ctx.fillRect(x,y,1,1); }
 
     const def=waveDef(s.wave);
-    for(const e of s.enemies){ if(e.alive) drawEnemy(e,def.shape); }
+    if(s.mode==="onekill"){ drawOneKill(); }
+    else for(const e of s.enemies){ if(e.alive) drawEnemy(e,def.shape); }
 
     for(const g of s.eggs||[]){
       if(g.kind==="water"){                       // a droplet: round below, pointed above
