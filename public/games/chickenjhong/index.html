@@ -30,7 +30,7 @@
   <div class="hud"><span>Pairs left: <b id="pairs">0</b></span><span>Board: <b id="board">1</b></span><span>Free: <b id="free">0</b></span></div>
   <canvas id="game" width="640" height="480"></canvas>
   <div class="msg" id="msg">Match two free chicken tiles. A tile is free with an open left or right side and nothing on top.</div>
-  <div class="row"><button class="btn" id="new">New Game</button><button class="btn" id="shuffle">Shuffle</button></div>
+  <div class="row"><button class="btn" id="prevb">◀ Board</button><button class="btn" id="new">New Game</button><button class="btn" id="nextb">Board ▶</button><button class="btn" id="shuffle">Shuffle</button></div>
   <p class="hint">Mahjong solitaire, chicken style. Clear the whole stack by matching identical tiles that aren't blocked. Stuck? Shuffle re-deals the remaining tiles.</p>
 </div>
 <script src="/arcade.js"></script>
@@ -42,17 +42,27 @@
   // ---- board layouts: one basic board now, room for 20 --------------------
   // Each layout is a function returning a list of {c,r,z} cells on an aligned
   // grid; higher z sits on top and is drawn raised. Add more to BOARDS later.
-  function pyramid(){
-    const pos=[], layers=[
-      {z:0,c0:0,cN:9,r0:0,rN:5},   // 10x6 base
-      {z:1,c0:2,cN:7,r0:1,rN:4},   // 6x4
-      {z:2,c0:3,cN:6,r0:2,rN:3},   // 4x2
-      {z:3,c0:4,cN:5,r0:2,rN:2},   // 2x1 capstone
-    ];
-    for(const L of layers) for(let r=L.r0;r<=L.rN;r++) for(let c=L.c0;c<=L.cN;c++) pos.push({c,r,z:L.z});
+  function rect(layers){   // layers of {z, c0,cN, r0,rN} rectangles
+    const pos=[]; for(const L of layers) for(let r=L.r0;r<=L.rN;r++) for(let c=L.c0;c<=L.cN;c++) pos.push({c,r,z:L.z});
     return pos;
   }
-  const BOARDS=[pyramid];   // board 1; append more here (up to 20)
+  function fromRows(layers){   // layers of {z, rows:[[r,c0,cN],...]} for non-rectangular shapes
+    const pos=[]; for(const L of layers) for(const [r,c0,cN] of L.rows) for(let c=c0;c<=cN;c++) pos.push({c,r,z:L.z});
+    return pos;
+  }
+  function pyramid(){ return rect([
+    {z:0,c0:0,cN:9,r0:0,rN:5}, {z:1,c0:2,cN:7,r0:1,rN:4}, {z:2,c0:3,cN:6,r0:2,rN:3}, {z:3,c0:4,cN:5,r0:2,rN:2} ]); }
+  function diamond(){ return fromRows([
+    {z:0, rows:[[0,3,8],[1,2,9],[2,1,10],[3,1,10],[4,2,9],[5,3,8]]},
+    {z:1, rows:[[1,4,7],[2,3,8],[3,3,8],[4,4,7]]},
+    {z:2, rows:[[2,5,6],[3,5,6]]} ]); }
+  function twin(){ return fromRows([
+    {z:0, rows:[[1,0,5],[2,0,5],[3,0,5], [1,8,13],[2,8,13],[3,8,13]]},
+    {z:1, rows:[[1,1,4],[2,1,4], [1,9,12],[2,9,12]]} ]); }
+  function ring(){ return fromRows([
+    {z:0, rows:[[0,0,9],[1,0,1],[1,8,9],[2,0,1],[2,8,9],[3,0,1],[3,8,9],[4,0,9]]},
+    {z:1, rows:[[1,3,6],[2,3,6]]} ]); }
+  const BOARDS=[pyramid, diamond, twin, ring];   // room for up to 20 — add more layouts here
 
   const kkey=(c,r,z)=>c+","+r+","+z;
 
@@ -205,6 +215,8 @@
   cv.addEventListener("mousedown",(e)=>{ if(GATE&&!GATE.open) return; const p=evtXY(e); onPick(pick(p.x,p.y)); });
   cv.addEventListener("touchstart",(e)=>{ e.preventDefault(); if(GATE&&!GATE.open) return; const p=evtXY(e); onPick(pick(p.x,p.y)); },{passive:false});
   $("new").addEventListener("click",()=>{ start(); });
+  $("prevb").addEventListener("click",()=>{ boardIdx=(boardIdx-2+BOARDS.length)%BOARDS.length+1; start(); $("msg").textContent="Board "+boardIdx+" of "+BOARDS.length; });
+  $("nextb").addEventListener("click",()=>{ boardIdx=(boardIdx%BOARDS.length)+1; start(); $("msg").textContent="Board "+boardIdx+" of "+BOARDS.length; });
   $("shuffle").addEventListener("click",()=>{ if(!won(board)){ reshuffle(board); sel=null; updateHud(); $("msg").textContent="Re-dealt the remaining tiles."; } });
 
   start();
