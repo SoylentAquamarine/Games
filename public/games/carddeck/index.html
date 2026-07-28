@@ -47,7 +47,10 @@
       <div class="backnote"><b>The back.</b> Shown on every face-down card in Klondike, FreeCell, Pyramid, Go&nbsp;Fish, War, Crazy&nbsp;Eights, Hearts, Spades, Blackjack and Video&nbsp;Poker.</div>
     </div>
 
-    <div class="bar">
+    <p class="sub" style="margin-bottom:6px"><b>Deck theme</b> — pick a set. Your choice is saved and used across every card game.</p>
+    <div class="bar" id="deckbar"></div>
+
+    <div class="bar" id="sizebar">
       <button class="btn on" id="sizeM">Medium</button>
       <button class="btn" id="sizeL">Large</button>
       <button class="btn" id="sizeS">Small</button>
@@ -59,17 +62,17 @@
   <script src="../cards/cards.js"></script>
   <script>
   (function(){
-    const tableEl=document.getElementById("table"), backEl=document.getElementById("backslot");
-    // one face-down card, so the back design can be reviewed on its own
-    backEl.appendChild(Cards.cardEl(null,false));
-
+    const tableEl=document.getElementById("table"), backEl=document.getElementById("backslot"), deckbar=document.getElementById("deckbar");
+    let curSize=56;
+    function renderBack(){ backEl.innerHTML=""; const c=Cards.cardEl(null,false); c.style.setProperty("--cw",curSize+"px"); backEl.appendChild(c); }
     function render(){
       tableEl.innerHTML="";
+      const th=Cards.getTheme();
       for(const suit of Cards.SUITS){
         const lab=document.createElement("div"); lab.className="rowlabel";
         const sym=document.createElement("span");
         sym.className="sym"+(Cards.RED[suit]?" red":"");
-        sym.textContent=Cards.SUIT_SYMBOL[suit];
+        sym.textContent=th.sym[suit];
         const name=document.createElement("span");
         name.textContent={S:"Spades",H:"Hearts",D:"Diamonds",C:"Clubs"}[suit];
         lab.appendChild(sym); lab.appendChild(name); tableEl.appendChild(lab);
@@ -77,16 +80,24 @@
         const row=document.createElement("div"); row.className="row";
         // Ace first, then 2..10, then J Q K — reading order rather than deck order
         const order=[14,2,3,4,5,6,7,8,9,10,11,12,13];
-        for(const rank of order) row.appendChild(Cards.cardEl({rank,suit,id:suit+rank},true));
+        for(const rank of order){ const el=Cards.cardEl({rank,suit,id:suit+rank},true); el.style.setProperty("--cw",curSize+"px"); row.appendChild(el); }
         tableEl.appendChild(row);
       }
+      renderBack();
     }
     function setSize(px,btn){
-      document.documentElement.style.setProperty("--deckcw",px+"px");
-      tableEl.querySelectorAll(".pcard").forEach(c=>c.style.setProperty("--cw",px+"px"));
-      document.querySelectorAll(".bar .btn").forEach(b=>b.classList.remove("on"));
+      curSize=px; document.documentElement.style.setProperty("--deckcw",px+"px");
+      tableEl.querySelectorAll(".pcard").forEach(c=>c.style.setProperty("--cw",px+"px")); renderBack();
+      document.querySelectorAll("#sizebar .btn").forEach(b=>b.classList.remove("on"));
       btn.classList.add("on");
     }
+    // deck-theme selector — persists via Cards.setTheme and re-skins every card game
+    Cards.THEMES.forEach(t=>{
+      const b=document.createElement("button"); b.className="btn"+(Cards.getTheme().id===t.id?" on":""); b.textContent=t.name;
+      b.addEventListener("click",()=>{ Cards.setTheme(t.id); render();
+        deckbar.querySelectorAll(".btn").forEach(x=>x.classList.remove("on")); b.classList.add("on"); });
+      deckbar.appendChild(b);
+    });
     render();
     document.getElementById("sizeS").addEventListener("click",e=>setSize(44,e.currentTarget));
     document.getElementById("sizeM").addEventListener("click",e=>setSize(56,e.currentTarget));

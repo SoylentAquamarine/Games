@@ -11,6 +11,33 @@
   const RANKS = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]; // 11=J 12=Q 13=K 14=A
   const RANK_LABEL = { 11: "J", 12: "Q", 13: "K", 14: "A" };
 
+  // Deck themes — swap the whole deck's suit glyphs, colours and back from one
+  // place and every card game updates. "Classic" is the standard deck; the rest
+  // are chicken-farm sets. Suits stay S/H/D/C internally (game logic is unchanged);
+  // only the displayed glyph, colours and card back change.
+  const THEMES = [
+    { id:"classic",  name:"Classic",       sym:{S:"♠",H:"♥",D:"♦",C:"♣"},     red:"#dc2626", black:"#15151f", back:{glyph:"🐔", a:"#3b3f8f", b:"#2b2f6f"} },
+    { id:"barnyard", name:"Barnyard",      sym:{S:"🪶",H:"🐓",D:"🥚",C:"🌽"}, red:"#e0692a", black:"#4a3b2a", back:{glyph:"🌾", a:"#7a5a2a", b:"#5a3f1c"} },
+    { id:"coop",     name:"Coop",          sym:{S:"🪺",H:"🐥",D:"🥚",C:"🐔"}, red:"#d94a6a", black:"#2a2f4a", back:{glyph:"🥚", a:"#4a5a7a", b:"#35425c"} },
+    { id:"sunny",    name:"Sunny Side",    sym:{S:"🌙",H:"☀️",D:"⭐",C:"🔥"}, red:"#f59e0b", black:"#1e293b", back:{glyph:"☀️", a:"#b8860b", b:"#8a6508"} },
+    { id:"orchard",  name:"Orchard",       sym:{S:"🌰",H:"🍎",D:"🌻",C:"🍃"}, red:"#16a34a", black:"#14532d", back:{glyph:"🌻", a:"#2e7d32", b:"#1b5e20"} },
+  ];
+  let active = THEMES[0];
+  function themeById(id){ return THEMES.find(t => t.id === id) || THEMES[0]; }
+  function getTheme(){ return active; }
+  function applyTheme(){
+    if (typeof document === "undefined" || !document.documentElement) return;
+    const r = document.documentElement.style;
+    r.setProperty("--card-red", active.red); r.setProperty("--card-black", active.black);
+    r.setProperty("--card-back-a", active.back.a); r.setProperty("--card-back-b", active.back.b);
+    r.setProperty("--card-back-glyph", '"' + active.back.glyph + '"');
+  }
+  function setTheme(id){ active = themeById(id);
+    try { if (typeof localStorage !== "undefined") localStorage.setItem("cards_theme", active.id); } catch (e) {}
+    applyTheme(); return active;
+  }
+  try { if (typeof localStorage !== "undefined") { const saved = localStorage.getItem("cards_theme"); if (saved) active = themeById(saved); } } catch (e) {}
+
   function rankLabel(r) { return RANK_LABEL[r] || String(r); }
 
   function makeDeck(opts) {
@@ -100,7 +127,7 @@
     const d = document.createElement("div");
     if (faceUp === false || !card) { d.className = "pcard back"; return d; }
     d.className = "pcard " + (RED[card.suit] ? "red" : "black");
-    const lab = rankLabel(card.rank), sym = SUIT_SYMBOL[card.suit];
+    const lab = rankLabel(card.rank), sym = active.sym[card.suit];
     const middle = card.rank >= 11 && card.rank <= 13
       ? `<div class="face">${faceArt(card.rank)}</div>`
       : `<div class="pip">${sym}</div>`;
@@ -118,7 +145,7 @@
     s.textContent = `
       .pcard{--cw:64px;width:var(--cw);height:calc(var(--cw)*1.42);border-radius:8px;background:#fbfbfd;
         position:relative;box-shadow:0 2px 6px rgba(0,0,0,.4);border:1px solid rgba(0,0,0,.15);user-select:none;flex:0 0 auto}
-      .pcard.red{color:#dc2626}.pcard.black{color:#15151f}
+      .pcard.red{color:var(--card-red,#dc2626)}.pcard.black{color:var(--card-black,#15151f)}
       .pcard .corner{position:absolute;line-height:.9;text-align:center;font-weight:800;font-size:calc(var(--cw)*0.24);font-family:Georgia,'Times New Roman',serif}
       .pcard .corner span{display:block}
       .pcard .corner.tl{top:5px;left:6px}
@@ -126,18 +153,18 @@
       .pcard .pip{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:calc(var(--cw)*0.52)}
       .pcard .face{position:absolute;inset:16% 15% 12%;display:flex;align-items:center;justify-content:center}
       .pcard .face .court{width:100%;height:100%;display:block}
-      .pcard.back{background:repeating-linear-gradient(45deg,#3b3f8f 0 6px,#2b2f6f 6px 12px);border:2px solid rgba(255,255,255,.5);
+      .pcard.back{background:repeating-linear-gradient(45deg,var(--card-back-a,#3b3f8f) 0 6px,var(--card-back-b,#2b2f6f) 6px 12px);border:2px solid rgba(255,255,255,.5);
         overflow:hidden}
       .pcard.back::after{content:"";position:absolute;inset:6px;border-radius:5px;border:2px solid rgba(255,255,255,.35)}
       /* No z-index here: lifting it out of flow made the back's chicken paint over
          the face-up card stacked after it. */
-      .pcard.back::before{content:"🐔";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+      .pcard.back::before{content:var(--card-back-glyph,"🐔");position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
         font-size:calc(var(--cw)*0.46);line-height:1}
       .pcard.empty{background:transparent;border:2px dashed rgba(255,255,255,.18);box-shadow:none}
     `;
     document.head.appendChild(s);
   }
-  if (typeof document !== "undefined") injectStyles();
+  if (typeof document !== "undefined") { injectStyles(); applyTheme(); }
 
-  global.Cards = { SUITS, SUIT_SYMBOL, RED, RANKS, rankLabel, makeDeck, shuffle, deal, split, cardEl };
+  global.Cards = { SUITS, SUIT_SYMBOL, RED, RANKS, rankLabel, makeDeck, shuffle, deal, split, cardEl, THEMES, getTheme, setTheme };
 })(typeof window !== "undefined" ? window : globalThis);
