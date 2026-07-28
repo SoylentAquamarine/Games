@@ -122,6 +122,16 @@
     goldIn:{ name:"Inside the Gold Castle", color:"#12101c", exits:{S:"commons"}, exitReturn:{x:96,y:96} },
     blackIn:{ name:"Inside the Black Castle", color:"#12101c", exits:{S:"blackgate"}, exitReturn:{x:96,y:80} },
   };
+  // A saved layout from the Level Editor overrides room grid positions, colours
+  // and inner walls (doorways stay derived from the grid adjacency).
+  try{ if(typeof localStorage!=="undefined"){ const j=localStorage.getItem("adventure_rooms");
+    if(j){ const o=JSON.parse(j); if(o&&typeof o==="object"){ for(const id in o){ if(ROOMS[id]){
+      const s=o[id];
+      if(typeof s.gx==="number") ROOMS[id].gx=s.gx;
+      if(typeof s.gy==="number") ROOMS[id].gy=s.gy;
+      if(typeof s.color==="string") ROOMS[id].color=s.color;
+      if(Array.isArray(s.inner)) ROOMS[id].inner=s.inner;
+    } } } } } }catch(e){}
 
   // Build every doorway from the grid, so reciprocity is guaranteed by
   // construction rather than by remembering to write both halves.

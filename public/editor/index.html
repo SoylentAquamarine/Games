@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Level Editor — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='64'>🛠️</text></svg>" />
+  <style>
+    :root{--bg:#0f1020;--panel:#1e2140;--panel2:#252a4d;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;}
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+      background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.2),transparent 60%),var(--bg);}
+    .wrap{max-width:900px;margin:0 auto;padding:14px 12px 40px;display:flex;flex-direction:column;gap:12px}
+    .topbar{display:flex;align-items:center;justify-content:space-between}
+    .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+    .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+    h1{margin:0;font-size:1.4rem;background:linear-gradient(120deg,#f43f5e,#22d3ee);-webkit-background-clip:text;background-clip:text;color:transparent}
+    .sub{color:var(--muted);font-size:.85rem;margin:0}
+    .tabs{display:flex;gap:6px;flex-wrap:wrap}
+    .tab{background:var(--panel);color:var(--text);border:1px solid rgba(255,255,255,.12);border-radius:10px 10px 0 0;padding:9px 16px;cursor:pointer;font-weight:700}
+    .tab.on{background:var(--panel2);border-bottom-color:var(--accent-2);color:var(--accent-2)}
+    .pane{background:var(--panel2);border:1px solid rgba(255,255,255,.1);border-radius:0 10px 10px 10px;padding:14px;display:none}
+    .pane.on{display:block}
+    .bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0}
+    .btn{background:var(--panel);color:var(--text);border:1px solid rgba(255,255,255,.14);border-radius:9px;padding:8px 14px;font-weight:700;cursor:pointer}
+    .btn.on{background:var(--accent);color:#0b0c1a;border-color:var(--accent)}
+    .btn.save{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none}
+    .btn.play{background:var(--accent-2);color:#0b0c1a;border:none}
+    .note{color:var(--muted);font-size:.78rem}
+    .ok{color:#34d399;font-weight:700;font-size:.82rem;min-height:1.2em}
+    canvas{background:#0a0c18;border:1px solid #2a2f55;border-radius:8px;touch-action:none;cursor:crosshair}
+    .mini{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;width:160px}
+    .mini button{aspect-ratio:15/11;background:var(--panel);border:1px solid rgba(255,255,255,.14);border-radius:6px;color:var(--muted);cursor:pointer;font-size:.7rem}
+    .mini button.on{border-color:var(--accent-2);color:var(--accent-2)}
+    table{border-collapse:collapse;width:100%;font-size:.82rem}
+    th,td{border:1px solid rgba(255,255,255,.1);padding:4px 6px;text-align:left}
+    th{color:var(--muted);font-weight:700}
+    input,select{background:var(--panel);color:var(--text);border:1px solid rgba(255,255,255,.16);border-radius:6px;padding:4px 6px;font-size:.82rem}
+    input[type=number]{width:70px}
+    .row2{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar"><a class="home" href="/">← Home</a><h1>🛠️ Level Editor</h1><span class="home">admin</span></div>
+  <p class="sub">Design levels for the games below. Edits save to your browser and load automatically the next time you open that game (on this device). Use <b>Reset</b> to hand a game back to its built-in levels.</p>
+
+  <div class="tabs">
+    <button class="tab on" data-t="quest">Quest (Zelda) — Dungeon</button>
+    <button class="tab" data-t="mania">Chickenmania — Waves</button>
+    <button class="tab" data-t="adv">Adventure — Map</button>
+  </div>
+
+  <!-- QUEST -->
+  <div class="pane on" id="pane-quest">
+    <p class="note">Paint the 3×3 dungeon. Pick a room, choose a brush, then click/drag on the grid. Walls block you; rocks too; floor is walkable. Carve a gap in a wall to make a doorway. Room (1,1) is where you start; (0,0) holds the triforce, (2,2) the key.</p>
+    <div class="row2">
+      <div>
+        <div class="note">Room</div>
+        <div class="mini" id="q-mini"></div>
+      </div>
+      <div>
+        <div class="bar">
+          <span class="note">Brush:</span>
+          <button class="btn on" data-brush=".">Floor</button>
+          <button class="btn" data-brush="#">Wall</button>
+          <button class="btn" data-brush="O">Rock</button>
+        </div>
+        <canvas id="q-canvas" width="360" height="264"></canvas>
+      </div>
+    </div>
+    <div class="bar">
+      <button class="btn save" id="q-save">Save dungeon</button>
+      <button class="btn" id="q-reset">Reset to default</button>
+      <a class="btn play" href="/games/quest/">Play Quest →</a>
+      <span class="ok" id="q-ok"></span>
+    </div>
+  </div>
+
+  <!-- CHICKENMANIA -->
+  <div class="pane" id="pane-mania">
+    <p class="note">Edit the wave formations. Each row is one formation, cycled by wave and made harder each loop. <b>pattern</b> is how it moves, <b>shape</b> is the sprite, <b>speed</b>/<b>drop</b> tune movement, <b>fires</b> is what it drops, <b>from loop</b> is the loop it starts shooting on (0 = right away).</p>
+    <table id="m-table"></table>
+    <div class="bar">
+      <button class="btn" id="m-add">+ Add formation</button>
+      <button class="btn save" id="m-save">Save waves</button>
+      <button class="btn" id="m-reset">Reset to default</button>
+      <a class="btn play" href="/games/chickenmania/">Play Chickenmania →</a>
+      <span class="ok" id="m-ok"></span>
+    </div>
+  </div>
+
+  <!-- ADVENTURE -->
+  <div class="pane" id="pane-adv">
+    <p class="note">Arrange the overworld. Drag a room to a new cell to move it — doorways form automatically between rooms that end up next to each other. Click a room to recolour it. Empty cells are void.</p>
+    <div class="row2">
+      <canvas id="a-canvas" width="420" height="420"></canvas>
+      <div>
+        <div class="note">Selected room</div>
+        <div id="a-sel" style="font-weight:700;margin:4px 0">—</div>
+        <label class="note">Colour <input type="color" id="a-color" value="#3a7d3a"></label>
+      </div>
+    </div>
+    <div class="bar">
+      <button class="btn save" id="a-save">Save map</button>
+      <button class="btn" id="a-reset">Reset to default</button>
+      <a class="btn play" href="/games/adventure/">Play Adventure →</a>
+      <span class="ok" id="a-ok"></span>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const $=(id)=>document.getElementById(id);
+  const store=(k,v)=>{ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} };
+  const clear=(k)=>{ try{ localStorage.removeItem(k); }catch(e){} };
+  const load=(k)=>{ try{ const j=localStorage.getItem(k); return j?JSON.parse(j):null; }catch(e){ return null; } };
+
+  // ---- tabs ----
+  document.querySelectorAll(".tab").forEach(t=>t.addEventListener("click",()=>{
+    document.querySelectorAll(".tab").forEach(x=>x.classList.remove("on"));
+    document.querySelectorAll(".pane").forEach(x=>x.classList.remove("on"));
+    t.classList.add("on"); $("pane-"+({quest:"quest",mania:"mania",adv:"adv"})[t.dataset.t]).classList.add("on");
+  }));
+
+  // =========================================================================
+  // QUEST dungeon editor — 3x3 rooms, each a 11x15 tile grid ('#','.','O')
+  // =========================================================================
+  const QCOLS=15, QROWS=11, QRX=3, QRY=3, QTRI=[0,0], QKEY=[2,2];
+  function defaultRoom(rx,ry){
+    const m=[];
+    for(let y=0;y<QROWS;y++){ let row="";
+      for(let x=0;x<QCOLS;x++){ row += (x===0||x===QCOLS-1||y===0||y===QROWS-1)?"#":"."; }
+      m.push(row); }
+    // doorways to in-bounds neighbours (triforce room only opens east)
+    const door=(dir)=>{ const nx=rx+(dir==="E"?1:dir==="W"?-1:0), ny=ry+(dir==="S"?1:dir==="N"?-1:0);
+      if(nx<0||nx>=QRX||ny<0||ny>=QRY) return false;
+      if(rx===QTRI[0]&&ry===QTRI[1]) return dir==="E";
+      if(nx===QTRI[0]&&ny===QTRI[1]) return dir==="W";
+      return true; };
+    const set=(y,x,c)=>{ m[y]=m[y].slice(0,x)+c+m[y].slice(x+1); };
+    if(door("N")) for(let x=6;x<=8;x++) set(0,x,".");
+    if(door("S")) for(let x=6;x<=8;x++) set(QROWS-1,x,".");
+    if(door("W")) for(let y=4;y<=6;y++) set(y,0,".");
+    if(door("E")) for(let y=4;y<=6;y++) set(y,QCOLS-1,".");
+    return m;
+  }
+  function defaultDungeon(){ const g=[]; for(let ry=0;ry<QRY;ry++){ const r=[]; for(let rx=0;rx<QRX;rx++) r.push(defaultRoom(rx,ry)); g.push(r); } return g; }
+  let qData = load("quest_layout") || defaultDungeon();
+  let qRoom={x:1,y:1}, qBrush=".";
+  const qcv=$("q-canvas"), qx=qcv.getContext("2d"), QCELL=qcv.width/QCOLS;
+  function qColor(c){ return c==="#"?"#3a2f5a":c==="O"?"#6a5a3a":"#141726"; }
+  function drawQuest(){
+    const room=qData[qRoom.y][qRoom.x];
+    for(let y=0;y<QROWS;y++) for(let x=0;x<QCOLS;x++){
+      qx.fillStyle=qColor(room[y][x]); qx.fillRect(x*QCELL,y*QCELL,QCELL-1,QCELL-1);
+      if(room[y][x]==="O"){ qx.fillStyle="#8a7a4a"; qx.beginPath(); qx.arc(x*QCELL+QCELL/2,y*QCELL+QCELL/2,QCELL/3,0,7); qx.fill(); }
+    }
+  }
+  function buildMini(){ const mini=$("q-mini"); mini.innerHTML="";
+    for(let y=0;y<QRY;y++) for(let x=0;x<QRX;x++){ const b=document.createElement("button");
+      b.textContent=(x===1&&y===1)?"Start":(x===QTRI[0]&&y===QTRI[1])?"Tri":(x===QKEY[0]&&y===QKEY[1])?"Key":(x+","+y);
+      if(x===qRoom.x&&y===qRoom.y) b.classList.add("on");
+      b.addEventListener("click",()=>{ qRoom={x,y}; buildMini(); drawQuest(); });
+      mini.appendChild(b); } }
+  function qPaint(e){ const r=qcv.getBoundingClientRect();
+    const cx=Math.floor(((e.touches?e.touches[0].clientX:e.clientX)-r.left)/(r.width)*QCOLS);
+    const cy=Math.floor(((e.touches?e.touches[0].clientY:e.clientY)-r.top)/(r.height)*QROWS);
+    if(cx<0||cx>=QCOLS||cy<0||cy>=QROWS) return;
+    const room=qData[qRoom.y][qRoom.x]; room[cy]=room[cy].slice(0,cx)+qBrush+room[cy].slice(cx+1); drawQuest(); }
+  let qDown=false;
+  qcv.addEventListener("mousedown",e=>{qDown=true;qPaint(e);});
+  qcv.addEventListener("mousemove",e=>{if(qDown)qPaint(e);});
+  addEventListener("mouseup",()=>qDown=false);
+  qcv.addEventListener("touchstart",e=>{e.preventDefault();qPaint(e);},{passive:false});
+  qcv.addEventListener("touchmove",e=>{e.preventDefault();qPaint(e);},{passive:false});
+  document.querySelectorAll('[data-brush]').forEach(b=>b.addEventListener("click",()=>{
+    document.querySelectorAll('[data-brush]').forEach(x=>x.classList.remove("on")); b.classList.add("on"); qBrush=b.dataset.brush; }));
+  $("q-save").addEventListener("click",()=>{ store("quest_layout",qData); $("q-ok").textContent="Saved — reopen Quest to play it."; });
+  $("q-reset").addEventListener("click",()=>{ clear("quest_layout"); qData=defaultDungeon(); drawQuest(); buildMini(); $("q-ok").textContent="Reset to the built-in dungeon."; });
+  buildMini(); drawQuest();
+
+  // =========================================================================
+  // CHICKENMANIA wave editor
+  // =========================================================================
+  const SHAPES=["egg","corn","feather","seed","bucket","worm","nest","carton"];
+  const PATTERNS=["slide","sine","wild","drift","snake","bounce","cycle"];
+  const DROPS=["egg","water"];
+  const MANIA_DEFAULT=[
+    {name:"Eggs",shape:"egg",pattern:"slide",speed:0.75,drop:0.055,drops:"egg",shootFrom:3},
+    {name:"Corn",shape:"corn",pattern:"sine",speed:0.95,drop:0.050,drops:"egg",shootFrom:2},
+    {name:"Feathers",shape:"feather",pattern:"wild",speed:0.85,drop:0.060,drops:"egg",shootFrom:2},
+    {name:"Seed",shape:"seed",pattern:"drift",speed:1.05,drop:0.030,drops:"egg",shootFrom:3},
+    {name:"Buckets",shape:"bucket",pattern:"snake",speed:1.00,drop:0.058,drops:"water",shootFrom:0},
+    {name:"Worms",shape:"worm",pattern:"bounce",speed:1.25,drop:0.085,drops:"egg",shootFrom:1},
+    {name:"Nests",shape:"nest",pattern:"sine",speed:1.10,drop:0.070,drops:"egg",shootFrom:0},
+    {name:"Cartons",shape:"carton",pattern:"cycle",speed:1.35,drop:0.30,drops:"egg",shootFrom:1},
+  ];
+  let mData = load("chickenmania_waves") || JSON.parse(JSON.stringify(MANIA_DEFAULT));
+  function opt(list,val){ return list.map(o=>`<option${o===val?" selected":""}>${o}</option>`).join(""); }
+  function drawMania(){
+    let h="<tr><th>Name</th><th>Shape</th><th>Pattern</th><th>Speed</th><th>Drop</th><th>Fires</th><th>From loop</th><th></th></tr>";
+    mData.forEach((w,i)=>{ h+=`<tr data-i="${i}">
+      <td><input class="m-name" value="${w.name||""}" size="8"></td>
+      <td><select class="m-shape">${opt(SHAPES,w.shape)}</select></td>
+      <td><select class="m-pattern">${opt(PATTERNS,w.pattern)}</select></td>
+      <td><input class="m-speed" type="number" step="0.05" value="${w.speed}"></td>
+      <td><input class="m-drop" type="number" step="0.005" value="${w.drop}"></td>
+      <td><select class="m-drops">${opt(DROPS,w.drops||"egg")}</select></td>
+      <td><input class="m-from" type="number" min="0" max="6" value="${w.shootFrom||0}"></td>
+      <td><button class="btn m-del">✕</button></td></tr>`; });
+    $("m-table").innerHTML=h;
+    $("m-table").querySelectorAll(".m-del").forEach(b=>b.addEventListener("click",e=>{ const i=+e.target.closest("tr").dataset.i; mData.splice(i,1); drawMania(); }));
+  }
+  function readMania(){
+    const out=[]; $("m-table").querySelectorAll("tr[data-i]").forEach(tr=>{
+      out.push({ name:tr.querySelector(".m-name").value, shape:tr.querySelector(".m-shape").value,
+        pattern:tr.querySelector(".m-pattern").value, speed:parseFloat(tr.querySelector(".m-speed").value)||0.8,
+        drop:parseFloat(tr.querySelector(".m-drop").value)||0.05, drops:tr.querySelector(".m-drops").value,
+        shootFrom:parseInt(tr.querySelector(".m-from").value)||0 }); });
+    return out;
+  }
+  $("m-add").addEventListener("click",()=>{ mData=readMania(); mData.push({name:"New",shape:"egg",pattern:"slide",speed:0.9,drop:0.05,drops:"egg",shootFrom:2}); drawMania(); });
+  $("m-save").addEventListener("click",()=>{ mData=readMania(); if(mData.length<1){ $("m-ok").textContent="Need at least one formation."; return; } store("chickenmania_waves",mData); $("m-ok").textContent="Saved — reopen Chickenmania to play it."; });
+  $("m-reset").addEventListener("click",()=>{ clear("chickenmania_waves"); mData=JSON.parse(JSON.stringify(MANIA_DEFAULT)); drawMania(); $("m-ok").textContent="Reset to the built-in waves."; });
+  drawMania();
+
+  // =========================================================================
+  // ADVENTURE map editor — drag rooms on a grid, recolour them
+  // =========================================================================
+  const ADV_DEFAULT={
+    commons:{gx:2,gy:3,color:"#3a7d3a"}, north:{gx:2,gy:2,color:"#2b52a0"}, south:{gx:2,gy:4,color:"#6a2d8a"},
+    east:{gx:3,gy:3,color:"#1f8a76"}, blackgate:{gx:4,gy:3,color:"#2a2a2a"}, west:{gx:1,gy:2,color:"#3a6a2a"},
+    grotto:{gx:1,gy:1,color:"#1f5a6a"}, maze1:{gx:0,gy:2,color:"#6a5a2a"}, maze2:{gx:0,gy:1,color:"#5a3a6a"},
+    belfry:{gx:2,gy:1,color:"#2b4a8a"}, catacomb:{gx:2,gy:5,color:"#3a2a3a"}, crypt:{gx:3,gy:4,color:"#242438"},
+    orchard:{gx:1,gy:4,color:"#2f6b34"}, henhouse:{gx:0,gy:4,color:"#7a5a2a"}, ravine:{gx:1,gy:3,color:"#2a4a5a"},
+    roost:{gx:0,gy:3,color:"#5a4a7a"}, granary:{gx:2,gy:0,color:"#6a5a3a"}, aviary:{gx:3,gy:0,color:"#3a5a6a"},
+  };
+  const AGX=5, AGY=6;
+  let aData = mergeAdv(load("adventure_rooms"));
+  function mergeAdv(saved){ const d=JSON.parse(JSON.stringify(ADV_DEFAULT)); if(saved) for(const id in saved){ if(d[id]) Object.assign(d[id],saved[id]); } return d; }
+  const acv=$("a-canvas"), ax=acv.getContext("2d"), ACW=acv.width/AGX, ACH=acv.height/AGY;
+  let aSel=null;
+  function shortName(id){ return id.length>7?id.slice(0,7):id; }
+  function drawAdv(){
+    ax.fillStyle="#0a0c18"; ax.fillRect(0,0,acv.width,acv.height);
+    ax.strokeStyle="rgba(255,255,255,.08)";
+    for(let x=0;x<=AGX;x++){ ax.beginPath(); ax.moveTo(x*ACW,0); ax.lineTo(x*ACW,acv.height); ax.stroke(); }
+    for(let y=0;y<=AGY;y++){ ax.beginPath(); ax.moveTo(0,y*ACH); ax.lineTo(acv.width,y*ACH); ax.stroke(); }
+    for(const id in aData){ const r=aData[id]; const px=r.gx*ACW, py=r.gy*ACH;
+      ax.fillStyle=r.color; ax.fillRect(px+3,py+3,ACW-6,ACH-6);
+      if(id===aSel){ ax.strokeStyle="#22d3ee"; ax.lineWidth=2.5; ax.strokeRect(px+3,py+3,ACW-6,ACH-6); ax.lineWidth=1; }
+      ax.fillStyle="#e6e6f0"; ax.font="9px system-ui"; ax.textAlign="center"; ax.fillText(shortName(id),px+ACW/2,py+ACH/2); }
+  }
+  function cellAt(e){ const r=acv.getBoundingClientRect();
+    return { gx:Math.floor(((e.clientX-r.left)/r.width)*AGX), gy:Math.floor(((e.clientY-r.top)/r.height)*AGY) }; }
+  function roomAt(gx,gy){ for(const id in aData) if(aData[id].gx===gx&&aData[id].gy===gy) return id; return null; }
+  let aDrag=null;
+  acv.addEventListener("mousedown",e=>{ const c=cellAt(e); const id=roomAt(c.gx,c.gy); if(id){ aSel=id; aDrag=id; $("a-sel").textContent=id; $("a-color").value=aData[id].color; drawAdv(); } });
+  acv.addEventListener("mousemove",e=>{ if(!aDrag) return; const c=cellAt(e);
+    if(c.gx>=0&&c.gx<AGX&&c.gy>=0&&c.gy<AGY && !roomAt(c.gx,c.gy)){ aData[aDrag].gx=c.gx; aData[aDrag].gy=c.gy; drawAdv(); } });
+  addEventListener("mouseup",()=>aDrag=null);
+  $("a-color").addEventListener("input",e=>{ if(aSel){ aData[aSel].color=e.target.value; drawAdv(); } });
+  $("a-save").addEventListener("click",()=>{ store("adventure_rooms",aData); $("a-ok").textContent="Saved — reopen Adventure to explore it."; });
+  $("a-reset").addEventListener("click",()=>{ clear("adventure_rooms"); aData=mergeAdv(null); aSel=null; $("a-sel").textContent="—"; drawAdv(); $("a-ok").textContent="Reset to the built-in map."; });
+  drawAdv();
+
+  // expose pure bits for tests
+  window.__editor={ defaultDungeon, defaultRoom, MANIA_DEFAULT, ADV_DEFAULT, mergeAdv,
+    QCOLS, QROWS, QRX, QRY };
+})();
+</script>
+</body>
+</html>

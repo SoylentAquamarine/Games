@@ -74,7 +74,7 @@
   // Every formation can shoot; `shootFrom` is the loop (cycle) it starts on, so
   // more of the flock opens fire each time round and by loop 3 the whole board
   // is dropping bullets. Buckets and Nests fire from the very first pass.
-  const WAVES = [
+  let WAVES = [
     { name:"Eggs",      shape:"egg",     pattern:"slide",  speed:0.75, drop:0.055, drops:"egg",   shootFrom:3 },
     { name:"Corn",      shape:"corn",    pattern:"sine",   speed:0.95, drop:0.050, drops:"egg",   shootFrom:2 },
     { name:"Feathers",  shape:"feather", pattern:"wild",   speed:0.85, drop:0.060, drops:"egg",   shootFrom:2 },
@@ -84,6 +84,9 @@
     { name:"Nests",     shape:"nest",    pattern:"sine",   speed:1.10, drop:0.070, drops:"egg",   shootFrom:0 },
     { name:"Cartons",   shape:"carton",  pattern:"cycle",  speed:1.35, drop:0.30,  drops:"egg",   shootFrom:1 },
   ];
+  // A saved formation set from the Level Editor overrides the defaults.
+  try{ if(typeof localStorage!=="undefined"){ const j=localStorage.getItem("chickenmania_waves");
+    if(j){ const o=JSON.parse(j); if(Array.isArray(o)&&o.length>=1&&o.every(w=>w&&w.pattern&&w.shape&&typeof w.speed==="number")) WAVES=o; } } }catch(e){}
   const EGG_SPEED=2.3, EGG_W=6, EGG_H=9;
   const DROP_RATE=0.00095;      // per enemy per frame — climbs 10% each loop
   const ZIG_FRAMES=120;         // cycling waves flip direction every 2s
