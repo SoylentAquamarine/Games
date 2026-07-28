@@ -38,7 +38,7 @@
       <canvas id="c" width="480" height="352"></canvas>
       <div class="overlay" id="ov">
         <h2 id="ot">⚔️ Quest</h2>
-        <p id="om">Explore the dungeon, slay monsters, find the key, and claim the Triforce. Arrow keys/WASD to move, Space to swing your sword.</p>
+        <p id="om">Explore the dungeon, find the key, and beat the boss to claim its gemstone egg. Fill your carton with all 12 to unseal the final boss. Arrow keys/WASD to move, Space to swing your sword.</p>
         <button class="btn" id="start">Begin</button>
       </div>
     </div>
@@ -60,7 +60,31 @@
     const ov=document.getElementById("ov"),ot=document.getElementById("ot"),om=document.getElementById("om"),startBtn=document.getElementById("start");
     const TRI=[0,0], KEYROOM=[2,2];
     let rooms,room,player,keys,running,raf,unlocked,over,frame;
+    let eggs,boss,curDungeon=1;
     const keyState={up:false,down:false,left:false,right:false};
+
+    // ===== 12-egg quest: gemstone eggs, an egg carton, and a boss per dungeon =====
+    const GEMS=[
+      {name:"Ruby",color:"#e0245e"},{name:"Sapphire",color:"#2f6fe0"},{name:"Emerald",color:"#2ecc71"},
+      {name:"Topaz",color:"#f4c020"},{name:"Amethyst",color:"#9b59b6"},{name:"Opal",color:"#7fdbda"},
+      {name:"Diamond",color:"#dbe9ff"},{name:"Onyx",color:"#4a4a55"},{name:"Pearl",color:"#f3e9dc"},
+      {name:"Garnet",color:"#b0303a"},{name:"Jade",color:"#3fae7a"},{name:"Amber",color:"#e08a1e"},
+    ];
+    const BOSSES=[
+      {name:"Fire Rooster",hp:6,color:"#e0533e"},{name:"Frost Owl",hp:6,color:"#7fb0e0"},{name:"Vine Serpent",hp:7,color:"#4caf50"},
+      {name:"Thunder Hawk",hp:7,color:"#f4d03f"},{name:"Shadow Bat",hp:8,color:"#7a5a9a"},{name:"Prism Peacock",hp:8,color:"#4fd0c0"},
+      {name:"Ice Golem",hp:9,color:"#bcd8f0"},{name:"Coal Beetle",hp:9,color:"#555560"},{name:"Tide Crab",hp:10,color:"#e08a6a"},
+      {name:"Magma Toad",hp:10,color:"#c0402a"},{name:"Stone Tortoise",hp:11,color:"#7a8a5a"},{name:"Sap Spider",hp:11,color:"#c07a2a"},
+    ];
+    function newEggs(){ let e=[]; try{ const j=localStorage.getItem("quest_eggs"); if(j){ const a=JSON.parse(j); if(Array.isArray(a)) e=a.map(Boolean); } }catch(_){}
+      while(e.length<12) e.push(false); return e.slice(0,12); }
+    function saveEggs(e){ try{ localStorage.setItem("quest_eggs",JSON.stringify(e)); }catch(_){} }
+    function collectEgg(e,n){ if(n>=1&&n<=12) e[n-1]=true; saveEggs(e); return e; }
+    function cartonCount(e){ return e.filter(Boolean).length; }
+    function cartonFull(e){ return cartonCount(e)===12; }
+    function makeBoss(dungeon){ const b=BOSSES[(dungeon-1)%12];
+      return { dungeon, name:b.name, color:b.color, hp:b.hp, maxhp:b.hp, x:7*TILE-6, y:3*TILE, size:44, vx:0,vy:0, hurt:0, atk:0, dead:false, eggDropped:false }; }
+    function bossTakeHit(b,dmg){ if(!b||b.dead||b.hurt>0) return false; b.hp-=dmg; b.hurt=20; if(b.hp<=0){ b.hp=0; b.dead=true; } return true; }
 
     // ---- world gen ----
     function doorOpen(rx,ry,dir){
@@ -100,7 +124,7 @@
         enemies.push({x:x*TILE+8,y:y*TILE+8,dir:rnd(4),timer:rnd(40),alive:true,hp:1,hurt:0});}
       // items
       const items=[];
-      if(rx===TRI[0]&&ry===TRI[1])items.push({x:7*TILE+4,y:5*TILE+4,type:"tri"});
+      // the goal room (0,0) holds this dungeon's boss, which drops the gem egg
       if(rx===KEYROOM[0]&&ry===KEYROOM[1])items.push({x:7*TILE+8,y:3*TILE+8,type:"key"});
       // scatter a few rupees / hearts
       const drops=start?1:1+rnd(2);
@@ -120,6 +144,7 @@
 
     function newGame(){
       genWorld();room=[1,1];keys=0;unlocked=false;over=false;frame=0;
+      eggs=newEggs(); boss=null; curDungeon=1;
       player={x:7*TILE+4,y:5*TILE+4,size:24,dir:0,hp:3,maxhp:7,inv:0,atk:0,rupees:0};   // 3 to start, room for 7
       rooms[1][1].visited=true;updateHud();ov.classList.add("hidden");running=true;loop();
     }
@@ -181,6 +206,28 @@
           if(player.hp<=0)return gameOver();
         }
       }
+      // boss — guards the goal room until this dungeon's gem egg is taken
+      const inBossRoom = (room[0]===TRI[0] && room[1]===TRI[1]);
+      if(inBossRoom && !eggs[curDungeon-1]){
+        if(!boss || boss.dungeon!==curDungeon) boss=makeBoss(curDungeon);
+        const b=boss;
+        if(!b.dead){
+          if(b.hurt>0) b.hurt--;
+          const bcx=b.x+b.size/2, bcy=b.y+b.size/2, pcx=player.x+s/2, pcy=player.y+s/2;
+          const a=Math.atan2(pcy-bcy,pcx-bcx), bs=1.15;
+          if(!boxHitsSolid(b.x+Math.cos(a)*bs,b.y,b.size)) b.x+=Math.cos(a)*bs;
+          if(!boxHitsSolid(b.x,b.y+Math.sin(a)*bs,b.size)) b.y+=Math.sin(a)*bs;
+          if(sword&&rectHit(sword,{x:b.x,y:b.y,w:b.size,h:b.size})){ if(bossTakeHit(b,1)) flash(b.name+"  "+b.hp+"/"+b.maxhp); }
+          if(player.inv<=0&&rectHit({x:player.x,y:player.y,w:s,h:s},{x:b.x,y:b.y,w:b.size,h:b.size})){
+            player.hp--;player.inv=70;updateHud();
+            const kx=Math.sign(player.x-bcx)*12,ky=Math.sign(player.y-bcy)*12;
+            if(!boxHitsSolid(player.x+kx,player.y,s))player.x+=kx;if(!boxHitsSolid(player.x,player.y+ky,s))player.y+=ky;
+            if(player.hp<=0)return gameOver();
+          }
+        } else if(!b.eggDropped){
+          b.eggDropped=true; R.items.push({x:7*TILE-2,y:5*TILE,type:"egg"}); flash("The "+b.name+" is beaten!");
+        }
+      }
       // items
       for(const it of R.items){if(it.taken)continue;
         if(rectHit({x:player.x,y:player.y,w:s,h:s},{x:it.x,y:it.y,w:20,h:20})){
@@ -188,12 +235,42 @@
           if(it.type==="rupee"){player.rupees++;flash("💎 +1 rupee");}
           else if(it.type==="heart"){player.hp=Math.min(player.maxhp,player.hp+1);flash("❤ +1 heart");}
           else if(it.type==="key"){keys++;flash("🗝️ Got a key!");}
-          else if(it.type==="tri"){return win();}
+          else if(it.type==="egg"){ collectEgg(eggs,curDungeon); boss=null;
+            flash("🥚 The "+GEMS[curDungeon-1].name+" egg!  "+cartonCount(eggs)+"/12");
+            if(cartonFull(eggs)) return win(); }
           updateHud();
         }
       }
     }
     function rectHit(a,b){return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;}
+    function drawGemEgg(cx,cy,r,color){
+      ctx.fillStyle=color; ctx.beginPath(); ctx.ellipse(cx,cy,r*0.8,r,0,0,7); ctx.fill();
+      ctx.strokeStyle="rgba(0,0,0,.35)"; ctx.lineWidth=1.4; ctx.stroke();
+      ctx.fillStyle="rgba(255,255,255,.5)"; ctx.beginPath(); ctx.ellipse(cx-r*0.28,cy-r*0.35,r*0.24,r*0.34,0.5,0,7); ctx.fill();
+    }
+    function drawBoss(b){
+      const cx=b.x+b.size/2, cy=b.y+b.size/2, r=b.size/2, flash=b.hurt>0&&Math.floor(b.hurt/3)%2===0;
+      // body
+      ctx.fillStyle=flash?"#ffffff":b.color; ctx.beginPath(); ctx.arc(cx,cy,r,0,7); ctx.fill();
+      // comb + beak (rooster-ish, tinted by theme)
+      ctx.fillStyle="#dc2626"; ctx.beginPath(); ctx.arc(cx-r*0.3,cy-r*0.9,r*0.2,0,7); ctx.arc(cx,cy-r,r*0.22,0,7); ctx.arc(cx+r*0.3,cy-r*0.9,r*0.2,0,7); ctx.fill();
+      ctx.fillStyle="#fb923c"; ctx.beginPath(); ctx.moveTo(cx+r*0.7,cy); ctx.lineTo(cx+r*1.2,cy+r*0.16); ctx.lineTo(cx+r*0.7,cy+r*0.3); ctx.closePath(); ctx.fill();
+      ctx.fillStyle="#fff"; ctx.beginPath(); ctx.arc(cx+r*0.28,cy-r*0.2,r*0.22,0,7); ctx.fill();
+      ctx.fillStyle="#0b0c1a"; ctx.beginPath(); ctx.arc(cx+r*0.34,cy-r*0.2,r*0.11,0,7); ctx.fill();
+      // name + hp bar above
+      ctx.fillStyle="#e6e6f0"; ctx.font="bold 10px system-ui"; ctx.textAlign="center"; ctx.textBaseline="alphabetic"; ctx.fillText(b.name, cx, b.y-10);
+      const bw=b.size+8; ctx.fillStyle="rgba(0,0,0,.5)"; ctx.fillRect(cx-bw/2,b.y-8,bw,5);
+      ctx.fillStyle="#e0533e"; ctx.fillRect(cx-bw/2,b.y-8,bw*(b.hp/b.maxhp),5);
+    }
+    function drawCarton(){
+      const n=12, cols=6, cw=15, ch=17, pad=6, ox=pad, oy=pad;
+      const gw=cols*cw+8, gh=2*ch+8;
+      ctx.fillStyle="rgba(60,40,20,.85)"; ctx.fillRect(ox-4,oy-4,gw,gh); ctx.strokeStyle="rgba(0,0,0,.4)"; ctx.strokeRect(ox-4,oy-4,gw,gh);
+      for(let i=0;i<n;i++){ const c=i%cols, rr=Math.floor(i/cols); const cx=ox+c*cw+cw/2, cy=oy+rr*ch+ch/2;
+        ctx.fillStyle="rgba(0,0,0,.35)"; ctx.beginPath(); ctx.ellipse(cx,cy,5,6,0,0,7); ctx.fill();
+        if(eggs&&eggs[i]) drawGemEgg(cx,cy,5.5,GEMS[i].color);
+      }
+    }
 
     function render(){
       const R=rooms[room[1]][room[0]];
@@ -203,10 +280,12 @@
           if(t==="O"){ctx.fillStyle="#5b6472";ctx.beginPath();ctx.arc(x*TILE+16,y*TILE+16,11,0,7);ctx.fill();}}
       }
       // items
-      for(const it of R.items){if(it.taken)continue;const ic={rupee:"💎",heart:"❤",key:"🗝️",tri:"▲"}[it.type];
+      for(const it of R.items){if(it.taken)continue;const ic={rupee:"💎",heart:"❤",key:"🗝️"}[it.type];
         ctx.font="18px serif";ctx.textAlign="center";ctx.textBaseline="middle";
-        if(it.type==="tri"){ctx.fillStyle="#facc15";ctx.font="26px serif";ctx.fillText("🔺",it.x+10,it.y+10);}
+        if(it.type==="egg"){ drawGemEgg(it.x+10,it.y+10,11,GEMS[curDungeon-1].color); }
         else ctx.fillText(ic,it.x+10,it.y+10);}
+      // boss
+      if(boss && !boss.dead && room[0]===TRI[0] && room[1]===TRI[1] && !eggs[curDungeon-1]) drawBoss(boss);
       // weasels — same footprint as the hero
       for(const e of R.enemies){ if(!e.alive) continue;
         const ex=e.x+ESIZE/2, ey=e.y+ESIZE/2, f=(e.dir===2)?-1:1;   // face the way it walks
@@ -254,7 +333,7 @@
       if(player.atk>6){ctx.fillStyle="#fde68a";const cx=player.x+player.size/2,cy=player.y+player.size/2,len=26;
         if(player.dir===0)ctx.fillRect(cx-3,cy-len,6,len);else if(player.dir===1)ctx.fillRect(cx-3,cy,6,len);
         else if(player.dir===2)ctx.fillRect(cx-len,cy-3,len,6);else ctx.fillRect(cx,cy-3,len,6);}
-      drawMinimap();
+      drawMinimap(); drawCarton();
       // flash message
       if(flashT>0){ctx.fillStyle="rgba(0,0,0,.6)";ctx.fillRect(W/2-90,6,180,24);ctx.fillStyle="#fde68a";ctx.font="14px system-ui";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(flashMsg,W/2,18);}
     }
@@ -279,9 +358,9 @@
       }
     }
     function attack(){if(player.atk<=0)player.atk=18;}
-    function updateHud(){let h="";for(let i=0;i<player.maxhp;i++)h+=i<player.hp?"❤":"🖤";heartsEl.textContent=h;lootEl.textContent="💎 "+player.rupees+" · 🗝️ "+keys;}
-    function gameOver(){running=false;cancelAnimationFrame(raf);ot.textContent="💀 You fell";om.textContent="The dungeon claims another hero. Rupees collected: "+player.rupees;startBtn.textContent="Try again";ov.classList.remove("hidden");}
-    function win(){running=false;cancelAnimationFrame(raf);ot.textContent="🔺 The Triforce is yours!";om.textContent="You conquered the dungeon with "+player.rupees+" rupees. A hero is born!";startBtn.textContent="Play again";ov.classList.remove("hidden");}
+    function updateHud(){let h="";for(let i=0;i<player.maxhp;i++)h+=i<player.hp?"❤":"🖤";heartsEl.textContent=h;lootEl.textContent="🥚 "+(eggs?cartonCount(eggs):0)+"/12 · 🗝️ "+keys;}
+    function gameOver(){running=false;cancelAnimationFrame(raf);ot.textContent="💀 You fell";om.textContent="The dungeon claims another hero. Eggs gathered: "+(eggs?cartonCount(eggs):0)+"/12";startBtn.textContent="Try again";ov.classList.remove("hidden");}
+    function win(){running=false;cancelAnimationFrame(raf);ot.textContent="🥚 The carton is full!";om.textContent="All 12 gemstone eggs are yours — the Fox King's lair unseals. (Final boss coming soon!)";startBtn.textContent="Play again";ov.classList.remove("hidden");}
 
     // input
     const map={ArrowUp:"up",ArrowDown:"down",ArrowLeft:"left",ArrowRight:"right",w:"up",s:"down",a:"left",d:"right"};
@@ -294,7 +373,8 @@
       b.addEventListener("mousedown",on);b.addEventListener("mouseup",off);b.addEventListener("mouseleave",off);});
     startBtn.addEventListener("click",newGame);
     // expose for smoke test
-    window.__quest={genWorld:()=>{genWorld();return rooms;},doorOpen};
+    window.__quest={genWorld:()=>{genWorld();return rooms;},doorOpen,
+      GEMS,BOSSES,newEggs,collectEgg,cartonCount,cartonFull,makeBoss,bossTakeHit};
   })();
   </script>
   <script src="/startgate.js" defer></script>
