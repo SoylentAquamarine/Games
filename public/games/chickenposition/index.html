@@ -41,7 +41,15 @@
   const C={ W:480, H:360, HORIZON:0.42,
     MAXSPD:12, ACCEL:0.08, BRAKE:0.32, DRAG:0.05, OFFSPD:4.0,
     STEER:0.019, CENTRIFUGAL:0.013, LOOK:1100, BEND:0.9,
-    CAR_LEN:230, CAR_WIDE:0.30, CRASH_FRAMES:70,
+    // The rendered car is ~50px wide at its closest; that's roughly a 0.16 slice
+    // of the road's ~306px closest half-width either side of centre, so the hit
+    // box now matches instead of the old 0.30 (nearly double a car's true width).
+    CAR_LEN:230, CAR_WIDE:0.16, CRASH_FRAMES:70,
+    // How much steering shifts the ROAD on screen, as a fraction of the road's
+    // half-width at each row. At 1.0 (the old value) full-lock steering at the
+    // closest row shifted the whole track by 300+px — enough to shove it clean
+    // off one edge, leaving the reported black strip and rumble-strip artifacts.
+    STEER_SHIFT:0.24,
     CHECK_DIST:6500, CHECK_BONUS:42, TIME_START:80, TIME_RATE:0.028 };
   const clamp=(v,a,b)=>v<a?a:v>b?b:v;
   // The course: a windy track. curveAt>0 bends right, <0 bends left. It ramps in
@@ -95,7 +103,22 @@
     return s;
   }
 
-  window.__chickenposition={ newState, step, curveAt, crash, C };
+  // Projects the road's on-screen centre (cx) and half-width (hw) for every row
+  // from the horizon down to the bottom of the canvas, given the car's world
+  // position and lateral offset. Pulled out as a pure function so the "does the
+  // road stay on-canvas through a hard bend + full steering" case is testable.
+  function computeRoadRows(pos, playerX, W, H, horizon){
+    const cx=new Array(H), hw=new Array(H); let offset=0;
+    for(let y=H-1; y>=horizon; y--){
+      const persp=(y-horizon)/(H-horizon);
+      const halfW=8+persp*persp*(W*0.62);
+      hw[y]=halfW; cx[y]=W/2+offset-playerX*halfW*C.STEER_SHIFT;
+      const look=pos+(1-persp)*C.LOOK;
+      offset+=curveAt(look)*C.BEND*(1-persp);
+    }
+    return {cx,hw};
+  }
+  window.__chickenposition={ newState, step, curveAt, crash, computeRoadRows, C };
 
   // ---- rendering / wiring --------------------------------------------------
   if(typeof document==="undefined"||!document.getElementById) return;
@@ -120,17 +143,8 @@
     // Project the road from the BOTTOM up: the player's row starts centred
     // (offset 0) so the car always sits on the road; the curve accumulates into
     // the distance. This is what keeps the start on-track and kills the artifacts.
-    // Single curve accumulation (not a double integral) so the distant road stays
-    // on-screen on sustained bends — a double integral flung it off the right edge
-    // and left jagged rumble artifacts there.
-    let offset=0;
-    for(let y=H-1; y>=horizon; y--){
-      const persp=(y-horizon)/(H-horizon);            // ~1 near the player, 0 at the horizon
-      const halfW = 8 + persp*persp*(W*0.62);
-      rowHW[y]=halfW; rowCX[y]=W/2 + offset - s.playerX*halfW;
-      const look = s.pos + (1-persp)*C.LOOK;
-      offset += curveAt(look) * C.BEND * (1-persp);
-    }
+    const rowGeom=computeRoadRows(s.pos, s.playerX, W, H, horizon);
+    for(let y=horizon;y<H;y++){ rowCX[y]=rowGeom.cx[y]; rowHW[y]=rowGeom.hw[y]; }
     // paint the road rows
     for(let y=horizon; y<H; y++){
       const cx=rowCX[y], halfW=rowHW[y];
