@@ -29,18 +29,18 @@
 <body>
 <div class="wrap">
   <div class="topbar"><a class="home" href="/">← Home</a><h1>🏎️ Chicken1</h1><button class="btn" id="new">New Game</button></div>
-  <div class="hud"><span>Score: <b id="score">0</b></span><span>Speed: <b id="spd">0</b></span><span>Chickens: <b id="lives">🐔🐔🐔</b></span><span>Best: <b id="best">0</b></span></div>
+  <div class="hud"><span>Time: <b id="time">0.00s</b></span><span>Speed: <b id="spd">0</b></span><span>Track: <b id="dist">0%</b></span><span>Best: <b id="best">—</b></span></div>
   <canvas id="game" width="480" height="360"></canvas>
-  <div class="msg" id="msg">Hold GAS, steer with ◀ ▶. Dodge the pack, stay on the tarmac!</div>
+  <div class="msg" id="msg">Hold GAS, steer with ◀ ▶. Race to the checkered line — fastest time wins!</div>
   <div class="ctl"><button class="cbtn" id="bl">◀</button><button class="gas" id="bg">GAS</button><button class="cbtn" id="bk">BRAKE</button><button class="cbtn" id="br">▶</button></div>
-  <p class="hint">Arrows/A·D steer · ↑/Space/W gas · ↓/S brake. Off the tarmac and the grass drags you down. Hit a rival and you lose a chicken.</p>
+  <p class="hint">Arrows/A·D steer · ↑/Space/W gas · ↓/S brake. Off the tarmac and the grass drags you down. Clipping a rival stalls you for a moment — a time trial, not a life-limited game.</p>
 </div>
 <script src="/arcade.js"></script>
 <script>
 (function(){
   const C={ W:480, H:360, ROADW:264, CARW:26, CARH:40, PLAYER_Y:292,
     MAXSPD:9.2, ACCEL:0.075, BRAKE:0.26, DRAG:0.045, IDLE:1.1, OFFSPD:3.2, STEER:3.3,
-    SPAWN_GAP:56, LIVES:3 };
+    SPAWN_GAP:56, FINISH_DIST:9000 };   // a time trial: race this far to the checkered line
   const clamp=(v,a,b)=>v<a?a:v>b?b:v;
   const rov=(ax,ay,aw,ah,bx,by,bw,bh)=> ax<bx+bw&&ax+aw>bx&&ay<by+bh&&ay+ah>by;
   const RIVAL_COLORS=["#f43f5e","#22d3ee","#a3e635","#c084fc","#fb923c"];
@@ -49,8 +49,8 @@
   function roadCenterX(worldY){ return C.W/2 + Math.sin(worldY*0.0016)*54 + Math.sin(worldY*0.0031+1)*20; }
 
   function newState(){ return {
-    x: C.W/2 - C.CARW/2, speed:0, dist:0, scroll:0,
-    traffic:[], spawnT:40, lives:C.LIVES, score:0, offroad:false, crashT:0, over:false }; }
+    x: C.W/2 - C.CARW/2, speed:0, dist:0, scroll:0, time:0,
+    traffic:[], spawnT:40, offroad:false, crashT:0, over:false, won:false }; }
 
   function spawnTraffic(s){
     const lane = (Math.random()*2-1)*(C.ROADW/2 - C.CARW/2 - 8);
@@ -58,12 +58,13 @@
     s.traffic.push({ lane, y, x: roadCenterX(s.scroll + (C.PLAYER_Y - y)) + lane - C.CARW/2,
       speed:1.6+Math.random()*3.0, hit:false, col:RIVAL_COLORS[Math.floor(Math.random()*RIVAL_COLORS.length)] });
   }
-  function crash(s){ s.lives--; s.speed=0; s.crashT=48;
-    if(s.lives<=0){ s.over=true; } }
+  // A crash is a time penalty, not a life lost — it just stalls you for a beat.
+  function crash(s){ s.speed=0; s.crashT=48; }
 
   function step(s, input){
     if(s.over) return s;
     input=input||{};
+    s.time++;
     if(s.crashT>0){ s.crashT--; }
     // speed
     if(s.crashT>36){ /* stalled a beat after a crash */ }
@@ -75,8 +76,7 @@
     if(input.right) s.x+=C.STEER;
     s.x=clamp(s.x, 6, C.W-6-C.CARW);
     // advance
-    s.dist+=s.speed; s.scroll+=s.speed;
-    s.score=Math.floor(s.dist/18);
+    s.dist=Math.min(C.FINISH_DIST, s.dist+s.speed); s.scroll+=s.speed;
     // off the tarmac drags you down — the edges move with the curve
     const pc=roadCenterX(s.scroll), pcx=s.x+C.CARW/2;
     s.offroad = pcx < pc - C.ROADW/2 + 4 || pcx > pc + C.ROADW/2 - 4;
@@ -92,6 +92,8 @@
       if(rov(s.x,C.PLAYER_Y,C.CARW,C.CARH, t.x,t.y,C.CARW,C.CARH)){ t.hit=true; crash(s); break; }
     }
     s.traffic=s.traffic.filter(t=>t.y<C.H+48 && t.y>-140 && !t.hit);
+    // the finish line: reaching it ends the time trial
+    if(s.dist>=C.FINISH_DIST){ s.over=true; s.won=true; }
     return s;
   }
 
@@ -101,9 +103,12 @@
   if(typeof document==="undefined"||!document.getElementById) return;
   const $=(id)=>document.getElementById(id);
   const cv=$("game"); if(!cv) return; const ctx=cv.getContext("2d");
-  if(typeof Arcade!=="undefined"&&Arcade.fitScreen) Arcade.fitScreen(cv,"medium");
-  let s=newState(), best=0, input={left:false,right:false,gas:false,brake:false}, GATE=null;
-  try{ best=parseInt(localStorage.getItem("chicken1_best")||"0")||0; }catch(e){}
+  // "small" is 480x360 — matches C.W/C.H exactly. Using "medium" (560x420) here
+  // resized the canvas backing store bigger than what draw() paints, leaving an
+  // unrepainted strip along the right and bottom edges (the reported artifacts).
+  if(typeof Arcade!=="undefined"&&Arcade.fitScreen) Arcade.fitScreen(cv,"small");
+  let s=newState(), best=null, input={left:false,right:false,gas:false,brake:false}, GATE=null;
+  try{ const b=parseFloat(localStorage.getItem("chicken1_best")); if(!isNaN(b)) best=b; }catch(e){}
 
   function carArt(x,y,col,facingUp){
     ctx.save(); ctx.translate(x+C.CARW/2, y+C.CARH/2);
@@ -138,25 +143,32 @@
       ctx.fillStyle = (Math.floor(worldY/18)%2)? "#f43f5e":"#f4f4f4"; ctx.fillRect(cx-half-6,y,6,1); ctx.fillRect(cx+half,y,6,1);
       if(Math.floor(worldY/54)%2===0){ ctx.fillStyle="#e8e8b0"; ctx.fillRect(cx-2,y,4,1); }
     }
+    // the finish line — a checkered band where dist reaches FINISH_DIST
+    const remain=C.FINISH_DIST-s.dist, fy=C.PLAYER_Y-remain;
+    if(fy>-16 && fy<H+16){ const fcx=roadCenterX(C.FINISH_DIST);
+      for(let i=0;i<C.ROADW;i+=12){ ctx.fillStyle=(Math.floor(i/12)%2)?"#0b0c1a":"#f4f4f4"; ctx.fillRect(fcx-half+i,fy-6,12,12); } }
     // rivals
     for(const t of s.traffic){ if(t.y>-C.CARH && t.y<C.H) carArt(t.x,t.y,t.col,true); }
     // player (blink briefly after a crash)
     if(s.crashT<=0 || Math.floor(s.crashT/5)%2===0) carArt(s.x, C.PLAYER_Y, "#ffcf5a", true);
     if(s.offroad && !s.over){ ctx.fillStyle="rgba(120,200,120,.16)"; ctx.fillRect(0,0,C.W,C.H); }
     if(s.over){ ctx.fillStyle="rgba(0,0,0,.62)"; ctx.fillRect(0,0,C.W,C.H);
-      ctx.fillStyle="#f43f5e"; ctx.font="bold 24px system-ui"; ctx.textAlign="center"; ctx.fillText("OUT OF CHICKENS",C.W/2,C.H/2-6);
-      ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Score "+s.score+"  ·  Best "+best,C.W/2,C.H/2+16); }
+      ctx.fillStyle=s.won?"#34d399":"#f43f5e"; ctx.font="bold 24px system-ui"; ctx.textAlign="center"; ctx.fillText(s.won?"FINISH!":"TIME OUT",C.W/2,C.H/2-6);
+      ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Time "+fmtTime(s.time)+"  ·  Best "+(best?fmtTime(best):"—"),C.W/2,C.H/2+16); }
   }
-  function renderChix(){ $("lives").textContent="🐔".repeat(Math.max(0,s.lives)); }
+  function fmtTime(frames){ const sec=frames/60; return sec.toFixed(2)+"s"; }
   function frame(){
     if(GATE && !GATE.open){ draw(); GATE.paint(); return requestAnimationFrame(frame); }
     if(!s.over){ const wasSpd=s.speed; step(s,input);
-      if(typeof Arcade!=="undefined"){ Arcade.stats.record("chicken1",s.score);
+      if(typeof Arcade!=="undefined"){ Arcade.stats.record("chicken1",s.dist);
         if(s.crashT===48 && wasSpd>0) Arcade.sfx.explode(); }
-      if(s.over){ if(s.score>best){ best=s.score; try{localStorage.setItem("chicken1_best",String(best));}catch(e){} } $("msg").textContent="Crashed out! Score "+s.score; }
+      if(s.over){ if(s.won && (!best||s.time<best)){ best=s.time; try{localStorage.setItem("chicken1_best",String(best));}catch(e){} }
+        if(typeof Arcade!=="undefined"&&s.won) Arcade.sfx.win();
+        $("msg").textContent = s.won ? "🏁 Finished in "+fmtTime(s.time)+"!" : ""; }
       else $("msg").textContent = s.offroad ? "On the grass — get back on the tarmac!" : "";
     }
-    $("score").textContent=s.score; $("spd").textContent=Math.round(s.speed/C.MAXSPD*220); $("best").textContent=best; renderChix();
+    $("time").textContent=fmtTime(s.time); $("dist").textContent=Math.round(Math.min(100,s.dist/C.FINISH_DIST*100))+"%";
+    $("spd").textContent=Math.round(s.speed/C.MAXSPD*220); $("best").textContent=best?fmtTime(best):"—";
     draw(); requestAnimationFrame(frame);
   }
   const press=(k,v)=>{ input[k]=v; };
@@ -165,8 +177,7 @@
   const hold=(id,k)=>{ const el=$(id); const on=(e)=>{e.preventDefault();press(k,true);}; const off=(e)=>{e.preventDefault();press(k,false);};
     el.addEventListener("touchstart",on,{passive:false}); el.addEventListener("touchend",off); el.addEventListener("mousedown",on); el.addEventListener("mouseup",off); el.addEventListener("mouseleave",off); };
   hold("bl","left"); hold("br","right"); hold("bg","gas"); hold("bk","brake");
-  $("new").addEventListener("click",()=>{ s=newState(); renderChix(); $("msg").textContent="Hold GAS, dodge the pack!"; });
-  renderChix();
+  $("new").addEventListener("click",()=>{ s=newState(); $("msg").textContent="Hold GAS — race to the finish!"; });
   GATE = (typeof Arcade!=="undefined"&&Arcade.startGate) ? Arcade.startGate(cv,"Chicken1") : {open:true,paint:()=>{}};
   requestAnimationFrame(frame);
 })();

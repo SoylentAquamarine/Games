@@ -101,7 +101,10 @@
   if(typeof document==="undefined"||!document.getElementById) return;
   const $=(id)=>document.getElementById(id);
   const cv=$("game"); if(!cv) return; const ctx=cv.getContext("2d");
-  if(typeof Arcade!=="undefined"&&Arcade.fitScreen) Arcade.fitScreen(cv,"medium");
+  // "small" is 480x360 — matches C.W/C.H exactly. "medium" (560x420) resized the
+  // canvas backing store bigger than what drawScene() paints, leaving an
+  // unrepainted strip along the right/bottom edges (part of the reported artifacts).
+  if(typeof Arcade!=="undefined"&&Arcade.fitScreen) Arcade.fitScreen(cv,"small");
   let s=newState(), best=0, input={left:false,right:false,gas:false,brake:false}, GATE=null;
   try{ best=parseInt(localStorage.getItem("chickenposition_best")||"0")||0; }catch(e){}
 
