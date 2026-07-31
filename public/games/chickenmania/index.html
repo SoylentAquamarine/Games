@@ -289,7 +289,7 @@
     // wave cleared
     if(s.enemies.every(e=>!e.alive)){
       s.score+=C.WAVE_BONUS*s.wave;               // clearing a flock is the bonus
-      if(s.wave % WAVES.length === 0){ startOneKill(s); return s; }   // finished a full loop → ONE SHOT ONE KILL
+      if(s.wave % OK.EVERY === 0){ startOneKill(s); return s; }   // every few waves → ONE SHOT ONE KILL bonus
       s.wave++;
       s.enemies=makeEnemies(s.wave);
       s.bullet=null; s.eggs=[]; s.dir=1; s.t=0; s.cleared=true;
@@ -316,7 +316,7 @@
   // ~3s, then ten spacesuit chickens spiral across Galaga-style (not shooting);
   // shooting one is worth 25,000. When they've all spiralled off (or been shot),
   // play resumes on the next wave.
-  const OK={ T:140, LOOPS:2, AMP:44, TITLE:180, SCORE:25000, N:10 };
+  const OK={ T:140, LOOPS:2, AMP:44, TITLE:180, SCORE:25000, N:10, EVERY:4 };   // bonus round every 4 waves
   function startOneKill(st){
     st.mode="onekill"; st.bullet=null; st.eggs=[];
     const chickens=[];
