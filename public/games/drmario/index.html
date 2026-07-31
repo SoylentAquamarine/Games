@@ -84,7 +84,11 @@
   // 4 rotation states: the pivot (ca) stays put and the second half (cb) orbits it — right(0) -> up(1) -> left(2) -> down(3)
   function cellsOf(p){ const off=[[0,1],[-1,0],[0,-1],[1,0]][p.o]; return [ {r:p.r,c:p.c,color:p.ca}, {r:p.r+off[0],c:p.c+off[1],color:p.cb} ]; }
   function canPlace(grid, cells){ for(const cell of cells){ if(cell.c<0||cell.c>=C.cols||cell.r<0||cell.r>=C.rows) return false; if(grid[cell.r][cell.c]) return false; } return true; }
-  function virusesFor(level){ return Math.min(4+level*4, 48); }
+  // Eased per comment ("screen way too full, difficulty curve too steep"): half
+  // the starting density and a lower, later-reached cap.
+  function virusesFor(level){ return Math.min(4+(level-1)*3, 40); }
+  // The drop speed ramp, also eased: a gentler descent and a higher (slower) floor.
+  function dropSpeed(level){ return Math.max(14, 34-(level-1)*2); }
   // Clearing every virus advances a level: a fresh, denser bottle, score kept.
   function advanceLevel(st){ st.level++; st.grid=emptyGrid(); placeViruses(st.grid, virusesFor(st.level));
     st.pill=newPill(); st.next=newPill(); st.mode="play"; st.bonus=null; st.banner={text:"LEVEL "+st.level, t:100}; }
@@ -110,14 +114,17 @@
   // Jamming the neck costs a chicken; the loose pills up top are cleared so play
   // can continue. Out of chickens ends the game.
   function loseChicken(st){ st.chickens--; if(st.chickens<=0){ st.over=true; return; }
-    for(let r=0;r<6;r++) for(let c=0;c<C.cols;c++){ if(st.grid[r][c]&&!st.grid[r][c].virus) st.grid[r][c]=null; }
+    // Clear more of the board (9 rows, not 6) so one unjam gives real breathing
+    // room — clearing too little meant the next piece jammed again almost at
+    // once, burning through all three chickens in a few seconds ("one-shot").
+    for(let r=0;r<9;r++) for(let c=0;c<C.cols;c++){ if(st.grid[r][c]&&!st.grid[r][c].virus) st.grid[r][c]=null; }
     settle(st.grid);
     st.pill=newPill(); st.next=st.next||newPill();
     if(!canPlace(st.grid, cellsOf(st.pill))){ for(let r=0;r<C.rows;r++) for(let c=0;c<C.cols;c++){ if(st.grid[r][c]&&!st.grid[r][c].virus) st.grid[r][c]=null; } }
     st.banner={text:"CHICKEN DOWN", t:100}; }
   function newState(){ const level=1, grid=emptyGrid(); placeViruses(grid, virusesFor(level));
     return { grid, pill:newPill(), next:newPill(), score:0, level, chickens:3, mode:"play", bonus:null, over:false, won:false, banner:null }; }
-  window.__drmario={ newState, emptyGrid, clearMatches, settle, resolve, countViruses, cellsOf, canPlace, newPill, virusesFor, winLevel, advanceLevel, startBonus, bonusStep, bonusDrop, bonusMove, loseChicken, C };
+  window.__drmario={ newState, emptyGrid, clearMatches, settle, resolve, countViruses, cellsOf, canPlace, newPill, virusesFor, dropSpeed, winLevel, advanceLevel, startBonus, bonusStep, bonusDrop, bonusMove, loseChicken, C };
 
   if(typeof document==="undefined") return;
   const $=(id)=>document.getElementById(id);
@@ -186,7 +193,7 @@
   function frame(){
     if(!s.over){
       if(s.mode==="bonus"){ bonusStep(s); }
-      else { const speed=Math.max(10, 34-(s.level-1)*3); if(++dropT>=speed){ dropT=0; drop(); } }
+      else { const speed=dropSpeed(s.level); if(++dropT>=speed){ dropT=0; drop(); } }
       if(typeof Arcade!=="undefined")Arcade.stats.record("drmario",s.score); }
     if(s.over && s.score>best){ best=s.score; try{localStorage.setItem("drmario_best",String(best));}catch(e){} }
     if(s.banner){ if(--s.banner.t<=0) s.banner=null; }
