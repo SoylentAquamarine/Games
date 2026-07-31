@@ -55,14 +55,17 @@
     for(let i=0;i<5;i++) cars.push({ pos:(i+2)*C.CAR_LEN*4, x:(Math.random()*2-1)*0.7,
       speed:C.MAXSPD*(0.4+Math.random()*0.28), col:RIVAL_COLORS[i%RIVAL_COLORS.length] });
     return { pos:0, playerX:0, speed:0, cars, score:0, time:C.TIME_START,
-      nextCheck:C.CHECK_DIST, checkFlash:0, crashT:0, spins:0, offroad:false, over:false, won:false };
+      nextCheck:C.CHECK_DIST, checkFlash:0, crashT:0, invuln:0, spins:0, offroad:false, over:false, won:false };
   }
-  function crash(s){ if(s.crashT>0) return; s.crashT=C.CRASH_FRAMES; s.speed=0; s.spins++; }
+  // A crash spins you out; the invulnerability window outlasts the freeze so the
+  // rival can pull clear instead of re-colliding on the very next frame forever.
+  function crash(s){ if(s.crashT>0||s.invuln>0) return; s.crashT=C.CRASH_FRAMES; s.invuln=C.CRASH_FRAMES+55; s.speed=0; s.spins++; }
   function tickTime(s){ s.time-=C.TIME_RATE; if(s.time<=0){ s.time=0; s.over=true; } }
 
   function step(s, input){
     if(s.over) return s;
     input=input||{};
+    if(s.invuln>0) s.invuln--;
     if(s.crashT>0){ s.crashT--; s.speed=0; tickTime(s); return s; }
     // speed
     if(input.gas) s.speed=Math.min(C.MAXSPD, s.speed+C.ACCEL);
@@ -82,7 +85,7 @@
     // rivals
     for(const o of s.cars){ o.pos += o.speed;
       const rel=o.pos - s.pos;
-      if(rel>0 && rel<C.CAR_LEN && Math.abs(o.x - s.playerX)<C.CAR_WIDE) crash(s);
+      if(s.invuln<=0 && rel>0 && rel<C.CAR_LEN && Math.abs(o.x - s.playerX)<C.CAR_WIDE) crash(s);
       if(rel < -C.CAR_LEN*4){ o.pos = s.pos + C.CAR_LEN*(50+Math.random()*70); o.x=(Math.random()*2-1)*0.75; o.speed=C.MAXSPD*(0.4+Math.random()*0.28); }
     }
     s.score=Math.floor(s.pos/40);
@@ -114,14 +117,16 @@
     // Project the road from the BOTTOM up: the player's row starts centred
     // (offset 0) so the car always sits on the road; the curve accumulates into
     // the distance. This is what keeps the start on-track and kills the artifacts.
-    let dxx=0, offset=0;
+    // Single curve accumulation (not a double integral) so the distant road stays
+    // on-screen on sustained bends — a double integral flung it off the right edge
+    // and left jagged rumble artifacts there.
+    let offset=0;
     for(let y=H-1; y>=horizon; y--){
       const persp=(y-horizon)/(H-horizon);            // ~1 near the player, 0 at the horizon
       const halfW = 8 + persp*persp*(W*0.62);
       rowHW[y]=halfW; rowCX[y]=W/2 + offset - s.playerX*halfW;
       const look = s.pos + (1-persp)*C.LOOK;
-      dxx += curveAt(look) * C.BEND * (1-persp);
-      offset += dxx;
+      offset += curveAt(look) * C.BEND * (1-persp);
     }
     // paint the road rows
     for(let y=horizon; y<H; y++){
