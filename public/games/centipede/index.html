@@ -45,16 +45,30 @@
 <script src="/arcade.js"></script>
 <script>
 (function(){
-  const C={ cols:24, rows:18, cell:20, playerZone:4, mushHp:3, EXTRA_EVERY:5000, CHICKENS:3, FLYPAST_EVERY:5 };
+  const C={ cols:24, rows:18, cell:20, playerZone:4, mushHp:3, EXTRA_EVERY:5000, CHICKENS:3, FLYPAST_EVERY:5,
+            DEATH_FRAMES:50, BANNER_FRAMES:110 };
   const key=(c,r)=>c+","+r;
-  function newState(){ const s={ cols:C.cols, rows:C.rows, trains:[], mush:{}, bullet:null,
-    player:{c:Math.floor(C.cols/2), r:C.rows-1}, lives:C.CHICKENS, score:0, wave:0, over:false, tickEvery:14, tc:0,
-    nextExtra:C.EXTRA_EVERY, gotExtra:0, flypast:null, waveBreak:0 };
+  function newState(){ const start={c:Math.floor(C.cols/2), r:C.rows-1};
+    const s={ cols:C.cols, rows:C.rows, trains:[], mush:{}, bullet:null,
+    player:{...start, pc:start.c, pr:start.r}, lives:C.CHICKENS, score:0, wave:0, over:false, tickEvery:14, tc:0,
+    nextExtra:C.EXTRA_EVERY, gotExtra:0, flypast:null, waveBreak:0, dying:0, banner:null };
     // scatter a mushroom field
     for(let i=0;i<22;i++){ const c=Math.floor(Math.random()*C.cols), r=2+Math.floor(Math.random()*(C.rows-7)); s.mush[key(c,r)]=C.mushHp; }
     spawnWave(s); return s; }
+  // Every wave (including the very first, and any restart via newState) gets a
+  // title card — the number and the chickens you have left — before it plays.
   function spawnWave(s){ s.wave++; const len=Math.min(s.cols-1, 8+s.wave*2); const cells=[]; for(let i=0;i<len;i++) cells.push({c:len-1-i, r:0});
-    s.trains=[{cells, dir:1}]; s.tickEvery=Math.max(5, 15-s.wave*2); }
+    s.trains=[{cells, dir:1}]; s.tickEvery=Math.max(5, 15-s.wave*2);
+    s.banner={ title:"WAVE "+s.wave, sub:"🐔 "+Math.max(0,s.lives)+" left", t:C.BANNER_FRAMES }; }
+  // A hit doesn't end the wave instantly — it starts a death animation first
+  // (freeze + shake) so losing a chicken actually reads as an event.
+  function killPlayer(s){ if(s.dying>0) return; s.lives--; s.dying=C.DEATH_FRAMES; }
+  // Counts down the death animation; when it finishes, the flock clears and
+  // either the next wave breathes in or, out of chickens, the run ends.
+  // Returns true while still dying, so the caller freezes normal play.
+  function stepDeath(s){ if(s.dying<=0) return false;
+    if(--s.dying<=0){ s.trains=[]; if(s.lives<=0){ s.over=true; } else { s.waveBreak=90; } }
+    return true; }
   function awardExtras(s){
     while(s.score>=s.nextExtra){ s.lives++; s.nextExtra+=C.EXTRA_EVERY; s.gotExtra++; }
   }
@@ -75,7 +89,7 @@
       const blocked = nc<0 || nc>=s.cols || s.mush[key(nc,head.r)];
       let nh;
       if(blocked){ nh={c:head.c, r:head.r+1}; t.dir=-t.dir; } else nh={c:nc, r:head.r};
-      if(nh.r>=s.rows-1){ s.lives--; s.trains=[]; if(s.lives<=0) s.over=true; else s.waveBreak=90; return s; }
+      if(nh.r>=s.rows-1){ killPlayer(s); return s; }
       // Record where each slot was before the shift, so every segment carries its
       // own previous cell. The old render inferred it from the cell behind, which
       // has nothing to point at on a one-segment train — so single segments
@@ -96,7 +110,7 @@
     const k=key(c,r); if(s.mush[k]){ s.mush[k]--; if(s.mush[k]<=0) delete s.mush[k]; s.score+=1; return "mushroom"; }
     return "miss";
   }
-  window.__centipede={ newState, spawnWave, ensureCentipede, stepCentipede, segmentAt, hitCell, key, C };
+  window.__centipede={ newState, spawnWave, ensureCentipede, stepCentipede, segmentAt, hitCell, killPlayer, stepDeath, key, C };
 
   if(typeof document==="undefined") return;
   const $=(id)=>document.getElementById(id);
@@ -181,40 +195,63 @@
       ctx.fillStyle="rgba(186,230,253,.15)"; ctx.beginPath(); ctx.arc(0,-r*0.1,r*1.35,0,7); ctx.fill();
       ctx.restore();
     }
-    ctx.fillStyle="#22d3ee"; ctx.fillRect(s.player.c*CELL+3, s.player.r*CELL+3, CELL-6, CELL-6); ctx.fillStyle="#7de8ff"; ctx.fillRect(s.player.c*CELL+CELL/2-2, s.player.r*CELL+1, 4, 4);
+    // glide from the previous cell to the current one over the same 5-tick move
+    // window movePlayer() runs on, matching the centipede's own interpolation
+    const pl=s.player, pu=Math.min(1, moveT/5);
+    const ppc=pl.pc==null?pl.c:pl.pc, ppr=pl.pr==null?pl.r:pl.pr;
+    let px=(ppc+(pl.c-ppc)*pu)*CELL, py=(ppr+(pl.r-ppr)*pu)*CELL;
+    if(s.dying>0){ px+=(Math.random()-0.5)*6; py+=(Math.random()-0.5)*6; }   // death shake
+    ctx.save(); if(s.dying>0) ctx.globalAlpha=0.5+0.5*Math.sin(s.dying*1.2);
+    ctx.fillStyle="#22d3ee"; ctx.fillRect(px+3, py+3, CELL-6, CELL-6); ctx.fillStyle="#7de8ff"; ctx.fillRect(px+CELL/2-2, py+1, 4, 4);
+    ctx.restore();
+    if(s.dying>0){ const j=()=>(Math.random()-0.5)*4; ctx.fillStyle="#f43f5e"; ctx.font="bold 14px system-ui"; ctx.textAlign="center";
+      ctx.fillText("CAUGHT!", px+CELL/2+j(), py-8+j()); }
+    // the wave/restart title card — the number and the chickens you have left
+    if(s.banner){
+      ctx.fillStyle="rgba(0,0,0,.55)"; ctx.fillRect(0,H/2-30,W,60);
+      ctx.fillStyle="#8ad48a"; ctx.font="bold 22px system-ui"; ctx.textAlign="center"; ctx.fillText(s.banner.title,W/2,H/2-4);
+      ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText(s.banner.sub,W/2,H/2+18); }
     if(s.bullet){ ctx.fillStyle="#fff"; ctx.fillRect(s.bullet.c*CELL+CELL/2-1, s.bullet.y-6, 3, 8); }
     ctx.strokeStyle="rgba(124,92,255,.3)"; ctx.beginPath(); ctx.moveTo(0,(C.rows-C.playerZone)*CELL); ctx.lineTo(W,(C.rows-C.playerZone)*CELL); ctx.stroke();
     if(s.over){ ctx.fillStyle="rgba(0,0,0,.55)"; ctx.fillRect(0,0,W,H); ctx.fillStyle="#f43f5e"; ctx.font="bold 22px system-ui"; ctx.textAlign="center"; ctx.fillText("GAME OVER",W/2,H/2-6); ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Score "+s.score+"  ·  Best "+best,W/2,H/2+16); }
   }
+  // Same fix as the centipede itself: record the cell the player is moving FROM
+  // so draw() can glide toward the new cell instead of snapping a full cell on
+  // the tick the move lands — that instant jump read as "not smooth".
   function movePlayer(){ const minR=C.rows-C.playerZone;
+    s.player.pc=s.player.c; s.player.pr=s.player.r;
     if(input.left) s.player.c=Math.max(0,s.player.c-1); if(input.right) s.player.c=Math.min(C.cols-1,s.player.c+1);
     if(input.up) s.player.r=Math.max(minR,s.player.r-1); if(input.down) s.player.r=Math.min(C.rows-1,s.player.r+1); }
   function fire(){ if(!s.bullet && !s.over){ s.bullet={c:s.player.c, y:s.player.r*CELL, lastR:s.player.r}; } }
   function frame(){
     if(!GATE.open){ draw(); GATE.paint(); return requestAnimationFrame(frame); }
     if(!s.over){
-      if(++moveT>=5){ moveT=0; movePlayer(); }
-      if(fireHeld) fire();
-      if(s.bullet){ s.bullet.y-=8; const r=Math.floor(s.bullet.y/CELL);
-        if(r<0){ s.bullet=null; } else if(r!==s.bullet.lastR){ s.bullet.lastR=r; if(hitCell(s,s.bullet.c,r)!=="miss") s.bullet=null; } }
-      if(++s.tc>=s.tickEvery){ s.tc=0; stepCentipede(s);
-        for(const t of s.trains) for(const seg of t.cells) if(seg.c===s.player.c&&seg.r===s.player.r){ s.lives--; s.trains=[]; if(s.lives<=0) s.over=true; else s.waveBreak=90; } }
-      // the spacesuit chicken drifts across on every fifth wave; shoot it for a bonus
-      if(s.flypast){
-        s.flypast.x+=s.flypast.vx;
-        if(s.bullet){
-          const bx=s.bullet.c*CELL+CELL/2, by=s.bullet.y;
-          if(Math.abs(bx-s.flypast.x)<16 && Math.abs(by-s.flypast.y)<14){
-            s.score+=s.flypast.pts; s.bullet=null; s.flypast=null;
-            $("msg").textContent="🚀 Space chicken! +500";
-            if(typeof Arcade!=="undefined") Arcade.sfx.win();
+      if(s.banner){ if(--s.banner.t<=0) s.banner=null; }
+      else if(stepDeath(s)){ if(typeof Arcade!=="undefined" && s.dying===C.DEATH_FRAMES-1) Arcade.sfx.death(); }
+      else {
+        if(++moveT>=5){ moveT=0; movePlayer(); }
+        if(fireHeld) fire();
+        if(s.bullet){ s.bullet.y-=8; const r=Math.floor(s.bullet.y/CELL);
+          if(r<0){ s.bullet=null; } else if(r!==s.bullet.lastR){ s.bullet.lastR=r; if(hitCell(s,s.bullet.c,r)!=="miss") s.bullet=null; } }
+        if(++s.tc>=s.tickEvery){ s.tc=0; stepCentipede(s);
+          for(const t of s.trains) for(const seg of t.cells) if(seg.c===s.player.c&&seg.r===s.player.r){ killPlayer(s); } }
+        // the spacesuit chicken drifts across on every fifth wave; shoot it for a bonus
+        if(s.flypast){
+          s.flypast.x+=s.flypast.vx;
+          if(s.bullet){
+            const bx=s.bullet.c*CELL+CELL/2, by=s.bullet.y;
+            if(Math.abs(bx-s.flypast.x)<16 && Math.abs(by-s.flypast.y)<14){
+              s.score+=s.flypast.pts; s.bullet=null; s.flypast=null;
+              $("msg").textContent="🚀 Space chicken! +500";
+              if(typeof Arcade!=="undefined") Arcade.sfx.win();
+            }
           }
+          if(s.flypast && (s.flypast.x<-40 || s.flypast.x>W+40)) s.flypast=null;
         }
-        if(s.flypast && (s.flypast.x<-40 || s.flypast.x>W+40)) s.flypast=null;
+        const extras0=s.gotExtra; awardExtras(s);
+        if(s.gotExtra>extras0){ $("msg").textContent="🐔 Extra chicken!"; if(typeof Arcade!=="undefined") Arcade.sfx.win(); }
+        ensureCentipede(s);
       }
-      const extras0=s.gotExtra; awardExtras(s);
-      if(s.gotExtra>extras0){ $("msg").textContent="🐔 Extra chicken!"; if(typeof Arcade!=="undefined") Arcade.sfx.win(); }
-      ensureCentipede(s);
       if(typeof Arcade!=="undefined")Arcade.stats.record("centipede",s.score); if(s.over && s.score>best){ best=s.score; try{localStorage.setItem("centipede_best",String(best));}catch(e){} $("msg").textContent="Game over! Score "+s.score+"  ·  Best "+best; }
     }
     $("score").textContent=s.score; $("wave").textContent=s.wave; $("lives").textContent="🐔".repeat(Math.max(0,s.lives));
@@ -227,7 +264,9 @@
   addEventListener("keydown",(e)=>{ const m={ArrowLeft:"left",ArrowRight:"right",ArrowUp:"up",ArrowDown:"down",a:"left",d:"right",w:"up",s:"down"}[e.key]; if(m){e.preventDefault();input[m]=true;} if(e.key===" "){e.preventDefault();fireHeld=true;fire();} });
   addEventListener("keyup",(e)=>{ const m={ArrowLeft:"left",ArrowRight:"right",ArrowUp:"up",ArrowDown:"down",a:"left",d:"right",w:"up",s:"down"}[e.key]; if(m)input[m]=false; if(e.key===" ")fireHeld=false; });
   cv.addEventListener("touchmove",(e)=>{ e.preventDefault(); const rct=cv.getBoundingClientRect(); const x=(e.touches[0].clientX-rct.left)*(W/rct.width), y=(e.touches[0].clientY-rct.top)*(H/rct.height);
-    s.player.c=Math.max(0,Math.min(C.cols-1,Math.floor(x/CELL))); s.player.r=Math.max(C.rows-C.playerZone,Math.min(C.rows-1,Math.floor(y/CELL))); fire(); },{passive:false});
+    s.player.c=Math.max(0,Math.min(C.cols-1,Math.floor(x/CELL))); s.player.r=Math.max(C.rows-C.playerZone,Math.min(C.rows-1,Math.floor(y/CELL)));
+    s.player.pc=s.player.c; s.player.pr=s.player.r;   // a drag is a direct placement, not a glide — snap the trail too
+    fire(); },{passive:false});
   $("new").addEventListener("click",()=>{ s=newState(); $("msg").textContent="Shoot the centipede!"; });
   requestAnimationFrame(frame);
 })();
