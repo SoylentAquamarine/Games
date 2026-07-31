@@ -49,7 +49,7 @@
       </div>
       <button class="sword" data-k="attack">🗡️</button>
     </div>
-    <p class="hint">Move: arrows / WASD · Attack: Space · A locked door needs the key. Walk through doorways to explore rooms.</p>
+    <p class="hint">Move: arrows / WASD · Attack: Space · Roam the <b>farmyard</b> and find the burrow entrances hidden by barns, trees and haystacks. Inside a dungeon, find the key, beat the boss for its gem egg, then walk south out of the entrance room to leave.</p>
   </div>
   <script>
   (function(){
@@ -61,6 +61,7 @@
     const TRI=[0,0], KEYROOM=[2,2];
     let rooms,room,player,keys,running,raf,unlocked,over,frame;
     let eggs,boss,curDungeon=1;
+    let mode="overworld", owRooms, owReturn={pos:[1,1],x:7*TILE,y:5*TILE}, entLock=false;
     const keyState={up:false,down:false,left:false,right:false};
 
     // ===== 12-egg quest: gemstone eggs, an egg carton, and a boss per dungeon =====
@@ -134,7 +135,36 @@
     }
     function genWorld(){rooms=[];for(let y=0;y<RY;y++){const r=[];for(let x=0;x<RX;x++)r.push(genRoom(x,y));rooms.push(r);}}
 
-    function solidTile(t){return t==="#"||t==="O";}
+    // ===== the farmyard overworld: 4x3 screens, a semi-hidden dungeon entrance in each =====
+    const OW_RX=4, OW_RY=3;
+    function owNeighbour(sx,sy,dir){ const nx=sx+(dir==="E"?1:dir==="W"?-1:0),ny=sy+(dir==="S"?1:dir==="N"?-1:0); return nx>=0&&nx<OW_RX&&ny>=0&&ny<OW_RY; }
+    function genOverworldScreen(sx,sy,dungeonNum){
+      const map=[]; for(let y=0;y<ROWS;y++){ const row=[]; for(let x=0;x<COLS;x++) row.push((x===0||x===COLS-1||y===0||y===ROWS-1)?"F":"."); map.push(row); }
+      const set=(y,x,c)=>{ if(map[y]&&map[y][x]!==undefined) map[y][x]=c; };
+      if(owNeighbour(sx,sy,"N")) for(let x=6;x<=8;x++) set(0,x,".");
+      if(owNeighbour(sx,sy,"S")) for(let x=6;x<=8;x++) set(ROWS-1,x,".");
+      if(owNeighbour(sx,sy,"W")) for(let y=4;y<=6;y++) set(y,0,".");
+      if(owNeighbour(sx,sy,"E")) for(let y=4;y<=6;y++) set(y,COLS-1,".");
+      // scatter farmyard features (all solid): trees, haystacks, ponds, a barn
+      const feats=["T","T","T","H","H","~","~","B"];
+      for(const f of feats){ let x,y,tries=0; do{ x=2+rnd(COLS-4); y=2+rnd(ROWS-4); tries++; }while((map[y][x]!=="."||(x===7&&y===5))&&tries<30); if(map[y][x]===".") map[y][x]=f; }
+      // one dungeon entrance, tucked right beside a feature so it reads as semi-hidden
+      // (never on the player's start cell 7,5, so you don't drop in the instant you arrive)
+      const entrances=[];
+      if(dungeonNum){ let ex=-1,ey=-1;
+        for(let t=0;t<80&&ex<0;t++){ const x=2+rnd(COLS-4), y=2+rnd(ROWS-4);
+          if(map[y][x]!=="." || (x===7&&y===5)) continue;
+          const hidden=[[x-1,y],[x+1,y],[x,y-1],[x,y+1]].some(([ax,ay])=>map[ay]&&"THB~".includes(map[ay][ax]));
+          if(hidden){ ex=x; ey=y; } }
+        if(ex<0){ for(let y=2;y<ROWS-2&&ex<0;y++) for(let x=2;x<COLS-2;x++){ if(map[y][x]==="."&&!(x===7&&y===5)){ ex=x; ey=y; break; } } }
+        if(ex>=0){ map[ey][ex]="E"; entrances.push({dungeon:dungeonNum, tx:ex, ty:ey}); }
+      }
+      return { map, enemies:[], items:[], entrances, visited:false };
+    }
+    function genOverworld(){ const g=[]; let d=1;
+      for(let sy=0;sy<OW_RY;sy++){ const r=[]; for(let sx=0;sx<OW_RX;sx++){ r.push(genOverworldScreen(sx,sy, d<=12?d:0)); d++; } g.push(r); } return g; }
+
+    function solidTile(t){return "#O~THFB".includes(t);}   // dungeon walls/rocks + farmyard features
     function solidAt(px,py){
       if(px<0||py<0||px>=W||py>=H)return true;
       const tx=Math.floor(px/TILE),ty=Math.floor(py/TILE);
@@ -143,27 +173,46 @@
     function boxHitsSolid(x,y,s){return solidAt(x,y)||solidAt(x+s,y)||solidAt(x,y+s)||solidAt(x+s,y+s);}
 
     function newGame(){
-      genWorld();room=[1,1];keys=0;unlocked=false;over=false;frame=0;
-      eggs=newEggs(); boss=null; curDungeon=1;
+      keys=0;unlocked=false;over=false;frame=0;
+      eggs=newEggs(); boss=null; curDungeon=0;
+      owRooms=genOverworld(); mode="overworld"; rooms=owRooms; room=[1,1]; owRooms[1][1].visited=true;
       player={x:7*TILE+4,y:5*TILE+4,size:24,dir:0,hp:3,maxhp:7,inv:0,atk:0,rupees:0};   // 3 to start, room for 7
-      rooms[1][1].visited=true;updateHud();ov.classList.add("hidden");running=true;loop();
+      owReturn={pos:[1,1],x:player.x,y:player.y};
+      updateHud();ov.classList.add("hidden");running=true;loop();
     }
     function loop(){if(!running)return;update();render();raf=requestAnimationFrame(loop);}
 
     function tryTransition(){
-      const s=player.size;let dir=null;   // trigger when the hero's box reaches a doorway at the room edge
+      const s=player.size;let dir=null;
       if(player.x<=2)dir="W";else if(player.x+s>=W-2)dir="E";else if(player.y<=2)dir="N";else if(player.y+s>=H-2)dir="S";
       if(!dir)return;
-      if(!doorOpen(room[0],room[1],dir))return;
-      const goingToTri=(room[0]+ (dir==="E"?1:dir==="W"?-1:0)===TRI[0])&&(room[1]+(dir==="S"?1:dir==="N"?-1:0)===TRI[1]);
-      if(goingToTri&&!unlocked){if(keys>0){keys--;unlocked=true;updateHud();}else{
-        // bounce back
-        if(dir==="W")player.x=TILE+2;if(dir==="E")player.x=W-TILE-player.size-2;if(dir==="N")player.y=TILE+2;if(dir==="S")player.y=H-TILE-player.size-2;
-        flash("🔒 Locked — find the key!");return;}}
-      room=[room[0]+(dir==="E"?1:dir==="W"?-1:0),room[1]+(dir==="S"?1:dir==="N"?-1:0)];
-      rooms[room[1]][room[0]].visited=true;
+      // Leave a dungeon by walking south out of the entrance (start) room.
+      if(mode==="dungeon" && room[0]===1 && room[1]===1 && dir==="S"){ enterOverworld(); return; }
+      const RXn=(mode==="overworld"?OW_RX:RX), RYn=(mode==="overworld"?OW_RY:RY);
+      const nx=room[0]+(dir==="E"?1:dir==="W"?-1:0), ny=room[1]+(dir==="S"?1:dir==="N"?-1:0);
+      if(nx<0||nx>=RXn||ny<0||ny>=RYn) return;
+      if(mode==="dungeon"){
+        if(!doorOpen(room[0],room[1],dir))return;
+        if(nx===TRI[0]&&ny===TRI[1]&&!unlocked){ if(keys>0){keys--;unlocked=true;updateHud();}else{
+          if(dir==="W")player.x=TILE+2;if(dir==="E")player.x=W-TILE-player.size-2;if(dir==="N")player.y=TILE+2;if(dir==="S")player.y=H-TILE-player.size-2;
+          flash("🔒 The boss door is locked — find the key!");return;}}
+      }
+      room=[nx,ny]; rooms[ny][nx].visited=true;
       if(dir==="W")player.x=W-TILE-player.size-2;else if(dir==="E")player.x=TILE+2;
       else if(dir==="N")player.y=H-TILE-player.size-2;else if(dir==="S")player.y=TILE+2;
+    }
+    function enterDungeon(n){
+      if(!n||n>12) return;
+      owReturn={pos:room.slice(), x:player.x, y:player.y};
+      curDungeon=n; boss=null; keys=0; unlocked=false;
+      genWorld();                       // build this dungeon into `rooms`
+      mode="dungeon"; room=[1,1]; rooms[1][1].visited=true;
+      player.x=7*TILE+4; player.y=5*TILE+4;
+      flash((eggs[n-1]?"Dungeon "+n+" (cleared)":"Dungeon "+n+" — "+BOSSES[(n-1)%12].name)); updateHud();
+    }
+    function enterOverworld(){
+      mode="overworld"; rooms=owRooms; room=owReturn.pos.slice();
+      player.x=owReturn.x; player.y=owReturn.y; boss=null; curDungeon=0; entLock=true; updateHud();
     }
     let flashMsg="",flashT=0;
     function flash(m){flashMsg=m;flashT=90;}
@@ -180,6 +229,13 @@
       if(player.atk>0)player.atk--;
       if(flashT>0)flashT--;
       const R=rooms[room[1]][room[0]];
+      // farmyard: step onto a hidden entrance to drop into that dungeon. Edge-
+      // triggered so returning to the overworld (on the entrance) doesn't re-enter.
+      if(mode==="overworld"){
+        const on=(R.entrances||[]).find(en=>rectHit({x:player.x,y:player.y,w:s,h:s},{x:en.tx*TILE,y:en.ty*TILE,w:TILE,h:TILE}));
+        if(!on) entLock=false;
+        else if(!entLock){ enterDungeon(on.dungeon); return; }
+      }
       // sword hitbox
       let sword=null;
       if(player.atk>6){const cx=player.x+s/2,cy=player.y+s/2,len=26;
@@ -207,7 +263,7 @@
         }
       }
       // boss — guards the goal room until this dungeon's gem egg is taken
-      const inBossRoom = (room[0]===TRI[0] && room[1]===TRI[1]);
+      const inBossRoom = (mode==="dungeon" && room[0]===TRI[0] && room[1]===TRI[1]);
       if(inBossRoom && !eggs[curDungeon-1]){
         if(!boss || boss.dungeon!==curDungeon) boss=makeBoss(curDungeon);
         const b=boss;
@@ -236,8 +292,10 @@
           else if(it.type==="heart"){player.hp=Math.min(player.maxhp,player.hp+1);flash("❤ +1 heart");}
           else if(it.type==="key"){keys++;flash("🗝️ Got a key!");}
           else if(it.type==="egg"){ collectEgg(eggs,curDungeon); boss=null;
-            flash("🥚 The "+GEMS[curDungeon-1].name+" egg!  "+cartonCount(eggs)+"/12");
-            if(cartonFull(eggs)) return win(); }
+            const gname=GEMS[curDungeon-1].name, full=cartonFull(eggs);
+            updateHud();
+            if(full) return win();
+            enterOverworld(); flash("🥚 The "+gname+" egg!  "+cartonCount(eggs)+"/12"); return; }
           updateHud();
         }
       }
@@ -272,20 +330,37 @@
       }
     }
 
-    function render(){
-      const R=rooms[room[1]][room[0]];
+    function drawDungeonTiles(R){
       for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){const t=R.map[y][x];
         if(t==="#"){ctx.fillStyle="#3a2f1e";ctx.fillRect(x*TILE,y*TILE,TILE,TILE);ctx.fillStyle="#4d3f28";ctx.fillRect(x*TILE+3,y*TILE+3,TILE-6,TILE-6);}
         else{ctx.fillStyle="#1c3320";ctx.fillRect(x*TILE,y*TILE,TILE,TILE);
           if(t==="O"){ctx.fillStyle="#5b6472";ctx.beginPath();ctx.arc(x*TILE+16,y*TILE+16,11,0,7);ctx.fill();}}
       }
+    }
+    function drawFarmTiles(R){
+      for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){const t=R.map[y][x], px=x*TILE, py=y*TILE;
+        ctx.fillStyle=((x+y)%2)?"#3f7a35":"#397030"; ctx.fillRect(px,py,TILE,TILE);
+        if(t==="F"){ ctx.fillStyle="#8a6438"; ctx.fillRect(px+3,py+4,TILE-6,4); ctx.fillRect(px+3,py+TILE-10,TILE-6,4); ctx.fillStyle="#6b4a26"; ctx.fillRect(px+6,py+2,3,TILE-4); ctx.fillRect(px+TILE-9,py+2,3,TILE-4); }
+        else if(t==="T"){ ctx.fillStyle="#5a3a1e"; ctx.fillRect(px+14,py+16,5,14); ctx.fillStyle="#2f5f28"; ctx.beginPath(); ctx.arc(px+16,py+13,13,0,7); ctx.fill(); ctx.fillStyle="#367030"; ctx.beginPath(); ctx.arc(px+12,py+11,7,0,7); ctx.arc(px+21,py+12,7,0,7); ctx.fill(); }
+        else if(t==="H"){ ctx.fillStyle="#d8a93a"; ctx.beginPath(); ctx.moveTo(px+3,py+TILE-3); ctx.quadraticCurveTo(px+16,py+2,px+TILE-3,py+TILE-3); ctx.closePath(); ctx.fill(); ctx.strokeStyle="#b8862a"; ctx.lineWidth=1; for(let i=8;i<TILE-6;i+=6){ ctx.beginPath(); ctx.moveTo(px+i,py+TILE-3); ctx.lineTo(px+i+3,py+9); ctx.stroke(); } }
+        else if(t==="~"){ ctx.fillStyle="#2f6fb0"; ctx.fillRect(px+1,py+1,TILE-2,TILE-2); ctx.fillStyle="rgba(255,255,255,.25)"; ctx.fillRect(px+4,py+6,10,2); ctx.fillRect(px+16,py+18,8,2); }
+        else if(t==="B"){ ctx.fillStyle="#a33a2a"; ctx.fillRect(px+2,py+8,TILE-4,TILE-10); ctx.fillStyle="#7a2a1e"; ctx.beginPath(); ctx.moveTo(px+1,py+9); ctx.lineTo(px+16,py+1); ctx.lineTo(px+TILE-1,py+9); ctx.closePath(); ctx.fill(); ctx.fillStyle="#5a1e14"; ctx.fillRect(px+12,py+16,8,TILE-16); }
+        else if(t==="E"){ ctx.fillStyle="#241a12"; ctx.beginPath(); ctx.ellipse(px+16,py+18,10,9,0,0,7); ctx.fill();
+          ctx.fillStyle="#0a0806"; ctx.beginPath(); ctx.ellipse(px+16,py+19,6,6,0,0,7); ctx.fill();
+          ctx.strokeStyle="#3a2a1a"; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(px+16,py+18,10,Math.PI,0); ctx.stroke();
+          ctx.fillStyle="#2f5f28"; ctx.beginPath(); ctx.arc(px+8,py+22,5,0,7); ctx.arc(px+24,py+22,5,0,7); ctx.fill(); }   // grass half-hides it
+      }
+    }
+    function render(){
+      const R=rooms[room[1]][room[0]];
+      if(mode==="overworld") drawFarmTiles(R); else drawDungeonTiles(R);
       // items
       for(const it of R.items){if(it.taken)continue;const ic={rupee:"💎",heart:"❤",key:"🗝️"}[it.type];
         ctx.font="18px serif";ctx.textAlign="center";ctx.textBaseline="middle";
         if(it.type==="egg"){ drawGemEgg(it.x+10,it.y+10,11,GEMS[curDungeon-1].color); }
         else ctx.fillText(ic,it.x+10,it.y+10);}
       // boss
-      if(boss && !boss.dead && room[0]===TRI[0] && room[1]===TRI[1] && !eggs[curDungeon-1]) drawBoss(boss);
+      if(boss && !boss.dead && mode==="dungeon" && room[0]===TRI[0] && room[1]===TRI[1] && !eggs[curDungeon-1]) drawBoss(boss);
       // weasels — same footprint as the hero
       for(const e of R.enemies){ if(!e.alive) continue;
         const ex=e.x+ESIZE/2, ey=e.y+ESIZE/2, f=(e.dir===2)?-1:1;   // face the way it walks
@@ -340,19 +415,21 @@
     // Overhead map, like Adventure's: the RX×RY dungeon grid with explored rooms
     // filled, the current room lit, and the triforce/key rooms marked once seen.
     function drawMinimap(){
-      const cell=13, gap=2, pad=6;
-      const gw=RX*cell+(RX-1)*gap, gh=RY*cell+(RY-1)*gap;
+      const cell=13, gap=2, pad=6, ow=(mode==="overworld");
+      const RXn=ow?OW_RX:RX, RYn=ow?OW_RY:RY;
+      const gw=RXn*cell+(RXn-1)*gap, gh=RYn*cell+(RYn-1)*gap;
       const ox=W-gw-pad-4, oy=pad+8;
       ctx.fillStyle="rgba(11,12,26,.72)"; ctx.fillRect(ox-4,oy-4,gw+8,gh+8);
       ctx.strokeStyle="rgba(255,255,255,.18)"; ctx.lineWidth=1; ctx.strokeRect(ox-4,oy-4,gw+8,gh+8);
       ctx.fillStyle="rgba(230,230,240,.6)"; ctx.font="7px monospace"; ctx.textAlign="left"; ctx.textBaseline="alphabetic";
-      ctx.fillText("MAP",ox-4,oy-6);
-      for(let gy=0;gy<RY;gy++)for(let gx=0;gx<RX;gx++){
+      ctx.fillText(ow?"FARM":"MAP",ox-4,oy-6);
+      for(let gy=0;gy<RYn;gy++)for(let gx=0;gx<RXn;gx++){
         const rm=rooms[gy][gx], cx=ox+gx*(cell+gap), cy=oy+gy*(cell+gap), here=(room[0]===gx&&room[1]===gy);
         if(rm.visited){
-          ctx.fillStyle = here?"#22d3ee":"#3a3f63"; ctx.fillRect(cx,cy,cell,cell);
-          if(gx===TRI[0]&&gy===TRI[1]){ ctx.fillStyle="#f5d020"; ctx.beginPath(); ctx.moveTo(cx+cell/2,cy+3); ctx.lineTo(cx+cell-3,cy+cell-3); ctx.lineTo(cx+3,cy+cell-3); ctx.closePath(); ctx.fill(); }
-          else if(gx===KEYROOM[0]&&gy===KEYROOM[1]){ ctx.fillStyle="#ffd54a"; ctx.fillRect(cx+cell/2-1,cy+4,2,cell-7); ctx.beginPath(); ctx.arc(cx+cell/2,cy+5,2.2,0,7); ctx.fill(); }
+          ctx.fillStyle = here?"#22d3ee":(ow?"#3a6a3a":"#3a3f63"); ctx.fillRect(cx,cy,cell,cell);
+          if(ow && rm.entrances && rm.entrances.length){ ctx.fillStyle="#241a12"; ctx.beginPath(); ctx.arc(cx+cell/2,cy+cell/2,2.5,0,7); ctx.fill(); }
+          else if(!ow && gx===TRI[0]&&gy===TRI[1]){ ctx.fillStyle="#f5d020"; ctx.beginPath(); ctx.moveTo(cx+cell/2,cy+3); ctx.lineTo(cx+cell-3,cy+cell-3); ctx.lineTo(cx+3,cy+cell-3); ctx.closePath(); ctx.fill(); }
+          else if(!ow && gx===KEYROOM[0]&&gy===KEYROOM[1]){ ctx.fillStyle="#ffd54a"; ctx.fillRect(cx+cell/2-1,cy+4,2,cell-7); ctx.beginPath(); ctx.arc(cx+cell/2,cy+5,2.2,0,7); ctx.fill(); }
         } else { ctx.strokeStyle="rgba(255,255,255,.15)"; ctx.lineWidth=1; ctx.strokeRect(cx+0.5,cy+0.5,cell-1,cell-1); }
         if(here){ ctx.strokeStyle="#e6e6f0"; ctx.lineWidth=1.5; ctx.strokeRect(cx+0.5,cy+0.5,cell-1,cell-1); }
       }
@@ -373,7 +450,7 @@
       b.addEventListener("mousedown",on);b.addEventListener("mouseup",off);b.addEventListener("mouseleave",off);});
     startBtn.addEventListener("click",newGame);
     // expose for smoke test
-    window.__quest={genWorld:()=>{genWorld();return rooms;},doorOpen,
+    window.__quest={genWorld:()=>{genWorld();return rooms;},doorOpen,genOverworld,OW_RX,OW_RY,
       GEMS,BOSSES,newEggs,collectEgg,cartonCount,cartonFull,makeBoss,bossTakeHit};
   })();
   </script>
