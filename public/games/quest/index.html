@@ -184,7 +184,10 @@
 
     function tryTransition(){
       const s=player.size;let dir=null;
-      if(player.x<=2)dir="W";else if(player.x+s>=W-2)dir="E";else if(player.y<=2)dir="N";else if(player.y+s>=H-2)dir="S";
+      // A slightly wider trigger band (was 2px) — right at the pixel edge was
+      // too easy to just miss on a given frame, which read as "can't get through".
+      const EDGE=6;
+      if(player.x<=EDGE)dir="W";else if(player.x+s>=W-EDGE)dir="E";else if(player.y<=EDGE)dir="N";else if(player.y+s>=H-EDGE)dir="S";
       if(!dir)return;
       // Leave a dungeon by walking south out of the entrance (start) room.
       if(mode==="dungeon" && room[0]===1 && room[1]===1 && dir==="S"){ enterOverworld(); return; }
@@ -192,7 +195,7 @@
       const nx=room[0]+(dir==="E"?1:dir==="W"?-1:0), ny=room[1]+(dir==="S"?1:dir==="N"?-1:0);
       if(nx<0||nx>=RXn||ny<0||ny>=RYn) return;
       if(mode==="dungeon"){
-        if(!doorOpen(room[0],room[1],dir))return;
+        if(!doorOpen(room[0],room[1],dir)){ flash("No door this way"); return; }
         if(nx===TRI[0]&&ny===TRI[1]&&!unlocked){ if(keys>0){keys--;unlocked=true;updateHud();}else{
           if(dir==="W")player.x=TILE+2;if(dir==="E")player.x=W-TILE-player.size-2;if(dir==="N")player.y=TILE+2;if(dir==="S")player.y=H-TILE-player.size-2;
           flash("🔒 The boss door is locked — find the key!");return;}}
@@ -238,11 +241,13 @@
       }
       // sword hitbox
       let sword=null;
-      if(player.atk>6){const cx=player.x+s/2,cy=player.y+s/2,len=26;
-        if(player.dir===0)sword={x:cx-8,y:cy-len,w:16,h:len};
-        else if(player.dir===1)sword={x:cx-8,y:cy,w:16,h:len};
-        else if(player.dir===2)sword={x:cx-len,y:cy-8,w:len,h:16};
-        else sword={x:cx,y:cy-8,w:len,h:16};}
+      // Longer and wider than before — too many close-but-not-pixel-perfect
+      // swings whiffed on enemies that "looked" in range.
+      if(player.atk>6){const cx=player.x+s/2,cy=player.y+s/2,len=34,wid=22;
+        if(player.dir===0)sword={x:cx-wid/2,y:cy-len,w:wid,h:len};
+        else if(player.dir===1)sword={x:cx-wid/2,y:cy,w:wid,h:len};
+        else if(player.dir===2)sword={x:cx-len,y:cy-wid/2,w:len,h:wid};
+        else sword={x:cx,y:cy-wid/2,w:len,h:wid};}
       // enemies
       for(const e of R.enemies){if(!e.alive)continue;
         if(e.hurt>0)e.hurt--;
@@ -405,9 +410,9 @@
         ctx.restore();
       }
       // sword
-      if(player.atk>6){ctx.fillStyle="#fde68a";const cx=player.x+player.size/2,cy=player.y+player.size/2,len=26;
-        if(player.dir===0)ctx.fillRect(cx-3,cy-len,6,len);else if(player.dir===1)ctx.fillRect(cx-3,cy,6,len);
-        else if(player.dir===2)ctx.fillRect(cx-len,cy-3,len,6);else ctx.fillRect(cx,cy-3,len,6);}
+      if(player.atk>6){ctx.fillStyle="#fde68a";const cx=player.x+player.size/2,cy=player.y+player.size/2,len=34,wid=6;
+        if(player.dir===0)ctx.fillRect(cx-wid/2,cy-len,wid,len);else if(player.dir===1)ctx.fillRect(cx-wid/2,cy,wid,len);
+        else if(player.dir===2)ctx.fillRect(cx-len,cy-wid/2,len,wid);else ctx.fillRect(cx,cy-wid/2,len,wid);}
       drawMinimap(); drawCarton();
       // flash message
       if(flashT>0){ctx.fillStyle="rgba(0,0,0,.6)";ctx.fillRect(W/2-90,6,180,24);ctx.fillStyle="#fde68a";ctx.font="14px system-ui";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(flashMsg,W/2,18);}
