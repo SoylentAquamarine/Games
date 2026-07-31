@@ -312,11 +312,13 @@
   }
 
   // ---- ONE SHOT ONE KILL bonus round --------------------------------------
-  // Fires after every full loop of the eight formations. A shaky title holds for
-  // ~3s, then ten spacesuit chickens spiral across Galaga-style (not shooting);
-  // shooting one is worth 25,000. When they've all spiralled off (or been shot),
-  // play resumes on the next wave.
-  const OK={ T:140, LOOPS:2, AMP:44, TITLE:180, SCORE:25000, N:10, EVERY:4 };   // bonus round every 4 waves
+  // Fires immediately after clearing the wave that's a multiple of EVERY (the
+  // wave%EVERY check runs before wave++, so it's the just-cleared wave that
+  // triggers it — not a delayed "end of the 8-formation cycle"). A shaky title
+  // holds for ~3s, then ten spacesuit chickens spiral across Galaga-style (not
+  // shooting); shooting one is worth 25,000. When they've all spiralled off (or
+  // been shot), play resumes on the next wave.
+  const OK={ T:156, LOOPS:2, AMP:44, TITLE:180, SCORE:25000, N:10, EVERY:4 };   // T raised ~10% (was 140) to fly ~10% slower
   function startOneKill(st){
     st.mode="onekill"; st.bullet=null; st.eggs=[];
     const chickens=[];
