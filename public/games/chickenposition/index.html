@@ -46,10 +46,16 @@
     // box now matches instead of the old 0.30 (nearly double a car's true width).
     CAR_LEN:230, CAR_WIDE:0.16, CRASH_FRAMES:70,
     // How much steering shifts the ROAD on screen, as a fraction of the road's
-    // half-width at each row. At 1.0 (the old value) full-lock steering at the
-    // closest row shifted the whole track by 300+px — enough to shove it clean
-    // off one edge, leaving the reported black strip and rumble-strip artifacts.
-    STEER_SHIFT:0.24,
+    // half-width at each row. This has to match what playerX actually MEANS:
+    // at playerX=+-1 (the offroad threshold) the car's edge should just reach
+    // the road's edge — the maths for that at the closest row works out to
+    // ~0.91. The previous fix over-corrected to 0.24 to stop full-lock steering
+    // flinging the track off-screen on hard bends; that made the ROAD barely
+    // move for legitimate steering, so the car looked safely centred while
+    // playerX had already crossed the offroad line — "detects off track while
+    // still on". RENDER_CLAMP (not playerX itself) absorbs the excess beyond
+    // the threshold so a hard bend still can't blow the render out.
+    STEER_SHIFT:0.9, RENDER_CLAMP:1.2,
     CHECK_DIST:6500, CHECK_BONUS:42, TIME_START:80, TIME_RATE:0.028 };
   const clamp=(v,a,b)=>v<a?a:v>b?b:v;
   // The course: a windy track. curveAt>0 bends right, <0 bends left. It ramps in
@@ -112,7 +118,8 @@
     for(let y=H-1; y>=horizon; y--){
       const persp=(y-horizon)/(H-horizon);
       const halfW=8+persp*persp*(W*0.62);
-      hw[y]=halfW; cx[y]=W/2+offset-playerX*halfW*C.STEER_SHIFT;
+      const shiftX=clamp(playerX,-C.RENDER_CLAMP,C.RENDER_CLAMP);
+      hw[y]=halfW; cx[y]=W/2+offset-shiftX*halfW*C.STEER_SHIFT;
       const look=pos+(1-persp)*C.LOOK;
       offset+=curveAt(look)*C.BEND*(1-persp);
     }
