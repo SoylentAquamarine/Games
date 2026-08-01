@@ -1,6 +1,6 @@
 # Games Index
 
-95 self-contained browser games. Each lives at `public/games/<slug>/index.html` and is served live at `https://games.square-bar-75ce.workers.dev/games/<slug>/`.
+96 self-contained browser games. Each lives at `public/games/<slug>/index.html` and is served live at `https://games.square-bar-75ce.workers.dev/games/<slug>/`.
 
 Every game is a single HTML file with inline CSS/JS. Pure game logic is exposed on `window.__<name>` for headless testing. Shared helpers come from [`/arcade.js`](../arcade.js) (4:3 screen tiers, sfx, splash screens, start gate, play-stats) and per-page comment boxes from [`/comments.js`](../comments.js).
 
@@ -36,6 +36,7 @@ Every game is a single HTML file with inline CSS/JS. Pure game logic is exposed 
 | [`chickenjhong`](chickenjhong/) | Chicken Jhong | Mahjong solitaire with chicken tiles |
 | [`chickenmania`](chickenmania/) | Chickenmania | Megamania clone — steer your shot in flight |
 | [`chickenposition`](chickenposition/) | Chicken Position | Pole Position clone — beat the clock |
+| [`chixxon`](chixxon/) | Chixxon | Zaxxon clone — fly the altitude/shadow gauntlet |
 | [`chutes`](chutes/) | Snakes &amp; Ladders | Roll, climb ladders, dodge snakes |
 | [`colorswitch`](colorswitch/) | Color Switch | Match the ring color to pass |
 | [`connect4`](connect4/) | Connect Four | Drop discs, four in a row |
