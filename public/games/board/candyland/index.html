@@ -47,8 +47,11 @@
   (function(){
     // Barnyard palette — the six card colours are things you'd actually find
     // in a farmyard, so the board reads as a place rather than a colour chart.
-    const COLORS=[["Barn Red","#d6453c"],["Corn","#f59e0b"],["Straw","#eab308"],
-                  ["Grass","#4ade80"],["Pond","#38bdf8"],["Plum","#c084fc"]];
+    // Corn and Straw used to be neighbouring amber/gold hues (#f59e0b/#eab308)
+    // that read as identical on a small chip — the whole set is now drawn from
+    // the Okabe-Ito colour-blind-safe palette, so every pair stays discernible.
+    const COLORS=[["Barn Red","#d55e00"],["Corn","#e69f00"],["Straw","#f0e442"],
+                  ["Grass","#009e73"],["Pond","#0072b2"],["Plum","#cc79a7"]];
     const N=54;
     const TOKENS=["🐔","🐤","🐣"];
     const PNAMES=["You","CPU 1","CPU 2"];
