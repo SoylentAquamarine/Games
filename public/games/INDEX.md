@@ -1,6 +1,6 @@
 # Games Index
 
-96 self-contained browser games. Each lives at `public/games/<slug>/index.html` and is served live at `https://games.square-bar-75ce.workers.dev/games/<slug>/`.
+97 self-contained browser games. Each lives at `public/games/<slug>/index.html` and is served live at `https://games.square-bar-75ce.workers.dev/games/<slug>/`.
 
 Every game is a single HTML file with inline CSS/JS. Pure game logic is exposed on `window.__<name>` for headless testing. Shared helpers come from [`/arcade.js`](../arcade.js) (4:3 screen tiers, sfx, splash screens, start gate, play-stats) and per-page comment boxes from [`/comments.js`](../comments.js).
 
@@ -12,6 +12,7 @@ Every game is a single HTML file with inline CSS/JS. Pure game logic is exposed 
 | [`battleship`](battleship/) | Battleship | Sink the hidden fleet |
 | [`blackjack`](blackjack/) | Blackjack | Beat the dealer to 21 |
 | [`board/candyland`](board/candyland/) | Chickenland | Race the winding barnyard lane home to the barn |
+| [`board/gameofchicken`](board/gameofchicken/) | The Game of Chicken | Game of Life clone — spin, retire, biggest nest egg wins |
 | [`board/sorry`](board/sorry/) | Sorry! | Draw cards, bump rivals back |
 | [`board/trouble`](board/trouble/) | Trouble | Pop the die, race your pegs home |
 | [`bomberman`](bomberman/) | Bomber | Blast bricks &amp; enemies with bombs |

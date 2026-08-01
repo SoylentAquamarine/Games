@@ -1,6 +1,6 @@
 # Repository Index — Chicken Arcade
 
-A chicken-themed browser-games arcade (96 games), deployed on **Cloudflare Workers**. Live at **https://games.square-bar-75ce.workers.dev**. This file is a map of the repo for quick navigation (e.g. by an AI reading the GitHub).
+A chicken-themed browser-games arcade (97 games), deployed on **Cloudflare Workers**. Live at **https://games.square-bar-75ce.workers.dev**. This file is a map of the repo for quick navigation (e.g. by an AI reading the GitHub).
 
 ## Stack
 
@@ -14,7 +14,7 @@ A chicken-themed browser-games arcade (96 games), deployed on **Cloudflare Worke
 |---|---|
 | [`public/index.html`](public/index.html) | Home page — the grid of game cards (name + one-line description per game). Source of truth for what's "live". |
 | [`public/games/`](public/games/) | **The games.** One self-contained `<slug>/index.html` each. See [`public/games/INDEX.md`](public/games/INDEX.md) for the full list. |
-| [`public/games/INDEX.md`](public/games/INDEX.md) | **Full games listing** — slug → name → description table (96 games). |
+| [`public/games/INDEX.md`](public/games/INDEX.md) | **Full games listing** — slug → name → description table (97 games). |
 | [`public/arcade.js`](public/arcade.js) | Shared game engine: `Arcade.SCREEN` (4:3 screen tiers), `Arcade.sfx`, `Arcade.splash` (wave/death cards), `Arcade.startGate` (spacebar start), `Arcade.stats` (per-game play tracking). |
 | [`public/comments.js`](public/comments.js) | The per-page comment box (players leave feedback; the maintainer implements it). |
 | [`public/games/cards/cards.js`](public/games/cards/cards.js) | Shared card-deck library (`window.Cards`): deck model, shuffle/deal, CSS card renderer, and a 5-theme deck selector (`Cards.THEMES`/`getTheme`/`setTheme`) used by every card game. |

@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>The Game of Chicken — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🐔</text></svg>" />
+  <style>
+    :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;}
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+      background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.22),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.16),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;}
+    .wrap{max-width:560px;margin:0 auto;padding:14px 12px 40px;display:flex;flex-direction:column;align-items:center;gap:12px}
+    .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
+    .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+    .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+    h1{margin:0;font-size:1.35rem;background:linear-gradient(120deg,#f0902a,#4ade80);-webkit-background-clip:text;background-clip:text;color:transparent}
+    canvas{width:100%;height:auto;display:block;border-radius:14px;border:2px solid #2a2f55;background:#3f7a2e}
+    .players{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;width:100%;font-size:.7rem}
+    .pl{background:var(--panel);border:1px solid rgba(255,255,255,.06);border-radius:8px;padding:6px 4px;text-align:center}
+    .pl.turn{border-color:var(--accent-2);box-shadow:0 0 0 1px rgba(34,211,238,.35)}
+    .pl .cash{color:#fde68a;font-weight:800}
+    .status{min-height:1.2em;font-weight:600;color:#fde68a;text-align:center}
+    .spinner{width:64px;height:64px;border-radius:50%;background:#fff;color:#0b0c1a;display:flex;align-items:center;justify-content:center;font-size:1.8rem;font-weight:800;box-shadow:0 2px 0 rgba(0,0,0,.3)}
+    .btns{display:flex;gap:10px;align-items:center}
+    .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:11px 24px;border-radius:999px;cursor:pointer}
+    .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,.18);color:var(--muted)}
+    .btn:disabled{opacity:.4;cursor:default}
+    .hint{color:var(--muted);font-size:.8rem;text-align:center}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar"><a class="home" href="/">← Home</a><h1>🐔 The Game of Chicken</h1><span style="width:56px"></span></div>
+    <div class="players" id="players"></div>
+    <canvas id="board" width="620" height="440"></canvas>
+    <div class="status" id="status">Spin to hatch and start your career!</div>
+    <div class="btns">
+      <div class="spinner" id="spin">🎡</div>
+      <button class="btn" id="spinBtn">SPIN</button>
+      <button class="btn ghost" id="new">New Game</button>
+    </div>
+    <p class="hint">Spin 1–10 and waddle down the lane. Landing on payday pays your career's salary, life events swing your cash, and family tiles add a chick (worth a bonus at The Coop). Everyone plays until they all retire — biggest nest egg wins.</p>
+  </div>
+  <script src="/arcade.js"></script>
+  <script>
+  (function(){
+    const N=32;
+    const CAREERS=[
+      { name:"Coop Corp", payday:()=>2000 },
+      { name:"Barnyard Startup", payday:()=>500+Math.floor(Math.random()*3500) },
+    ];
+    const EVENTS_POS=[
+      { t:"Found a stash of worms", amt:400 }, { t:"Sold a basket of eggs at market", amt:800 },
+      { t:"Won the barnyard raffle", amt:1500 }, { t:"A kind farmer left a tip", amt:300 },
+      { t:"Prize hen at the county fair", amt:1200 },
+    ];
+    const EVENTS_NEG=[
+      { t:"A fox raided the coop", amt:600 }, { t:"Vet bill for a sniffle", amt:400 },
+      { t:"Storm damaged the roost", amt:900 }, { t:"Lost a bet to the rooster", amt:250 },
+      { t:"Broody hen wrecked the nest box", amt:500 },
+    ];
+    const FAMILY_BONUS=5000, START_CASH=4000, NP=4, PNAMES=["You","CPU 1","CPU 2","CPU 3"];
+    const rnd=(n)=>Math.floor(Math.random()*n);
+
+    function tileType(i){
+      if(i===0) return "start";
+      if(i===N-1) return "retire";
+      if(i%4===0) return "payday";
+      if(i%7===3) return "family";
+      return (i%2===0) ? "event+" : "event-";
+    }
+    function spin(){ return 1+rnd(10); }
+    function newPlayer(career){ return { career, pos:0, cash:START_CASH, family:0, retired:false }; }
+    function applyTile(p, i){
+      const t=tileType(i);
+      if(t==="payday"){ const amt=CAREERS[p.career].payday(); p.cash+=amt; return { type:t, text:CAREERS[p.career].name+" payday: +$"+amt }; }
+      if(t==="family"){ p.family++; return { type:t, text:"A new chick joins the family! 🐣" }; }
+      if(t==="event+"){ const e=EVENTS_POS[rnd(EVENTS_POS.length)]; p.cash+=e.amt; return { type:t, text:e.t+": +$"+e.amt }; }
+      if(t==="event-"){ const e=EVENTS_NEG[rnd(EVENTS_NEG.length)]; const paid=Math.min(p.cash,e.amt); p.cash-=paid; return { type:t, text:e.t+": -$"+paid }; }
+      if(t==="retire"){ p.retired=true; return { type:t, text:"Retired to The Coop! 🏠" }; }
+      return { type:"start", text:"" };
+    }
+    function movePlayer(p, roll){
+      const from=p.pos, to=Math.min(N-1, p.pos+roll);
+      p.pos=to; const result=applyTile(p,to);
+      return { from, to, result };
+    }
+    function finalScore(p){ return p.cash + p.family*FAMILY_BONUS; }
+    function allRetired(players){ return players.every(p=>p.retired); }
+
+    window.__gameofchicken={ N, CAREERS, tileType, spin, newPlayer, applyTile, movePlayer, finalScore, allRetired, FAMILY_BONUS, START_CASH };
+    if(typeof document==="undefined") return;
+
+    const cv=document.getElementById("board"), ctx=cv.getContext("2d");
+    const W=cv.width, H=cv.height;
+    const playersEl=document.getElementById("players"), statusEl=document.getElementById("status"),
+          spinEl=document.getElementById("spin"), spinBtn=document.getElementById("spinBtn");
+    let players, turn, over;
+
+    // ---- the lane: a single winding path, snaking across the yard ----
+    function laneCurve(){
+      const pts=[], BANDS=5, y0=48, y1=392, xLeft=54, dx=128;
+      for(let b=0;b<BANDS;b++){
+        const x=xLeft+b*dx, dir=b%2?-1:1;
+        const from=dir>0?y1:y0, to=dir>0?y0:y1;
+        for(let t=0;t<=1.0001;t+=0.02) pts.push({ x:x+Math.sin(t*Math.PI*2)*13, y:from+(to-from)*t });
+        if(b<BANDS-1){
+          const cy=dir>0?y0:y1;
+          for(let t=0.06;t<=1.0001;t+=0.06) pts.push({ x:x+dx*t, y:cy+dir*24*Math.sin(t*Math.PI) });
+        }
+      }
+      return pts;
+    }
+    function layout(){
+      const pts=laneCurve(), seg=[]; let total=0;
+      for(let i=1;i<pts.length;i++){ const d=Math.hypot(pts[i].x-pts[i-1].x,pts[i].y-pts[i-1].y); seg.push(d); total+=d; }
+      const out=[], step=total/(N-1); let want=0, acc=0, i=1;
+      while(out.length<N && i<pts.length){
+        if(acc+seg[i-1]>=want){
+          const f=(want-acc)/seg[i-1];
+          const x=pts[i-1].x+(pts[i].x-pts[i-1].x)*f, y=pts[i-1].y+(pts[i].y-pts[i-1].y)*f;
+          out.push({x,y}); want+=step;
+        } else { acc+=seg[i-1]; i++; }
+      }
+      while(out.length<N) out.push({...pts[pts.length-1]});
+      return { tiles:out, curve:pts };
+    }
+    const LANE=layout(), TILES=LANE.tiles;
+    const TCOLOR={ start:"#e6e6f0", payday:"#4ade80", family:"#f0902a", "event+":"#22d3ee", "event-":"#f43f5e", retire:"#fde68a" };
+    const TICON={ start:"🥚", payday:"💰", family:"🐣", "event+":"➕", "event-":"➖", retire:"🏠" };
+    const TINTS=[{body:"#f0902a",wing:"#d97a1c",tail:"#c96f14"},{body:"#fde68a",wing:"#f7d354",tail:"#e8bf3a"},
+                 {body:"#e8e2d4",wing:"#d3cbb8",tail:"#bdb49e"},{body:"#c9a273",wing:"#a97f4f",tail:"#8f6a3f"}];
+
+    function chicken(x,y,scale,tint){
+      ctx.save(); ctx.translate(x,y);
+      ctx.fillStyle="rgba(0,0,0,.22)"; ctx.beginPath(); ctx.ellipse(0,11*scale,10*scale,3.5*scale,0,0,7); ctx.fill();
+      ctx.fillStyle=tint.tail; ctx.beginPath(); ctx.moveTo(-7*scale,-1*scale); ctx.lineTo(-17*scale,-10*scale); ctx.lineTo(-8*scale,6*scale); ctx.closePath(); ctx.fill();
+      ctx.fillStyle="#dc2626"; ctx.fillRect(-4*scale,-15*scale,3*scale,5*scale); ctx.fillRect(-1*scale,-17*scale,3*scale,6*scale); ctx.fillRect(2*scale,-15*scale,3*scale,5*scale);
+      ctx.fillStyle=tint.body; ctx.beginPath(); ctx.arc(0,0,10*scale,0,7); ctx.fill();
+      ctx.fillStyle=tint.wing; ctx.beginPath(); ctx.ellipse(-1*scale,1*scale,5*scale,4*scale,0.3,0,7); ctx.fill();
+      ctx.fillStyle="#fff"; ctx.beginPath(); ctx.arc(4*scale,-3*scale,2.6*scale,0,7); ctx.fill();
+      ctx.fillStyle="#3b2412"; ctx.beginPath(); ctx.arc(4.6*scale,-3*scale,1.3*scale,0,7); ctx.fill();
+      ctx.fillStyle="#facc15"; ctx.beginPath(); ctx.moveTo(8*scale,-2*scale); ctx.lineTo(14*scale,0); ctx.lineTo(8*scale,2*scale); ctx.closePath(); ctx.fill();
+      ctx.restore();
+    }
+    const HOP_FRAMES=10;
+    let anim=null;   // {pi, from, path:[idx...], step, t, onDone}
+    let confetti=[], winners=[];
+    function tokenXY(pi){
+      const p=players[pi].pos;
+      const at=(i)=> TILES[Math.min(Math.max(i,0),N-1)];
+      if(anim && anim.pi===pi){
+        const from=at(anim.step===0?anim.from:anim.path[anim.step-1]);
+        const to=at(anim.path[anim.step]);
+        const u=anim.t/HOP_FRAMES;
+        return { x:from.x+(to.x-from.x)*u, y:from.y+(to.y-from.y)*u-Math.sin(u*Math.PI)*18, hop:Math.sin(u*Math.PI) };
+      }
+      const t=at(p); return { x:t.x, y:t.y, hop:0 };
+    }
+    function offsetFor(pi){
+      let n=0, idx=0;
+      for(let k=0;k<NP;k++){ if(players[k].pos===players[pi].pos){ if(k===pi) idx=n; n++; } }
+      if(n<2) return { dx:0, dy:0 };
+      return { dx:(idx-(n-1)/2)*13, dy:(idx-(n-1)/2)*4 };
+    }
+
+    function fence(y){
+      ctx.strokeStyle="#c9a273"; ctx.lineWidth=4;
+      ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.moveTo(0,y+9); ctx.lineTo(W,y+9); ctx.stroke();
+      ctx.lineWidth=5; for(let x=16;x<W;x+=50){ ctx.beginPath(); ctx.moveTo(x,y-6); ctx.lineTo(x,y+16); ctx.stroke(); }
+    }
+    function coop(x,y,s){
+      ctx.save(); ctx.translate(x,y); ctx.scale(s,s);
+      ctx.fillStyle="#9a6b3f"; ctx.fillRect(-30,-16,60,34);
+      ctx.fillStyle="#6f4a29"; ctx.beginPath(); ctx.moveTo(-36,-16); ctx.lineTo(0,-40); ctx.lineTo(36,-16); ctx.closePath(); ctx.fill();
+      ctx.fillStyle="#3b2412"; ctx.beginPath(); ctx.arc(0,6,10,Math.PI,0); ctx.fill();
+      ctx.fillStyle="#f4e4c1"; ctx.font="bold 10px system-ui"; ctx.textAlign="center"; ctx.fillText("THE COOP",0,-46);
+      ctx.restore();
+    }
+
+    function render(){
+      ctx.fillStyle="#4c8f36"; ctx.fillRect(0,0,W,H);
+      ctx.fillStyle="#45832f"; for(let y=0;y<H;y+=24) ctx.fillRect(0,y,W,12);
+      fence(16);
+      coop(TILES[N-1].x, TILES[N-1].y-4, 0.9);
+
+      ctx.strokeStyle="#b98a52"; ctx.lineWidth=34; ctx.lineJoin="round"; ctx.lineCap="round";
+      ctx.beginPath(); LANE.curve.forEach((p,i)=> i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y)); ctx.stroke();
+      ctx.strokeStyle="#caa06a"; ctx.lineWidth=27; ctx.stroke();
+
+      TILES.forEach((t,i)=>{
+        if(i===N-1) return;   // the coop building marks the end tile instead of a chip
+        const type=tileType(i);
+        ctx.fillStyle=TCOLOR[type]; ctx.beginPath(); ctx.roundRect(t.x-13,t.y-11,26,22,7); ctx.fill();
+        ctx.strokeStyle="rgba(0,0,0,.28)"; ctx.lineWidth=1.4; ctx.stroke();
+        ctx.font="11px serif"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText(TICON[type],t.x,t.y+1);
+      });
+
+      const order=[...Array(NP).keys()].sort((a,b)=>(a===turn?1:0)-(b===turn?1:0));
+      for(const pi of order){
+        const p=tokenXY(pi), o=offsetFor(pi), sc=1+(p.hop||0)*0.1;
+        chicken(p.x+o.dx, p.y+o.dy-12, sc, TINTS[pi]);
+      }
+
+      if(confetti.length) for(const c of confetti){ ctx.fillStyle=c.col; ctx.save(); ctx.translate(c.x,c.y); ctx.rotate(c.a); ctx.fillRect(-3,-2,6,4); ctx.restore(); }
+      if(over){
+        ctx.fillStyle="rgba(0,0,0,.5)"; ctx.fillRect(0,H/2-56,W,112);
+        ctx.textAlign="center"; ctx.fillStyle="#fde68a"; ctx.font="bold 24px system-ui";
+        const label = winners.length>1 ? "IT'S A TIE!" : (winners[0]===0 ? "YOU WIN!" : PNAMES[winners[0]]+" WINS");
+        ctx.fillText(label, W/2, H/2-24);
+        ctx.font="13px system-ui"; ctx.fillStyle="#e6e6f0";
+        players.forEach((p,i)=>{ ctx.fillText(PNAMES[i]+": $"+p.cash+"  +  "+p.family+" chicks  =  $"+finalScore(p), W/2, H/2+2+i*17); });
+      }
+    }
+    function popConfetti(){
+      const cols=["#fde68a","#f0902a","#4ade80","#38bdf8","#c084fc","#f43f5e"];
+      for(let i=0;i<90;i++) confetti.push({ x:W/2+(Math.random()-0.5)*180, y:H/2, vx:(Math.random()-0.5)*6,
+        vy:-3-Math.random()*5, a:Math.random()*7, va:(Math.random()-0.5)*0.4, life:120+Math.random()*60,
+        col:cols[Math.floor(Math.random()*cols.length)] });
+    }
+    function stepAnim(){
+      if(anim){
+        if(++anim.t>=HOP_FRAMES){
+          anim.t=0; anim.step++;
+          if(typeof Arcade!=="undefined") Arcade.sfx.step();
+          if(anim.step>=anim.path.length){ const done=anim.onDone; anim=null; done && done(); }
+        }
+      }
+      if(confetti.length){ for(const c of confetti){ c.x+=c.vx; c.y+=c.vy; c.vy+=0.12; c.a+=c.va; c.life--; } confetti=confetti.filter(c=>c.life>0&&c.y<H+20); }
+      render();
+      requestAnimationFrame(stepAnim);
+    }
+
+    function renderPlayers(){
+      playersEl.innerHTML="";
+      players.forEach((p,i)=>{
+        const d=document.createElement("div");
+        d.className="pl"+(i===turn&&!over?" turn":"");
+        d.innerHTML=PNAMES[i]+" "+(p.retired?"🏠":"")+"<br><span class=\"cash\">$"+p.cash+"</span><br>"+CAREERS[p.career].name+" · 🐣"+p.family;
+        playersEl.appendChild(d);
+      });
+    }
+    function turnLabel(){ return turn===0 ? "YOUR TURN" : PNAMES[turn].toUpperCase()+"'S TURN"; }
+    function announceTurn(){ if(!over) statusEl.textContent = turnLabel() + (turn===0 ? " — SPIN!" : "…"); }
+
+    function newGame(){
+      players=Array.from({length:NP},()=>newPlayer(rnd(CAREERS.length)));
+      turn=0; over=false; anim=null; confetti=[]; winners=[];
+      spinEl.textContent="🎡"; renderPlayers(); announceTurn(); spinBtn.disabled=false;
+    }
+
+    function doSpin(){
+      if(over||anim) return;
+      const roll=spin(); spinEl.textContent=roll;
+      const p=players[turn], from=p.pos;
+      const { to, result } = movePlayer(p, roll);
+      const path=[]; for(let i=from+1;i<=to;i++) path.push(i);
+      if(!path.length) path.push(to);
+      statusEl.textContent=PNAMES[turn]+" spun "+roll+"…";
+      spinBtn.disabled=true;
+      anim={ pi:turn, from, path, step:0, t:0, onDone:()=>{
+        statusEl.textContent=PNAMES[turn]+": "+result.text;
+        renderPlayers();
+        if(allRetired(players)){
+          over=true;
+          const best=Math.max(...players.map(finalScore));
+          winners=players.map((pp,i)=>({i,s:finalScore(pp)})).filter(x=>x.s===best).map(x=>x.i);
+          if(typeof Arcade!=="undefined") Arcade.sfx.win();
+          popConfetti();
+          statusEl.textContent="🏆 "+(winners.length>1?"It's a tie!":(winners[0]===0?"You win!":PNAMES[winners[0]]+" wins!"));
+          spinBtn.disabled=true; renderPlayers();
+          return;
+        }
+        setTimeout(()=>{ if(!over) advance(); }, 650);
+      }};
+    }
+    function advance(){
+      let next=turn;
+      for(let k=0;k<NP;k++){ next=(next+1)%NP; if(!players[next].retired) break; }
+      turn=next; renderPlayers(); announceTurn();
+      if(turn===0){ spinBtn.disabled=false; }
+      else { spinBtn.disabled=true; setTimeout(()=>{ if(!over) doSpin(); }, 900); }
+    }
+
+    spinBtn.addEventListener("click",()=>{ if(turn===0&&!over&&!anim) doSpin(); });
+    document.getElementById("new").addEventListener("click",newGame);
+    newGame();
+    requestAnimationFrame(stepAnim);
+  })();
+  </script>
+  <script src="/comments.js" defer></script>
+</body>
+</html>
