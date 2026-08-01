@@ -81,6 +81,10 @@
   // get a window to escape. Stun lengths are in frames at ~60fps.
   const HIT_DMG=20, HIT_INV=45;
   const STUN={ yellow:120, green:60, red:30 };   // 2s / 1s / 0.5s
+  // Leaving a room where a dragon is still alive gives it a 25% chance to
+  // follow you into the next one — but it takes it 3s (~180 frames at 60fps)
+  // to catch up, so you always get a head start.
+  const CHASE_CHANCE=0.25, CHASE_DELAY=180;
   const clamp=(v,a,b)=>v<a?a:v>b?b:v;
   const overlap=(a,b)=>a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;
   const heroRect=(s)=>({x:s.hero.x,y:s.hero.y,w:HS,h:HS});
@@ -225,7 +229,7 @@
       dragons:(function(){
         const dens=pickRooms(3);
         const mk=(id,color,spd,stunFor,room)=>{ const p=freeSpot(room,DS);
-          return {id,color,room,x:p.x,y:p.y,hx:p.x,hy:p.y,alive:true,spd,stunFor,stun:0}; };
+          return {id,color,room,hr:room,x:p.x,y:p.y,hx:p.x,hy:p.y,alive:true,spd,stunFor,stun:0,chaseDelay:0}; };
         return [
           mk("yellow","#d8c020",SPEED*0.45,STUN.yellow,dens[0]),
           mk("green", "#38b038",SPEED*0.60,STUN.green, dens[1]),
@@ -279,6 +283,9 @@
   }
   function dragonStep(s,d){
     if(!d.alive||d.room!==s.room) return;
+    // Fresh into a chased room, the dragon lags behind for CHASE_DELAY frames
+    // before it can act — always a head start.
+    if(d.chaseDelay>0){ d.chaseDelay--; return; }
     if(s.inv>0) s.inv--;
     // A stunned dragon holds still — that pause is your escape window.
     if(d.stun>0){ d.stun--; return; }
@@ -308,7 +315,9 @@
   function respawn(s){
     if(s.carry){ const o=s.objects[s.carry]; o.carried=false; o.room=s.room; o.x=clamp(s.hero.x,BW,SIZE-BW-OBJ); o.y=clamp(s.hero.y,BW,SIZE-BW-OBJ); s.carry=null; }
     s.room="commons"; s.hero.x=96; s.hero.y=150; s.dead=false; s.dropLock=null;
-    for(const d of s.dragons){ d.x=d.hx; d.y=d.hy; } placeDragonsAway(s);
+    // A death clears any mid-chase state — dragons return to their home room, not
+    // wherever they last chased to.
+    for(const d of s.dragons){ d.x=d.hx; d.y=d.hy; d.room=d.hr; d.chaseDelay=0; } placeDragonsAway(s);
   }
   function tick(s,dir){
     if(s.won||s.dead) return s;
@@ -318,7 +327,16 @@
     const wasRoom=s.room;
     moveHero(s,dx,dy); transition(s); castle(s); pickup(s);
     if(s.visited) s.visited[s.room]=true;       // fills in the overworld map
-    if(s.room!==wasRoom) placeDragonsAway(s);   // fresh room: give the hero room to react
+    if(s.room!==wasRoom){
+      // Leaving a room with a live dragon in it: 25% chance it follows you,
+      // arriving CHASE_DELAY frames (~3s) behind.
+      for(const d of s.dragons){
+        if(d.alive && d.room===wasRoom && Math.random()<CHASE_CHANCE){
+          d.room=s.room; d.chaseDelay=CHASE_DELAY;
+        }
+      }
+      placeDragonsAway(s);   // fresh room: give the hero room to react
+    }
     for(const d of s.dragons) dragonStep(s,d);
     return s;
   }
@@ -334,7 +352,7 @@
 
   window.__adventure={ newGame, tick, drop, respawn, dragonStep, collide, ROOMS, borderWalls, roomWalls, LABEL,
     spawnRooms, pickRooms, brokenDoors, freeSpot,
-    C:{SIZE,HS,OBJ,BW,DS,SPEED,DSPEED,HIT_DMG,HIT_INV,STUN} };
+    C:{SIZE,HS,OBJ,BW,DS,SPEED,DSPEED,HIT_DMG,HIT_INV,STUN,CHASE_CHANCE,CHASE_DELAY} };
 
   // ===== Rendering + input (skipped in headless: no #game canvas / no DOMContentLoaded) =====
   function boot(){
