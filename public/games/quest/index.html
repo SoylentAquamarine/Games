@@ -33,7 +33,7 @@
 <body>
   <div class="wrap">
     <div class="topbar"><a class="home" href="/">← Home</a><h1>🐔 Chicken Quest</h1><span style="width:56px"></span></div>
-    <div class="hud"><span id="hearts">❤❤❤</span><span id="loot">💎 0 · 🗝️ 0</span></div>
+    <div class="hud"><span id="hearts">❤❤❤</span><span id="loot">🥚 0/12 · 🗝️ 0</span><span id="coins">🪙 0</span></div>
     <div class="board-wrap">
       <canvas id="c" width="480" height="352"></canvas>
       <div class="overlay" id="ov">
@@ -49,14 +49,14 @@
       </div>
       <button class="sword" data-k="attack">🗡️</button>
     </div>
-    <p class="hint">Move: arrows / WASD · Attack: Space · Roam the <b>farmyard</b> and find the burrow entrances hidden by barns, trees and haystacks. Inside a dungeon, find the key, beat the boss for its gem egg, then walk south out of the entrance room to leave.</p>
+    <p class="hint">Move: arrows / WASD · Attack: Space · Roam the <b>farmyard</b> and find the burrow entrances hidden by barns, trees and haystacks. Walk into a farmhouse to look around (no enemies) — one of them is a general store where coins buy hearts and heart containers. Inside a dungeon, find the key, beat the boss for its gem egg, then walk south out of the entrance room to leave.</p>
   </div>
   <script>
   (function(){
     const TILE=32, COLS=15, ROWS=11, W=COLS*TILE, H=ROWS*TILE, RX=3, RY=3;
     const ESIZE=24;   // weasels are the same size as the hero (player.size)
     const cv=document.getElementById("c"),ctx=cv.getContext("2d");
-    const heartsEl=document.getElementById("hearts"),lootEl=document.getElementById("loot");
+    const heartsEl=document.getElementById("hearts"),lootEl=document.getElementById("loot"),coinsEl=document.getElementById("coins");
     const ov=document.getElementById("ov"),ot=document.getElementById("ot"),om=document.getElementById("om"),startBtn=document.getElementById("start");
     const TRI=[0,0], KEYROOM=[2,2];
     let rooms,room,player,keys,running,raf,unlocked,over,frame;
@@ -131,23 +131,39 @@
         if(doorOpen(rx,ry,"E"))for(let y=4;y<=6;y++)map[y][COLS-1]=".";
         // rocks (avoid center cross)
         const rockN=start?3:6+rnd(4);
-        for(let k=0;k<rockN;k++){const x=2+rnd(COLS-4),y=2+rnd(ROWS-4);if(x===7||y===5)continue;if(map[y][x]===".")map[y][x]="O";}
+        const isBossRoom=rx===TRI[0]&&ry===TRI[1];
+        for(let k=0;k<rockN;k++){const x=2+rnd(COLS-4),y=2+rnd(ROWS-4);if(x===7||y===5)continue;
+          // Keep the boss's arena clear — rocks boxing it in right at spawn was why
+          // some bosses never moved.
+          if(isBossRoom && x>=5&&x<=9&&y>=1&&y<=5)continue;
+          if(map[y][x]===".")map[y][x]="O";}
       }
-      // enemies
-      const enemies=[];const eN=start?0:(rx===TRI[0]&&ry===TRI[1]?3:2+rnd(2));
+      // enemies — the boss fights alone, no rank-and-file weasels crowding the room
+      const enemies=[];const eN=start?0:(rx===TRI[0]&&ry===TRI[1]?0:2+rnd(2));
       for(let k=0;k<eN;k++){let x,y,tries=0;do{x=2+rnd(COLS-4);y=2+rnd(ROWS-4);tries++;}while((map[y][x]!=="."||(x===7&&y===5))&&tries<40);
         enemies.push({x:x*TILE+8,y:y*TILE+8,dir:rnd(4),timer:rnd(40),alive:true,hp:1,hurt:0});}
       // items
       const items=[];
       // the goal room (0,0) holds this dungeon's boss, which drops the gem egg
       if(rx===KEYROOM[0]&&ry===KEYROOM[1])items.push({x:7*TILE+8,y:3*TILE+8,type:"key"});
-      // scatter a few rupees / hearts
+      // scatter a few coins / hearts
       const drops=start?1:1+rnd(2);
       for(let k=0;k<drops;k++){let x,y,tries=0;do{x=2+rnd(COLS-4);y=2+rnd(ROWS-4);tries++;}while(map[y][x]!=="."&&tries<30);
-        items.push({x:x*TILE+8,y:y*TILE+8,type:Math.random()<0.3?"heart":"rupee"});}
+        items.push({x:x*TILE+8,y:y*TILE+8,type:Math.random()<0.3?"heart":"coin"});}
       return {map,enemies,items,visited:false};
     }
     function genWorld(){rooms=[];for(let y=0;y<RY;y++){const r=[];for(let x=0;x<RX;x++)r.push(genRoom(x,y));rooms.push(r);}}
+
+    // ===== farmhouses: a small no-enemy interior behind each screen's barn door.
+    // Board 7's is a general store instead — walk onto an item to buy it. =====
+    function genHouseRoom(isStore){
+      const map=[]; for(let y=0;y<ROWS;y++){ const row=[]; for(let x=0;x<COLS;x++) row.push((x===0||x===COLS-1||y===0||y===ROWS-1)?"#":"."); map.push(row); }
+      for(let x=6;x<=8;x++) map[ROWS-1][x]="."; // door south, back out to the farmyard
+      const items = isStore
+        ? [{x:5*TILE+8,y:4*TILE+8,type:"buy_heal",cost:5},{x:9*TILE+8,y:4*TILE+8,type:"buy_heart",cost:30}]
+        : [{x:6*TILE+8,y:4*TILE+8,type:"coin"},{x:9*TILE+8,y:5*TILE+8,type:"heart"}];
+      return { map, enemies:[], items, visited:false, isStore };
+    }
 
     // ===== the farmyard overworld: 4x3 screens, a semi-hidden dungeon entrance in each =====
     const OW_RX=4, OW_RY=3;
@@ -159,9 +175,11 @@
       if(owNeighbour(sx,sy,"S")) for(let x=6;x<=8;x++) set(ROWS-1,x,".");
       if(owNeighbour(sx,sy,"W")) for(let y=4;y<=6;y++) set(y,0,".");
       if(owNeighbour(sx,sy,"E")) for(let y=4;y<=6;y++) set(y,COLS-1,".");
-      // scatter farmyard features (all solid): trees, haystacks, ponds, a barn
+      // scatter farmyard features (all solid except the barn): trees, haystacks, ponds, a barn
       const feats=["T","T","T","H","H","~","~","B"];
-      for(const f of feats){ let x,y,tries=0; do{ x=2+rnd(COLS-4); y=2+rnd(ROWS-4); tries++; }while((map[y][x]!=="."||(x===7&&y===5))&&tries<30); if(map[y][x]===".") map[y][x]=f; }
+      let barnPos=null;
+      for(const f of feats){ let x,y,tries=0; do{ x=2+rnd(COLS-4); y=2+rnd(ROWS-4); tries++; }while((map[y][x]!=="."||(x===7&&y===5))&&tries<30);
+        if(map[y][x]==="."){ map[y][x]=f; if(f==="B") barnPos={x,y}; } }
       // one dungeon entrance, tucked right beside a feature so it reads as semi-hidden
       // (never on the player's start cell 7,5, so you don't drop in the instant you arrive)
       const entrances=[];
@@ -173,12 +191,14 @@
         if(ex<0){ for(let y=2;y<ROWS-2&&ex<0;y++) for(let x=2;x<COLS-2;x++){ if(map[y][x]==="."&&!(x===7&&y===5)){ ex=x; ey=y; break; } } }
         if(ex>=0){ map[ey][ex]="E"; entrances.push({dungeon:dungeonNum, tx:ex, ty:ey}); }
       }
-      return { map, enemies:[], items:[], entrances, visited:false };
+      // the barn doubles as a farmhouse door — board 7's is a store instead
+      const house = barnPos ? { tx:barnPos.x, ty:barnPos.y, isStore: dungeonNum===7 } : null;
+      return { map, enemies:[], items:[], entrances, house, visited:false };
     }
     function genOverworld(){ const g=[]; let d=1;
       for(let sy=0;sy<OW_RY;sy++){ const r=[]; for(let sx=0;sx<OW_RX;sx++){ r.push(genOverworldScreen(sx,sy, d<=12?d:0)); d++; } g.push(r); } return g; }
 
-    function solidTile(t){return "#O~THFB".includes(t);}   // dungeon walls/rocks + farmyard features
+    function solidTile(t){return "#O~THF".includes(t);}   // dungeon walls/rocks + farmyard features ("B" barn/farmhouse door is walkable, like "E")
     function solidAt(px,py){
       if(px<0||py<0||px>=W||py>=H)return true;
       const tx=Math.floor(px/TILE),ty=Math.floor(py/TILE);
@@ -190,7 +210,7 @@
       keys=0;unlocked=false;over=false;frame=0;
       eggs=newEggs(); boss=null; curDungeon=0;
       owRooms=genOverworld(); mode="overworld"; rooms=owRooms; room=[1,1]; owRooms[1][1].visited=true;
-      player={x:7*TILE+4,y:5*TILE+4,size:24,dir:0,hp:3,maxhp:7,inv:0,atk:0,rupees:0};   // 3 to start, room for 7
+      player={x:7*TILE+4,y:5*TILE+4,size:24,dir:0,hp:3,maxhp:7,inv:0,atk:0,coins:0};   // 3 to start, room for 7
       owReturn={pos:[1,1],x:player.x,y:player.y};
       updateHud();ov.classList.add("hidden");running=true;loop();
     }
@@ -205,7 +225,9 @@
       if(!dir)return;
       // Leave a dungeon by walking south out of the entrance (start) room.
       if(mode==="dungeon" && room[0]===1 && room[1]===1 && dir==="S"){ enterOverworld(); return; }
-      const RXn=(mode==="overworld"?OW_RX:RX), RYn=(mode==="overworld"?OW_RY:RY);
+      // Leave a farmhouse/store the same way — south, out the door.
+      if(mode==="house" && dir==="S"){ enterOverworld(); return; }
+      const RXn=(mode==="overworld"?OW_RX:mode==="house"?1:RX), RYn=(mode==="overworld"?OW_RY:mode==="house"?1:RY);
       const nx=room[0]+(dir==="E"?1:dir==="W"?-1:0), ny=room[1]+(dir==="S"?1:dir==="N"?-1:0);
       if(nx<0||nx>=RXn||ny<0||ny>=RYn) return;
       if(mode==="dungeon"){
@@ -231,6 +253,13 @@
       mode="overworld"; rooms=owRooms; room=owReturn.pos.slice();
       player.x=owReturn.x; player.y=owReturn.y; boss=null; curDungeon=0; entLock=true; updateHud();
     }
+    function enterHouse(isStore){
+      owReturn={pos:room.slice(), x:player.x, y:player.y};
+      mode="house"; rooms=[[genHouseRoom(isStore)]]; room=[0,0];
+      player.x=7*TILE+4; player.y=6*TILE+4;
+      flash(isStore?"🏪 General Store — walk onto an item to buy it":"🏠 An old farmhouse... let's see what's inside.");
+      updateHud();
+    }
     let flashMsg="",flashT=0;
     function flash(m){flashMsg=m;flashT=90;}
 
@@ -250,8 +279,9 @@
       // triggered so returning to the overworld (on the entrance) doesn't re-enter.
       if(mode==="overworld"){
         const on=(R.entrances||[]).find(en=>rectHit({x:player.x,y:player.y,w:s,h:s},{x:en.tx*TILE,y:en.ty*TILE,w:TILE,h:TILE}));
-        if(!on) entLock=false;
-        else if(!entLock){ enterDungeon(on.dungeon); return; }
+        const onHouse=R.house && rectHit({x:player.x,y:player.y,w:s,h:s},{x:R.house.tx*TILE,y:R.house.ty*TILE,w:TILE,h:TILE});
+        if(!on && !onHouse) entLock=false;
+        else if(!entLock){ if(on) enterDungeon(on.dungeon); else enterHouse(R.house.isStore); return; }
       }
       // sword hitbox
       let sword=null;
@@ -306,8 +336,17 @@
       // items
       for(const it of R.items){if(it.taken)continue;
         if(rectHit({x:player.x,y:player.y,w:s,h:s},{x:it.x,y:it.y,w:20,h:20})){
+          // store items: only "taken" (and paid for) if the player can afford them —
+          // otherwise they stay put so you can come back with more coins.
+          if(it.type==="buy_heal"||it.type==="buy_heart"){
+            if(player.coins<it.cost){ if(frame-(it.warnedFrame||-999)>60){ flash("🪙 Need "+it.cost+" coins — you have "+player.coins); it.warnedFrame=frame; } continue; }
+            player.coins-=it.cost;
+            if(it.type==="buy_heal"){ player.hp=player.maxhp; flash("🍞 Full heal! −"+it.cost+" coins"); }
+            else { player.maxhp=Math.min(player.maxhp+1,12); player.hp=player.maxhp; flash("❤️ Heart Container! −"+it.cost+" coins"); }
+            it.taken=true; updateHud(); continue;
+          }
           it.taken=true;
-          if(it.type==="rupee"){player.rupees++;flash("💎 +1 rupee");}
+          if(it.type==="coin"){player.coins++;flash("🪙 +1 coin");}
           else if(it.type==="heart"){player.hp=Math.min(player.maxhp,player.hp+1);flash("❤ +1 heart");}
           else if(it.type==="key"){keys++;flash("🗝️ Got a key!");}
           else if(it.type==="egg"){ collectEgg(eggs,curDungeon); boss=null;
@@ -374,14 +413,21 @@
           ctx.fillStyle="#2f5f28"; ctx.beginPath(); ctx.arc(px+8,py+22,5,0,7); ctx.arc(px+24,py+22,5,0,7); ctx.fill(); }   // grass half-hides it
       }
     }
+    function drawHouseTiles(R){
+      for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){const t=R.map[y][x], px=x*TILE, py=y*TILE;
+        if(t==="#"){ ctx.fillStyle="#5a3a1e"; ctx.fillRect(px,py,TILE,TILE); ctx.fillStyle="#6b4a26"; ctx.fillRect(px+3,py+3,TILE-6,TILE-6); }
+        else{ ctx.fillStyle=((x+y)%2)?"#9c7a4a":"#a9855a"; ctx.fillRect(px,py,TILE,TILE); ctx.strokeStyle="rgba(0,0,0,.12)"; ctx.strokeRect(px,py,TILE,TILE); }
+      }
+    }
     function render(){
       const R=rooms[room[1]][room[0]];
-      if(mode==="overworld") drawFarmTiles(R); else drawDungeonTiles(R);
+      if(mode==="overworld") drawFarmTiles(R); else if(mode==="house") drawHouseTiles(R); else drawDungeonTiles(R);
       // items
-      for(const it of R.items){if(it.taken)continue;const ic={rupee:"💎",heart:"❤",key:"🗝️"}[it.type];
+      for(const it of R.items){if(it.taken)continue;const ic={coin:"🪙",heart:"❤",key:"🗝️",buy_heal:"🍞",buy_heart:"❤️‍🩹"}[it.type];
         ctx.font="18px serif";ctx.textAlign="center";ctx.textBaseline="middle";
         if(it.type==="egg"){ drawGemEgg(it.x+10,it.y+10,11,GEMS[curDungeon-1].color); }
-        else ctx.fillText(ic,it.x+10,it.y+10);}
+        else { ctx.fillText(ic,it.x+10,it.y+10);
+          if(it.type==="buy_heal"||it.type==="buy_heart"){ ctx.font="10px system-ui"; ctx.fillStyle="#ffd54a"; ctx.fillText(it.cost+"🪙",it.x+10,it.y+22); } }}
       // boss
       if(boss && !boss.dead && mode==="dungeon" && room[0]===TRI[0] && room[1]===TRI[1] && !eggs[curDungeon-1]) drawBoss(boss);
       // weasels — same footprint as the hero
@@ -431,7 +477,8 @@
       if(player.atk>6){ctx.fillStyle="#fde68a";const cx=player.x+player.size/2,cy=player.y+player.size/2,len=34,wid=6;
         if(player.dir===0)ctx.fillRect(cx-wid/2,cy-len,wid,len);else if(player.dir===1)ctx.fillRect(cx-wid/2,cy,wid,len);
         else if(player.dir===2)ctx.fillRect(cx-len,cy-wid/2,len,wid);else ctx.fillRect(cx,cy-wid/2,len,wid);}
-      drawMinimap(); drawCarton();
+      if(mode!=="house") drawMinimap();   // the house is a single fixed room — no map needed
+      drawCarton();
       // flash message
       if(flashT>0){ctx.fillStyle="rgba(0,0,0,.6)";ctx.fillRect(W/2-90,6,180,24);ctx.fillStyle="#fde68a";ctx.font="14px system-ui";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(flashMsg,W/2,18);}
     }
@@ -458,7 +505,7 @@
       }
     }
     function attack(){if(player.atk<=0)player.atk=18;}
-    function updateHud(){let h="";for(let i=0;i<player.maxhp;i++)h+=i<player.hp?"❤":"🖤";heartsEl.textContent=h;lootEl.textContent="🥚 "+(eggs?cartonCount(eggs):0)+"/12 · 🗝️ "+keys;}
+    function updateHud(){let h="";for(let i=0;i<player.maxhp;i++)h+=i<player.hp?"❤":"🖤";heartsEl.textContent=h;lootEl.textContent="🥚 "+(eggs?cartonCount(eggs):0)+"/12 · 🗝️ "+keys;coinsEl.textContent="🪙 "+(player?player.coins:0);}
     function gameOver(){running=false;cancelAnimationFrame(raf);ot.textContent="💀 You fell";om.textContent="The dungeon claims another hero. Eggs gathered: "+(eggs?cartonCount(eggs):0)+"/12";startBtn.textContent="Try again";ov.classList.remove("hidden");}
     function win(){running=false;cancelAnimationFrame(raf);ot.textContent="🥚 The carton is full!";om.textContent="All 12 gemstone eggs are yours — the Fox King's lair unseals. (Final boss coming soon!)";startBtn.textContent="Play again";ov.classList.remove("hidden");}
 
@@ -474,7 +521,8 @@
     startBtn.addEventListener("click",newGame);
     // expose for smoke test
     window.__quest={genWorld:()=>{genWorld();return rooms;},doorOpen,genOverworld,OW_RX,OW_RY,
-      GEMS,BOSSES,newEggs,collectEgg,cartonCount,cartonFull,makeBoss,bossTakeHit};
+      GEMS,BOSSES,newEggs,collectEgg,cartonCount,cartonFull,makeBoss,bossTakeHit,genHouseRoom,
+      genRoom,solidTile,TRI};
   })();
   </script>
   <script src="/startgate.js" defer></script>
