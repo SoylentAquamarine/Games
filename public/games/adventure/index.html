@@ -11,7 +11,9 @@
   html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
     background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.2),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.14),transparent 60%),var(--bg);
     -webkit-tap-highlight-color:transparent;touch-action:none;}
-  .wrap{max-width:520px;margin:0 auto;padding:14px 12px 30px;display:flex;flex-direction:column;align-items:center;gap:10px}
+  .wrap{max-width:580px;margin:0 auto;padding:14px 12px 30px;display:flex;flex-direction:column;align-items:center;gap:10px}
+  .playarea{display:flex;gap:12px;align-items:flex-start;justify-content:center;width:100%;flex-wrap:wrap}
+  .mapcol{display:flex;flex-direction:column;gap:6px;align-items:center;flex:0 0 auto;padding-top:2px}
   .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
   .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
   .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
@@ -19,7 +21,7 @@
   .hud{width:100%;display:flex;justify-content:space-between;gap:8px;font-size:.82rem;color:var(--muted)}
   .hud b{color:var(--text)}
   .carry{min-height:1.2em;color:#f5d020;font-weight:700}
-  canvas#game{width:min(92vw,440px);height:min(92vw,440px);border-radius:10px;border:2px solid #2a2f55;background:#000;touch-action:none}
+  canvas#game{width:min(68vw,380px);height:min(68vw,380px);border-radius:10px;border:2px solid #2a2f55;background:#000;touch-action:none}
   canvas#map{width:120px;height:140px;border-radius:8px;border:1px solid rgba(255,255,255,.14);background:#0b0c1a}
   .maplabel{font-size:.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
   .msg{min-height:1.3em;font-weight:700;text-align:center;color:#fde68a}
@@ -42,7 +44,13 @@
   <div class="topbar"><a class="home" href="/">← Home</a><h1>🐔 Chicken Adventure</h1><button class="btn" id="new">New Game</button></div>
   <div class="hud"><span>Room: <b id="room">—</b></span><span>Health: <b id="hp">100%</b></span><span>Time: <b id="time">0:00</b></span><span>Best: <b id="best">—</b></span></div>
   <div class="carry" id="carry">Carrying: nothing</div>
-  <canvas id="game" width="200" height="200"></canvas>
+  <div class="playarea">
+    <canvas id="game" width="200" height="200"></canvas>
+    <div class="mapcol">
+      <canvas id="map" width="120" height="140" title="Rooms you have explored"></canvas>
+      <div class="maplabel">Map</div>
+    </div>
+  </div>
   <div class="msg" id="msg">Find the Enchanted Chalice and bring it to the Gold Castle.</div>
   <div class="controls">
     <div class="dpad">
@@ -51,8 +59,6 @@
     </div>
     <div class="rightctl">
       <button class="drop" id="dropbtn">Drop / Use</button>
-      <canvas id="map" width="120" height="140" title="Rooms you have explored"></canvas>
-      <div class="maplabel">Map</div>
     </div>
   </div>
   <details><summary>How to play</summary>
