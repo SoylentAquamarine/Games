@@ -96,6 +96,20 @@
       return true;
     }
     function rnd(n){return Math.floor(Math.random()*n);}
+    function seeded(n){ const x=Math.sin(n)*10000; return x-Math.floor(x); }
+    // A pond's outline wobbles around the tile's inscribed circle instead of
+    // filling the tile edge-to-edge, so water reads as an organic shape like
+    // the mini-golf water hazards rather than a hard square.
+    function pondPath(px,py){
+      const cx=px+TILE/2, cy=py+TILE/2, r=TILE/2-1, n=10, seed=px*0.37+py*0.71;
+      ctx.beginPath();
+      for(let i=0;i<n;i++){
+        const a=i/n*Math.PI*2, wob=0.68+seeded(seed+i*1.7)*0.32;
+        const x=cx+Math.cos(a)*r*wob, y=cy+Math.sin(a)*r*wob;
+        if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+      }
+      ctx.closePath();
+    }
     // A saved layout from the Level Editor overrides the procedural tile map.
     let OVERRIDE=null;
     try{ const j=localStorage.getItem("quest_layout"); if(j){ const o=JSON.parse(j);
@@ -344,11 +358,15 @@
     }
     function drawFarmTiles(R){
       for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){const t=R.map[y][x], px=x*TILE, py=y*TILE;
-        ctx.fillStyle=((x+y)%2)?"#3f7a35":"#397030"; ctx.fillRect(px,py,TILE,TILE);
-        if(t==="F"){ ctx.fillStyle="#8a6438"; ctx.fillRect(px+3,py+4,TILE-6,4); ctx.fillRect(px+3,py+TILE-10,TILE-6,4); ctx.fillStyle="#6b4a26"; ctx.fillRect(px+6,py+2,3,TILE-4); ctx.fillRect(px+TILE-9,py+2,3,TILE-4); }
+        ctx.fillStyle="#397030"; ctx.fillRect(px,py,TILE,TILE);
+        if(t==="F"){ // bush border (was a picket fence)
+          ctx.fillStyle="#2f5f28"; ctx.beginPath(); ctx.arc(px+16,py+18,14,0,7); ctx.fill();
+          ctx.fillStyle="#3f7a35"; ctx.beginPath(); ctx.arc(px+9,py+16,9,0,7); ctx.arc(px+23,py+16,9,0,7); ctx.arc(px+16,py+9,9,0,7); ctx.fill();
+          ctx.fillStyle="#2a4f24"; ctx.beginPath(); ctx.arc(px+16,py+24,7,0,7); ctx.fill(); }
         else if(t==="T"){ ctx.fillStyle="#5a3a1e"; ctx.fillRect(px+14,py+16,5,14); ctx.fillStyle="#2f5f28"; ctx.beginPath(); ctx.arc(px+16,py+13,13,0,7); ctx.fill(); ctx.fillStyle="#367030"; ctx.beginPath(); ctx.arc(px+12,py+11,7,0,7); ctx.arc(px+21,py+12,7,0,7); ctx.fill(); }
         else if(t==="H"){ ctx.fillStyle="#d8a93a"; ctx.beginPath(); ctx.moveTo(px+3,py+TILE-3); ctx.quadraticCurveTo(px+16,py+2,px+TILE-3,py+TILE-3); ctx.closePath(); ctx.fill(); ctx.strokeStyle="#b8862a"; ctx.lineWidth=1; for(let i=8;i<TILE-6;i+=6){ ctx.beginPath(); ctx.moveTo(px+i,py+TILE-3); ctx.lineTo(px+i+3,py+9); ctx.stroke(); } }
-        else if(t==="~"){ ctx.fillStyle="#2f6fb0"; ctx.fillRect(px+1,py+1,TILE-2,TILE-2); ctx.fillStyle="rgba(255,255,255,.25)"; ctx.fillRect(px+4,py+6,10,2); ctx.fillRect(px+16,py+18,8,2); }
+        else if(t==="~"){ pondPath(px,py); ctx.fillStyle="#2f6fb0"; ctx.fill(); ctx.strokeStyle="#1f5590"; ctx.lineWidth=1.2; ctx.stroke();
+          ctx.save(); pondPath(px,py); ctx.clip(); ctx.fillStyle="rgba(255,255,255,.25)"; ctx.fillRect(px+4,py+6,10,2); ctx.fillRect(px+16,py+18,8,2); ctx.restore(); }
         else if(t==="B"){ ctx.fillStyle="#a33a2a"; ctx.fillRect(px+2,py+8,TILE-4,TILE-10); ctx.fillStyle="#7a2a1e"; ctx.beginPath(); ctx.moveTo(px+1,py+9); ctx.lineTo(px+16,py+1); ctx.lineTo(px+TILE-1,py+9); ctx.closePath(); ctx.fill(); ctx.fillStyle="#5a1e14"; ctx.fillRect(px+12,py+16,8,TILE-16); }
         else if(t==="E"){ ctx.fillStyle="#241a12"; ctx.beginPath(); ctx.ellipse(px+16,py+18,10,9,0,0,7); ctx.fill();
           ctx.fillStyle="#0a0806"; ctx.beginPath(); ctx.ellipse(px+16,py+19,6,6,0,0,7); ctx.fill();
