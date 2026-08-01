@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chickenopoly — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🐔</text></svg>" />
+  <style>
+    :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;}
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+      background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.22),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.16),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;}
+    .wrap{max-width:560px;margin:0 auto;padding:14px 12px 40px;display:flex;flex-direction:column;align-items:center;gap:10px}
+    .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
+    .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+    .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+    h1{margin:0;font-size:1.3rem;background:linear-gradient(120deg,#f0902a,#4ade80);-webkit-background-clip:text;background-clip:text;color:transparent}
+    canvas{width:100%;height:auto;display:block;border-radius:14px;border:2px solid #2a2f55;background:#dff0d8}
+    .players{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;width:100%;font-size:.68rem}
+    .pl{background:var(--panel);border:1px solid rgba(255,255,255,.06);border-radius:8px;padding:5px 3px;text-align:center}
+    .pl.turn{border-color:var(--accent-2);box-shadow:0 0 0 1px rgba(34,211,238,.35)}
+    .pl.out{opacity:.35}
+    .pl .cash{color:#fde68a;font-weight:800}
+    .status{min-height:1.2em;font-weight:600;color:#fde68a;text-align:center}
+    .dice{display:flex;gap:6px}
+    .die{width:40px;height:40px;border-radius:9px;background:#fff;color:#0b0c1a;display:flex;align-items:center;justify-content:center;font-size:1.3rem;font-weight:800;box-shadow:0 2px 0 rgba(0,0,0,.3)}
+    .btns{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center}
+    .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:10px 20px;border-radius:999px;cursor:pointer}
+    .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,.18);color:var(--muted)}
+    .btn.buy{background:linear-gradient(120deg,#4ade80,#22d3ee)}
+    .btn.pass{background:linear-gradient(120deg,#f43f5e,#f97316)}
+    .btn:disabled{opacity:.4;cursor:default}
+    .hint{color:var(--muted);font-size:.78rem;text-align:center}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar"><a class="home" href="/">← Home</a><h1>🐔 Chickenopoly</h1><span style="width:56px"></span></div>
+    <div class="players" id="players"></div>
+    <canvas id="board" width="480" height="480"></canvas>
+    <div class="status" id="status">Roll to start!</div>
+    <div class="btns">
+      <div class="dice" id="dice"><div class="die">⚀</div><div class="die">⚀</div></div>
+      <button class="btn" id="rollBtn">ROLL</button>
+      <button class="btn buy hidden" id="buyBtn" style="display:none">Buy</button>
+      <button class="btn pass hidden" id="passBtn" style="display:none">Pass</button>
+      <button class="btn ghost" id="new">New Game</button>
+    </div>
+    <p class="hint">Buy properties as you land on them. Own a whole color group and rent doubles. Land on a rival's property and you owe rent. Go bankrupt and you're out — last chicken standing (or richest, if it drags on) wins.</p>
+  </div>
+  <script src="/arcade.js"></script>
+  <script>
+  (function(){
+    const rnd=(n)=>Math.floor(Math.random()*n);
+    const NP=4, PNAMES=["You","CPU 1","CPU 2","CPU 3"];
+    const START_CASH=1500, GO_BONUS=200, JAIL_FINE=50, MAX_JAIL_TURNS=3, MAX_TURNS=120;
+
+    // 28-space square board: 7 spaces/side, corners at 0/7/14/21 (GO / Jail /
+    // Free Parking / Go To Jail), matching classic Monopoly's corner layout.
+    const SPACES=[
+      { type:"corner", name:"GO", kind:"go" },
+      { type:"property", name:"Henhouse Ave", price:60, rent:2, group:"brown" },
+      { type:"chest", name:"Community Chest" },
+      { type:"property", name:"Coop Court", price:60, rent:4, group:"brown" },
+      { type:"tax", name:"Income Tax", amt:200 },
+      { type:"railroad", name:"Yolk Line RR", price:200 },
+      { type:"property", name:"Barnyard Blvd", price:100, rent:6, group:"blue" },
+      { type:"corner", name:"Jail", kind:"jail" },
+      { type:"property", name:"Pecking Path", price:100, rent:6, group:"blue" },
+      { type:"chance", name:"Chance" },
+      { type:"property", name:"Roost Row", price:120, rent:8, group:"blue" },
+      { type:"property", name:"Feather Ln", price:140, rent:10, group:"pink" },
+      { type:"utility", name:"Feed Co.", price:150 },
+      { type:"property", name:"Cluck St", price:140, rent:10, group:"pink" },
+      { type:"corner", name:"Free Parking", kind:"park" },
+      { type:"property", name:"Scratch Ave", price:180, rent:14, group:"orange" },
+      { type:"chest", name:"Community Chest" },
+      { type:"property", name:"Peck Place", price:180, rent:14, group:"orange" },
+      { type:"railroad", name:"Cluck Central RR", price:200 },
+      { type:"property", name:"Comb Court", price:220, rent:18, group:"red" },
+      { type:"property", name:"Wattle Way", price:220, rent:18, group:"red" },
+      { type:"corner", name:"Go To Jail", kind:"gotojail" },
+      { type:"property", name:"Egg St", price:260, rent:22, group:"yellow" },
+      { type:"chance", name:"Chance" },
+      { type:"property", name:"Yolk Yard", price:260, rent:22, group:"yellow" },
+      { type:"railroad", name:"Rooster Express RR", price:200 },
+      { type:"property", name:"Golden Egg Dr", price:300, rent:26, group:"green" },
+      { type:"property", name:"Nest Egg Ave", price:320, rent:28, group:"green" },
+    ];
+    const TRACK=SPACES.length;   // 28
+    const GROUP_COLOR={ brown:"#8b5a2b", blue:"#7fb0e0", pink:"#e08ac0", orange:"#f0902a",
+                         red:"#e0533e", yellow:"#f4d03f", green:"#4caf50" };
+
+    const CHANCE=[
+      { t:"Advance to GO, collect $200", fx:(s,pi)=>{ movePlayerTo(s,pi,0,true); } },
+      { t:"Go directly to Jail", fx:(s,pi)=>{ sendToJail(s,pi); } },
+      { t:"Bank pays you a dividend of $50", fx:(s,pi)=>{ pay(s,pi,50); } },
+      { t:"Pay poor tax of $15", fx:(s,pi)=>{ charge(s,pi,15); } },
+      { t:"Take a trip to Free Parking", fx:(s,pi)=>{ movePlayerTo(s,pi,14,false); } },
+      { t:"Coop maintenance, pay $25", fx:(s,pi)=>{ charge(s,pi,25); } },
+    ];
+    const CHEST=[
+      { t:"Bank error in your favor, collect $200", fx:(s,pi)=>{ pay(s,pi,200); } },
+      { t:"Doctor's fee, pay $50", fx:(s,pi)=>{ charge(s,pi,50); } },
+      { t:"Get out of Jail Free — keep this card", fx:(s,pi)=>{ s.players[pi].jailFreeCard=true; } },
+      { t:"It's your birthday, collect $30", fx:(s,pi)=>{ pay(s,pi,30); } },
+      { t:"School fees, pay $50", fx:(s,pi)=>{ charge(s,pi,50); } },
+      { t:"Life insurance matures, collect $100", fx:(s,pi)=>{ pay(s,pi,100); } },
+    ];
+
+    function newPlayer(){ return { pos:0, cash:START_CASH, props:[], inJail:false, jailTurns:0, jailFreeCard:false, bankrupt:false }; }
+    function newGame(){
+      return { players:Array.from({length:NP},newPlayer), turn:0, turns:0, over:false, winner:-1, pendingBuy:null, log:"" };
+    }
+    function rollDice(){ const a=1+rnd(6), b=1+rnd(6); return { a, b, total:a+b, isDouble:a===b }; }
+
+    function pay(s,pi,amt){ s.players[pi].cash+=amt; }
+    function charge(s,pi,amt){ const p=s.players[pi]; p.cash-=amt; checkBankrupt(s,pi); }
+    function checkBankrupt(s,pi){
+      const p=s.players[pi];
+      if(p.cash<0 && !p.bankrupt){
+        p.bankrupt=true;
+        p.props=[];   // simplified rule: a bankrupt player's properties just return to the bank
+      }
+    }
+    function activePlayers(s){ return s.players.map((p,i)=>i).filter(i=>!s.players[i].bankrupt); }
+    function checkWin(s){
+      const alive=activePlayers(s);
+      if(alive.length<=1){ s.over=true; s.winner=alive[0]!==undefined?alive[0]:0; return true; }
+      if(s.turns>=MAX_TURNS){
+        s.over=true;
+        let best=alive[0], bestNet=-Infinity;
+        for(const i of alive){ const net=netWorth(s,i); if(net>bestNet){ bestNet=net; best=i; } }
+        s.winner=best; return true;
+      }
+      return false;
+    }
+    function netWorth(s,pi){ const p=s.players[pi]; return p.cash + p.props.reduce((sum,idx)=>sum+SPACES[idx].price,0); }
+
+    function ownerOf(s,idx){ for(let i=0;i<s.players.length;i++) if(!s.players[i].bankrupt && s.players[i].props.includes(idx)) return i; return -1; }
+    function ownsFullGroup(s,pi,group){
+      const members=SPACES.map((sp,i)=>({sp,i})).filter(x=>x.sp.type==="property"&&x.sp.group===group).map(x=>x.i);
+      return members.length>0 && members.every(i=>s.players[pi].props.includes(i));
+    }
+    function railroadsOwned(s,pi){ return s.players[pi].props.filter(i=>SPACES[i].type==="railroad").length; }
+    function propertyRent(s,idx,ownerPi){
+      const sp=SPACES[idx];
+      if(sp.type==="property") return ownsFullGroup(s,ownerPi,sp.group) ? sp.rent*2 : sp.rent;
+      if(sp.type==="railroad") return 25*railroadsOwned(s,ownerPi);
+      return 0;   // utility handled separately (needs the dice roll)
+    }
+
+    function sendToJail(s,pi){ const p=s.players[pi]; p.pos=7; p.inJail=true; p.jailTurns=0; }
+    function movePlayerTo(s,pi,idx,collectIfPassed){
+      const p=s.players[pi];
+      if(collectIfPassed && idx<=p.pos) pay(s,pi,GO_BONUS);   // wrapped around past GO
+      p.pos=idx;
+    }
+    // Advance a player by `steps`, paying GO bonus on wraparound, then resolve
+    // whatever they land on. Returns a description of what happened.
+    function movePlayerBy(s,pi,steps){
+      const p=s.players[pi];
+      const from=p.pos, to=(from+steps)%TRACK;
+      if(to<from) pay(s,pi,GO_BONUS);   // passed or landed on GO
+      p.pos=to;
+      return landOn(s,pi,to);
+    }
+    function landOn(s,pi,idx,diceTotal){
+      const sp=SPACES[idx], p=s.players[pi];
+      if(sp.type==="corner"){
+        if(sp.kind==="gotojail"){ sendToJail(s,pi); return { text:"Sent to Jail!", idx }; }
+        if(sp.kind==="go"){ /* landing exactly on GO already paid by movePlayerBy's wrap check only on pass-through; landing exactly also counts */ }
+        return { text:"Landed on "+sp.name, idx };
+      }
+      if(sp.type==="tax"){ charge(s,pi,sp.amt); return { text:"Income Tax: -$"+sp.amt, idx }; }
+      if(sp.type==="chance"||sp.type==="chest"){
+        const deck=sp.type==="chance"?CHANCE:CHEST, card=deck[rnd(deck.length)];
+        card.fx(s,pi);
+        checkBankrupt(s,pi);
+        return { text:(sp.type==="chance"?"Chance: ":"Community Chest: ")+card.t, idx };
+      }
+      if(sp.type==="property"||sp.type==="railroad"||sp.type==="utility"){
+        const owner=ownerOf(s,idx);
+        if(owner<0){ s.pendingBuy={ pi, idx }; return { text:sp.name+" is unowned — buy for $"+sp.price+"?", idx, pending:true }; }
+        if(owner===pi) return { text:"You own "+sp.name, idx };
+        let rent;
+        if(sp.type==="utility") rent=(diceTotal||7)*4;
+        else rent=propertyRent(s,idx,owner);
+        charge(s,pi,rent); if(!s.players[pi].bankrupt) pay(s,owner,rent);
+        return { text:"Rent to "+PNAMES[owner]+": -$"+rent, idx, rent, owner };
+      }
+      return { text:"", idx };
+    }
+    function resolveBuy(s,buy){
+      if(!s.pendingBuy) return null;
+      const { pi, idx }=s.pendingBuy, sp=SPACES[idx], p=s.players[pi];
+      s.pendingBuy=null;
+      if(buy && p.cash>=sp.price){ p.cash-=sp.price; p.props.push(idx); return { bought:true, idx }; }
+      return { bought:false, idx };
+    }
+    // Simple CPU buy rule: buy if it can afford the property and still keep a
+    // cash cushion, so it doesn't buy itself into an immediate bankruptcy.
+    function cpuShouldBuy(s,pi,idx){ const sp=SPACES[idx], p=s.players[pi]; return p.cash-sp.price>=150; }
+
+    // In jail: roll — doubles gets you out free and you move that roll. A card
+    // gets used automatically. Otherwise you're stuck until the fine is paid
+    // (auto-paid after MAX_JAIL_TURNS so CPUs, and idle humans, don't stall forever).
+    function takeJailTurn(s,pi){
+      const p=s.players[pi];
+      if(p.jailFreeCard){ p.jailFreeCard=false; p.inJail=false; p.jailTurns=0; return { text:"Used a Get Out of Jail Free card!", freed:true }; }
+      const roll=rollDice();
+      if(roll.isDouble){ p.inJail=false; p.jailTurns=0; const r=movePlayerBy(s,pi,roll.total); return { text:"Rolled doubles — out of jail! "+r.text, freed:true, roll, result:r }; }
+      p.jailTurns++;
+      if(p.jailTurns>=MAX_JAIL_TURNS){ charge(s,pi,JAIL_FINE); p.inJail=false; p.jailTurns=0;
+        if(!p.bankrupt){ const r=movePlayerBy(s,pi,roll.total); return { text:"Paid the $"+JAIL_FINE+" fine — out! "+r.text, freed:true, roll, result:r }; }
+        return { text:"Couldn't pay the fine…", freed:true, roll };
+      }
+      return { text:"Stuck in Jail ("+p.jailTurns+"/"+MAX_JAIL_TURNS+")", freed:false, roll };
+    }
+
+    window.__chickenopoly={ SPACES, TRACK, newGame, newPlayer, rollDice, movePlayerBy, landOn, resolveBuy,
+      cpuShouldBuy, propertyRent, ownsFullGroup, railroadsOwned, ownerOf, sendToJail, takeJailTurn,
+      checkBankrupt, checkWin, activePlayers, netWorth, START_CASH, GO_BONUS, JAIL_FINE, MAX_JAIL_TURNS, MAX_TURNS };
+    if(typeof document==="undefined") return;
+
+    const cv=document.getElementById("board"), ctx=cv.getContext("2d");
+    const W=cv.width, H=cv.height;
+    const playersEl=document.getElementById("players"), statusEl=document.getElementById("status"),
+          diceEl=document.getElementById("dice"), rollBtn=document.getElementById("rollBtn"),
+          buyBtn=document.getElementById("buyBtn"), passBtn=document.getElementById("passBtn");
+    let s, anim=null;
+
+    // ---- square-board layout: 7 spaces/side, corners shared ----
+    const PER=7, PAD=26, CELL=(W-2*PAD)/PER;
+    function tileXY(i){
+      const side=Math.floor(i/PER), pos=i%PER;
+      if(side===0) return { x:W-PAD-pos*CELL, y:H-PAD };
+      if(side===1) return { x:PAD, y:H-PAD-pos*CELL };
+      if(side===2) return { x:PAD+pos*CELL, y:PAD };
+      return { x:W-PAD, y:PAD+pos*CELL };
+    }
+    const TINTS=[{body:"#f0902a",wing:"#d97a1c"},{body:"#fde68a",wing:"#f7d354"},{body:"#e8e2d4",wing:"#d3cbb8"},{body:"#c9a273",wing:"#a97f4f"}];
+    function chicken(x,y,scale,tint){
+      ctx.save(); ctx.translate(x,y);
+      ctx.fillStyle="rgba(0,0,0,.25)"; ctx.beginPath(); ctx.ellipse(0,8*scale,7*scale,3*scale,0,0,7); ctx.fill();
+      ctx.fillStyle=tint.body; ctx.beginPath(); ctx.arc(0,0,7*scale,0,7); ctx.fill();
+      ctx.fillStyle=tint.wing; ctx.beginPath(); ctx.ellipse(-1*scale,1*scale,3.5*scale,2.6*scale,0.3,0,7); ctx.fill();
+      ctx.fillStyle="#dc2626"; ctx.beginPath(); ctx.arc(1*scale,-6*scale,1.6*scale,0,7); ctx.fill();
+      ctx.fillStyle="#facc15"; ctx.beginPath(); ctx.moveTo(5*scale,-1*scale); ctx.lineTo(9*scale,0); ctx.lineTo(5*scale,1*scale); ctx.closePath(); ctx.fill();
+      ctx.restore();
+    }
+    function offsetFor(pi){
+      let n=0, idx=0;
+      for(let k=0;k<NP;k++){ if(s.players[k].pos===s.players[pi].pos){ if(k===pi) idx=n; n++; } }
+      if(n<2) return { dx:0, dy:0 };
+      return { dx:(idx-(n-1)/2)*10, dy:(idx-(n-1)/2)*3 };
+    }
+    function render(){
+      ctx.fillStyle="#dff0d8"; ctx.fillRect(0,0,W,H);
+      for(let i=0;i<TRACK;i++){
+        const t=tileXY(i), sp=SPACES[i], owner=ownerOf(s,i);
+        ctx.save(); ctx.translate(t.x,t.y);
+        const isCorner=sp.type==="corner";
+        const size=isCorner?30:20;
+        ctx.fillStyle = sp.type==="property" ? GROUP_COLOR[sp.group] :
+                        sp.type==="railroad" ? "#5a5f7a" : sp.type==="utility" ? "#c9a24b" :
+                        sp.type==="tax" ? "#94a3b8" : sp.type==="chance" ? "#f97316" :
+                        sp.type==="chest" ? "#38bdf8" : "#e6e6f0";
+        ctx.beginPath(); ctx.roundRect(-size/2,-size/2,size,size,5); ctx.fill();
+        if(owner>=0){ ctx.strokeStyle=TINTS[owner].body; ctx.lineWidth=3; ctx.beginPath(); ctx.roundRect(-size/2,-size/2,size,size,5); ctx.stroke(); }
+        else { ctx.strokeStyle="rgba(0,0,0,.3)"; ctx.lineWidth=1.2; ctx.beginPath(); ctx.roundRect(-size/2,-size/2,size,size,5); ctx.stroke(); }
+        ctx.fillStyle="#0b0c1a"; ctx.font=(isCorner?"8px":"6.5px")+" system-ui"; ctx.textAlign="center"; ctx.textBaseline="middle";
+        const label = isCorner ? {go:"GO",jail:"JAIL",park:"PARK",gotojail:"→JAIL"}[sp.kind] : sp.name.slice(0,8);
+        ctx.fillText(label,0,isCorner?0:size/2+7);
+        ctx.restore();
+      }
+      const order=[...Array(NP).keys()].sort((a,b)=>(a===s.turn?1:0)-(b===s.turn?1:0));
+      for(const pi of order){
+        if(s.players[pi].bankrupt) continue;
+        const t=tileXY(s.players[pi].pos), o=offsetFor(pi);
+        chicken(t.x+o.dx, t.y+o.dy-14, 1.4, TINTS[pi]);
+      }
+      if(s.over){
+        ctx.fillStyle="rgba(0,0,0,.55)"; ctx.fillRect(0,H/2-40,W,80);
+        ctx.textAlign="center"; ctx.fillStyle="#fde68a"; ctx.font="bold 22px system-ui";
+        ctx.fillText(s.winner===0?"YOU WIN!":PNAMES[s.winner]+" WINS", W/2, H/2-4);
+        ctx.fillStyle="#e6e6f0"; ctx.font="13px system-ui";
+        ctx.fillText("Net worth $"+netWorth(s,s.winner), W/2, H/2+20);
+      }
+    }
+    function renderPlayers(){
+      playersEl.innerHTML="";
+      s.players.forEach((p,i)=>{
+        const d=document.createElement("div");
+        d.className="pl"+(i===s.turn&&!s.over&&!p.bankrupt?" turn":"")+(p.bankrupt?" out":"");
+        d.innerHTML=PNAMES[i]+(p.inJail?" 🔒":"")+"<br><span class=\"cash\">"+(p.bankrupt?"OUT":"$"+p.cash)+"</span><br>"+p.props.length+" props";
+        playersEl.appendChild(d);
+      });
+    }
+    function updateDice(a,b){
+      const faces="⚀⚁⚂⚃⚄⚅";
+      diceEl.innerHTML="<div class=\"die\">"+faces[a-1]+"</div><div class=\"die\">"+faces[b-1]+"</div>";
+    }
+
+    function showBuyPrompt(idx){
+      const sp=SPACES[idx];
+      buyBtn.style.display="inline-block"; passBtn.style.display="inline-block"; rollBtn.disabled=true;
+      buyBtn.textContent="Buy "+sp.name+" — $"+sp.price;
+    }
+    function hideBuyPrompt(){ buyBtn.style.display="none"; passBtn.style.display="none"; }
+
+    function afterLanding(result){
+      if(result && result.text) statusEl.textContent=(PNAMES[s.turn]?PNAMES[s.turn]+": ":"")+result.text;
+      renderPlayers(); render();
+      if(checkWin(s)){ finishGame(); return; }
+      if(s.pendingBuy){
+        if(s.pendingBuy.pi===0){ showBuyPrompt(s.pendingBuy.idx); return; }
+        // CPU buy decision, then continue
+        const buy=cpuShouldBuy(s,s.pendingBuy.pi,s.pendingBuy.idx);
+        const r=resolveBuy(s,buy);
+        statusEl.textContent=PNAMES[s.pendingBuy?s.pendingBuy.pi:s.turn]||"";
+        setTimeout(()=>{ statusEl.textContent=PNAMES[s.turn]+(r.bought?" bought "+SPACES[r.idx].name:" passed on "+SPACES[r.idx].name); renderPlayers(); endTurn(); },500);
+        return;
+      }
+      setTimeout(endTurn,650);
+    }
+    function finishGame(){
+      hideBuyPrompt(); rollBtn.disabled=true; renderPlayers(); render();
+      if(typeof Arcade!=="undefined") Arcade.sfx.win();
+      statusEl.textContent="🏆 "+(s.winner===0?"You win!":PNAMES[s.winner]+" wins!");
+    }
+    function doRoll(){
+      if(s.over) return;
+      s.turns++;
+      const pi=s.turn, p=s.players[pi];
+      if(p.inJail){
+        const jr=takeJailTurn(s,pi);
+        if(jr.roll) updateDice(jr.roll.a,jr.roll.b);
+        statusEl.textContent=PNAMES[pi]+": "+jr.text;
+        renderPlayers();
+        if(!jr.freed){ setTimeout(endTurn,650); return; }
+        if(jr.result) return afterLanding(jr.result);
+        checkBankrupt(s,pi);
+        if(checkWin(s)){ finishGame(); return; }
+        setTimeout(endTurn,650); return;
+      }
+      const roll=rollDice(); updateDice(roll.a,roll.b);
+      const result=movePlayerBy(s,pi,roll.total);
+      if(SPACES[result.idx].type==="property"||SPACES[result.idx].type==="railroad"||SPACES[result.idx].type==="utility"){
+        // re-resolve with the dice total in scope for utility rent
+        const owner=ownerOf(s,result.idx);
+        if(owner>=0 && owner!==pi && SPACES[result.idx].type==="utility"){
+          const rent=roll.total*4; charge(s,pi,rent); if(!s.players[pi].bankrupt) pay(s,owner,rent);
+          result.text="Utility rent to "+PNAMES[owner]+": -$"+rent;
+        }
+      }
+      afterLanding(result);
+    }
+    function endTurn(){
+      if(s.over) return;
+      hideBuyPrompt();
+      let next=s.turn, guard=0;
+      do{ next=(next+1)%NP; guard++; } while(s.players[next].bankrupt && guard<=NP);
+      s.turn=next; renderPlayers(); render();
+      if(s.turn===0){ rollBtn.disabled=false; statusEl.textContent="Your turn — ROLL!"; }
+      else { rollBtn.disabled=true; statusEl.textContent=PNAMES[s.turn]+" is rolling…"; setTimeout(doRoll,900); }
+    }
+
+    function startNewGame(){
+      s=newGame(); hideBuyPrompt(); rollBtn.disabled=false;
+      renderPlayers(); render();
+      statusEl.textContent="Your turn — ROLL!";
+      updateDice(1,1);
+    }
+    rollBtn.addEventListener("click",()=>{ if(s.turn===0 && !s.over) doRoll(); });
+    buyBtn.addEventListener("click",()=>{
+      const idx=s.pendingBuy.idx, r=resolveBuy(s,true);
+      statusEl.textContent=r.bought?("Bought "+SPACES[idx].name+"!"):"Couldn't afford it.";
+      hideBuyPrompt(); renderPlayers(); render();
+      if(checkWin(s)){ finishGame(); return; }
+      setTimeout(endTurn,500);
+    });
+    passBtn.addEventListener("click",()=>{
+      const idx=s.pendingBuy.idx; resolveBuy(s,false);
+      statusEl.textContent="Passed on "+SPACES[idx].name+".";
+      hideBuyPrompt(); renderPlayers(); render();
+      setTimeout(endTurn,500);
+    });
+    document.getElementById("new").addEventListener("click",startNewGame);
+    startNewGame();
+  })();
+  </script>
+  <script src="/comments.js" defer></script>
+</body>
+</html>
