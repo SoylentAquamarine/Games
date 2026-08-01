@@ -194,6 +194,7 @@
       ctx.fillText("SQUASHED!",p.ax+j(),py-30+j()); }
     if(s.won||s.over){ ctx.fillStyle="rgba(0,0,0,.6)"; ctx.fillRect(0,0,W,H); ctx.fillStyle=s.won?"#34d399":"#f43f5e"; ctx.font="bold 22px system-ui"; ctx.fillText(s.won?"YOU MADE IT!":"GAME OVER",W/2,H/2-6); ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Score "+s.score+"  ·  Best "+best,W/2,H/2+16); }
   }
+  let prevDying=0, prevScore=0, wasWon=false, wasOver=false;
   function frame(){
     if(!GATE.open){ draw(); GATE.paint(); return requestAnimationFrame(frame); }
     if(!s.over&&!s.won){
@@ -211,7 +212,15 @@
         collide(s);
       }
       if(s.won) s.score+=500;
-      if(typeof Arcade!=="undefined")Arcade.stats.record("dk",s.score); if((s.over||s.won) && s.score>best){ best=s.score; try{localStorage.setItem("dk_best",String(best));}catch(e){} }
+      if(typeof Arcade!=="undefined"){
+        Arcade.stats.record("dk",s.score);
+        if(s.player.dying>0 && prevDying<=0) Arcade.sfx.death();
+        else if(s.score>prevScore && prevDying<=0 && !s.won) Arcade.sfx.coin();   // barrel dodge bonus, not a hit or the rescue jingle
+        if(s.won && !wasWon) Arcade.sfx.win();
+        if(s.over && !wasOver) Arcade.sfx.lose();
+      }
+      prevDying=s.player.dying; prevScore=s.score; wasWon=s.won; wasOver=s.over;
+      if((s.over||s.won) && s.score>best){ best=s.score; try{localStorage.setItem("dk_best",String(best));}catch(e){} }
       if(s.won) $("msg").textContent="🎉 Rescued! Score "+s.score+". New Game to climb again.";
       else if(s.over) $("msg").textContent="Squashed! Score "+s.score+"  ·  Best "+best;
       else if(s.player.dying>0) $("msg").textContent="Squashed! "+Math.max(0,s.lives)+" left...";
@@ -220,11 +229,12 @@
   }
   document.querySelectorAll(".dpad button").forEach(b=>{ const d=b.getAttribute("data-d"); const on=(e)=>{e.preventDefault(); input=d; move(s,d); moveT=0; }; const off=(e)=>{e.preventDefault(); if(input===d)input=null;};
     b.addEventListener("touchstart",on,{passive:false}); b.addEventListener("touchend",off); b.addEventListener("mousedown",on); b.addEventListener("mouseup",off); b.addEventListener("mouseleave",off); });
-  const jb=$("jump"); const jf=(e)=>{e.preventDefault();jump(s);}; jb.addEventListener("touchstart",jf,{passive:false}); jb.addEventListener("mousedown",jf);
+  function doJump(){ const before=s.player.jump; jump(s); if(s.player.jump>before && typeof Arcade!=="undefined") Arcade.sfx.jump(); }
+  const jb=$("jump"); const jf=(e)=>{e.preventDefault();doJump();}; jb.addEventListener("touchstart",jf,{passive:false}); jb.addEventListener("mousedown",jf);
   // All movement is held-key: one step on press, then the frame loop repeats at a
   // fixed cadence. Ignoring the OS key-repeat (e.repeat) is what stops the farmer
   // from bolting across the screen at the keyboard's repeat rate.
-  addEventListener("keydown",(e)=>{ const m={ArrowLeft:"left",ArrowRight:"right",ArrowUp:"up",ArrowDown:"down",a:"left",d:"right",w:"up",s:"down"}[e.key]; if(m){e.preventDefault(); if(e.repeat) return; input=m; move(s,m); moveT=0; } if(e.key===" "){e.preventDefault(); if(!e.repeat) jump(s);} });
+  addEventListener("keydown",(e)=>{ const m={ArrowLeft:"left",ArrowRight:"right",ArrowUp:"up",ArrowDown:"down",a:"left",d:"right",w:"up",s:"down"}[e.key]; if(m){e.preventDefault(); if(e.repeat) return; input=m; move(s,m); moveT=0; } if(e.key===" "){e.preventDefault(); if(!e.repeat) doJump();} });
   addEventListener("keyup",(e)=>{ const m={ArrowLeft:"left",ArrowRight:"right",ArrowUp:"up",ArrowDown:"down",a:"left",d:"right",w:"up",s:"down"}[e.key]; if(m&&input===m)input=null; });
   $("new").addEventListener("click",()=>{ s=newState(); input=null; $("msg").textContent="Climb to the top — jump the barrels!"; });
   requestAnimationFrame(frame);

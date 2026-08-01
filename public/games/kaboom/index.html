@@ -172,9 +172,19 @@
     if(s.over){ ctx.fillStyle="rgba(0,0,0,.55)"; ctx.fillRect(0,0,C.W,C.H); ctx.fillStyle="#f43f5e"; ctx.font="bold 24px system-ui"; ctx.textAlign="center"; ctx.fillText("SPLAT!",C.W/2,C.H/2-4); ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Score "+s.score+(best?"  ·  Best "+best:""),C.W/2,C.H/2+18); }
   }
   function hud(){ $("score").textContent=s.score; $("wave").textContent=s.wave; $("buckets").textContent=Math.max(0,s.buckets); }
+  let prevDying=0, prevGap=0, prevCaught=0, wasOver=false;
   function frame(){
-    if(!GATE.open){ draw(); GATE.paint(); return requestAnimationFrame(frame); } step(s,input); input.left=input.right=false;
-    if(typeof Arcade!=="undefined")Arcade.stats.record("kaboom",s.score); if(s.over && s.score>best){ best=s.score; try{localStorage.setItem("kaboom_best",String(best));}catch(e){} }
+    if(!GATE.open){ draw(); GATE.paint(); return requestAnimationFrame(frame); }
+    step(s,input); input.left=input.right=false;
+    if(typeof Arcade!=="undefined"){
+      Arcade.stats.record("kaboom",s.score);
+      if(s.caught>prevCaught) Arcade.sfx.pickup();                                    // caught an egg
+      if(s.dying>0 && prevDying<=0) Arcade.sfx[(s.msg||"").includes("firecracker")?"explode":"death"]();
+      if(s.gap>0 && prevGap<=0 && s.dying<=0) Arcade.sfx.wave();                       // wave cleared, next one incoming
+      if(s.over && !wasOver) Arcade.sfx.lose();
+    }
+    prevDying=s.dying; prevGap=s.gap; prevCaught=s.caught; wasOver=s.over;
+    if(s.over && s.score>best){ best=s.score; try{localStorage.setItem("kaboom_best",String(best));}catch(e){} }
     if(s.over) $("msg").textContent="🥚 Splat! Final score "+s.score+". New Game to try again.";
     draw(); hud(); requestAnimationFrame(frame); }
   function px(ev){ const r=cv.getBoundingClientRect(); const cx=(ev.touches?ev.touches[0].clientX:ev.clientX)-r.left; return cx*(C.W/r.width); }

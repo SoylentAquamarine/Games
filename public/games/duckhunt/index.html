@@ -277,16 +277,26 @@
     if(s.over){ ctx.fillStyle="rgba(0,0,0,.55)"; ctx.fillRect(0,0,C.W,C.H); ctx.fillStyle="#f43f5e"; ctx.font="bold 22px system-ui"; ctx.textAlign="center"; ctx.fillText("GAME OVER",C.W/2,C.H/2-4); ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Score "+s.score+(best?"  ·  Best "+best:""),C.W/2,C.H/2+18); }
   }
   function hud(){ $("score").textContent=s.score; $("ammo").textContent=s.ammo; $("miss").textContent=s.miss; $("lives").textContent=s.lives; }
-  let lastLevel=-1;
+  let lastLevel=-1, wasOver=false, prevLifeLostT=0;
   function frame(){
-    if(!GATE.open){ draw(); GATE.paint(); return requestAnimationFrame(frame); } step(s);
-    if(typeof Arcade!=="undefined")Arcade.stats.record("duckhunt",s.score); if(s.over && s.score>best){ best=s.score; try{localStorage.setItem("duckhunt_best",String(best));}catch(e){} $("msg").textContent="🐔 They got away! Score "+s.score+". New Game to retry."; }
+    if(!GATE.open){ draw(); GATE.paint(); return requestAnimationFrame(frame); }
+    step(s);
+    if(typeof Arcade!=="undefined"){
+      Arcade.stats.record("duckhunt",s.score);
+      if(s.lifeLostT>0 && prevLifeLostT<=0) Arcade.sfx.death();
+      if(s.over && !wasOver) Arcade.sfx.lose();
+    }
+    prevLifeLostT=s.lifeLostT; wasOver=s.over;
+    if(s.over && s.score>best){ best=s.score; try{localStorage.setItem("duckhunt_best",String(best));}catch(e){} $("msg").textContent="🐔 They got away! Score "+s.score+". New Game to retry."; }
     if(!s.over && s.level!==lastLevel){ lastLevel=s.level;
+      if(typeof Arcade!=="undefined" && s.level>0) Arcade.sfx.wave();
       $("msg").textContent = s.board===0 ? "Click / tap the chickens before they fly away!" : "🥚 Egg skeet! Shoot the throw before it lands.";
     }
     draw(); hud(); requestAnimationFrame(frame); }
   function fire(ev){ if(s.over) return; const r=cv.getBoundingClientRect(); const x=((ev.touches?ev.touches[0].clientX:ev.clientX)-r.left)*(C.W/r.width), y=((ev.touches?ev.touches[0].clientY:ev.clientY)-r.top)*(C.H/r.height);
-    flash=6; shoot(s,x,y); }
+    flash=6; const hitSomething=shoot(s,x,y);
+    if(typeof Arcade!=="undefined"){ Arcade.sfx.shoot(); if(hitSomething) Arcade.sfx.hit(); }
+  }
   cv.addEventListener("mousedown",fire); cv.addEventListener("touchstart",(e)=>{ e.preventDefault(); fire(e); },{passive:false});
   $("new").addEventListener("click",()=>{ s=newState(); lastLevel=0; $("msg").textContent="Click / tap the chickens before they fly away!"; });
   requestAnimationFrame(frame);
