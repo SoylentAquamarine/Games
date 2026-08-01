@@ -89,7 +89,11 @@
       const blocked = nc<0 || nc>=s.cols || s.mush[key(nc,head.r)];
       let nh;
       if(blocked){ nh={c:head.c, r:head.r+1}; t.dir=-t.dir; } else nh={c:nc, r:head.r};
-      if(nh.r>=s.rows-1){ killPlayer(s); return s; }
+      // Reaching the bottom row used to be an instant kill regardless of where
+      // the player actually was — a centipede segment merely getting behind you
+      // shouldn't be fatal. It just stays at the bottom row and keeps zigzagging;
+      // only an actual touch (checked in the frame loop below) costs a chicken.
+      if(nh.r>=s.rows-1) nh.r=s.rows-1;
       // Record where each slot was before the shift, so every segment carries its
       // own previous cell. The old render inferred it from the cell behind, which
       // has nothing to point at on a one-segment train — so single segments
