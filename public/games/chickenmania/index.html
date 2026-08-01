@@ -134,7 +134,7 @@
       wave:1, score:0, lives:C.LIVES,
       dir:1, t:0,
       eggs:[],
-      mode:"play", onekill:null,
+      mode:"play", onekill:null, misses:0,
       over:false, cleared:false, msg:"",
       hitFlash:0,
     };
@@ -238,7 +238,9 @@
         if(s.bullet.x < -C.BULLET_W) s.bullet.x = C.W;
         else if(s.bullet.x > C.W)    s.bullet.x = -C.BULLET_W;
       }
-      if(s.bullet.y+C.BULLET_H<0) s.bullet=null;
+      // A shot that flies off the top without hitting anything is a miss — only
+      // tracked during normal play, not the bonus round itself.
+      if(s.bullet.y+C.BULLET_H<0){ s.bullet=null; if(s.mode!=="onekill") s.misses++; }
     }
 
     if(s.mode==="onekill"){ oneKillStep(s); return s; }
@@ -289,7 +291,13 @@
     // wave cleared
     if(s.enemies.every(e=>!e.alive)){
       s.score+=C.WAVE_BONUS*s.wave;               // clearing a flock is the bonus
-      if(s.wave % OK.EVERY === 0){ startOneKill(s); return s; }   // every few waves → ONE SHOT ONE KILL bonus
+      // Every few waves, a CLEAN cycle (no missed shots since the last check)
+      // unlocks the ONE SHOT ONE KILL bonus; a miss anywhere in the cycle just
+      // resets the tally and the next cycle gets its own shot at it.
+      if(s.wave % OK.EVERY === 0){
+        if(s.misses===0){ startOneKill(s); return s; }
+        s.misses=0;
+      }
       s.wave++;
       s.enemies=makeEnemies(s.wave);
       s.bullet=null; s.eggs=[]; s.dir=1; s.t=0; s.cleared=true;
@@ -318,12 +326,15 @@
   // holds for ~3s, then ten spacesuit chickens spiral across Galaga-style (not
   // shooting); shooting one is worth 25,000. When they've all spiralled off (or
   // been shot), play resumes on the next wave.
-  const OK={ T:156, LOOPS:2, AMP:44, TITLE:180, SCORE:25000, N:10, EVERY:4 };   // T raised ~10% (was 140) to fly ~10% slower
+  // T slowed a further 25% on top of the earlier 10% (140->156->208); the
+  // stagger between each chicken's entry widened 25% (9->11) so they're spread
+  // out more; TITLE lengthened for a longer, clearer bonus-round announcement.
+  const OK={ T:208, LOOPS:2, AMP:44, TITLE:240, SCORE:25000, N:10, EVERY:4, DELAY_STEP:11 };
   function startOneKill(st){
-    st.mode="onekill"; st.bullet=null; st.eggs=[];
+    st.mode="onekill"; st.bullet=null; st.eggs=[]; st.misses=0;
     const chickens=[];
     for(let i=0;i<OK.N;i++){ const dir=i%2===0?1:-1;
-      chickens.push({ dir, delay:i*9, age:0, done:false, hit:false,
+      chickens.push({ dir, delay:i*OK.DELAY_STEP, age:0, done:false, hit:false,
         startX: dir>0?-24:C.W+24, endX: dir>0?C.W+24:-24,
         yBase: 42+(i%5)*22, x:-999, y:-999 }); }
     st.onekill={ chickens, titleT:OK.TITLE, t:0, hits:0 };
