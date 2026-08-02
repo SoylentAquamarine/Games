@@ -96,6 +96,10 @@ async function handleMe(request, env) {
 const USER_RE = /^[a-zA-Z0-9_-]{3,20}$/;
 const NS_RE = /^[a-zA-Z0-9_.-]{1,40}$/;
 const PBKDF2_ITERS = 100000;
+// The site owner's account — used only to decide whether to show the Admin
+// link in the header. Not itself a credential: the admin dashboard still
+// requires ADMIN_TOKEN regardless of who's logged in.
+const OWNER_USERNAME = "steve";
 
 async function getSession(request, env) {
   const token = readCookie(request, SESSION_COOKIE);
@@ -106,7 +110,7 @@ async function getSession(request, env) {
 }
 
 // public user view from a session payload
-function userView(p) { return { username: p.u, kind: "local" }; }
+function userView(p) { return { username: p.u, kind: "local", isOwner: p.u.toLowerCase() === OWNER_USERNAME }; }
 
 // stable per-account key prefix for saves
 function accountId(p) { return "u:" + p.u.toLowerCase(); }

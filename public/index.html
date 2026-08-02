@@ -14,7 +14,7 @@
     <div class="header-right">
       <a class="account-link" href="/play/">🌐 Play Online</a>
       <a class="account-link" href="/account/" id="accountLink">☁️ Account</a>
-      <a class="account-link" href="/admin/">🛠️ Admin</a>
+      <a class="account-link hidden" href="/admin/" id="adminLink" style="display:none">🛠️ Admin</a>
     </div>
   </header>
 
@@ -198,6 +198,9 @@
           const a = document.getElementById("accountLink");
           a.textContent = "👤 " + me.user.username;
           a.title = "Your account and score report";
+          // Only Steve's account sees the Admin link — everyone else has to
+          // know the URL, same as before, so it isn't advertised site-wide.
+          if (me.user.isOwner) document.getElementById("adminLink").style.display = "";
         }
       } catch (e) {}
     })();
