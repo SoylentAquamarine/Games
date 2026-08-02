@@ -85,7 +85,7 @@
     function cartonFull(e){ return cartonCount(e)===12; }
     function makeBoss(dungeon){ const b=BOSSES[(dungeon-1)%12];
       return { dungeon, name:b.name, color:b.color, hp:b.hp, maxhp:b.hp, x:7*TILE-6, y:3*TILE, size:44, vx:0,vy:0, hurt:0, atk:0, dead:false, eggDropped:false }; }
-    function bossTakeHit(b,dmg){ if(!b||b.dead||b.hurt>0) return false; b.hp-=dmg; b.hurt=20; if(b.hp<=0){ b.hp=0; b.dead=true; } return true; }
+    function bossTakeHit(b,dmg){ if(!b||b.dead||b.hurt>0) return false; b.hp-=dmg; b.hurt=30; if(b.hp<=0){ b.hp=0; b.dead=true; } return true; }
 
     // ---- world gen ----
     function doorOpen(rx,ry,dir){
@@ -146,10 +146,7 @@
       const items=[];
       // the goal room (0,0) holds this dungeon's boss, which drops the gem egg
       if(rx===KEYROOM[0]&&ry===KEYROOM[1])items.push({x:7*TILE+8,y:3*TILE+8,type:"key"});
-      // scatter a few coins / hearts
-      const drops=start?1:1+rnd(2);
-      for(let k=0;k<drops;k++){let x,y,tries=0;do{x=2+rnd(COLS-4);y=2+rnd(ROWS-4);tries++;}while(map[y][x]!=="."&&tries<30);
-        items.push({x:x*TILE+8,y:y*TILE+8,type:Math.random()<0.3?"heart":"coin"});}
+      // coins/hearts no longer sit scattered in the room — they drop from weasels you kill
       return {map,enemies,items,visited:false};
     }
     function genWorld(){rooms=[];for(let y=0;y<RY;y++){const r=[];for(let x=0;x<RX;x++)r.push(genRoom(x,y));rooms.push(r);}}
@@ -300,8 +297,12 @@
         const nx=e.x+ev[0]*es,ny=e.y+ev[1]*es;
         if(!boxHitsSolid(nx,e.y,ESIZE))e.x=nx;else e.dir=rnd(4);
         if(!boxHitsSolid(e.x,ny,ESIZE))e.y=ny;else e.dir=rnd(4);
-        // sword hit
-        if(sword&&rectHit(sword,{x:e.x,y:e.y,w:ESIZE,h:ESIZE})){e.alive=false;continue;}
+        // sword hit — drops a coin or heart instead of items just sitting in the room
+        if(sword&&rectHit(sword,{x:e.x,y:e.y,w:ESIZE,h:ESIZE})){
+          e.alive=false;
+          if(Math.random()<0.8) R.items.push({x:e.x,y:e.y,type:Math.random()<0.3?"heart":"coin"});
+          continue;
+        }
         // touch player
         if(player.inv<=0&&rectHit({x:player.x,y:player.y,w:s,h:s},{x:e.x,y:e.y,w:ESIZE,h:ESIZE})){
           player.hp--;player.inv=70;updateHud();
@@ -317,11 +318,15 @@
         if(!boss || boss.dungeon!==curDungeon) boss=makeBoss(curDungeon);
         const b=boss;
         if(!b.dead){
-          if(b.hurt>0) b.hurt--;
-          const bcx=b.x+b.size/2, bcy=b.y+b.size/2, pcx=player.x+s/2, pcy=player.y+s/2;
-          const a=Math.atan2(pcy-bcy,pcx-bcx), bs=1.15;
-          if(!boxHitsSolid(b.x+Math.cos(a)*bs,b.y,b.size)) b.x+=Math.cos(a)*bs;
-          if(!boxHitsSolid(b.x,b.y+Math.sin(a)*bs,b.size)) b.y+=Math.sin(a)*bs;
+          // A landed hit pauses the boss in place for half a second — a beat of
+          // impact instead of it barrelling on through the flinch.
+          if(b.hurt>0){ b.hurt--; }
+          else {
+            const bcx=b.x+b.size/2, bcy=b.y+b.size/2, pcx=player.x+s/2, pcy=player.y+s/2;
+            const a=Math.atan2(pcy-bcy,pcx-bcx), bs=1.15;
+            if(!boxHitsSolid(b.x+Math.cos(a)*bs,b.y,b.size)) b.x+=Math.cos(a)*bs;
+            if(!boxHitsSolid(b.x,b.y+Math.sin(a)*bs,b.size)) b.y+=Math.sin(a)*bs;
+          }
           if(sword&&rectHit(sword,{x:b.x,y:b.y,w:b.size,h:b.size})){ if(bossTakeHit(b,1)) flash(b.name+"  "+b.hp+"/"+b.maxhp); }
           if(player.inv<=0&&rectHit({x:player.x,y:player.y,w:s,h:s},{x:b.x,y:b.y,w:b.size,h:b.size})){
             player.hp--;player.inv=70;updateHud();
