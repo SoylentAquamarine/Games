@@ -32,10 +32,10 @@
 <body>
 <div class="wrap">
   <div class="topbar"><a class="home" href="/">← Home</a><h1>🐔 Chicken Lander</h1><button class="btn" id="new">New Game</button></div>
-  <div class="hud"><span>Vert: <b id="vy">0.0</b></span><span>Horiz: <b id="vx">0.0</b></span><span>Alt: <b id="alt">0</b></span><span>Chickens: <b id="lives">🐔🐔🐔</b></span></div>
+  <div class="hud"><span>Vert: <b id="vy">0.0</b></span><span>Horiz: <b id="vx">0.0</b></span><span>Alt: <b id="alt">0</b></span><span>Round: <b id="round">1</b></span><span>Score: <b id="score">0</b></span><span>Chickens: <b id="lives">🐔🐔🐔</b></span></div>
   <div class="fuel"><div id="fuelbar" style="width:100%"></div></div>
   <canvas id="game" width="624" height="468"></canvas>
-  <div class="msg" id="msg">Land gently on a pad. Higher pads pay more — watch your speed!</div>
+  <div class="msg" id="msg">Land gently on a pad to advance to the next round. Higher pads pay more — watch your speed!</div>
   <div class="controls">
     <button class="cbtn" id="bl">◀</button>
     <button class="cbtn" id="bu">🔥</button>
@@ -51,7 +51,13 @@
   const C={ GRAVITY:0.0648, THRUST:0.176, LATERAL:0.08, FUEL:100,
     // Burn rates eased ~35% (were 0.5/0.28) — fuel was draining too fast to enjoy manoeuvring.
     BURN_UP:0.32, BURN_SIDE:0.18,
-    LAND_VMAX:1.84, LAND_VXMAX:1.12, LIVES:3, DEATH_FRAMES:45, W, H, GROUND_Y, LW, LH };
+    LAND_VMAX:1.84, LAND_VXMAX:1.12, LIVES:3, MAX_LIVES:6, DEATH_FRAMES:45,
+    // A good landing no longer ends the run — it freezes briefly on the pad
+    // (LAND_FRAMES) then a fresh terrain loads for the next round. A chicken
+    // is earned every CHICKEN_EVERY rounds, and a decorative flyby cameo
+    // crosses the sky every FLYBY_EVERY rounds, matching the site-wide pattern.
+    LAND_FRAMES:60, CHICKEN_EVERY:3, FLYBY_EVERY:5, FLY_W:36, FLY_H:28,
+    W, H, GROUND_Y, LW, LH };
 
   function shuffle(a){ a=a.slice(); for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
   // Three landing pads at three different elevations — a wide safe valley pad,
@@ -95,15 +101,35 @@
     return { x: opts.x!=null?opts.x:(60+Math.random()*(W-120)), y: opts.y!=null?opts.y:24,
       vx: opts.vx!=null?opts.vx:(Math.random()*1.2-0.6), vy: opts.vy!=null?opts.vy:0,
       fuel: opts.fuel!=null?opts.fuel:C.FUEL, lives: opts.lives!=null?opts.lives:C.LIVES,
-      landed:false, crashed:false, over:false, dying:0, score:0,
+      landed:false, crashed:false, over:false, dying:0, landing:0,
+      round: opts.round!=null?opts.round:1, totalScore:0, roundScore:0, padHit:null, flyby:null,
       terrain: built.points, pads: built.pads };
   }
   function respawnShip(s){ s.x=60+Math.random()*(W-120); s.y=24; s.vx=Math.random()*1.2-0.6; s.vy=0; s.fuel=C.FUEL; s.crashed=false; }
+  // A purely decorative spacesuit chicken flyby, every FLYBY_EVERY rounds —
+  // cosmetic only, doesn't interact with the ship or scoring.
+  function spawnFlyby(){ const goRight=Math.random()<0.5;
+    return { x: goRight?-C.FLY_W:W+C.FLY_W, y: 28+Math.random()*40, vx:(goRight?1:-1)*1.6 }; }
+  // A successful landing no longer ends the run: it freezes briefly on the pad
+  // (LAND_FRAMES, driven from step()) then this loads a fresh terrain/pads for
+  // the next round, carries the ship's lives/score forward, and hands out a
+  // bonus chicken or a flyby cameo on the appropriate round cadence.
+  function nextRound(s){
+    s.round++;
+    if(s.round % C.CHICKEN_EVERY === 0 && s.lives < C.MAX_LIVES) s.lives++;
+    if(s.round % C.FLYBY_EVERY === 0 && !s.flyby) s.flyby = spawnFlyby();
+    const built = buildTerrain();
+    s.terrain = built.points; s.pads = built.pads;
+    respawnShip(s);
+    s.landed=false; s.landing=0; s.padHit=null; s.roundScore=0;
+  }
 
   function step(s, input){
-    if(s.landed||s.over) return s;
-    // A crash with chickens left is a brief pause, not the end — physics freeze,
-    // then the ship respawns on the SAME terrain with a full tank.
+    if(s.flyby){ s.flyby.x+=s.flyby.vx; if(s.flyby.x<-C.FLY_W-10||s.flyby.x>W+C.FLY_W+10) s.flyby=null; }
+    if(s.over) return s;
+    // The pad freeze after a good landing, and the crash freeze, both just
+    // count down and then hand off — to the next round, or a respawn in place.
+    if(s.landing>0){ if(--s.landing<=0) nextRound(s); return s; }
     if(s.dying>0){ if(--s.dying<=0) respawnShip(s); return s; }
     if(s.fuel>0){
       if(input.up){ s.vy-=C.THRUST; s.fuel-=C.BURN_UP; }
@@ -119,7 +145,8 @@
       s.y=groundY-LH;
       const pad=s.pads.find(p=>cx>=p.x && cx<=p.x+p.w);
       if(pad && s.vy<=C.LAND_VMAX && Math.abs(s.vx)<=C.LAND_VXMAX){
-        s.landed=true; s.score=Math.round(s.fuel*10*pad.mult); s.padHit=pad;
+        s.landed=true; s.roundScore=Math.round(s.fuel*10*pad.mult); s.totalScore+=s.roundScore;
+        s.padHit=pad; s.landing=C.LAND_FRAMES;
       } else {
         s.crashed=true; s.lives--;
         if(s.lives<=0) s.over=true; else s.dying=C.DEATH_FRAMES;
@@ -127,7 +154,7 @@
     }
     return s;
   }
-  window.__lander={ makeState, step, buildTerrain, terrainYAt, choosePads, respawnShip, C, PAD_TYPES };
+  window.__lander={ makeState, step, buildTerrain, terrainYAt, choosePads, respawnShip, nextRound, spawnFlyby, C, PAD_TYPES };
 
   if(typeof document==="undefined") return;
   const $=(id)=>document.getElementById(id);
@@ -164,10 +191,21 @@
     ctx.fillStyle="#facc15"; ctx.beginPath(); ctx.arc(LW/2,-1,5,0,7); ctx.fill();
     ctx.fillStyle="#0b1030"; ctx.fillRect(LW/2-3,-3,2,2); ctx.fillRect(LW/2+1,-3,2,2);
     ctx.fillStyle="#fb923c"; ctx.fillRect(LW/2-1,1,3,2);
-    if(input.up&&s.fuel>0&&!done&&s.dying<=0){ ctx.fillStyle="#ffcf5a"; ctx.beginPath(); ctx.moveTo(4,LH-4); ctx.lineTo(LW/2,LH+7+Math.random()*4); ctx.lineTo(LW-4,LH-4); ctx.fill(); }
+    if(input.up&&s.fuel>0&&!done&&s.dying<=0&&s.landing<=0){ ctx.fillStyle="#ffcf5a"; ctx.beginPath(); ctx.moveTo(4,LH-4); ctx.lineTo(LW/2,LH+7+Math.random()*4); ctx.lineTo(LW-4,LH-4); ctx.fill(); }
     ctx.restore();
-    if(s.landed){ overlay("#34d399","TOUCHDOWN!","Score "+s.score+" ("+s.padHit.name+" "+s.padHit.mult+"x)"); }
-    else if(s.over){ overlay("#f43f5e","OUT OF CHICKENS","Press New Game"); }
+    // A cameo spacesuit chicken sailing across the sky — every FLYBY_EVERY rounds.
+    // Purely decorative: no collision, no scoring, doesn't react to the ship.
+    if(s.flyby){ const fb=s.flyby; ctx.save(); ctx.translate(fb.x,fb.y); if(fb.vx<0) ctx.scale(-1,1);
+      const r2=C.FLY_H*0.42;
+      ctx.fillStyle="rgba(251,146,60,.4)"; ctx.beginPath(); ctx.ellipse(0,r2*1.1,r2*0.4,r2*0.55,0,0,7); ctx.fill();
+      ctx.fillStyle="#f0902a"; ctx.beginPath(); ctx.arc(0,0,r2,0,7); ctx.fill();
+      ctx.fillStyle="#dc2626"; ctx.beginPath(); ctx.arc(-r2*0.3,-r2*0.85,r2*0.16,0,7); ctx.arc(0,-r2*0.95,r2*0.18,0,7); ctx.arc(r2*0.3,-r2*0.85,r2*0.16,0,7); ctx.fill();
+      ctx.fillStyle="#facc15"; ctx.beginPath(); ctx.moveTo(r2*0.7,0); ctx.lineTo(r2*1.15,r2*0.15); ctx.lineTo(r2*0.7,r2*0.28); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle="rgba(186,230,253,.9)"; ctx.lineWidth=1.5; ctx.beginPath(); ctx.arc(0,-r2*0.1,r2*1.3,0,7); ctx.stroke();
+      ctx.fillStyle="rgba(186,230,253,.14)"; ctx.beginPath(); ctx.arc(0,-r2*0.1,r2*1.3,0,7); ctx.fill();
+      ctx.restore(); }
+    if(s.landing>0){ overlay("#34d399","TOUCHDOWN!","+"+s.roundScore+" ("+s.padHit.name+" "+s.padHit.mult+"x)  ·  Total "+s.totalScore); }
+    else if(s.over){ overlay("#f43f5e","OUT OF CHICKENS","Final score "+s.totalScore+(best?"  ·  Best "+best:"")+" — Press New Game"); }
     else if(s.dying>0){ ctx.fillStyle="#f43f5e"; ctx.font="bold 20px system-ui"; ctx.textAlign="center"; ctx.fillText("CHICKEN DOWN — "+s.lives+" left",W/2,H/2); }
   }
   function hexA(hex,a){ const n=parseInt(hex.slice(1),16); return "rgba("+((n>>16)&255)+","+((n>>8)&255)+","+(n&255)+","+a+")"; }
@@ -177,20 +215,24 @@
   function hud(){ $("vy").textContent=s.vy.toFixed(1); $("vy").className=s.vy>C.LAND_VMAX?"warn":"";
     $("vx").textContent=s.vx.toFixed(1); $("vx").className=Math.abs(s.vx)>C.LAND_VXMAX?"warn":"";
     $("alt").textContent=Math.max(0,Math.round(GROUND_Y-LH-s.y)); $("fuelbar").style.width=(s.fuel/C.FUEL*100)+"%";
+    $("round").textContent=s.round; $("score").textContent=s.totalScore;
     const livesEl=$("lives"); if(livesEl) livesEl.textContent="🐔".repeat(Math.max(0,s.lives)); }
 
-  let prevDying=0;
+  let prevDying=0, prevLanding=0;
   function frame(){
     if(!GATE.open){ draw(); GATE.paint(); return requestAnimationFrame(frame); }
     if(!done){ step(s,input);
       if(typeof Arcade!=="undefined" && s.dying>0 && prevDying<=0) Arcade.sfx.explode();
       prevDying=s.dying;
-      if(s.landed){ done=true; if(typeof Arcade!=="undefined"){ Arcade.stats.record("lander",s.score); Arcade.sfx.win(); } if(!best||(s.score>best)){ best=s.score; try{localStorage.setItem("lander_best",String(best));}catch(e){} } $("msg").textContent="🚀 Nice landing! Score "+s.score+(best?"  ·  Best "+best:""); }
-      else if(s.over){ done=true; if(typeof Arcade!=="undefined") Arcade.sfx.lose(); $("msg").textContent="💥 Out of chickens. Try again!"; }
-      else if(s.crashed && s.dying>0){ $("msg").textContent="CHICKEN DOWN — "+s.lives+" left"; } }
+      if(typeof Arcade!=="undefined" && s.landing>0 && prevLanding<=0) Arcade.sfx.win();
+      prevLanding=s.landing;
+      if(s.landing>0){ $("msg").textContent="🚀 Touchdown! +"+s.roundScore+" ("+s.padHit.name+" "+s.padHit.mult+"x)  ·  Total "+s.totalScore; }
+      else if(s.over){ done=true; if(typeof Arcade!=="undefined"){ Arcade.stats.record("lander",s.totalScore); Arcade.sfx.lose(); } if(!best||(s.totalScore>best)){ best=s.totalScore; try{localStorage.setItem("lander_best",String(best));}catch(e){} } $("msg").textContent="💥 Out of chickens. Final score "+s.totalScore+(best?"  ·  Best "+best:"")+". Try again!"; }
+      else if(s.crashed && s.dying>0){ $("msg").textContent="CHICKEN DOWN — "+s.lives+" left"; }
+      else if(s.landing<=0 && s.dying<=0 && !s.crashed){ $("msg").textContent="Round "+s.round+" — land gently on a pad to advance!"; } }
     draw(); hud(); requestAnimationFrame(frame); }
 
-  function reset(){ s=makeState(); input={up:false,left:false,right:false}; done=false; $("msg").textContent="Land gently on a pad. Higher pads pay more — watch your speed!"; }
+  function reset(){ s=makeState(); input={up:false,left:false,right:false}; done=false; prevDying=0; prevLanding=0; $("msg").textContent="Land gently on a pad to advance to the next round. Higher pads pay more — watch your speed!"; }
   const set=(k,v)=>{ input[k]=v; };
   addEventListener("keydown",(e)=>{ if(e.key==="ArrowUp"||e.key===" "||e.key==="w"){e.preventDefault();set("up",true);} else if(e.key==="ArrowLeft"||e.key==="a")set("left",true); else if(e.key==="ArrowRight"||e.key==="d")set("right",true); });
   addEventListener("keyup",(e)=>{ if(e.key==="ArrowUp"||e.key===" "||e.key==="w")set("up",false); else if(e.key==="ArrowLeft"||e.key==="a")set("left",false); else if(e.key==="ArrowRight"||e.key==="d")set("right",false); });
