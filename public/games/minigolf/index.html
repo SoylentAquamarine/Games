@@ -38,8 +38,9 @@
   const clamp=(v,a,b)=>v<a?a:v>b?b:v;
   const B=[{x:-30,y:-30,w:C.W+60,h:30},{x:-30,y:C.H,w:C.W+60,h:30},{x:-30,y:-30,w:30,h:C.H+60},{x:C.W,y:-30,w:30,h:C.H+60}];
   const inRect=(x,y,r)=>x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h;
-  // 18 holes: {walls, sand, water, start, hole, par} — difficulty ramps up
-  const LEVELS=[
+  // 18 holes: {walls, sand, water, start, hole, par} — difficulty ramps up.
+  // The admin course editor can override this whole set via localStorage.
+  const DEFAULT_LEVELS=[
     {walls:[],sand:[],water:[],start:{x:160,y:370},hole:{x:160,y:80},par:2},
     {walls:[{x:80,y:210,w:160,h:16}],sand:[],water:[],start:{x:80,y:370},hole:{x:250,y:90},par:3},
     {walls:[{x:0,y:170,w:190,h:16}],sand:[],water:[],start:{x:40,y:380},hole:{x:280,y:80},par:3},
@@ -59,6 +60,10 @@
     {walls:[{x:90,y:90,w:16,h:150},{x:200,y:200,w:16,h:150}],sand:[{x:110,y:280,w:90,h:60}],water:[{x:120,y:110,w:90,h:60}],start:{x:60,y:392},hole:{x:260,y:70},par:5},
     {walls:[{x:0,y:140,w:130,h:16},{x:190,y:140,w:130,h:16},{x:130,y:250,w:16,h:120},{x:174,y:250,w:16,h:120}],sand:[{x:130,y:290,w:60,h:70}],water:[{x:130,y:80,w:60,h:50}],start:{x:160,y:394},hole:{x:160,y:55},par:6},
   ];
+  // A saved course from the admin editor overrides the built-in 18 holes.
+  let LEVELS=DEFAULT_LEVELS;
+  try{ const j=localStorage.getItem("minigolf_levels"); if(j){ const o=JSON.parse(j);
+    if(Array.isArray(o)&&o.length&&o.every(h=>h&&h.start&&h.hole&&Array.isArray(h.walls)&&Array.isArray(h.sand)&&Array.isArray(h.water))) LEVELS=o; } }catch(e){}
   function collideWall(ball, w){
     const cx=clamp(ball.x,w.x,w.x+w.w), cy=clamp(ball.y,w.y,w.y+w.h);
     const dx=ball.x-cx, dy=ball.y-cy; const d2=dx*dx+dy*dy;
