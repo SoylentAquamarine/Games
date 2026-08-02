@@ -327,7 +327,20 @@
             if(!boxHitsSolid(b.x+Math.cos(a)*bs,b.y,b.size)) b.x+=Math.cos(a)*bs;
             if(!boxHitsSolid(b.x,b.y+Math.sin(a)*bs,b.size)) b.y+=Math.sin(a)*bs;
           }
-          if(sword&&rectHit(sword,{x:b.x,y:b.y,w:b.size,h:b.size})){ if(bossTakeHit(b,1)) flash(b.name+"  "+b.hp+"/"+b.maxhp); }
+          if(sword&&rectHit(sword,{x:b.x,y:b.y,w:b.size,h:b.size})){
+            if(bossTakeHit(b,1)){
+              flash(b.name+"  "+b.hp+"/"+b.maxhp);
+              // Knock it back on a landed hit. Without this a boss that's
+              // paused in place can get hit again the instant the pause ends
+              // by the exact same standing swing — chaining into a near-
+              // permanent stun that reads as the fight freezing up, since it
+              // never gets a window to move or retaliate.
+              const bhx=b.x+b.size/2, bhy=b.y+b.size/2, phx=player.x+s/2, phy=player.y+s/2;
+              const kbx=Math.sign(bhx-phx)*18||(Math.random()<0.5?-18:18), kby=Math.sign(bhy-phy)*18;
+              if(!boxHitsSolid(b.x+kbx,b.y,b.size)) b.x+=kbx;
+              if(!boxHitsSolid(b.x,b.y+kby,b.size)) b.y+=kby;
+            }
+          }
           if(player.inv<=0&&rectHit({x:player.x,y:player.y,w:s,h:s},{x:b.x,y:b.y,w:b.size,h:b.size})){
             player.hp--;player.inv=70;updateHud();
             const kx=Math.sign(player.x-bcx)*12,ky=Math.sign(player.y-bcy)*12;
