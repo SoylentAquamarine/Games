@@ -291,16 +291,17 @@
     // wave cleared
     if(s.enemies.every(e=>!e.alive)){
       s.score+=C.WAVE_BONUS*s.wave;               // clearing a flock is the bonus
-      // Every few waves, a CLEAN cycle (no missed shots since the last check)
-      // unlocks the ONE SHOT ONE KILL bonus; a miss anywhere in the cycle just
-      // resets the tally and the next cycle gets its own shot at it.
-      if(s.wave % OK.EVERY === 0){
-        if(s.misses===0){ startOneKill(s); return s; }
-        s.misses=0;
-      }
+      // A flawless wave (zero missed shots) on a wave%EVERY checkpoint
+      // unlocks the ONE SHOT ONE KILL bonus. Bug: s.misses used to only get
+      // reset when a checkpoint wave was reached, so it silently accumulated
+      // across the whole multi-wave cycle — a single miss back on wave 1
+      // could block wave 4's bonus even after playing wave 4 itself
+      // perfectly. Misses now reset every wave, so the bonus is judged on
+      // the wave that actually clears the checkpoint, not stale history.
+      if(s.wave % OK.EVERY === 0 && s.misses===0){ startOneKill(s); return s; }
       s.wave++;
       s.enemies=makeEnemies(s.wave);
-      s.bullet=null; s.eggs=[]; s.dir=1; s.t=0; s.cleared=true;
+      s.bullet=null; s.eggs=[]; s.dir=1; s.t=0; s.cleared=true; s.misses=0;
     }
     return s;
   }
