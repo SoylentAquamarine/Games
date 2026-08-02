@@ -543,7 +543,7 @@
     if(splash && Arcade.splash.tick(splash)) splash=null;
 
     if(started&&!s.over&&!splash){
-      const wasWave=s.wave, wasLives=s.lives, hadBullet=!!s.bullet, aliveBefore=s.enemies.filter(e=>e.alive).length;
+      const wasWave=s.wave, wasLives=s.lives, wasMode=s.mode, hadBullet=!!s.bullet, aliveBefore=s.enemies.filter(e=>e.alive).length;
       autoFire();                 // holding the fire button re-fires as soon as the shot clears
       if(!hadBullet && s.bullet) Arcade.sfx.shoot();
       step(s,input);
@@ -552,6 +552,13 @@
         Arcade.sfx.wave();
         splash=Arcade.splash.wave(s.wave, waveDef(s.wave).name);
         $("msg").textContent="Wave "+s.wave+" — "+waveDef(s.wave).name+"!";
+      } else if(s.mode==="onekill" && wasMode!=="onekill"){
+        // The bonus round doesn't advance s.wave (that only happens once it ends),
+        // so without its own announcement here it never got the splash/sound/message
+        // every other transition gets — easy to miss entirely mid-flight.
+        Arcade.sfx.wave();
+        splash=Arcade.splash.message("ONE SHOT ONE KILL!","Shoot the spiralling chicken — 25,000 pts",90);
+        $("msg").textContent="🎯 ONE SHOT ONE KILL! Shoot the spiralling chicken.";
       } else if(s.lives<wasLives && !s.over){
         Arcade.sfx.death();
         splash=Arcade.splash.death("SHOT DOWN", s.lives+" left");
