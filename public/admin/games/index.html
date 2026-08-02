@@ -71,6 +71,14 @@
     .holepick{display:flex;gap:4px;flex-wrap:wrap;max-width:520px}
     .holepick button{width:30px;height:26px;background:var(--panel2);border:1px solid rgba(255,255,255,.14);border-radius:6px;color:var(--muted);cursor:pointer;font-size:.72rem}
     .holepick button.on{border-color:var(--accent-2);color:var(--accent-2)}
+    .gamesGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin-top:10px}
+    .gcard{position:relative;background:var(--panel2);border:1px solid rgba(255,255,255,.14);border-radius:10px;
+      padding:10px 12px;text-align:left;cursor:pointer;color:var(--text);font-family:inherit}
+    .gcard:hover{border-color:var(--accent-2)}
+    .gcard.cur{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+    .gcard-name{font-weight:700;font-size:.85rem}
+    .gcard-slug{color:var(--muted);font-size:.72rem;margin-top:2px}
+    .gcard-badge{position:absolute;top:6px;right:6px;background:var(--warn);color:#3a2c00;font-size:.68rem;font-weight:800;border-radius:999px;padding:1px 7px}
   </style>
 </head>
 <body>
@@ -96,6 +104,8 @@
         <button class="btn" id="loadGame">Open</button>
         <button class="btn ghost" id="logout">Lock</button>
       </div>
+      <div class="sub" style="margin-top:12px">Or click any game below — each card shows its pending/approved comment count:</div>
+      <div class="gamesGrid" id="gamesGrid"></div>
     </div>
 
     <div id="gameArea" class="hidden">
@@ -239,12 +249,33 @@
 
   // ---- login ----
   function show(ok){ $("login").classList.toggle("hidden",ok); $("dash").classList.toggle("hidden",!ok); }
+  async function refreshCommentsData(){
+    const r=await api("/api/admin/comments");
+    if(r.ok) commentsData=await r.json();
+    return r;
+  }
+  // ---- games grid: one clickable card per game, so every admin page is one click away ----
+  function pendingCount(slug){
+    const g=(commentsData.games||[]).find(x=>x.game===slug);
+    return g ? g.comments.filter(c=>c.status!=="rejected").length : 0;
+  }
+  function buildGamesGrid(){
+    $("gamesGrid").innerHTML = games.map(g=>{
+      const n=pendingCount(g.slug);
+      return `<button class="gcard${g.slug===curSlug?" cur":""}" data-slug="${esc(g.slug)}">
+        <div class="gcard-name">${esc(g.name)}</div>
+        <div class="gcard-slug">${esc(g.slug)}</div>
+        ${n?`<span class="gcard-badge">${n}</span>`:""}
+      </button>`;
+    }).join("");
+    $("gamesGrid").querySelectorAll(".gcard").forEach(b=>b.addEventListener("click",()=>{ $("pick").value=b.dataset.slug; openGame(b.dataset.slug); }));
+  }
   $("go").addEventListener("click",async()=>{
     token=$("token").value.trim(); if(!token) return;
-    const r=await api("/api/admin/comments");
+    const r=await refreshCommentsData();
     if(r.status===401){ $("loginMsg").textContent="Wrong token."; return; }
     sessionStorage.setItem("admin_token",token); $("loginMsg").textContent="";
-    show(true); await loadCatalog(); initFromUrl();
+    show(true); await loadCatalog(); buildGamesGrid(); initFromUrl();
   });
   $("token").addEventListener("keydown",e=>{ if(e.key==="Enter") $("go").click(); });
   $("logout").addEventListener("click",()=>{ token=""; sessionStorage.removeItem("admin_token"); show(false); });
@@ -266,7 +297,9 @@
     $("gameArea").classList.remove("hidden");
     $("gTitle").innerHTML=esc(g.name)+' <a id="gOpen" href="/games/'+esc(g.slug)+'/" target="_blank" rel="noopener">Play ↗</a>';
     $("gDesc").textContent=g.desc||"";
+    buildGamesGrid();
     await loadComments();
+    buildGamesGrid();
     showConfig(g.slug);
   }
 
@@ -310,6 +343,7 @@
     if(!j.ok){ $("cmtMsg").textContent="Failed: "+(j.error||r.status); return; }
     $("cmtMsg").textContent=action+"d — "+j.changed+" comment(s) updated.";
     await loadComments();
+    buildGamesGrid();
   }
 
   // ---- configuration: dispatch to the right editor pane ----
@@ -570,7 +604,7 @@
     drawHolePicker(); drawGolf();
   }
 
-  if(token){ show(true); loadCatalog().then(initFromUrl); }
+  if(token){ show(true); Promise.all([refreshCommentsData(),loadCatalog()]).then(()=>{ buildGamesGrid(); initFromUrl(); }); }
 })();
 </script>
 </body>
