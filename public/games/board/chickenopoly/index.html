@@ -37,7 +37,7 @@
   <div class="wrap">
     <div class="topbar"><a class="home" href="/">← Home</a><h1>🐔 Chickenopoly</h1><span style="width:56px"></span></div>
     <div class="players" id="players"></div>
-    <canvas id="board" width="480" height="480"></canvas>
+    <canvas id="board" width="432" height="432"></canvas>
     <div class="status" id="status">Roll to start!</div>
     <div class="btns">
       <div class="dice" id="dice"><div class="die">⚀</div><div class="die">⚀</div></div>
@@ -231,7 +231,10 @@
     let s, anim=null;
 
     // ---- square-board layout: 7 spaces/side, corners shared ----
-    const PER=7, PAD=26, CELL=(W-2*PAD)/PER;
+    // A slimmer margin so the tiles themselves get most of the space — they
+    // were drawn much smaller than the room they had, which is why the
+    // property names were unreadable.
+    const PER=7, PAD=18, CELL=(W-2*PAD)/PER;
     function tileXY(i){
       const side=Math.floor(i/PER), pos=i%PER;
       if(side===0) return { x:W-PAD-pos*CELL, y:H-PAD };
@@ -255,13 +258,39 @@
       if(n<2) return { dx:0, dy:0 };
       return { dx:(idx-(n-1)/2)*10, dy:(idx-(n-1)/2)*3 };
     }
+    // Token hop animation: a chicken visibly travels tile-by-tile to its new
+    // spot instead of teleporting there the instant the dice land.
+    const HOP_FRAMES=9;
+    function tokenXY(pi){
+      if(anim && anim.pi===pi){
+        const at=(i)=> tileXY(((i%TRACK)+TRACK)%TRACK);
+        const from=at(anim.step===0?anim.from:anim.path[anim.step-1]);
+        const to=at(anim.path[anim.step]);
+        const u=anim.t/HOP_FRAMES;
+        return { x:from.x+(to.x-from.x)*u, y:from.y+(to.y-from.y)*u-Math.sin(u*Math.PI)*10 };
+      }
+      return tileXY(s.players[pi].pos);
+    }
+    function stepAnim(){
+      let justFinished=null;
+      if(anim){
+        if(++anim.t>=HOP_FRAMES){
+          anim.t=0; anim.step++;
+          if(typeof Arcade!=="undefined") Arcade.sfx.step();
+          if(anim.step>=anim.path.length){ justFinished=anim.onDone; anim=null; }
+        }
+      }
+      render();
+      if(justFinished) justFinished();
+      requestAnimationFrame(stepAnim);
+    }
     function render(){
       ctx.fillStyle="#dff0d8"; ctx.fillRect(0,0,W,H);
       for(let i=0;i<TRACK;i++){
         const t=tileXY(i), sp=SPACES[i], owner=ownerOf(s,i);
         ctx.save(); ctx.translate(t.x,t.y);
         const isCorner=sp.type==="corner";
-        const size=isCorner?30:20;
+        const size=isCorner?38:27;
         ctx.fillStyle = sp.type==="property" ? GROUP_COLOR[sp.group] :
                         sp.type==="railroad" ? "#5a5f7a" : sp.type==="utility" ? "#c9a24b" :
                         sp.type==="tax" ? "#94a3b8" : sp.type==="chance" ? "#f97316" :
@@ -269,16 +298,16 @@
         ctx.beginPath(); ctx.roundRect(-size/2,-size/2,size,size,5); ctx.fill();
         if(owner>=0){ ctx.strokeStyle=TINTS[owner].body; ctx.lineWidth=3; ctx.beginPath(); ctx.roundRect(-size/2,-size/2,size,size,5); ctx.stroke(); }
         else { ctx.strokeStyle="rgba(0,0,0,.3)"; ctx.lineWidth=1.2; ctx.beginPath(); ctx.roundRect(-size/2,-size/2,size,size,5); ctx.stroke(); }
-        ctx.fillStyle="#0b0c1a"; ctx.font=(isCorner?"8px":"6.5px")+" system-ui"; ctx.textAlign="center"; ctx.textBaseline="middle";
-        const label = isCorner ? {go:"GO",jail:"JAIL",park:"PARK",gotojail:"→JAIL"}[sp.kind] : sp.name.slice(0,8);
-        ctx.fillText(label,0,isCorner?0:size/2+7);
+        ctx.fillStyle="#0b0c1a"; ctx.font="bold "+(isCorner?"10px":"8.5px")+" system-ui"; ctx.textAlign="center"; ctx.textBaseline="middle";
+        const label = isCorner ? {go:"GO",jail:"JAIL",park:"PARK",gotojail:"→JAIL"}[sp.kind] : sp.name.slice(0,9);
+        ctx.fillText(label,0,isCorner?0:size/2+9);
         ctx.restore();
       }
       const order=[...Array(NP).keys()].sort((a,b)=>(a===s.turn?1:0)-(b===s.turn?1:0));
       for(const pi of order){
         if(s.players[pi].bankrupt) continue;
-        const t=tileXY(s.players[pi].pos), o=offsetFor(pi);
-        chicken(t.x+o.dx, t.y+o.dy-14, 1.4, TINTS[pi]);
+        const t=tokenXY(pi), o=(anim&&anim.pi===pi)?{dx:0,dy:0}:offsetFor(pi);
+        chicken(t.x+o.dx, t.y+o.dy-14, 1.5, TINTS[pi]);
       }
       if(s.over){
         ctx.fillStyle="rgba(0,0,0,.55)"; ctx.fillRect(0,H/2-40,W,80);
@@ -329,22 +358,35 @@
       if(typeof Arcade!=="undefined") Arcade.sfx.win();
       statusEl.textContent="🏆 "+(s.winner===0?"You win!":PNAMES[s.winner]+" wins!");
     }
+    // Builds the tile-by-tile path a token hops along, wrapping past GO.
+    function hopPath(from,steps){ const p=[]; for(let k=1;k<=steps;k++) p.push((from+k)%TRACK); return p; }
+    function animateTo(pi,from,steps,onDone){
+      const path=hopPath(from,steps);
+      if(!path.length){ onDone(); return; }
+      anim={pi,from,path,step:0,t:0,onDone};
+    }
     function doRoll(){
-      if(s.over) return;
+      if(s.over||anim) return;
+      rollBtn.disabled=true;   // stays disabled through the hop animation — re-enabled in endTurn() on the human's next turn
       s.turns++;
       const pi=s.turn, p=s.players[pi];
       if(p.inJail){
+        const from=p.pos;   // jail (7) unless a Get Out of Jail Free card skipped straight to freed with no roll
         const jr=takeJailTurn(s,pi);
         if(jr.roll) updateDice(jr.roll.a,jr.roll.b);
         statusEl.textContent=PNAMES[pi]+": "+jr.text;
         renderPlayers();
         if(!jr.freed){ setTimeout(endTurn,650); return; }
-        if(jr.result) return afterLanding(jr.result);
+        if(jr.result){
+          if(jr.roll){ animateTo(pi,from,jr.roll.total,()=>afterLanding(jr.result)); return; }
+          return afterLanding(jr.result);
+        }
         checkBankrupt(s,pi);
         if(checkWin(s)){ finishGame(); return; }
         setTimeout(endTurn,650); return;
       }
       const roll=rollDice(); updateDice(roll.a,roll.b);
+      const from=p.pos;
       const result=movePlayerBy(s,pi,roll.total);
       if(SPACES[result.idx].type==="property"||SPACES[result.idx].type==="railroad"||SPACES[result.idx].type==="utility"){
         // re-resolve with the dice total in scope for utility rent
@@ -354,7 +396,7 @@
           result.text="Utility rent to "+PNAMES[owner]+": -$"+rent;
         }
       }
-      afterLanding(result);
+      animateTo(pi,from,roll.total,()=>afterLanding(result));
     }
     function endTurn(){
       if(s.over) return;
@@ -367,7 +409,7 @@
     }
 
     function startNewGame(){
-      s=newGame(); hideBuyPrompt(); rollBtn.disabled=false;
+      s=newGame(); anim=null; hideBuyPrompt(); rollBtn.disabled=false;
       renderPlayers(); render();
       statusEl.textContent="Your turn — ROLL!";
       updateDice(1,1);
@@ -388,6 +430,7 @@
     });
     document.getElementById("new").addEventListener("click",startNewGame);
     startNewGame();
+    requestAnimationFrame(stepAnim);
   })();
   </script>
   <script src="/comments.js" defer></script>
