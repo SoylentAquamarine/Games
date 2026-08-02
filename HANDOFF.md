@@ -25,7 +25,10 @@ single hand-written HTML file with inline CSS/JS.
   Set a key manually: `npx wrangler kv key put "<key>" '<val>' --namespace-id=e6faf92ca1ae442baa47195b70e4266d --remote`
 - **Worker secrets** (set via `wrangler secret put`):
   - `SESSION_SECRET` — HMAC key for signed session cookies.
-  - `ADMIN_TOKEN` — admin dashboard password. **Current value: `i7Q8TNeCIncuZHuB8-k3PSQZ`** (rotate if desired).
+  - `ADMIN_TOKEN` — admin dashboard password. Not recorded here (this repo is public) — check
+    the Cloudflare dashboard's Worker secrets, or the AI assistant's private memory/notes for
+    the current value. If it's ever exposed in a commit, rotate immediately with
+    `wrangler secret put ADMIN_TOKEN` — no code change needed, it's read from `env.ADMIN_TOKEN`.
 - **Google Sign-In was removed** — do not re-add. Accounts are username/password only.
 
 ### Deploy gotchas (seen repeatedly)
