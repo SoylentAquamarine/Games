@@ -3,7 +3,7 @@
 Living reference for continuing this project in a fresh chat. Read this first.
 
 **Live site:** https://games.square-bar-75ce.workers.dev
-**Repo:** github.com/SoylentAquamarine/Games (branch `main`)
+**Repo:** github.com/SoylentAquamarine/Games (branch `main`) — **public**
 **Local:** `C:\git\Games`
 
 ---
@@ -193,8 +193,8 @@ Separate transport from the turn-based `MP_GAMES` (KV+polling) — real-time nee
   and migration `v1` (`new_sqlite_classes`, free-plan compatible).
 - **Single-player still queued:** Air Hockey, Go Fish (Go Fish can reuse `cards.js`).
 - **Admin test data:** the user count / play stats include a handful of `alice_*`, `bob_*`, `tester_*`, `chk_*` accounts created during API testing. Consider a "clear test data" admin action (delete `u:<test>`, reset `stats`).
-- **Rotate `ADMIN_TOKEN`** (it appeared in chat).
 - **KV write contention:** play counters + presence use read-modify-write on KV — fine at low traffic, undercounts under heavy concurrency. Fine for now.
+- **Per-game HANDOFF.md rollout in progress:** convention is `public/games/<slug>/HANDOFF.md` — see `docs/README.md`. Only a handful of games have one so far (started with the ones most recently touched); rolling out to the rest a few at a time per pass, same cadence as comment processing. When you finish work on a game, check whether it has a HANDOFF.md and update/create it before moving on.
 
 ## 8. Working style that fit this project
 
