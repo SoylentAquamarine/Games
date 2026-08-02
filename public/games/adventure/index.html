@@ -81,10 +81,10 @@
   // get a window to escape. Stun lengths are in frames at ~60fps.
   const HIT_DMG=20, HIT_INV=45;
   const STUN={ yellow:120, green:60, red:30 };   // 2s / 1s / 0.5s
-  // Leaving a room where a dragon is still alive gives it a 25% chance to
+  // Leaving a room where a dragon is still alive gives it a 33% chance to
   // follow you into the next one — but it takes it 3s (~180 frames at 60fps)
   // to catch up, so you always get a head start.
-  const CHASE_CHANCE=0.25, CHASE_DELAY=180;
+  const CHASE_CHANCE=0.33, CHASE_DELAY=180;
   const clamp=(v,a,b)=>v<a?a:v>b?b:v;
   const overlap=(a,b)=>a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;
   const heroRect=(s)=>({x:s.hero.x,y:s.hero.y,w:HS,h:HS});
@@ -210,8 +210,12 @@
 
   function newGame(){
     return {
-      room:"commons", hero:{x:96,y:150,dir:"up"}, carry:null, won:false, dead:false,
+      room:"commons", hero:{x:96,y:150,dir:"up"}, carry:null, won:false, dead:false, secretWin:false,
       gates:{gold:false, black:false}, msg:"", dropLock:null,
+      // Tracks whether each non-chalice item has EVER been picked up (not just
+      // currently held) — the secret ending needs the full set collected at some
+      // point in the run, not all held in-hand at once (there's only one carry slot).
+      everCollected:{sword:false, bridge:false, goldkey:false, blackkey:false},
       visited:{commons:true},        // rooms drawn on the overworld map
       hp:100, inv:0,
       objects:(function(){
@@ -267,7 +271,17 @@
     const which  = isGold ? "gold" : "black";
     const key    = isGold ? "goldkey" : "blackkey";
     if(s.gates[which]){
-      if(isGold && s.carry==="chalice"){ s.won=true; s.msg="You returned the Chalice home. You win!"; return; }
+      if(isGold && s.carry==="chalice"){
+        s.won=true;
+        // The full-completion secret ending: every item ever collected AND every
+        // dragon slain — a nod to the "CREATED BY WARREN ROBINETT" hidden room in
+        // the original 1979 Atari Adventure.
+        const allItems = Object.values(s.everCollected).every(Boolean);
+        const allDragonsDead = s.dragons.every(d=>!d.alive);
+        if(allItems && allDragonsDead){ s.secretWin=true; s.msg="CREATED BY STEPHEN PLEASANTS"; }
+        else s.msg="You returned the Chalice home. You win!";
+        return;
+      }
       s.room=c.interior; s.hero.x=96; s.hero.y=SIZE-BW-HS-4; return;
     }
     if(s.carry===key){ s.gates[which]=true; s.msg="The "+c.name+" Castle gate creaks open!"; return; }
@@ -279,7 +293,9 @@
       if(!o||o.carried||o.room!==s.room||!overlap(heroRect(s),{x:o.x,y:o.y,w:OBJ,h:OBJ})) s.dropLock=null; }
     if(s.carry) return;
     for(const k in s.objects){ if(k===s.dropLock) continue; const o=s.objects[k]; if(o.carried||o.room!==s.room) continue;
-      if(overlap(heroRect(s),{x:o.x,y:o.y,w:OBJ,h:OBJ})){ s.carry=k; o.carried=true; s.msg="Picked up the "+LABEL[k]+"."; break; } }
+      if(overlap(heroRect(s),{x:o.x,y:o.y,w:OBJ,h:OBJ})){ s.carry=k; o.carried=true; s.msg="Picked up the "+LABEL[k]+".";
+        if(k in s.everCollected) s.everCollected[k]=true;
+        break; } }
   }
   function dragonStep(s,d){
     if(!d.alive||d.room!==s.room) return;
@@ -516,7 +532,16 @@
       }
       if(state.carry){ const hx=state.hero.x, hy=state.hero.y; const ox={left:hx-9,right:hx+9,up:hx,down:hx}[state.hero.dir]||hx+9;
         const oy={up:hy-9,down:hy+9,left:hy,right:hy}[state.hero.dir]||hy; drawObject(state.carry,ox,oy,state.hero.dir); }
-      if(state.won){ ctx.fillStyle="rgba(0,0,0,.55)"; ctx.fillRect(0,0,SIZE,SIZE); ctx.fillStyle="#ffd94a"; ctx.font="bold 16px system-ui"; ctx.textAlign="center"; ctx.fillText("YOU WIN!",100,100); }
+      if(state.secretWin){
+        // The hidden 100%-completion ending: flashing colours, like the original
+        // Atari Adventure's secret room.
+        const flash=["#ffd94a","#f43f5e","#22d3ee","#4ade80","#c084fc"][Math.floor(Date.now()/90)%5];
+        ctx.fillStyle="rgba(0,0,0,.55)"; ctx.fillRect(0,0,SIZE,SIZE);
+        ctx.fillStyle=flash; ctx.font="bold 13px system-ui"; ctx.textAlign="center";
+        ctx.fillText("CREATED BY",100,88);
+        ctx.font="bold 15px system-ui";
+        ctx.fillText("STEPHEN PLEASANTS",100,106);
+      } else if(state.won){ ctx.fillStyle="rgba(0,0,0,.55)"; ctx.fillRect(0,0,SIZE,SIZE); ctx.fillStyle="#ffd94a"; ctx.font="bold 16px system-ui"; ctx.textAlign="center"; ctx.fillText("YOU WIN!",100,100); }
       else if(state.dead){ ctx.fillStyle="rgba(120,0,0,.4)"; ctx.fillRect(0,0,SIZE,SIZE); }
     }
 
@@ -524,7 +549,12 @@
     if(!GATE.open){ draw(); GATE.paint(); return requestAnimationFrame(frame); }
       if(state.won){ /* frozen */ }
       else if(state.dead){ deathT+=16; if(deathT>1200){ respawn(state); deathT=0; } }
-      else { tick(state,dir); if(state.won){ const t=(Date.now()-start)/1000; if(!best||t<best){ best=t; try{ localStorage.setItem("adventure_best",String(Math.floor(t))); }catch(e){} } } }
+      else { const wasWon=state.won; tick(state,dir);
+        if(state.won && !wasWon){
+          const t=(Date.now()-start)/1000; if(!best||t<best){ best=t; try{ localStorage.setItem("adventure_best",String(Math.floor(t))); }catch(e){} }
+          if(typeof Arcade!=="undefined"){ Arcade.sfx.win(); if(state.secretWin) setTimeout(()=>Arcade.sfx.win(),300); }
+        }
+      }
       draw(); drawMap(); hud(); requestAnimationFrame(frame);
     }
 
