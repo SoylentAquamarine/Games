@@ -48,7 +48,7 @@
   const rov=(a,b)=>a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;
   function bulletHitsEnemy(b, e){ return e.alive && rov({x:b.x,y:b.y,w:3,h:10},{x:e.x-C.EW/2,y:e.y-C.EH/2,w:C.EW,h:C.EH}); }
   function enemyRect(e){ return {x:e.x-C.EW/2,y:e.y-C.EH/2,w:C.EW,h:C.EH}; }
-  function makeWave(s){ s.wave++; s.enemies=[]; const cols=6, rows=3;
+  function makeWave(s){ s.wave++; if(typeof Arcade!=="undefined")Arcade.sfx.wave(); s.enemies=[]; const cols=6, rows=3;
     // Each wave the flock flies IN rather than appearing: they stream from the
     // sides in single file, arc across the screen, and peel into their formation
     // slots. It is cosmetic — they can't be hit or shoot until they arrive.
@@ -115,6 +115,7 @@
           if(!s.captured && !s.dual && inBeam(e,s.px,C.PLY)){   // caught in the beam
             s.captured=true; e.hasShip=true; e.beamT=0; e.returning=true;
             s.pull={ x:s.px, y:C.PLY, tx:e.x, ty:e.y+C.EH, t:C.PULL_T };
+            if(typeof Arcade!=="undefined")Arcade.sfx.death();
             s.lives--; if(s.lives<=0){ s.over=true; return s; }
             s.px=C.W/2;
           }
@@ -124,7 +125,7 @@
       }
       else { e.t+=0.05; e.y+=C.ESPEED+s.wave*0.15; e.x=e.diveX+Math.sin(e.t*4)*46;
         if(e.y>C.H+20){ e.y=-10; e.state="form"; } // looped back to formation
-        if(rov(enemyRect(e),{x:s.px-C.PW/2,y:C.PLY-C.PH/2,w:C.PW,h:C.PH})){ e.alive=false; s.lives--; if(s.lives<=0) s.over=true; }
+        if(rov(enemyRect(e),{x:s.px-C.PW/2,y:C.PLY-C.PH/2,w:C.PW,h:C.PH})){ e.alive=false; if(typeof Arcade!=="undefined")Arcade.sfx.death(); s.lives--; if(s.lives<=0) s.over=true; }
       }
     }
     const entering = s.enemies.some(e=>e.alive&&e.state==="enter");
@@ -148,8 +149,9 @@
     // bullet hits
     for(const b of s.bullets){ for(const e of s.enemies){ if(bulletHitsEnemy(b,e)){
       e.alive=false; b.y=-99; s.score+= e.state==="dive"?150:100;
+      if(typeof Arcade!=="undefined")Arcade.sfx.hit();
       // shooting the boss that stole your ship sets it free
-      if(e.hasShip && !s.dual && !s.rescue){ s.rescue={x:e.x,y:e.y}; s.score+=1000; e.hasShip=false; }
+      if(e.hasShip && !s.dual && !s.rescue){ s.rescue={x:e.x,y:e.y}; s.score+=1000; e.hasShip=false; if(typeof Arcade!=="undefined")Arcade.sfx.pickup(); }
     } } }
     stepFlyby(s);
     s.bullets=s.bullets.filter(b=>b.y>-12);
@@ -163,6 +165,7 @@
     if(s.bullets.length>=cap) return;
     if(s.dual){ s.bullets.push({x:s.px-1-14, y:C.PLY-12}); s.bullets.push({x:s.px-1+14, y:C.PLY-12}); }
     else s.bullets.push({x:s.px-1, y:C.PLY-12});
+    if(typeof Arcade!=="undefined")Arcade.sfx.shoot();
   }
   function stepFlyby(s){
     s.bombs=s.bombs||[];
@@ -170,13 +173,13 @@
       const fb=s.flyby; fb.x+=fb.vx;
       if(--fb.dropT<=0 && fb.x>10 && fb.x<C.W-10){ fb.dropT=30+Math.floor(Math.random()*24);
         s.bombs.push({x:fb.x,y:fb.y+8,vy:2.4}); }
-      for(const b of s.bullets){ if(Math.abs(b.x-fb.x)<12 && Math.abs(b.y-fb.y)<12){ s.score+=2000; b.y=-99; s.flyby=null; break; } }
+      for(const b of s.bullets){ if(Math.abs(b.x-fb.x)<12 && Math.abs(b.y-fb.y)<12){ s.score+=2000; b.y=-99; s.flyby=null; if(typeof Arcade!=="undefined")Arcade.sfx.coin(); break; } }
       if(s.flyby && (fb.x<-30||fb.x>C.W+30)) s.flyby=null;
     }
     for(const bm of s.bombs){
       bm.y+=bm.vy;
       if(bm.y>C.H+10){ bm.dead=true; continue; }
-      if(Math.abs(bm.x-s.px)<C.PW/2 && Math.abs(bm.y-C.PLY)<C.PH/2){ bm.dead=true; s.lives--; if(s.lives<=0) s.over=true; }
+      if(Math.abs(bm.x-s.px)<C.PW/2 && Math.abs(bm.y-C.PLY)<C.PH/2){ bm.dead=true; if(typeof Arcade!=="undefined")Arcade.sfx.death(); s.lives--; if(s.lives<=0) s.over=true; }
       for(const b of s.bullets){ if(!bm.dead && Math.abs(b.x-bm.x)<9 && Math.abs(b.y-bm.y)<9){ bm.dead=true; b.y=-99; s.score+=100; } }
     }
     s.bombs=s.bombs.filter(b=>!b.dead);
@@ -247,9 +250,12 @@
     } else { ctx.fillRect(s.px-C.PW/2,C.PLY-C.PH/2,C.PW,C.PH); ctx.fillRect(s.px-2,C.PLY-C.PH/2-6,4,6); }
     if(s.over){ ctx.fillStyle="rgba(0,0,0,.6)"; ctx.fillRect(0,0,W,H); ctx.fillStyle="#f43f5e"; ctx.font="bold 24px system-ui"; ctx.textAlign="center"; ctx.fillText("GAME OVER",W/2,H/2-6); ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Score "+s.score+"  ·  Best "+best,W/2,H/2+16); }
   }
+  let wasOver=false;
   function frame(){
     if(!GATE.open){ draw(); GATE.paint(); return requestAnimationFrame(frame); } step(s,input);
-    if(typeof Arcade!=="undefined")Arcade.stats.record("galaga",s.score); if(s.over && s.score>best){ best=s.score; try{localStorage.setItem("galaga_best",String(best));}catch(e){} $("msg").textContent="Game over! Score "+s.score+"  ·  Best "+best; }
+    if(typeof Arcade!=="undefined"){ Arcade.stats.record("galaga",s.score); if(s.over && !wasOver) Arcade.sfx.lose(); }
+    wasOver=s.over;
+    if(s.over && s.score>best){ best=s.score; try{localStorage.setItem("galaga_best",String(best));}catch(e){} $("msg").textContent="Game over! Score "+s.score+"  ·  Best "+best; }
     $("score").textContent=s.score; $("wave").textContent=s.wave; $("lives").textContent=Math.max(0,s.lives); draw(); requestAnimationFrame(frame); }
   const bindHold=(id,k)=>{ const el=$(id); const on=(e)=>{e.preventDefault();input[k]=true;}; const off=(e)=>{e.preventDefault();input[k]=false;};
     el.addEventListener("touchstart",on,{passive:false});el.addEventListener("touchend",off);el.addEventListener("mousedown",on);el.addEventListener("mouseup",off);el.addEventListener("mouseleave",off); };

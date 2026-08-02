@@ -179,11 +179,14 @@
     $("alt").textContent=Math.max(0,Math.round(GROUND_Y-LH-s.y)); $("fuelbar").style.width=(s.fuel/C.FUEL*100)+"%";
     const livesEl=$("lives"); if(livesEl) livesEl.textContent="🐔".repeat(Math.max(0,s.lives)); }
 
+  let prevDying=0;
   function frame(){
     if(!GATE.open){ draw(); GATE.paint(); return requestAnimationFrame(frame); }
     if(!done){ step(s,input);
-      if(s.landed){ done=true; if(typeof Arcade!=="undefined")Arcade.stats.record("lander",s.score); if(!best||(s.score>best)){ best=s.score; try{localStorage.setItem("lander_best",String(best));}catch(e){} } $("msg").textContent="🚀 Nice landing! Score "+s.score+(best?"  ·  Best "+best:""); }
-      else if(s.over){ done=true; $("msg").textContent="💥 Out of chickens. Try again!"; }
+      if(typeof Arcade!=="undefined" && s.dying>0 && prevDying<=0) Arcade.sfx.explode();
+      prevDying=s.dying;
+      if(s.landed){ done=true; if(typeof Arcade!=="undefined"){ Arcade.stats.record("lander",s.score); Arcade.sfx.win(); } if(!best||(s.score>best)){ best=s.score; try{localStorage.setItem("lander_best",String(best));}catch(e){} } $("msg").textContent="🚀 Nice landing! Score "+s.score+(best?"  ·  Best "+best:""); }
+      else if(s.over){ done=true; if(typeof Arcade!=="undefined") Arcade.sfx.lose(); $("msg").textContent="💥 Out of chickens. Try again!"; }
       else if(s.crashed && s.dying>0){ $("msg").textContent="CHICKEN DOWN — "+s.lives+" left"; } }
     draw(); hud(); requestAnimationFrame(frame); }
 

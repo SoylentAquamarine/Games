@@ -146,8 +146,8 @@
       if(canGo(pac.r,pac.c,pac.dir)){const[d]=[DIRS[pac.dir]];pac.r+=d[0];pac.c+=d[1];}
       pac.mouth=(pac.mouth+1)%2;
       // eat
-      if(dotmap[pac.r][pac.c]===1){dotmap[pac.r][pac.c]=0;score+=10;dots--;}
-      else if(dotmap[pac.r][pac.c]===2){dotmap[pac.r][pac.c]=0;score+=50;dots--;fright=28;}
+      if(dotmap[pac.r][pac.c]===1){dotmap[pac.r][pac.c]=0;score+=10;dots--;if(typeof Arcade!=="undefined")Arcade.sfx.step();}
+      else if(dotmap[pac.r][pac.c]===2){dotmap[pac.r][pac.c]=0;score+=50;dots--;fright=28;if(typeof Arcade!=="undefined")Arcade.sfx.pickup();}
       scoreEl.textContent=score;
       if(fright>0)fright--;
       // ghosts
@@ -220,7 +220,7 @@
       for(const g of ghosts){
         if(g.r===pac.r&&g.c===pac.c){
           if(g.eaten)continue;
-          if(fright>0){g.eaten=true;score+=200;scoreEl.textContent=score;}
+          if(fright>0){g.eaten=true;score+=200;scoreEl.textContent=score;if(typeof Arcade!=="undefined")Arcade.sfx.coin();}
           else return die();
         }
       }
@@ -231,12 +231,13 @@
       lives--;livesEl.textContent=lives;
       dying=performance.now();
       pendingGameOver = lives<=0;
+      if(typeof Arcade!=="undefined")Arcade.sfx.death();
     }
     function finishDeath(){
       dying=0;
       if(pendingGameOver){
         pendingGameOver=false;running=false;clearInterval(stepTimer);
-        if(typeof Arcade!=="undefined")Arcade.stats.record("pacman",score); if(score>best){best=score;localStorage.setItem("pacman_best",best);bestEl.textContent=best;}
+        if(typeof Arcade!=="undefined"){Arcade.stats.record("pacman",score);Arcade.sfx.lose();} if(score>best){best=score;localStorage.setItem("pacman_best",best);bestEl.textContent=best;}
         ot.textContent="Game Over";om.textContent="Score "+score;startBtn.textContent="Play again";ov.classList.remove("hidden");return;
       }
       pac={r:pacStart.r,c:pacStart.c,pr:pacStart.r,pc:pacStart.c,dir:"left",next:"left",mouth:0};
@@ -244,6 +245,7 @@
       fright=0;mode="scatter";modeTick=0;lastStep=performance.now();
     }
     function win(){running=false;clearInterval(stepTimer);score+=500;scoreEl.textContent=score;if(score>best){best=score;localStorage.setItem("pacman_best",best);bestEl.textContent=best;}
+      if(typeof Arcade!=="undefined")Arcade.sfx.win();
       ot.textContent="🎉 Level cleared!";om.textContent="Score "+score;startBtn.textContent="Play again";ov.classList.remove("hidden");}
     function draw(){
       ctx.clearRect(0,0,cv.width,cv.height);
