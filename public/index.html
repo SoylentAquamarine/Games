@@ -183,7 +183,7 @@
 
   <footer>
     <p>&copy; <span id="year"></span> Steve &amp; Claude. Vibecoded on Cloudflare.</p>
-    <p><a href="/admin/games/" style="color:var(--muted);text-decoration:none">🕹️ Game Admin</a> — comments, board/level editors &amp; per-game config (owner login required)</p>
+    <p id="gameAdminLink" class="hidden" style="display:none"><a href="/admin/games/" style="color:var(--muted);text-decoration:none">🕹️ Game Admin</a> — comments, board/level editors &amp; per-game config</p>
     <p><a href="https://github.com/SoylentAquamarine/Games" target="_blank" rel="noopener" style="color:var(--muted);text-decoration:none">💻 Source on GitHub</a> — the whole site is open, code and commit history included</p>
   </footer>
 
@@ -198,9 +198,12 @@
           const a = document.getElementById("accountLink");
           a.textContent = "👤 " + me.user.username;
           a.title = "Your account and score report";
-          // Only Steve's account sees the Admin link — everyone else has to
-          // know the URL, same as before, so it isn't advertised site-wide.
-          if (me.user.isOwner) document.getElementById("adminLink").style.display = "";
+          // Only Steve's account sees the admin links — everyone else has to
+          // know the URL, same as before, so they aren't advertised site-wide.
+          if (me.user.isOwner) {
+            document.getElementById("adminLink").style.display = "";
+            document.getElementById("gameAdminLink").style.display = "";
+          }
         }
       } catch (e) {}
     })();
