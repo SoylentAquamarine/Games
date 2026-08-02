@@ -65,7 +65,10 @@
     return s; }
   function pump(s){ if(s.over) return "miss"; const d=DIRS[s.player.dir]; let c=s.player.c, r=s.player.r;
     for(let i=1;i<=C.reach;i++){ c+=d[0]; r+=d[1]; if(c<0||c>=C.cols||r<0||r>=C.rows||s.dirt[r][c]) break;
-      const e=enemyAt(s,c,r); if(e){ e.inflate++; if(e.inflate>=3){ e.alive=false; s.score+=200; } return "hit"; } }
+      const e=enemyAt(s,c,r); if(e){ e.inflate++;
+        if(e.inflate>=3){ e.alive=false; s.score+=200; if(typeof Arcade!=="undefined")Arcade.sfx.explode(); }
+        else if(typeof Arcade!=="undefined")Arcade.sfx.hit();
+        return "hit"; } }
     return "miss"; }
   function respawn(s){ s.player.c=7; s.player.r=2; s.player.dir="down"; }
   // BFS through already-dug (empty) tunnels toward the player; returns the first step, or null if no tunnel path exists.
@@ -88,7 +91,7 @@
       else { const ddc=s.player.c-e.c, ddr=s.player.r-e.r; nc=e.c; nr=e.r;   // boxed in: dig toward the player
         if(Math.abs(ddc)>=Math.abs(ddr) && ddc!==0) nc+=Math.sign(ddc); else if(ddr!==0) nr+=Math.sign(ddr); }
       if(nc>=0&&nc<C.cols&&nr>=0&&nr<C.rows){ s.dirt[nr][nc]=false; e.pc=e.c; e.pr=e.r; e.c=nc; e.r=nr;
-        if(nc===s.player.c&&nr===s.player.r){ s.lives--; if(s.lives<=0) s.over=true; else respawn(s); } } }
+        if(nc===s.player.c&&nr===s.player.r){ if(typeof Arcade!=="undefined")Arcade.sfx.death(); s.lives--; if(s.lives<=0) s.over=true; else respawn(s); } } }
     return s; }
   function rockFall(s){ for(const rk of s.rocks){
       const supported = rk.r+1>=C.rows || s.dirt[rk.r+1][rk.c] || s.rocks.some(o=>o!==rk&&o.c===rk.c&&o.r===rk.r+1);
@@ -96,10 +99,10 @@
       if(!rk.armed && !rk.falling) continue;                                   // nobody dug under it
       if(!rk.falling){ rk.wob=(rk.wob||0)+1; if(rk.wob<C.wobble) continue; rk.falling=true; }  // wobble first, then fall
       rk.r++;
-      const e=enemyAt(s,rk.c,rk.r); if(e){ e.alive=false; s.score+=250; }
-      if(rk.c===s.player.c&&rk.r===s.player.r){ s.lives--; if(s.lives<=0) s.over=true; else respawn(s); } }
+      const e=enemyAt(s,rk.c,rk.r); if(e){ e.alive=false; s.score+=250; if(typeof Arcade!=="undefined")Arcade.sfx.explode(); }
+      if(rk.c===s.player.c&&rk.r===s.player.r){ if(typeof Arcade!=="undefined")Arcade.sfx.death(); s.lives--; if(s.lives<=0) s.over=true; else respawn(s); } }
     return s; }
-  function ensureLevel(s){ if(!s.over && s.enemies.every(e=>!e.alive)){ s.level++; const ns=newState(); ns.score=s.score; ns.level=s.level; ns.lives=s.lives; Object.assign(s,ns); } }
+  function ensureLevel(s){ if(!s.over && s.enemies.every(e=>!e.alive)){ s.level++; if(typeof Arcade!=="undefined")Arcade.sfx.wave(); const ns=newState(); ns.score=s.score; ns.level=s.level; ns.lives=s.lives; Object.assign(s,ns); } }
   window.__digdug={ newState, dig, pump, enemyStep, rockFall, enemyAt, ensureLevel, pathNext, C };
 
   if(typeof document==="undefined") return;
@@ -138,6 +141,7 @@
       ctx.beginPath(); ctx.arc(cx+d[0]*rr*.85, cy+d[1]*rr*.85, rr*.28, 0, 7); ctx.fill(); }
     if(s.over){ ctx.fillStyle="rgba(0,0,0,.6)"; ctx.fillRect(0,0,W,H); ctx.fillStyle="#f43f5e"; ctx.font="bold 22px system-ui"; ctx.textAlign="center"; ctx.fillText("GAME OVER",W/2,H/2-6); ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Score "+s.score+"  ·  Best "+best,W/2,H/2+16); }
   }
+  let wasOver=false;
   function frame(){
     if(!GATE.open){ draw(); GATE.paint(); return requestAnimationFrame(frame); }
     if(!s.over){
@@ -145,8 +149,10 @@
       if(++enemyT>=C.ENEMY_EVERY){ enemyT=0; enemyStep(s); }
       if(++rockT>=10){ rockT=0; rockFall(s); }
       ensureLevel(s);
-      if(typeof Arcade!=="undefined")Arcade.stats.record("digdug",s.score); if(s.over && s.score>best){ best=s.score; try{localStorage.setItem("digdug_best",String(best));}catch(e){} $("msg").textContent="Game over! Score "+s.score+"  ·  Best "+best; }
+      if(typeof Arcade!=="undefined"){ Arcade.stats.record("digdug",s.score); if(s.over && !wasOver) Arcade.sfx.lose(); }
+      if(s.over && s.score>best){ best=s.score; try{localStorage.setItem("digdug_best",String(best));}catch(e){} $("msg").textContent="Game over! Score "+s.score+"  ·  Best "+best; }
     }
+    wasOver=s.over;
     $("score").textContent=s.score; $("level").textContent=s.level; $("lives").textContent=Math.max(0,s.lives); draw(); requestAnimationFrame(frame);
   }
   document.querySelectorAll(".dpad button").forEach(b=>{ const d=b.getAttribute("data-d"); const on=(e)=>{e.preventDefault();input=d;dig(s,d);moveT=0;}; const off=(e)=>{e.preventDefault();if(input===d)input=null;};

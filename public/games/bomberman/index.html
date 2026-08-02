@@ -65,8 +65,9 @@
   function detonate(s, bi){
     const b=s.bombs[bi]; if(!b) return [];
     const { cells, bricks } = explodeCells(s.grid, b.c, b.r, s.range);
+    if(typeof Arcade!=="undefined")Arcade.sfx.explode();
     for(const br of bricks){ s.grid[br.r][br.c]="empty"; s.score+=10; }
-    for(const e of s.enemies){ if(e.alive && cells.some(x=>x.c===e.c&&x.r===e.r)){ e.alive=false; s.score+=100; } }
+    for(const e of s.enemies){ if(e.alive && cells.some(x=>x.c===e.c&&x.r===e.r)){ e.alive=false; s.score+=100; if(typeof Arcade!=="undefined")Arcade.sfx.hit(); } }
     if(cells.some(x=>x.c===s.player.c&&x.r===s.player.r)){ s.player.alive=false; s.over=true; }
     s.bombs.splice(bi,1);
     for(const cell of cells){ const j=s.bombs.findIndex(bb=>bb.c===cell.c&&bb.r===cell.r); if(j>=0) s.bombs[j].timer=0; }
@@ -75,7 +76,7 @@
   }
   function placeBomb(s){ if(s.over) return false; if(s.bombs.length>=s.maxBombs) return false;
     if(s.bombs.some(b=>b.c===s.player.c&&b.r===s.player.r)) return false;
-    s.bombs.push({c:s.player.c, r:s.player.r, timer:C.BOMB_TIME}); return true; }
+    s.bombs.push({c:s.player.c, r:s.player.r, timer:C.BOMB_TIME}); if(typeof Arcade!=="undefined")Arcade.sfx.shoot(); return true; }
   function canWalk(s, c, r){ if(c<0||c>=C.cols||r<0||r>=C.rows) return false; if(s.grid[r][c]!=="empty") return false;
     if(s.bombs.some(b=>b.c===c&&b.r===r)) return false; return true; }
   function movePlayer(s, dir){ if(s.over) return s; const d=DIRS[dir]; if(!d) return s; const nc=s.player.c+d[0], nr=s.player.r+d[1];
@@ -113,13 +114,20 @@
     if(s.player.alive){ ctx.fillStyle="#22d3ee"; ctx.fillRect(s.player.c*CELL+4,s.player.r*CELL+3,CELL-8,CELL-6); ctx.fillStyle="#7de8ff"; ctx.fillRect(s.player.c*CELL+CELL/2-3,s.player.r*CELL+2,6,4); }
     if(s.over||s.won){ ctx.fillStyle="rgba(0,0,0,.6)"; ctx.fillRect(0,0,W,H); ctx.fillStyle=s.won?"#34d399":"#f43f5e"; ctx.font="bold 22px system-ui"; ctx.textAlign="center"; ctx.fillText(s.won?"CLEARED!":"GAME OVER",W/2,H/2-6); ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Score "+s.score+"  ·  Best "+best,W/2,H/2+16); }
   }
+  let wasOver=false, wasWon=false;
   function frame(){
     if(!GATE.open){ draw(); GATE.paint(); return requestAnimationFrame(frame); }
     if(!s.over && !s.won){
       if(input && ++moveT>=8){ moveT=0; movePlayer(s,input); }
       if(++enemyT>=22){ enemyT=0; moveEnemies(s); }
       tick(s);
-      if(typeof Arcade!=="undefined")Arcade.stats.record("bomberman",s.score); if((s.over||s.won) && s.score>best){ best=s.score; try{localStorage.setItem("bomber_best",String(best));}catch(e){} }
+      if(typeof Arcade!=="undefined"){
+        Arcade.stats.record("bomberman",s.score);
+        if(s.won && !wasWon) Arcade.sfx.win();
+        if(s.over && !wasOver) Arcade.sfx.lose();
+      }
+      wasWon=s.won; wasOver=s.over;
+      if((s.over||s.won) && s.score>best){ best=s.score; try{localStorage.setItem("bomber_best",String(best));}catch(e){} }
       if(s.won) $("msg").textContent="🎉 Level cleared! Score "+s.score+". New Game for another.";
       else if(s.over) $("msg").textContent="💥 Boom! Score "+s.score+"  ·  Best "+best;
     }

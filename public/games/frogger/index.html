@@ -119,20 +119,24 @@
       if(dir==="down"&&frog.r<14)frog.r++;
       if(dir==="left"&&frog.c>0)frog.c--;
       if(dir==="right"&&frog.c<COLS-1)frog.c++;
+      if(typeof Arcade!=="undefined")Arcade.sfx.step();
       if(frog.r===0){
         // must land on an empty lily pad
         const fc=Math.round(frog.c); const pad=homeCols().findIndex(pc=>pc===fc);
         if(pad>=0&&!filled[pad]){filled[pad]=true;homes++;score+=50;scoreEl.textContent=score;homesEl.textContent=homes+"/3";
+          if(typeof Arcade!=="undefined")Arcade.sfx.pickup();
           if(homes>=3){win();return;}
           frog={c:6,r:14};
         }else{die();}
       }
     }
     function die(){lives--;livesEl.textContent=lives;
-      if(lives<=0){running=false;cancelAnimationFrame(raf);if(typeof Arcade!=="undefined")Arcade.stats.record("frogger",score); if(score>best){best=score;localStorage.setItem("frogger_best",best);}ot.textContent="Game Over";om.textContent=`Score ${score}${score>=best?" · best!":""}`;startBtn.textContent="Play again";ov.classList.remove("hidden");return;}
+      if(typeof Arcade!=="undefined")Arcade.sfx.death();
+      if(lives<=0){running=false;cancelAnimationFrame(raf);if(typeof Arcade!=="undefined"){Arcade.stats.record("frogger",score);Arcade.sfx.lose();} if(score>best){best=score;localStorage.setItem("frogger_best",best);}ot.textContent="Game Over";om.textContent=`Score ${score}${score>=best?" · best!":""}`;startBtn.textContent="Play again";ov.classList.remove("hidden");return;}
       frog={c:6,r:14};
     }
     function win(){running=false;cancelAnimationFrame(raf);score+=100;scoreEl.textContent=score;if(score>best){best=score;localStorage.setItem("frogger_best",best);}
+      if(typeof Arcade!=="undefined")Arcade.sfx.win();
       ot.textContent="🎉 All chickens home!";om.textContent=`Score ${score}`;startBtn.textContent="Play again";ov.classList.remove("hidden");}
     function render(){
       // background rows

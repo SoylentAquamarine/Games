@@ -91,12 +91,14 @@
   function dropSpeed(level){ return Math.max(14, 34-(level-1)*2); }
   // Clearing every virus advances a level: a fresh, denser bottle, score kept.
   function advanceLevel(st){ st.level++; st.grid=emptyGrid(); placeViruses(st.grid, virusesFor(st.level));
-    st.pill=newPill(); st.next=newPill(); st.mode="play"; st.bonus=null; st.banner={text:"LEVEL "+st.level, t:100}; }
+    st.pill=newPill(); st.next=newPill(); st.mode="play"; st.bonus=null; st.banner={text:"LEVEL "+st.level, t:100};
+    if(typeof Arcade!=="undefined")Arcade.sfx.wave(); }
   // Every 5th cleared level is a bonus round: a spacesuit chicken drifts around the
   // bottle and you drop bricks on it. Positions are in grid-cell units.
   function startBonus(st){ st.mode="bonus";
     st.bonus={ chicken:{x:C.cols/2, y:2.4, vx:0.09, vy:0.05, hits:0}, bricks:[], dropped:0, max:6, dropCol:Math.floor(C.cols/2), cool:0 };
-    st.banner={text:"BONUS ROUND!", t:110}; }
+    st.banner={text:"BONUS ROUND!", t:110};
+    if(typeof Arcade!=="undefined")Arcade.sfx.wave(); }
   function winLevel(st){ if(st.level%5===0) startBonus(st); else advanceLevel(st); }
   function bonusMove(st,dir){ const b=st.bonus; if(b) b.dropCol=Math.max(0,Math.min(C.cols-1,b.dropCol+dir)); }
   function bonusDrop(st){ const b=st.bonus; if(!b||b.dropped>=b.max||b.cool>0) return;
@@ -107,13 +109,13 @@
     if(ch.y<1){ch.y=1;ch.vy=Math.abs(ch.vy);} if(ch.y>C.rows*0.6){ch.y=C.rows*0.6;ch.vy=-Math.abs(ch.vy);}
     if(b.cool>0) b.cool--;
     for(const br of b.bricks){ br.y+=0.42;
-      if(!br.hit && Math.hypot(br.x-ch.x, br.y-ch.y)<0.95){ br.hit=true; br.dead=true; ch.hits++; st.score+=500; }
+      if(!br.hit && Math.hypot(br.x-ch.x, br.y-ch.y)<0.95){ br.hit=true; br.dead=true; ch.hits++; st.score+=500; if(typeof Arcade!=="undefined")Arcade.sfx.hit(); }
       else if(br.y>=C.rows-0.5) br.dead=true; }
     b.bricks=b.bricks.filter(x=>!x.dead);
     if(b.dropped>=b.max && b.bricks.length===0) advanceLevel(st); }
   // Jamming the neck costs a chicken; the loose pills up top are cleared so play
   // can continue. Out of chickens ends the game.
-  function loseChicken(st){ st.chickens--; if(st.chickens<=0){ st.over=true; return; }
+  function loseChicken(st){ if(typeof Arcade!=="undefined")Arcade.sfx.death(); st.chickens--; if(st.chickens<=0){ st.over=true; if(typeof Arcade!=="undefined")Arcade.sfx.lose(); return; }
     // Clear more of the board (9 rows, not 6) so one unjam gives real breathing
     // room — clearing too little meant the next piece jammed again almost at
     // once, burning through all three chickens in a few seconds ("one-shot").
@@ -133,7 +135,8 @@
   try{ best=parseInt(localStorage.getItem("drmario_best")||"0")||0; }catch(e){}
 
   function lock(){ for(const cell of cellsOf(s.pill)){ if(cell.r>=0&&cell.r<C.rows) s.grid[cell.r][cell.c]={color:cell.color,virus:false}; }
-    s.score += resolve(s.grid)*20;
+    const cleared=resolve(s.grid); s.score += cleared*20;
+    if(cleared>0 && typeof Arcade!=="undefined") Arcade.sfx.coin();
     if(countViruses(s.grid)===0){ winLevel(s); return; }
     // promote the previewed pill, then queue a fresh one
     s.pill=s.next||newPill(); s.pill.r=1; s.pill.c=Math.floor(C.cols/2)-1; s.pill.o=0;
