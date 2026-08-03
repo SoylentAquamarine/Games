@@ -52,11 +52,16 @@
   // Board 2: an egg-skeet thrower. A golden egg is flung up from one corner
   // in a ballistic arc across the screen instead of floating and bobbing —
   // it has to be hit mid-flight before it lands or sails off the far side.
-  // Base speeds eased well down ("a lot easier") — the old 3.2/6.5 bases made
-  // the throw's whole arc cross in well under a second.
+  // Base speeds were eased down from 3.2/6.5 to "a lot easier" (1.6/4.0), but
+  // that overshot: peak height scales with vy^2/(2*gravity), so halving vy
+  // quartered the arc's height — at 4.0 it only rose ~36px into a ~278px-tall
+  // sky, which read as "barely appearing at the bottom of the screen" (player
+  // report). Retuned to a real visible arc (~110px peak) while keeping the
+  // ~1s flight time the original easing was going for, rather than reverting
+  // to the old too-fast pace outright.
   function spawnEgg(round){ const fromLeft=Math.random()<.5, mult=diffMult(round);
     return { x: fromLeft?24:C.W-24, y:C.GROUND-4,
-      vx:(fromLeft?1:-1)*(1.6*mult), vy:-(4.0*mult),
+      vx:(fromLeft?1:-1)*(2.8*mult), vy:-(7.0*mult),
       alive:true, falling:false, spin:Math.random()*6 }; }
   // A purely decorative spacesuit chicken flyby, every FLYBY_EVERY rounds —
   // can't be shot, doesn't shoot back, just a cameo crossing the sky.
