@@ -11,9 +11,9 @@ wave 2, rotten eggs to avoid), you slide baskets to catch them.
 - Falling objects carry a `kind`: `"egg"` (catch it), `"rotten"` (avoid —
   green, same silhouette, 2x scale), or `"bonus"` (the spacesuit-chicken
   cameo, once per `FLYBY_EVERY`-th wave, worth 200 and no penalty if
-  missed). `drawSpacesuitChicken()` duplicates the same sprite used in
-  Duck Hunt/Lander's flybys — no shared library yet (see the site-wide
-  mascot-library ask, still open).
+  missed). Drawn via the shared `/mascots.js` library
+  (`Mascots.spacesuitChicken`) — this game used to have its own local
+  `drawSpacesuitChicken()` copy, now removed.
 
 ## Most recent pass — full rework per player feedback
 
