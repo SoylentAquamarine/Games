@@ -45,6 +45,14 @@
 <script>
 (function(){
   const C={ cols:13, rows:11, BOMB_TIME:120, range:2, BLAST_LIFE:20 };
+  // Admin-tunable difficulty knobs — see /admin/games/?game=bomberman.
+  // Same pattern as kaboom (see its HANDOFF.md): explicit allowlist, only
+  // numeric values, safe no-op with no localStorage (headless tests).
+  (function(){ try{
+    const allow=["BOMB_TIME","range","BLAST_LIFE"];
+    const o=JSON.parse(localStorage.getItem("bomberman_config")||"{}");
+    for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
+  }catch(_){} })();
   const DIRS={left:[-1,0],right:[1,0],up:[0,-1],down:[0,1]};
   function newState(){
     const grid=[]; for(let r=0;r<C.rows;r++){ const row=[]; for(let c=0;c<C.cols;c++){

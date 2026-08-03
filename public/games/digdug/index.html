@@ -45,6 +45,14 @@
 <script>
 (function(){
   const C={ cols:24, rows:18, cell:20, reach:3, wobble:9, ENEMY_EVERY:44, MOVE_EVERY:7 };
+  // Admin-tunable difficulty knobs — see /admin/games/?game=digdug.
+  // Same pattern as kaboom (see its HANDOFF.md): explicit allowlist, only
+  // numeric values, safe no-op with no localStorage (headless tests).
+  (function(){ try{
+    const allow=["reach","ENEMY_EVERY","MOVE_EVERY"];
+    const o=JSON.parse(localStorage.getItem("digdug_config")||"{}");
+    for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
+  }catch(_){} })();
   const DIRS={left:[-1,0],right:[1,0],up:[0,-1],down:[0,1]};
   function enemyAt(s,c,r){ return s.enemies.find(e=>e.alive&&e.c===c&&e.r===r)||null; }
   function newState(){

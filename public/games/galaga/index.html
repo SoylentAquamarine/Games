@@ -42,6 +42,14 @@
   const C={ W:480,H:600, PW:22,PH:14, EW:20,EH:16, PLY:558, BSPEED:7, ESPEED:2.4,
             BEAM_Y:210, BEAM_W:56, BEAM_OPEN:80, BEAM_HOLD:150,
             BEAM_RAMP:26, BEAM_ARM:0.6, PULL_T:46 };
+  // Admin-tunable difficulty knobs — see /admin/games/?game=galaga.
+  // Same pattern as kaboom (see its HANDOFF.md): explicit allowlist, only
+  // numeric values, safe no-op with no localStorage (headless tests).
+  (function(){ try{
+    const allow=["BSPEED","ESPEED","BEAM_HOLD"];
+    const o=JSON.parse(localStorage.getItem("galaga_config")||"{}");
+    for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
+  }catch(_){} })();
   // BEAM_RAMP: frames to widen or shut the cone.
   // BEAM_ARM: how far open it must be before it can actually take your ship.
   // PULL_T: frames the captured ship spends being drawn up the beam.

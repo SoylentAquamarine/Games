@@ -724,6 +724,21 @@
       { key:"FLYBY_EVERY", label:"Chicken raid every N waves", min:1, max:20, def:5 },
       { key:"MAX_RAID_BOMBS", label:"Max chicken bombs on screen at once", min:1, max:10, def:2 },
     ]},
+    galaga:{ storageKey:"galaga_config", sub:"Difficulty knobs — takes effect next time the game is opened.", fields:[
+      { key:"BSPEED", label:"Player bullet speed", min:1, max:20, def:7 },
+      { key:"ESPEED", label:"Enemy speed", min:0.5, max:10, def:2.4 },
+      { key:"BEAM_HOLD", label:"Tractor beam open duration (frames)", min:20, max:400, def:150 },
+    ]},
+    digdug:{ storageKey:"digdug_config", sub:"Difficulty knobs — takes effect next time the game is opened.", fields:[
+      { key:"reach", label:"Pump reach (tiles)", min:1, max:8, def:3 },
+      { key:"ENEMY_EVERY", label:"Enemy spawn interval (frames)", min:5, max:300, def:44 },
+      { key:"MOVE_EVERY", label:"Enemy move interval (frames — lower is faster)", min:1, max:30, def:7 },
+    ]},
+    bomberman:{ storageKey:"bomberman_config", sub:"Difficulty knobs — takes effect next time the game is opened.", fields:[
+      { key:"BOMB_TIME", label:"Bomb fuse time (frames)", min:30, max:400, def:120 },
+      { key:"range", label:"Blast range (tiles)", min:1, max:8, def:2 },
+      { key:"BLAST_LIFE", label:"Blast visual duration (frames)", min:5, max:100, def:20 },
+    ]},
   };
   let numericInitSlug=null;
   function initNumericEditor(slug){
