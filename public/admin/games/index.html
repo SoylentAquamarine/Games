@@ -710,6 +710,20 @@
       { key:"EXTRA_EVERY", label:"Extra chicken every N points", min:100, max:100000, def:10000 },
       { key:"CHICKENS", label:"Starting chickens (lives)", min:1, max:9, def:3 },
     ]},
+    duckhunt:{ storageKey:"duckhunt_config", sub:"Difficulty knobs — takes effect next time the game is opened.", fields:[
+      { key:"AMMO", label:"Shots per duck", min:1, max:10, def:3 },
+      { key:"SPEED", label:"Duck speed", min:0.5, max:10, def:2.0 },
+      { key:"LIVES", label:"Starting chickens (lives)", min:1, max:9, def:3 },
+      { key:"ROO_PENALTY", label:"Rooster hit penalty (points)", min:0, max:200, def:25 },
+    ]},
+    missilecommand:{ storageKey:"missilecommand_config", sub:"Difficulty knobs — takes effect next time the game is opened. City count isn't editable here since it's tied to a fixed board layout.", fields:[
+      { key:"BASE_AMMO", label:"Ammo per launcher", min:1, max:50, def:10 },
+      { key:"ENEMY_SPEED", label:"Incoming missile speed", min:0.1, max:5, def:0.55 },
+      { key:"INTERMISSION", label:"Intermission length (frames)", min:0, max:600, def:120 },
+      { key:"RECOVER_EVERY", label:"Bonus city every N points", min:100, max:100000, def:8000 },
+      { key:"FLYBY_EVERY", label:"Chicken raid every N waves", min:1, max:20, def:5 },
+      { key:"MAX_RAID_BOMBS", label:"Max chicken bombs on screen at once", min:1, max:10, def:2 },
+    ]},
   };
   let numericInitSlug=null;
   function initNumericEditor(slug){

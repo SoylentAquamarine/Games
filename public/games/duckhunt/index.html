@@ -47,6 +47,14 @@
             // Difficulty now ramps a flat 10% per round (per "board") instead
             // of creeping up every single bird.
             DIFF_STEP:0.10 };
+  // Admin-tunable difficulty knobs — see /admin/games/?game=duckhunt.
+  // Same pattern as kaboom (see its HANDOFF.md): explicit allowlist, only
+  // numeric values, safe no-op with no localStorage (headless tests).
+  (function(){ try{
+    const allow=["AMMO","SPEED","LIVES","ROO_PENALTY"];
+    const o=JSON.parse(localStorage.getItem("duckhunt_config")||"{}");
+    for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
+  }catch(_){} })();
   function diffMult(round){ return 1 + (round-1)*C.DIFF_STEP; }
   function spawnDuck(round){ const x=40+Math.random()*(C.W-80), goRight=Math.random()<.5;
     const sp=C.SPEED*diffMult(round); return { x, y:C.GROUND-10, vx:(goRight?1:-1)*sp*(0.8+Math.random()*0.6), vy:-(sp*(0.7+Math.random()*0.5)), alive:true, falling:false, escaped:false }; }
