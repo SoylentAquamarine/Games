@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>The Great Egg Heist — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🥚</text></svg>" />
+  <style>
+    :root{--bg:#0f1020;--panel:#1e2140;--panel2:#252a4d;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;}
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+      background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.22),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.16),transparent 60%),var(--bg);}
+    .wrap{max-width:640px;margin:0 auto;padding:14px 12px 40px;display:flex;flex-direction:column;gap:10px}
+    .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
+    .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+    .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+    h1{margin:0;font-size:1.3rem;background:linear-gradient(120deg,#f0902a,#4ade80);-webkit-background-clip:text;background-clip:text;color:transparent}
+    .hint{color:var(--muted);font-size:.82rem;line-height:1.5;margin:0}
+    .hud{display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;font-weight:700;font-size:.85rem;color:var(--muted)}
+    .hud b{color:var(--text);font-weight:700}
+    #log{background:#0a0c18;border:1px solid #2a2f55;border-radius:10px;padding:12px 14px;height:360px;overflow-y:auto;
+      font-family:"Courier New",monospace;font-size:.92rem;line-height:1.55;white-space:pre-wrap;word-break:break-word}
+    #log .room{color:#facc15;font-weight:700}
+    #log .clue{color:#22d3ee}
+    #log .bad{color:#f87171;font-weight:700}
+    #log .good{color:#4ade80;font-weight:700}
+    #log .cmd{color:var(--muted)}
+    .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .exits{display:flex;gap:6px;flex-wrap:wrap}
+    .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:9px 16px;border-radius:999px;cursor:pointer;font-size:.85rem}
+    .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,.18);color:var(--muted)}
+    .btn:disabled{opacity:.4;cursor:default}
+    #cmdRow{display:flex;gap:8px}
+    #cmd{flex:1;background:var(--panel2);border:1px solid rgba(255,255,255,.14);color:var(--text);border-radius:10px;padding:10px 12px;font-size:.92rem;font-family:"Courier New",monospace}
+    .overlay{position:fixed;inset:0;background:rgba(15,16,32,.86);display:flex;align-items:center;justify-content:center;padding:16px;z-index:5}
+    .overlay.hidden{display:none}
+    .card{background:var(--panel);border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:20px;max-width:440px;text-align:center}
+    .card h2{margin:0 0 8px}
+    .card p{color:var(--muted);margin:0 0 14px;font-size:.9rem;white-space:pre-wrap}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar"><a class="home" href="/">← Home</a><h1>🥚 The Great Egg Heist</h1><span style="width:56px"></span></div>
+    <p class="hint">Eggs have been going missing from the henhouse. Explore the farm, gather clues, find what you need, then confront whoever's behind it at the fox den. Type a command (<b>go barn</b>, <b>take lantern</b>, <b>look</b>, <b>inventory</b>) or click a button.</p>
+    <div class="hud"><span>Carrying: <b id="hudInv">nothing</b></span><span>Clues found: <b id="hudClues">0</b></span></div>
+    <div id="log"></div>
+    <div class="row exits" id="exits"></div>
+    <div id="cmdRow">
+      <input id="cmd" placeholder="go barn, take lantern, look, inventory…" autocomplete="off" />
+      <button class="btn" id="send">Go</button>
+    </div>
+    <div class="row"><button class="btn ghost" id="newBtn">Start Over</button></div>
+  </div>
+
+  <div class="overlay hidden" id="ov">
+    <div class="card">
+      <h2 id="ovTitle">—</h2>
+      <p id="ovBody"></p>
+      <button class="btn" id="ovBtn">Start Over</button>
+    </div>
+  </div>
+
+  <script>
+  (function(){
+    // A short, hand-authored (not randomly generated) choice-driven text
+    // adventure — the second half of the "pure text" pair from player
+    // feedback asking for text-based games. Locked exits require a
+    // specific item; some rooms reveal a clue the first time you enter
+    // them (only once the room itself is reachable — e.g. the silo's clue
+    // needs the lantern first). Winning the confrontation at the end
+    // requires enough evidence AND the right item in hand; going in
+    // unprepared ends the story early.
+    const ROOMS={
+      henhouse:{ name:"Henhouse", desc:"Straw everywhere, nests half-empty. Something's been at the eggs.",
+        exits:{barn:"S", pond:"E"}, clue:{id:"pawprints", text:"Muddy pawprints lead away from the coop, out toward the barn."} },
+      barn:{ name:"Barn", desc:"Hay bales stacked to the rafters. A lantern hangs by the door.",
+        exits:{henhouse:"N", silo:"W", toolshed:"E", foxden:"S"}, item:"lantern" },
+      pond:{ name:"Pond", desc:"Reeds rustle at the water's edge. Something's tangled in them.",
+        exits:{henhouse:"W", orchard:"S"}, item:"grain" },
+      silo:{ name:"Silo", desc:"Pitch dark inside — you'll need a light to see anything in here.",
+        exits:{barn:"E"}, requires:"lantern", lockedMsg:"It's pitch dark in here — you need a light.",
+        clue:{id:"fur", text:"By lantern-light: tufts of orange fur, snagged on a splintered board."} },
+      toolshed:{ name:"Toolshed", desc:"The door was locked — good thing you found a key.",
+        exits:{barn:"W"}, requires:"key", lockedMsg:"The toolshed door is locked tight.",
+        clue:{id:"feedsack", text:"A chewed-open feed sack, dragged toward the tree line out back."} },
+      orchard:{ name:"Orchard", desc:"Apple trees in neat rows. Something glints in the grass.",
+        exits:{pond:"N"}, item:"key" },
+      foxden:{ name:"Fox Den", desc:"A den dug into the hillside, right where the tracks led all along.",
+        exits:{barn:"N"}, terminal:true },
+    };
+    const WIN_CLUES_NEEDED=2;
+
+    function newGame(){
+      return { room:"henhouse", inventory:[], clues:[], visited:{}, over:false, won:false };
+    }
+    function roomDef(s){ return ROOMS[s.room]; }
+
+    // Re-entering an already-visited room (or one whose clue requirement
+    // wasn't met yet) shouldn't repeat the clue text — only the very first
+    // time it's actually revealed.
+    function look(s){
+      const r=roomDef(s), msgs=[{ t:"room", text:r.name+" — "+r.desc }];
+      if(r.item && !s.inventory.includes(r.item)) msgs.push({ t:"cmd", text:"There's a "+r.item+" here. (take "+r.item+")" });
+      if(r.clue && !s.visited[s.room+":clue"]){
+        s.visited[s.room+":clue"]=true;
+        if(!s.clues.includes(r.clue.id)){ s.clues.push(r.clue.id); msgs.push({ t:"clue", text:r.clue.text }); }
+      }
+      return msgs;
+    }
+
+    function move(s, dest){
+      if(s.over) return { ok:false, msgs:[{t:"bad",text:"The story's over — start again to replay."}] };
+      const r=roomDef(s);
+      if(!(dest in r.exits) || !ROOMS[dest]) return { ok:false, msgs:[{t:"bad",text:"You can't get there from here."}] };
+      const next=ROOMS[dest];
+      if(next.requires && !s.inventory.includes(next.requires)){
+        return { ok:false, msgs:[{t:"bad",text:next.lockedMsg}] };
+      }
+      s.room=dest;
+      const msgs=look(s);
+      if(next.terminal){
+        s.over=true;
+        const ready = s.inventory.includes("grain") && s.clues.length>=WIN_CLUES_NEEDED;
+        s.won=ready;
+        if(ready){
+          msgs.push({ t:"good", text:"You set down the grain as a peace offering. The fox slinks out, caught red-pawed — with "+s.clues.length+" clues, there's no denying it. The henhouse is safe. YOU WIN." });
+        } else if(!s.inventory.includes("grain")){
+          msgs.push({ t:"bad", text:"Empty-handed, you startle the fox and it bolts into the tunnels — gone for good. GAME OVER." });
+        } else {
+          msgs.push({ t:"bad", text:"You've got the grain, but not enough evidence to know if this is really the culprit. It slips away while you hesitate. GAME OVER." });
+        }
+      }
+      return { ok:true, msgs };
+    }
+
+    function take(s, item){
+      if(s.over) return { ok:false, msgs:[{t:"bad",text:"The story's over — start again to replay."}] };
+      const r=roomDef(s);
+      if(r.item!==item) return { ok:false, msgs:[{t:"bad",text:"There's no "+item+" here."}] };
+      if(s.inventory.includes(item)) return { ok:false, msgs:[{t:"bad",text:"You already have that."}] };
+      s.inventory.push(item);
+      return { ok:true, msgs:[{t:"cmd",text:"Taken: "+item+"."}] };
+    }
+
+    window.__eggheist={ ROOMS, WIN_CLUES_NEEDED, newGame, roomDef, look, move, take };
+    if(typeof document==="undefined") return;
+
+    const logEl=document.getElementById("log"), exitsEl=document.getElementById("exits"),
+          cmdEl=document.getElementById("cmd"), sendBtn=document.getElementById("send"), newBtn=document.getElementById("newBtn"),
+          hudInv=document.getElementById("hudInv"), hudClues=document.getElementById("hudClues"),
+          ov=document.getElementById("ov"), ovTitle=document.getElementById("ovTitle"), ovBody=document.getElementById("ovBody"), ovBtn=document.getElementById("ovBtn");
+    let s;
+
+    function print(msgs){
+      for(const m of msgs){
+        const div=document.createElement("div");
+        div.className=m.t;
+        div.textContent=m.text;
+        logEl.appendChild(div);
+      }
+      logEl.scrollTop=logEl.scrollHeight;
+    }
+    function renderHud(){
+      hudInv.textContent = s.inventory.length ? s.inventory.join(", ") : "nothing";
+      hudClues.textContent = s.clues.length;
+      exitsEl.innerHTML="";
+      const r=window.__eggheist.roomDef(s);
+      for(const dest in r.exits){
+        const b=document.createElement("button");
+        b.className="btn ghost"; b.textContent="Go to "+window.__eggheist.ROOMS[dest].name;
+        b.addEventListener("click",()=>doMove(dest));
+        exitsEl.appendChild(b);
+      }
+      if(r.item && !s.inventory.includes(r.item)){
+        const b=document.createElement("button");
+        b.className="btn ghost"; b.textContent="Take "+r.item;
+        b.addEventListener("click",()=>doTake(r.item));
+        exitsEl.appendChild(b);
+      }
+    }
+    function doMove(dest){ const res=window.__eggheist.move(s,dest); print(res.msgs); afterAction(); }
+    function doTake(item){ const res=window.__eggheist.take(s,item); print(res.msgs); afterAction(); }
+    function afterAction(){
+      renderHud();
+      if(s.over){
+        ovTitle.textContent = s.won ? "🏆 Case closed!" : "📖 The End";
+        ovBody.textContent = s.won
+          ? "You solved it with "+s.clues.length+" clue(s) and the grain in hand."
+          : "Give it another go — the farm rearranges nothing, but your choices will.";
+        ov.classList.remove("hidden");
+      }
+    }
+    function startNew(){
+      s=window.__eggheist.newGame();
+      logEl.innerHTML="";
+      print(window.__eggheist.look(s));
+      renderHud();
+      ov.classList.add("hidden");
+    }
+
+    function parseCommand(text){
+      const t=text.trim().toLowerCase();
+      if(!t) return;
+      if(t==="look") { print(window.__eggheist.look(s)); renderHud(); return; }
+      if(t==="inventory"||t==="inv"){ print([{t:"cmd",text:"Carrying: "+(s.inventory.length?s.inventory.join(", "):"nothing")}]); return; }
+      let m;
+      if((m=t.match(/^(go|move)\s+(.+)$/))){ const dest=m[2].replace(/^to\s+/,"").trim().replace(/\s+/g,""); doMove(dest); return; }
+      if((m=t.match(/^take\s+(.+)$/))){ doTake(m[1].trim()); return; }
+      // bare room name also works
+      const bare=t.replace(/\s+/g,"");
+      if(window.__eggheist.ROOMS[bare]){ doMove(bare); return; }
+      print([{t:"cmd",text:"Try: go <place>, take <item>, look, or inventory."}]);
+    }
+
+    sendBtn.addEventListener("click",()=>{ const v=cmdEl.value; cmdEl.value=""; parseCommand(v); });
+    cmdEl.addEventListener("keydown",(e)=>{ if(e.key==="Enter"){ e.preventDefault(); const v=cmdEl.value; cmdEl.value=""; parseCommand(v); } });
+    cmdEl.addEventListener("keydown",(e)=>e.stopPropagation());
+    newBtn.addEventListener("click",startNew);
+    ovBtn.addEventListener("click",startNew);
+    startNew();
+  })();
+  </script>
+  <script src="/comments.js" defer></script>
+</body>
+</html>

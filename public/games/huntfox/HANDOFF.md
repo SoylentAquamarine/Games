@@ -42,8 +42,8 @@ category.
 
 ## Open / deferred
 
-- **3 more text-based games from the same comment**: one more pure-text
-  game, and two "half text half graphics" games in the style of Oregon
-  Trail (status/stat display alongside simple graphics, choice-driven
-  events). Not started — see the root `HANDOFF.md` and the still-open
-  home-page comment for the original ask.
+- **2 more text-based games from the same comment**: both "half text half
+  graphics" games in the style of Oregon Trail (status/stat display
+  alongside simple graphics, choice-driven events). The second pure-text
+  game shipped separately — see `eggheist`. Not started — see the root
+  `HANDOFF.md` and the still-open home-page comment for the original ask.

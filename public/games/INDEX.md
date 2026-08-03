@@ -1,6 +1,6 @@
 # Games Index
 
-99 self-contained browser games. Each lives at `public/games/<slug>/index.html` and is served live at `https://games.square-bar-75ce.workers.dev/games/<slug>/`.
+100 self-contained browser games. Each lives at `public/games/<slug>/index.html` and is served live at `https://games.square-bar-75ce.workers.dev/games/<slug>/`.
 
 Every game is a single HTML file with inline CSS/JS. Pure game logic is exposed on `window.__<name>` for headless testing. Shared helpers come from [`/arcade.js`](../arcade.js) (4:3 screen tiers, sfx, splash screens, start gate, play-stats) and per-page comment boxes from [`/comments.js`](../comments.js).
 
@@ -51,6 +51,7 @@ Every game is a single HTML file with inline CSS/JS. Pure game logic is exposed 
 | [`drmario`](drmario/) | Dr Chicken | Match pills to clear the viruses |
 | [`dropmerge`](dropmerge/) | Drop Merge | Drop &amp; merge numbers |
 | [`duckhunt`](duckhunt/) | Chicken Hunt | Shoot chickens before they flee |
+| [`eggheist`](eggheist/) | The Great Egg Heist | Pure-text choice-driven mystery — find who's stealing eggs |
 | [`fibonacci`](fibonacci/) | Fibonacci | Merge Fibonacci numbers |
 | [`fifteen`](fifteen/) | 15 Puzzle | Slide tiles into order |
 | [`flappy`](flappy/) | Flappy Chicken | Tap to fly through pipes |
