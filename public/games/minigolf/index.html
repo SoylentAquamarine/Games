@@ -10,15 +10,23 @@
   *{box-sizing:border-box}
   html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
     background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.2),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.14),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;touch-action:none;}
-  .wrap{max-width:380px;margin:0 auto;padding:14px 12px 30px;display:flex;flex-direction:column;align-items:center;gap:10px}
+  .wrap{max-width:440px;margin:0 auto;padding:14px 12px 30px;display:flex;flex-direction:column;align-items:center;gap:10px}
   .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
   .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
   .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
   h1{margin:0;font-size:1.3rem;background:linear-gradient(120deg,#34d399,#22d3ee);-webkit-background-clip:text;background-clip:text;color:transparent}
   .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:9px 16px;border-radius:999px;cursor:pointer}
-  .hud{width:100%;max-width:320px;display:flex;justify-content:space-between;font-size:.86rem;color:var(--muted)}
+  .hud{width:100%;max-width:420px;display:flex;justify-content:space-between;font-size:.86rem;color:var(--muted)}
   .hud b{color:var(--text)}
-  canvas{width:min(94vw,460px);height:calc(min(94vw,460px)*1.3125);border-radius:10px;border:2px solid #2a2f55;background:#1a5a2a;cursor:crosshair;touch-action:none}
+  /* Player feedback: "resize this to the size of the screen, I need a HUD
+     and the green all on the screen" — the canvas used to size purely off
+     viewport WIDTH (min(94vw,460px)), so on a short or landscape viewport
+     the resulting height (1.3125x that) could exceed the visible area,
+     pushing the bottom of the green (and sometimes the HUD) off-screen.
+     Now sized off whichever of width or height is more constraining: the
+     calc() term converts a 60vh height budget into the equivalent width at
+     this board's 320:420 aspect ratio, and min() picks the smallest. */
+  canvas{width:min(94vw,420px,calc(60vh * (320/420)));aspect-ratio:320/420;height:auto;border-radius:10px;border:2px solid #2a2f55;background:#1a5a2a;cursor:crosshair;touch-action:none}
   .msg{min-height:1.3em;font-weight:800;text-align:center}
   .hint{font-size:.78rem;color:var(--muted);text-align:center}
 </style>
