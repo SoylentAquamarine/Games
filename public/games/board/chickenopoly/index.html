@@ -16,11 +16,18 @@
     .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
     h1{margin:0;font-size:1.3rem;background:linear-gradient(120deg,#f0902a,#4ade80);-webkit-background-clip:text;background-clip:text;color:transparent}
     canvas{width:100%;height:auto;display:block;border-radius:14px;border:2px solid #2a2f55;background:#dff0d8}
-    .players{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;width:100%;font-size:.68rem}
-    .pl{background:var(--panel);border:1px solid rgba(255,255,255,.06);border-radius:8px;padding:5px 3px;text-align:center}
+    .playarea{display:flex;gap:10px;width:100%;align-items:flex-start;justify-content:center;flex-wrap:wrap}
+    .playercol{display:flex;flex-direction:column;gap:8px;width:118px;flex-shrink:0}
+    .board-col{flex:1;min-width:240px;max-width:432px}
+    .pl{background:var(--panel);border:1px solid rgba(255,255,255,.06);border-radius:8px;padding:6px;text-align:left;font-size:.7rem}
     .pl.turn{border-color:var(--accent-2);box-shadow:0 0 0 1px rgba(34,211,238,.35)}
     .pl.out{opacity:.35}
-    .pl .cash{color:#fde68a;font-weight:800}
+    .pl .name{font-weight:800;text-align:center;margin-bottom:2px}
+    .pl .cash{color:#fde68a;font-weight:800;text-align:center;display:block;margin-bottom:3px}
+    .pl .proplist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px;max-height:150px;overflow-y:auto}
+    .pl .proplist li{display:flex;align-items:center;gap:4px;font-size:.62rem;line-height:1.2}
+    .pl .proplist .dot{width:7px;height:7px;border-radius:2px;flex-shrink:0}
+    .pl .proplist .none{color:var(--muted);font-style:italic;font-size:.65rem}
     .status{min-height:1.2em;font-weight:600;color:#fde68a;text-align:center}
     .dice{display:flex;gap:6px}
     .die{width:40px;height:40px;border-radius:9px;background:#fff;color:#0b0c1a;display:flex;align-items:center;justify-content:center;font-size:1.3rem;font-weight:800;box-shadow:0 2px 0 rgba(0,0,0,.3)}
@@ -31,22 +38,58 @@
     .btn.pass{background:linear-gradient(120deg,#f43f5e,#f97316)}
     .btn:disabled{opacity:.4;cursor:default}
     .hint{color:var(--muted);font-size:.78rem;text-align:center}
+    .modal-back{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:20;padding:14px}
+    .modal-back.hidden{display:none}
+    .modal{background:var(--panel);border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:16px;max-width:420px;width:100%;max-height:88vh;overflow-y:auto}
+    .modal h3{margin:0 0 10px}
+    .modal label{display:block;font-size:.8rem;color:var(--muted);margin:10px 0 4px}
+    .modal select,.modal input[type=number]{width:100%;background:#141726;color:var(--text);border:1px solid rgba(255,255,255,.14);border-radius:8px;padding:6px 8px;font-size:.85rem}
+    .checklist{max-height:140px;overflow-y:auto;border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:6px}
+    .checklist label{display:flex;align-items:center;gap:6px;font-size:.78rem;color:var(--text);margin:2px 0}
+    .checklist input{margin:0}
+    .trade-msg{min-height:1.2em;font-size:.8rem;color:var(--accent-2);margin-top:8px}
+    .modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
   </style>
 </head>
 <body>
   <div class="wrap">
     <div class="topbar"><a class="home" href="/">← Home</a><h1>🐔 Chickenopoly</h1><span style="width:56px"></span></div>
-    <div class="players" id="players"></div>
-    <canvas id="board" width="432" height="432"></canvas>
+    <div class="playarea">
+      <div class="playercol" id="playersLeft"></div>
+      <div class="board-col"><canvas id="board" width="432" height="432"></canvas></div>
+      <div class="playercol" id="playersRight"></div>
+    </div>
     <div class="status" id="status">Roll to start!</div>
     <div class="btns">
       <div class="dice" id="dice"><div class="die">⚀</div><div class="die">⚀</div></div>
       <button class="btn" id="rollBtn">ROLL</button>
       <button class="btn buy hidden" id="buyBtn" style="display:none">Buy</button>
       <button class="btn pass hidden" id="passBtn" style="display:none">Pass</button>
+      <button class="btn ghost" id="tradeBtn">🤝 Trade</button>
       <button class="btn ghost" id="new">New Game</button>
     </div>
-    <p class="hint">Buy properties as you land on them. Own a whole color group and rent doubles. Land on a rival's property and you owe rent. Go bankrupt and you're out — last chicken standing (or richest, if it drags on) wins.</p>
+    <p class="hint">Buy properties as you land on them. Own a whole color group and rent doubles. Land on a rival's property and you owe rent. Go bankrupt and you're out — last chicken standing (or richest, if it drags on) wins. Use <b>Trade</b> to swap properties (and cash) with another player any time it's your turn.</p>
+  </div>
+
+  <div class="modal-back hidden" id="tradeModal">
+    <div class="modal">
+      <h3>🤝 Propose a trade</h3>
+      <label for="tradeWith">Trade with</label>
+      <select id="tradeWith"></select>
+      <label>You give</label>
+      <div class="checklist" id="giveProps"></div>
+      <label for="giveCash">Your cash</label>
+      <input type="number" id="giveCash" min="0" value="0" />
+      <label>You get</label>
+      <div class="checklist" id="takeProps"></div>
+      <label for="takeCash">Their cash</label>
+      <input type="number" id="takeCash" min="0" value="0" />
+      <div class="trade-msg" id="tradeMsg"></div>
+      <div class="modal-actions">
+        <button class="btn ghost" id="tradeCancel">Cancel</button>
+        <button class="btn" id="tradePropose">Propose</button>
+      </div>
+    </div>
   </div>
   <script src="/arcade.js"></script>
   <script>
@@ -218,16 +261,56 @@
       return { text:"Stuck in Jail ("+p.jailTurns+"/"+MAX_JAIL_TURNS+")", freed:false, roll };
     }
 
+    // ---- trading ----------------------------------------------------------
+    // A trade offer is { giveProps:[idx...], giveCash:N, takeProps:[idx...], takeCash:N }
+    // from the INITIATOR's point of view: give* is what they hand over, take*
+    // is what they receive from the other player.
+    function validateTrade(s,fromPi,toPi,offer){
+      const from=s.players[fromPi], to=s.players[toPi];
+      if(fromPi===toPi) return { ok:false, reason:"Pick a different player to trade with" };
+      if(from.bankrupt||to.bankrupt) return { ok:false, reason:"That player is out of the game" };
+      if(!offer.giveProps.every(i=>from.props.includes(i))) return { ok:false, reason:"You don't own all of the offered properties" };
+      if(!offer.takeProps.every(i=>to.props.includes(i))) return { ok:false, reason:"They don't own all of the requested properties" };
+      if(offer.giveCash>from.cash) return { ok:false, reason:"You don't have that much cash" };
+      if(offer.takeCash>to.cash) return { ok:false, reason:"They don't have that much cash" };
+      if(offer.giveProps.length===0 && offer.takeProps.length===0 && offer.giveCash===0 && offer.takeCash===0)
+        return { ok:false, reason:"Offer something first" };
+      return { ok:true };
+    }
+    function tradeValue(props,cash){ return props.reduce((sum,i)=>sum+SPACES[i].price,0)+cash; }
+    // A CPU accepts if what it receives is worth at least 90% of what it gives
+    // up (some leniency — real trades are rarely perfectly even) and it isn't
+    // left unable to cover the cash side.
+    function cpuShouldAcceptTrade(s,toPi,offer){
+      const to=s.players[toPi];
+      if(offer.takeCash>to.cash) return false;
+      const gets=tradeValue(offer.giveProps,offer.giveCash), gives=tradeValue(offer.takeProps,offer.takeCash);
+      if(gives<=0) return gets>0;
+      return gets>=gives*0.9;
+    }
+    function executeTrade(s,fromPi,toPi,offer){
+      const from=s.players[fromPi], to=s.players[toPi];
+      for(const i of offer.giveProps){ from.props=from.props.filter(x=>x!==i); to.props.push(i); }
+      for(const i of offer.takeProps){ to.props=to.props.filter(x=>x!==i); from.props.push(i); }
+      from.cash+=offer.takeCash-offer.giveCash; to.cash+=offer.giveCash-offer.takeCash;
+      checkBankrupt(s,fromPi); checkBankrupt(s,toPi);
+    }
+
     window.__chickenopoly={ SPACES, TRACK, newGame, newPlayer, rollDice, movePlayerBy, landOn, resolveBuy,
       cpuShouldBuy, propertyRent, ownsFullGroup, railroadsOwned, ownerOf, sendToJail, takeJailTurn,
-      checkBankrupt, checkWin, activePlayers, netWorth, START_CASH, GO_BONUS, JAIL_FINE, MAX_JAIL_TURNS, MAX_TURNS };
+      checkBankrupt, checkWin, activePlayers, netWorth, START_CASH, GO_BONUS, JAIL_FINE, MAX_JAIL_TURNS, MAX_TURNS,
+      validateTrade, cpuShouldAcceptTrade, executeTrade, tradeValue };
     if(typeof document==="undefined") return;
 
     const cv=document.getElementById("board"), ctx=cv.getContext("2d");
     const W=cv.width, H=cv.height;
-    const playersEl=document.getElementById("players"), statusEl=document.getElementById("status"),
+    const playersLeftEl=document.getElementById("playersLeft"), playersRightEl=document.getElementById("playersRight"), statusEl=document.getElementById("status"),
           diceEl=document.getElementById("dice"), rollBtn=document.getElementById("rollBtn"),
-          buyBtn=document.getElementById("buyBtn"), passBtn=document.getElementById("passBtn");
+          buyBtn=document.getElementById("buyBtn"), passBtn=document.getElementById("passBtn"), tradeBtn=document.getElementById("tradeBtn"),
+          tradeModal=document.getElementById("tradeModal"), tradeWithEl=document.getElementById("tradeWith"),
+          givePropsEl=document.getElementById("giveProps"), takePropsEl=document.getElementById("takeProps"),
+          giveCashEl=document.getElementById("giveCash"), takeCashEl=document.getElementById("takeCash"),
+          tradeMsgEl=document.getElementById("tradeMsg");
     let s, anim=null;
 
     // ---- square-board layout: 7 spaces/side, corners shared ----
@@ -317,13 +400,23 @@
         ctx.fillText("Net worth $"+netWorth(s,s.winner), W/2, H/2+20);
       }
     }
+    // Player panels sit two-on-each-side of the board (0/1 left, 2/3 right),
+    // each listing every property that player owns by name — not just a count.
+    function propListHTML(p){
+      if(!p.props.length) return "<span class=\"none\">No properties</span>";
+      return "<ul class=\"proplist\">"+p.props.slice().sort((a,b)=>a-b).map(idx=>{
+        const sp=SPACES[idx], col=sp.type==="property"?GROUP_COLOR[sp.group]:sp.type==="railroad"?"#5a5f7a":"#c9a24b";
+        return "<li><span class=\"dot\" style=\"background:"+col+"\"></span>"+sp.name+"</li>";
+      }).join("")+"</ul>";
+    }
     function renderPlayers(){
-      playersEl.innerHTML="";
+      playersLeftEl.innerHTML=""; playersRightEl.innerHTML="";
       s.players.forEach((p,i)=>{
         const d=document.createElement("div");
         d.className="pl"+(i===s.turn&&!s.over&&!p.bankrupt?" turn":"")+(p.bankrupt?" out":"");
-        d.innerHTML=PNAMES[i]+(p.inJail?" 🔒":"")+"<br><span class=\"cash\">"+(p.bankrupt?"OUT":"$"+p.cash)+"</span><br>"+p.props.length+" props";
-        playersEl.appendChild(d);
+        d.innerHTML="<div class=\"name\">"+PNAMES[i]+(p.inJail?" 🔒":"")+"</div>"+
+          "<span class=\"cash\">"+(p.bankrupt?"OUT":"$"+p.cash)+"</span>"+propListHTML(p);
+        (i<2?playersLeftEl:playersRightEl).appendChild(d);
       });
     }
     function updateDice(a,b){
@@ -414,6 +507,48 @@
       statusEl.textContent="Your turn — ROLL!";
       updateDice(1,1);
     }
+    // ---- trade modal: "You" (player 0) proposes to any other active player.
+    // CPUs evaluate and accept/decline immediately via cpuShouldAcceptTrade.
+    function propChecklist(container,pi){
+      container.innerHTML="";
+      const p=s.players[pi];
+      if(!p.props.length){ container.innerHTML="<span class=\"none\">Nothing to offer</span>"; return; }
+      for(const idx of p.props.slice().sort((a,b)=>a-b)){
+        const sp=SPACES[idx], lbl=document.createElement("label");
+        lbl.innerHTML="<input type=\"checkbox\" value=\""+idx+"\"> "+sp.name+" ($"+sp.price+")";
+        container.appendChild(lbl);
+      }
+    }
+    function checkedValues(container){ return [...container.querySelectorAll("input:checked")].map(i=>+i.value); }
+    function openTradeModal(){
+      tradeWithEl.innerHTML="";
+      for(let i=1;i<NP;i++){ if(s.players[i].bankrupt) continue;
+        const o=document.createElement("option"); o.value=i; o.textContent=PNAMES[i]; tradeWithEl.appendChild(o); }
+      if(!tradeWithEl.options.length){ statusEl.textContent="No one left to trade with."; return; }
+      giveCashEl.value=0; takeCashEl.value=0; tradeMsgEl.textContent="";
+      propChecklist(givePropsEl,0);
+      propChecklist(takePropsEl,+tradeWithEl.value);
+      tradeModal.classList.remove("hidden");
+    }
+    function closeTradeModal(){ tradeModal.classList.add("hidden"); }
+    tradeWithEl.addEventListener("change",()=>propChecklist(takePropsEl,+tradeWithEl.value));
+    tradeBtn.addEventListener("click",()=>{ if(!s||s.over||anim) return; openTradeModal(); });
+    document.getElementById("tradeCancel").addEventListener("click",closeTradeModal);
+    document.getElementById("tradePropose").addEventListener("click",()=>{
+      const toPi=+tradeWithEl.value;
+      const offer={ giveProps:checkedValues(givePropsEl), giveCash:parseInt(giveCashEl.value)||0,
+                    takeProps:checkedValues(takePropsEl), takeCash:parseInt(takeCashEl.value)||0 };
+      const v=validateTrade(s,0,toPi,offer);
+      if(!v.ok){ tradeMsgEl.textContent="⚠️ "+v.reason; return; }
+      const accepted=cpuShouldAcceptTrade(s,toPi,offer);
+      if(!accepted){ tradeMsgEl.textContent=PNAMES[toPi]+" turned down that offer."; return; }
+      executeTrade(s,0,toPi,offer);
+      renderPlayers();
+      statusEl.textContent="🤝 Trade with "+PNAMES[toPi]+" complete!";
+      closeTradeModal();
+      if(checkWin(s)) finishGame();
+    });
+
     rollBtn.addEventListener("click",()=>{ if(s.turn===0 && !s.over) doRoll(); });
     buyBtn.addEventListener("click",()=>{
       const idx=s.pendingBuy.idx, r=resolveBuy(s,true);
