@@ -60,7 +60,7 @@
     const ov=document.getElementById("ov"),ot=document.getElementById("ot"),om=document.getElementById("om"),startBtn=document.getElementById("start");
     const TRI=[0,0], KEYROOM=[2,2];
     let rooms,room,player,keys,running,raf,unlocked,over,frame;
-    let eggs,boss,curDungeon=1;
+    let eggs,boss,finalBoss,curDungeon=1;
     let mode="overworld", owRooms, owReturn={pos:[1,1],x:7*TILE,y:5*TILE}, entLock=false;
     const keyState={up:false,down:false,left:false,right:false};
 
@@ -86,6 +86,12 @@
     function makeBoss(dungeon){ const b=BOSSES[(dungeon-1)%12];
       return { dungeon, name:b.name, color:b.color, hp:b.hp, maxhp:b.hp, x:7*TILE-6, y:3*TILE, size:44, vx:0,vy:0, hurt:0, atk:0, dead:false, eggDropped:false }; }
     function bossTakeHit(b,dmg){ if(!b||b.dead||b.hurt>0) return false; b.hp-=dmg; b.hurt=30; if(b.hp<=0){ b.hp=0; b.dead=true; } return true; }
+    // The true final boss — fought out in the open farmyard (not a dungeon
+    // room) once all 12 gemstone eggs are gathered. Spawned at the same
+    // fixed coordinate every new game starts the player at, since that spot
+    // is guaranteed walkable in every overworld generation.
+    function makeFinalBoss(){
+      return { name:"Fox King", color:"#d4720a", hp:20, maxhp:20, x:7*TILE+4, y:5*TILE+4, size:52, hurt:0, dead:false }; }
 
     // ---- world gen ----
     function doorOpen(rx,ry,dir){
@@ -205,7 +211,7 @@
 
     function newGame(){
       keys=0;unlocked=false;over=false;frame=0;
-      eggs=newEggs(); boss=null; curDungeon=0;
+      eggs=newEggs(); boss=null; finalBoss=null; curDungeon=0;
       owRooms=genOverworld(); mode="overworld"; rooms=owRooms; room=[1,1]; owRooms[1][1].visited=true;
       player={x:7*TILE+4,y:5*TILE+4,size:24,dir:0,hp:3,maxhp:7,inv:0,atk:0,coins:0};   // 3 to start, room for 7
       owReturn={pos:[1,1],x:player.x,y:player.y};
@@ -384,6 +390,45 @@
           b.eggDropped=true; R.items.push({x:7*TILE-2,y:5*TILE,type:"egg"}); flash("The "+b.name+" is beaten!");
         }
       }
+      // Fox King — same fight rules as a dungeon boss (pause-on-hit, 4-way
+      // knockback fallback — see the block above for why), just out in the
+      // open farmyard instead of a locked room, and defeating him is the
+      // real game win instead of dropping an egg.
+      if(mode==="overworld" && finalBoss && !finalBoss.dead){
+        const b=finalBoss;
+        const bcx=b.x+b.size/2, bcy=b.y+b.size/2;
+        if(b.hurt>0){ b.hurt--; }
+        else {
+          const pcx=player.x+s/2, pcy=player.y+s/2;
+          const a=Math.atan2(pcy-bcy,pcx-bcx), bs=1.3;
+          if(!boxHitsSolid(b.x+Math.cos(a)*bs,b.y,b.size)) b.x+=Math.cos(a)*bs;
+          if(!boxHitsSolid(b.x,b.y+Math.sin(a)*bs,b.size)) b.y+=Math.sin(a)*bs;
+        }
+        if(sword&&rectHit(sword,{x:b.x,y:b.y,w:b.size,h:b.size})){
+          if(bossTakeHit(b,1)){
+            if(!b.dead){
+              flash(b.name+"  "+b.hp+"/"+b.maxhp);
+              const bhx=b.x+b.size/2, bhy=b.y+b.size/2, phx=player.x+s/2, phy=player.y+s/2;
+              const kbx=Math.sign(bhx-phx)*18||(Math.random()<0.5?-18:18), kby=Math.sign(bhy-phy)*18||(Math.random()<0.5?-18:18);
+              let moved=false;
+              if(!boxHitsSolid(b.x+kbx,b.y,b.size)){ b.x+=kbx; moved=true; }
+              if(!boxHitsSolid(b.x,b.y+kby,b.size)){ b.y+=kby; moved=true; }
+              if(!moved){
+                for(const [dx,dy] of [[18,0],[-18,0],[0,18],[0,-18]]){
+                  if(!boxHitsSolid(b.x+dx,b.y+dy,b.size)){ b.x+=dx; b.y+=dy; break; }
+                }
+              }
+            }
+          }
+        }
+        if(!b.dead && player.inv<=0&&rectHit({x:player.x,y:player.y,w:s,h:s},{x:b.x,y:b.y,w:b.size,h:b.size})){
+          player.hp--;player.inv=70;updateHud();
+          const kx=Math.sign(player.x-bcx)*12,ky=Math.sign(player.y-bcy)*12;
+          if(!boxHitsSolid(player.x+kx,player.y,s))player.x+=kx;if(!boxHitsSolid(player.x,player.y+ky,s))player.y+=ky;
+          if(player.hp<=0)return gameOver();
+        }
+        if(b.dead) return win();
+      }
       // items
       for(const it of R.items){if(it.taken)continue;
         if(rectHit({x:player.x,y:player.y,w:s,h:s},{x:it.x,y:it.y,w:20,h:20})){
@@ -403,8 +448,9 @@
           else if(it.type==="egg"){ collectEgg(eggs,curDungeon); boss=null;
             const gname=GEMS[curDungeon-1].name, full=cartonFull(eggs);
             updateHud();
-            if(full) return win();
-            enterOverworld(); flash("🥚 The "+gname+" egg!  "+cartonCount(eggs)+"/12"); return; }
+            enterOverworld();
+            if(full){ finalBoss=makeFinalBoss(); flash("🥚 All 12 eggs! The Fox King storms into the farmyard!"); return; }
+            flash("🥚 The "+gname+" egg!  "+cartonCount(eggs)+"/12"); return; }
           updateHud();
         }
       }
@@ -481,6 +527,7 @@
           if(it.type==="buy_heal"||it.type==="buy_heart"){ ctx.font="10px system-ui"; ctx.fillStyle="#ffd54a"; ctx.fillText(it.cost+"🪙",it.x+10,it.y+22); } }}
       // boss
       if(boss && !boss.dead && mode==="dungeon" && room[0]===TRI[0] && room[1]===TRI[1] && !eggs[curDungeon-1]) drawBoss(boss);
+      if(finalBoss && !finalBoss.dead && mode==="overworld") drawBoss(finalBoss);
       // weasels — same footprint as the hero
       for(const e of R.enemies){ if(!e.alive) continue;
         const ex=e.x+ESIZE/2, ey=e.y+ESIZE/2, f=(e.dir===2)?-1:1;   // face the way it walks
@@ -559,7 +606,7 @@
     function updateHud(){let h="";for(let i=0;i<player.maxhp;i++)h+=i<player.hp?"❤":"🖤";heartsEl.textContent=h;lootEl.textContent="🥚 "+(eggs?cartonCount(eggs):0)+"/12 · 🗝️ "+keys;coinsEl.textContent="🪙 "+(player?player.coins:0);
       if(exitBtn) exitBtn.style.display = mode==="dungeon" ? "" : "none"; }
     function gameOver(){running=false;cancelAnimationFrame(raf);ot.textContent="💀 You fell";om.textContent="The dungeon claims another hero. Eggs gathered: "+(eggs?cartonCount(eggs):0)+"/12";startBtn.textContent="Try again";ov.classList.remove("hidden");}
-    function win(){running=false;cancelAnimationFrame(raf);ot.textContent="🥚 The carton is full!";om.textContent="All 12 gemstone eggs are yours — the Fox King's lair unseals. (Final boss coming soon!)";startBtn.textContent="Play again";ov.classList.remove("hidden");}
+    function win(){running=false;cancelAnimationFrame(raf);ot.textContent="🏆 The Fox King falls!";om.textContent="All 12 gemstone eggs, and the Fox King defeated in the open farmyard. You're the true Chicken Champion!";startBtn.textContent="Play again";ov.classList.remove("hidden");}
 
     // input
     const map={ArrowUp:"up",ArrowDown:"down",ArrowLeft:"left",ArrowRight:"right",w:"up",s:"down",a:"left",d:"right"};
@@ -574,11 +621,12 @@
     if(exitBtn) exitBtn.addEventListener("click",()=>{ if(running&&mode==="dungeon") enterOverworld(); });
     // expose for smoke test
     window.__quest={genWorld:()=>{genWorld();return rooms;},doorOpen,genOverworld,OW_RX,OW_RY,
-      GEMS,BOSSES,newEggs,collectEgg,cartonCount,cartonFull,makeBoss,bossTakeHit,genHouseRoom,
+      GEMS,BOSSES,newEggs,collectEgg,cartonCount,cartonFull,makeBoss,bossTakeHit,makeFinalBoss,genHouseRoom,
       genRoom,solidTile,TRI,
       newGame,enterDungeon,enterOverworld,tryTransition,update,
-      getMode:()=>mode,getRoom:()=>room,getPlayer:()=>player,getBoss:()=>boss,
-      setPlayerPos:(x,y)=>{player.x=x;player.y=y;},setRoom:(x,y)=>{room=[x,y];}};
+      getMode:()=>mode,getRoom:()=>room,getPlayer:()=>player,getBoss:()=>boss,getFinalBoss:()=>finalBoss,
+      setPlayerPos:(x,y)=>{player.x=x;player.y=y;},setRoom:(x,y)=>{room=[x,y];},
+      setFinalBoss:(b)=>{finalBoss=b;},setEggs:(e)=>{eggs=e;}};
   })();
   </script>
   <script src="/startgate.js" defer></script>
