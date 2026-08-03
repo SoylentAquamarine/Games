@@ -14,8 +14,33 @@ Monopoly-style board game: 28-space square board (7/side), 4 players (you
   doubling (`ownsFullGroup`) and the tile colour on the canvas.
 - CPU buy rule (`cpuShouldBuy`): buys if it can afford the property and
   still keep a $150 cash cushion.
+- **Houses & hotels**: `s.houses[idx]` is 0-4 real houses, or `5` meaning
+  a hotel. `s.bank.houses`/`s.bank.hotels` is a shared pool across ALL
+  players (classic 32/12), not per-player — see `canBuild()`/
+  `buildHouse()`. Build-evenly is enforced by `canBuild()` checking the
+  target property's house count against the minimum across its whole
+  group — you can only improve whichever property(ies) are currently
+  least-developed. `propertyRent()` uses `RENT_TIER_MULT` once a
+  property has ≥1 house; at 0 houses it falls back to the pre-existing
+  unimproved/full-group-doubled behavior unchanged.
 
-## Most recent pass — tile-label overflow fix + chance/chest card modal
+## Most recent pass — build houses & hotels
+
+Player feedback: "add the build houses and hotels features, count the
+houses and hotels in the original monopoly and don't let people build
+more houses than there are available." New `🏠 Build` button/modal for
+the human, listing every owned property with its current house count and
+either a Build button (with cost) or the specific reason it can't be
+built right now (bank out of houses/hotels, needs to build evenly
+elsewhere first, group not fully owned, can't afford it). CPUs get a
+simple building heuristic (`cpuMaybeBuild`, same $150 cash-cushion spirit
+as `cpuShouldBuy`) called once at the end of their own turn — houses
+aren't human-only. Bankruptcy (`checkBankrupt`) now also returns any
+houses/hotels on the lost properties to the bank pool, not just the
+properties themselves. Small green house / red hotel markers drawn above
+improved tiles on the board.
+
+## Earlier pass — tile-label overflow fix + chance/chest card modal
 
 Two player comments:
 
@@ -52,17 +77,6 @@ checks ownership/cash are real before anything happens; CPUs decide via
 `executeTrade` does the actual prop/cash transfer both directions.
 
 ## Open / deferred
-
-**"Build houses and hotels — count them like the original Monopoly and
-don't let people build more than are available"** — not started. This
-is a substantial mechanic addition: per-colour-group even-building rules
-(can't add a 2nd house to one property in a group until every property
-in that group has at least 1), house costs that vary by colour group,
-a hotel replacing 4 houses at 5-houses-built, a shared bank pool capped
-at the classic 32 houses / 12 hotels total (building can literally run
-out for everyone, not just per-player), and extending `propertyRent`'s
-rent table to the house-count tiers (currently only unimproved vs.
-full-group-doubled). Needs its own pass, not a quick add-on.
 
 **"Prepare for multiplayer with 4 human players on 4 computers"** —
 explicitly NOT attempted this pass. This is a much larger, separate
