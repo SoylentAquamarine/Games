@@ -22,6 +22,7 @@
     .overlay.hidden{display:none}
     .overlay h2{margin:0}.overlay p{margin:0;color:var(--muted);font-size:.9rem}
     .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:12px 28px;border-radius:999px;cursor:pointer}
+    .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,.18);color:var(--muted);font-weight:600}
     .controls{display:flex;gap:16px;align-items:center;justify-content:center;width:100%;margin-top:2px}
     .dpad{display:grid;grid-template-columns:repeat(3,46px);grid-template-rows:repeat(3,40px);gap:4px}
     .dpad button{background:var(--panel);border:1px solid rgba(255,255,255,.14);color:var(--text);border-radius:9px;font-size:1.1rem;cursor:pointer;user-select:none;touch-action:none}
@@ -33,7 +34,7 @@
 <body>
   <div class="wrap">
     <div class="topbar"><a class="home" href="/">← Home</a><h1>🐔 Chicken Quest</h1><span style="width:56px"></span></div>
-    <div class="hud"><span id="hearts">❤❤❤</span><span id="loot">🥚 0/12 · 🗝️ 0</span><span id="coins">🪙 0</span><button class="btn" id="exitDungeon" style="display:none;padding:4px 12px;font-size:.8rem">🚪 Leave</button></div>
+    <div class="hud"><span id="hearts">❤❤❤</span><span id="loot">🥚 0/12 · 🗝️ 0</span><span id="coins">🪙 0</span><button class="btn" id="exitDungeon" style="display:none;padding:4px 12px;font-size:.8rem">🚪 Leave</button><button class="btn ghost" id="newGameBtn" style="padding:4px 12px;font-size:.8rem">↺ New Game</button></div>
     <div class="board-wrap">
       <canvas id="c" width="480" height="352"></canvas>
       <div class="overlay" id="ov">
@@ -56,7 +57,7 @@
     const TILE=32, COLS=15, ROWS=11, W=COLS*TILE, H=ROWS*TILE, RX=3, RY=3;
     const ESIZE=24;   // weasels are the same size as the hero (player.size)
     const cv=document.getElementById("c"),ctx=cv.getContext("2d");
-    const heartsEl=document.getElementById("hearts"),lootEl=document.getElementById("loot"),coinsEl=document.getElementById("coins"),exitBtn=document.getElementById("exitDungeon");
+    const heartsEl=document.getElementById("hearts"),lootEl=document.getElementById("loot"),coinsEl=document.getElementById("coins"),exitBtn=document.getElementById("exitDungeon"),newGameBtn=document.getElementById("newGameBtn");
     const ov=document.getElementById("ov"),ot=document.getElementById("ot"),om=document.getElementById("om"),startBtn=document.getElementById("start");
     const TRI=[0,0], KEYROOM=[2,2];
     let rooms,room,player,keys,running,raf,unlocked,over,frame;
@@ -92,6 +93,18 @@
     // is guaranteed walkable in every overworld generation.
     function makeFinalBoss(){
       return { name:"Fox King", color:"#d4720a", hp:20, maxhp:20, x:7*TILE+4, y:5*TILE+4, size:52, hurt:0, dead:false }; }
+    // Whether the Fox King has ever been beaten, persisted separately from
+    // `finalBoss` itself (which is just in-memory closure state and does
+    // NOT survive a page reload). Without this flag, a player who reloads
+    // the page — or even just walks into a dungeon and back out — with an
+    // already-full egg carton and finalBoss still null would have no way
+    // to ever re-trigger the fight: the spawn used to only happen inside
+    // the one-time 12th-egg pickup handler. Bug report: "i triggered the
+    // main boss then i went into a dungeon now the main boss has vanished
+    // and the game is unwinnable." Fixed by re-checking every frame (see
+    // the top of update()) instead of only at the moment the carton fills.
+    function foxKingDefeated(){ try{ return localStorage.getItem("quest_foxking")==="1"; }catch(_){ return false; } }
+    function markFoxKingDefeated(){ try{ localStorage.setItem("quest_foxking","1"); }catch(_){} }
 
     // ---- world gen ----
     function doorOpen(rx,ry,dir){
@@ -276,6 +289,11 @@
 
     function update(){
       frame++;const sp=2.4,s=player.size;
+      // Self-healing: if the carton is full, the Fox King hasn't been
+      // beaten yet, and he's not currently spawned (e.g. after a reload,
+      // or any state that dropped him), bring him back — see foxKingDefeated()
+      // above for why this can't just be a one-time spawn-on-pickup.
+      if(mode==="overworld" && !finalBoss && eggs && cartonFull(eggs) && !foxKingDefeated()) finalBoss=makeFinalBoss();
       let dx=0,dy=0;
       if(keyState.left){dx=-sp;player.dir=2;}else if(keyState.right){dx=sp;player.dir=3;}
       if(keyState.up){dy=-sp;player.dir=0;}else if(keyState.down){dy=sp;player.dir=1;}
@@ -606,7 +624,7 @@
     function updateHud(){let h="";for(let i=0;i<player.maxhp;i++)h+=i<player.hp?"❤":"🖤";heartsEl.textContent=h;lootEl.textContent="🥚 "+(eggs?cartonCount(eggs):0)+"/12 · 🗝️ "+keys;coinsEl.textContent="🪙 "+(player?player.coins:0);
       if(exitBtn) exitBtn.style.display = mode==="dungeon" ? "" : "none"; }
     function gameOver(){running=false;cancelAnimationFrame(raf);ot.textContent="💀 You fell";om.textContent="The dungeon claims another hero. Eggs gathered: "+(eggs?cartonCount(eggs):0)+"/12";startBtn.textContent="Try again";ov.classList.remove("hidden");}
-    function win(){running=false;cancelAnimationFrame(raf);ot.textContent="🏆 The Fox King falls!";om.textContent="All 12 gemstone eggs, and the Fox King defeated in the open farmyard. You're the true Chicken Champion!";startBtn.textContent="Play again";ov.classList.remove("hidden");}
+    function win(){running=false;cancelAnimationFrame(raf);markFoxKingDefeated();ot.textContent="🏆 The Fox King falls!";om.textContent="All 12 gemstone eggs, and the Fox King defeated in the open farmyard. You're the true Chicken Champion!";startBtn.textContent="Play again";ov.classList.remove("hidden");}
 
     // input
     const map={ArrowUp:"up",ArrowDown:"down",ArrowLeft:"left",ArrowRight:"right",w:"up",s:"down",a:"left",d:"right"};
@@ -619,6 +637,11 @@
       b.addEventListener("mousedown",on);b.addEventListener("mouseup",off);b.addEventListener("mouseleave",off);});
     startBtn.addEventListener("click",newGame);
     if(exitBtn) exitBtn.addEventListener("click",()=>{ if(running&&mode==="dungeon") enterOverworld(); });
+    // Always-available reset, not just on the death/win overlay — player
+    // feedback: "we need a reset/new game button". Wipes saved egg/boss
+    // progress too, for an actually-fresh run (not just a fresh position).
+    function resetProgress(){ try{ localStorage.removeItem("quest_eggs"); localStorage.removeItem("quest_foxking"); }catch(_){} newGame(); }
+    if(newGameBtn) newGameBtn.addEventListener("click",resetProgress);
     // expose for smoke test
     window.__quest={genWorld:()=>{genWorld();return rooms;},doorOpen,genOverworld,OW_RX,OW_RY,
       GEMS,BOSSES,newEggs,collectEgg,cartonCount,cartonFull,makeBoss,bossTakeHit,makeFinalBoss,genHouseRoom,
@@ -626,7 +649,8 @@
       newGame,enterDungeon,enterOverworld,tryTransition,update,
       getMode:()=>mode,getRoom:()=>room,getPlayer:()=>player,getBoss:()=>boss,getFinalBoss:()=>finalBoss,
       setPlayerPos:(x,y)=>{player.x=x;player.y=y;},setRoom:(x,y)=>{room=[x,y];},
-      setFinalBoss:(b)=>{finalBoss=b;},setEggs:(e)=>{eggs=e;}};
+      setFinalBoss:(b)=>{finalBoss=b;},setEggs:(e)=>{eggs=e;},
+      foxKingDefeated,markFoxKingDefeated,resetProgress,setMode:(m)=>{mode=m;}};
   })();
   </script>
   <script src="/startgate.js" defer></script>
