@@ -36,6 +36,7 @@
   <div class="hint">↖ Q · ↗ E · ↙ A · ↘ D · or tap the pad</div>
 </div>
 <script src="/arcade.js"></script>
+<script src="/mascots.js"></script>
 <script>
 (function(){
   const C={ rows:7, EXTRA_EVERY:10000, CHICKENS:3, PAD_ROWS:[2,4] };
@@ -235,22 +236,12 @@
         ctx.fillStyle="#fff"; ctx.fillRect(ex-4,ey+TH/2-8,3,3); ctx.fillRect(ex+2,ey+TH/2-8,3,3);
       }
     }
-    // spacesuit chicken drifting past every fifth level
-    if(flypast){
-      const fx=flypast.x, fy=flypast.y, r=11;
-      ctx.save(); ctx.translate(fx,fy); ctx.scale(flypast.vx>0?1:-1,1);
-      ctx.fillStyle="#fb923c"; ctx.beginPath(); ctx.moveTo(-r*0.9,0); ctx.lineTo(-r*1.9,-r*0.5); ctx.lineTo(-r*1.9,r*0.5); ctx.closePath(); ctx.fill();
-      ctx.fillStyle="#cbd5e1"; ctx.fillRect(-r*1.3,-r*0.7,r*0.9,r*1.4);
-      ctx.fillStyle="#f0902a"; ctx.beginPath(); ctx.arc(0,0,r*0.85,0,7); ctx.fill();
-      ctx.fillStyle="#dc2626"; ctx.beginPath();
-      ctx.arc(-r*0.25,-r*0.85,r*0.18,0,7); ctx.arc(r*0.05,-r*0.95,r*0.2,0,7); ctx.arc(r*0.35,-r*0.85,r*0.18,0,7); ctx.fill();
-      ctx.fillStyle="#fff"; ctx.beginPath(); ctx.arc(r*0.3,-r*0.2,r*0.24,0,7); ctx.fill();
-      ctx.fillStyle="#0b0c1a"; ctx.beginPath(); ctx.arc(r*0.36,-r*0.2,r*0.12,0,7); ctx.fill();
-      ctx.fillStyle="#facc15"; ctx.beginPath(); ctx.moveTo(r*0.75,0); ctx.lineTo(r*1.4,r*0.18); ctx.lineTo(r*0.75,r*0.3); ctx.closePath(); ctx.fill();
-      ctx.strokeStyle="rgba(186,230,253,.85)"; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(0,-r*0.1,r*1.35,0,7); ctx.stroke();
-      ctx.fillStyle="rgba(186,230,253,.15)"; ctx.beginPath(); ctx.arc(0,-r*0.1,r*1.35,0,7); ctx.fill();
-      ctx.restore();
-    }
+    // spacesuit chicken drifting past every fifth level — drawn from the
+    // shared /mascots.js library (the "Flying" variant: jetpack + pack).
+    // NOTE: this is distinct from the player's own hero-chicken sprite
+    // drawn elsewhere in this file (no visor/spacesuit) — that one is a
+    // different character and is not part of this mascot migration.
+    if(flypast) Mascots.spacesuitChickenFlying(ctx, flypast.x, flypast.y, 11, flypast.vx);
     // player (with jump arc)
     let px, py; const base=cubeXY(s.q.row,s.q.col);
     if(anim){ const t=Math.min(1,(performance.now()-anim.t0)/170); px=anim.fx+(anim.tx-anim.fx)*t; py=anim.fy+(anim.ty-anim.fy)*t - Math.sin(t*Math.PI)*22; if(t>=1) anim=null; }

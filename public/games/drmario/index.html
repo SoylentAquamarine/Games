@@ -59,6 +59,7 @@
   <div class="hint">←/→ move · ↓ drop · ↑/Space/tap rotate</div>
 </div>
 <script src="/arcade.js"></script>
+<script src="/mascots.js"></script>
 <script>
 (function(){
   const C={ rows:18, cols:8, colors:["R","B","Y"] };
@@ -172,14 +173,10 @@
       ctx.fillStyle="#b98a5e"; ctx.fillRect(x,y,CS*0.7,CS*0.7);
       ctx.fillStyle="rgba(0,0,0,.25)"; ctx.fillRect(x,y+CS*0.35,CS*0.7,2); ctx.fillRect(x+CS*0.35,y,2,CS*0.7); }
     const ch=b.chicken, x=ch.x*CS, y=ch.y*CS, r=CS*0.55;
-    ctx.fillStyle="rgba(251,146,60,.55)"; ctx.beginPath(); ctx.ellipse(x, y+r*1.1, r*0.4, r*0.6, 0, 0, 7); ctx.fill();
-    ctx.fillStyle="#f0902a"; ctx.beginPath(); ctx.arc(x,y,r,0,7); ctx.fill();
-    ctx.fillStyle="#dc2626"; ctx.beginPath(); ctx.arc(x-r*0.3,y-r*0.85,r*0.18,0,7); ctx.arc(x,y-r*0.95,r*0.2,0,7); ctx.arc(x+r*0.3,y-r*0.85,r*0.18,0,7); ctx.fill();
-    ctx.fillStyle="#facc15"; ctx.beginPath(); ctx.moveTo(x+r*0.7,y-r*0.05); ctx.lineTo(x+r*1.2,y+r*0.12); ctx.lineTo(x+r*0.7,y+r*0.25); ctx.closePath(); ctx.fill();
-    ctx.fillStyle="#fff"; ctx.beginPath(); ctx.arc(x+r*0.3,y-r*0.2,r*0.22,0,7); ctx.fill();
-    ctx.fillStyle="#0b0c1a"; ctx.beginPath(); ctx.arc(x+r*0.36,y-r*0.2,r*0.11,0,7); ctx.fill();
-    ctx.strokeStyle="rgba(186,230,253,.9)"; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(x,y-r*0.1,r*1.35,0,7); ctx.stroke();
-    ctx.fillStyle="rgba(186,230,253,.14)"; ctx.beginPath(); ctx.arc(x,y-r*0.1,r*1.35,0,7); ctx.fill();
+    // Drawn from the shared /mascots.js library — matches the flyby cameo
+    // used across the rest of the site instead of its own slightly-drifted
+    // copy (this one had marginally different beak/comb offsets).
+    Mascots.spacesuitChicken(ctx, x, y, r);
     ctx.fillStyle="#e6e6f0"; ctx.font="11px system-ui"; ctx.textAlign="center";
     ctx.fillText("Bricks "+(b.max-b.dropped)+" · Hits "+ch.hits, cv.width/2, cv.height-8);
   }

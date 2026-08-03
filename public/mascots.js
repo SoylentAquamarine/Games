@@ -15,6 +15,12 @@
 // features like the comb/beak/helmet scale off it), facing right by
 // default (pass facing < 0, e.g. -1, to flip it to face left — matches a
 // flyby's direction of travel).
+//
+// A second, more elaborate variant — Mascots.spacesuitChickenFlying(ctx,
+// x, y, r, facing) — adds a jetpack flame trail + life-support pack in
+// front of the same body/comb/eye/beak/visor, for games where the cameo
+// is a shootable bonus target (visibly "flying" under its own power)
+// rather than a purely decorative background flyby. Same call signature.
 (function (global) {
   "use strict";
 
@@ -53,5 +59,45 @@
     ctx.restore();
   }
 
-  global.Mascots = { spacesuitChicken: spacesuitChicken };
+  function spacesuitChickenFlying(ctx, x, y, r, facing) {
+    ctx.save();
+    ctx.translate(x, y);
+    if ((facing || 1) < 0) ctx.scale(-1, 1);
+    // jetpack flame trail
+    ctx.fillStyle = "#fb923c";
+    ctx.beginPath();
+    ctx.moveTo(-r * 0.9, 0); ctx.lineTo(-r * 1.9, -r * 0.5); ctx.lineTo(-r * 1.9, r * 0.5);
+    ctx.closePath(); ctx.fill();
+    // life-support pack
+    ctx.fillStyle = "#cbd5e1";
+    ctx.fillRect(-r * 1.3, -r * 0.7, r * 0.9, r * 1.4);
+    // suit body
+    ctx.fillStyle = "#f0902a";
+    ctx.beginPath(); ctx.arc(0, 0, r * 0.85, 0, 7); ctx.fill();
+    // comb
+    ctx.fillStyle = "#dc2626";
+    ctx.beginPath();
+    ctx.arc(-r * 0.25, -r * 0.85, r * 0.18, 0, 7);
+    ctx.arc(r * 0.05, -r * 0.95, r * 0.2, 0, 7);
+    ctx.arc(r * 0.35, -r * 0.85, r * 0.18, 0, 7);
+    ctx.fill();
+    // eye
+    ctx.fillStyle = "#fff";
+    ctx.beginPath(); ctx.arc(r * 0.3, -r * 0.2, r * 0.24, 0, 7); ctx.fill();
+    ctx.fillStyle = "#0b0c1a";
+    ctx.beginPath(); ctx.arc(r * 0.36, -r * 0.2, r * 0.12, 0, 7); ctx.fill();
+    // beak
+    ctx.fillStyle = "#facc15";
+    ctx.beginPath();
+    ctx.moveTo(r * 0.75, 0); ctx.lineTo(r * 1.4, r * 0.18); ctx.lineTo(r * 0.75, r * 0.3);
+    ctx.closePath(); ctx.fill();
+    // helmet visor rim + glass
+    ctx.strokeStyle = "rgba(186,230,253,.85)"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(0, -r * 0.1, r * 1.35, 0, 7); ctx.stroke();
+    ctx.fillStyle = "rgba(186,230,253,.15)";
+    ctx.beginPath(); ctx.arc(0, -r * 0.1, r * 1.35, 0, 7); ctx.fill();
+    ctx.restore();
+  }
+
+  global.Mascots = { spacesuitChicken: spacesuitChicken, spacesuitChickenFlying: spacesuitChickenFlying };
 })(typeof window !== "undefined" ? window : globalThis);

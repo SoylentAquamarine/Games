@@ -43,6 +43,7 @@
   <div class="hint">Arrows/WASD move · Space/FIRE to shoot · drag on canvas to aim</div>
 </div>
 <script src="/arcade.js"></script>
+<script src="/mascots.js"></script>
 <script>
 (function(){
   const C={ cols:24, rows:18, cell:20, playerZone:4, mushHp:3, EXTRA_EVERY:5000, CHICKENS:3, FLYPAST_EVERY:5,
@@ -183,22 +184,9 @@
       }
     }
     // player
-    // spacesuit chicken, worth a bonus if you can hit it
-    if(s.flypast){
-      const fx=s.flypast.x, fy=s.flypast.y, r=11;
-      ctx.save(); ctx.translate(fx,fy); ctx.scale(s.flypast.vx>0?1:-1,1);
-      ctx.fillStyle="#fb923c"; ctx.beginPath(); ctx.moveTo(-r*0.9,0); ctx.lineTo(-r*1.9,-r*0.5); ctx.lineTo(-r*1.9,r*0.5); ctx.closePath(); ctx.fill();
-      ctx.fillStyle="#cbd5e1"; ctx.fillRect(-r*1.3,-r*0.7,r*0.9,r*1.4);
-      ctx.fillStyle="#f0902a"; ctx.beginPath(); ctx.arc(0,0,r*0.85,0,7); ctx.fill();
-      ctx.fillStyle="#dc2626"; ctx.beginPath();
-      ctx.arc(-r*0.25,-r*0.85,r*0.18,0,7); ctx.arc(r*0.05,-r*0.95,r*0.2,0,7); ctx.arc(r*0.35,-r*0.85,r*0.18,0,7); ctx.fill();
-      ctx.fillStyle="#fff"; ctx.beginPath(); ctx.arc(r*0.3,-r*0.2,r*0.24,0,7); ctx.fill();
-      ctx.fillStyle="#0b0c1a"; ctx.beginPath(); ctx.arc(r*0.36,-r*0.2,r*0.12,0,7); ctx.fill();
-      ctx.fillStyle="#facc15"; ctx.beginPath(); ctx.moveTo(r*0.75,0); ctx.lineTo(r*1.4,r*0.18); ctx.lineTo(r*0.75,r*0.3); ctx.closePath(); ctx.fill();
-      ctx.strokeStyle="rgba(186,230,253,.85)"; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(0,-r*0.1,r*1.35,0,7); ctx.stroke();
-      ctx.fillStyle="rgba(186,230,253,.15)"; ctx.beginPath(); ctx.arc(0,-r*0.1,r*1.35,0,7); ctx.fill();
-      ctx.restore();
-    }
+    // spacesuit chicken, worth a bonus if you can hit it — drawn from the
+    // shared /mascots.js library (the "Flying" variant: jetpack + pack).
+    if(s.flypast) Mascots.spacesuitChickenFlying(ctx, s.flypast.x, s.flypast.y, 11, s.flypast.vx);
     // glide from the previous cell to the current one over the same 5-tick move
     // window movePlayer() runs on, matching the centipede's own interpolation
     const pl=s.player, pu=Math.min(1, moveT/5);
