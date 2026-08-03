@@ -42,6 +42,7 @@
   <div class="hint">Arrows/WASD move & climb ladders · Space/JUMP hops eggs</div>
 </div>
 <script src="/arcade.js"></script>
+<script src="/mascots.js"></script>
 <script>
 (function(){
   const C={ cols:12, rows:6 };
@@ -227,16 +228,9 @@
       ctx.fillStyle="#f43f5e"; ctx.font="bold 15px system-ui"; ctx.textAlign="center";
       ctx.fillText("SQUASHED!",p.ax+j(),py-30+j()); }
     // A cameo spacesuit chicken, every FLYBY_EVERY levels — purely
-    // decorative, matching the site-wide cameo pattern.
-    if(s.flyby){ const fb=s.flyby; ctx.save(); ctx.translate(fb.x,fb.y); if(fb.vx<0) ctx.scale(-1,1);
-      const r2=FLY_H*0.42;
-      ctx.fillStyle="rgba(251,146,60,.4)"; ctx.beginPath(); ctx.ellipse(0,r2*1.1,r2*0.4,r2*0.55,0,0,7); ctx.fill();
-      ctx.fillStyle="#f0902a"; ctx.beginPath(); ctx.arc(0,0,r2,0,7); ctx.fill();
-      ctx.fillStyle="#dc2626"; ctx.beginPath(); ctx.arc(-r2*0.3,-r2*0.85,r2*0.16,0,7); ctx.arc(0,-r2*0.95,r2*0.18,0,7); ctx.arc(r2*0.3,-r2*0.85,r2*0.16,0,7); ctx.fill();
-      ctx.fillStyle="#facc15"; ctx.beginPath(); ctx.moveTo(r2*0.7,0); ctx.lineTo(r2*1.15,r2*0.15); ctx.lineTo(r2*0.7,r2*0.28); ctx.closePath(); ctx.fill();
-      ctx.strokeStyle="rgba(186,230,253,.9)"; ctx.lineWidth=1.5; ctx.beginPath(); ctx.arc(0,-r2*0.1,r2*1.3,0,7); ctx.stroke();
-      ctx.fillStyle="rgba(186,230,253,.14)"; ctx.beginPath(); ctx.arc(0,-r2*0.1,r2*1.3,0,7); ctx.fill();
-      ctx.restore(); }
+    // decorative, matching the site-wide cameo pattern. Drawn from the
+    // shared /mascots.js library.
+    if(s.flyby) Mascots.spacesuitChicken(ctx, s.flyby.x, s.flyby.y, FLY_H*0.42, s.flyby.vx);
     if(s.over){ ctx.fillStyle="rgba(0,0,0,.6)"; ctx.fillRect(0,0,W,H); ctx.fillStyle="#f43f5e"; ctx.font="bold 22px system-ui"; ctx.fillText("GAME OVER",W/2,H/2-6); ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Score "+s.score+"  ·  Best "+best,W/2,H/2+16); }
     else if(s.won){ ctx.fillStyle="rgba(0,0,0,.5)"; ctx.fillRect(0,0,W,H); ctx.fillStyle="#34d399"; ctx.font="bold 22px system-ui"; ctx.fillText("RESCUED!",W/2,H/2-6); ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Level "+s.level+" cleared — next level coming up...",W/2,H/2+16); }
   }

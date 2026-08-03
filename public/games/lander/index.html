@@ -44,6 +44,7 @@
   <div class="hint">↑/Space thrust · ←/→ steer · touch the buttons on mobile</div>
 </div>
 <script src="/arcade.js"></script>
+<script src="/mascots.js"></script>
 <script>
 (function(){
   // Board scaled up ~1.3x (was 480x360) — everything below is proportional.
@@ -208,17 +209,12 @@
     ctx.fillStyle="#fb923c"; ctx.fillRect(LW/2-1,1,3,2);
     if(input.up&&s.fuel>0&&!done&&s.dying<=0&&s.landing<=0){ ctx.fillStyle="#ffcf5a"; ctx.beginPath(); ctx.moveTo(4,LH-4); ctx.lineTo(LW/2,LH+7+Math.random()*4); ctx.lineTo(LW-4,LH-4); ctx.fill(); }
     ctx.restore();
-    // A cameo spacesuit chicken sailing across the sky — every FLYBY_EVERY rounds.
-    // Purely decorative: no collision, no scoring, doesn't react to the ship.
-    if(s.flyby){ const fb=s.flyby; ctx.save(); ctx.translate(fb.x,fb.y); if(fb.vx<0) ctx.scale(-1,1);
-      const r2=C.FLY_H*0.42;
-      ctx.fillStyle="rgba(251,146,60,.4)"; ctx.beginPath(); ctx.ellipse(0,r2*1.1,r2*0.4,r2*0.55,0,0,7); ctx.fill();
-      ctx.fillStyle="#f0902a"; ctx.beginPath(); ctx.arc(0,0,r2,0,7); ctx.fill();
-      ctx.fillStyle="#dc2626"; ctx.beginPath(); ctx.arc(-r2*0.3,-r2*0.85,r2*0.16,0,7); ctx.arc(0,-r2*0.95,r2*0.18,0,7); ctx.arc(r2*0.3,-r2*0.85,r2*0.16,0,7); ctx.fill();
-      ctx.fillStyle="#facc15"; ctx.beginPath(); ctx.moveTo(r2*0.7,0); ctx.lineTo(r2*1.15,r2*0.15); ctx.lineTo(r2*0.7,r2*0.28); ctx.closePath(); ctx.fill();
-      ctx.strokeStyle="rgba(186,230,253,.9)"; ctx.lineWidth=1.5; ctx.beginPath(); ctx.arc(0,-r2*0.1,r2*1.3,0,7); ctx.stroke();
-      ctx.fillStyle="rgba(186,230,253,.14)"; ctx.beginPath(); ctx.arc(0,-r2*0.1,r2*1.3,0,7); ctx.fill();
-      ctx.restore(); }
+    // A cameo spacesuit chicken sailing across the sky — every FLYBY_EVERY
+    // rounds. Purely decorative: no collision, no scoring, doesn't react
+    // to the ship. Drawn from the shared /mascots.js library — this used
+    // to be a hand-copied version that was missing the eye detail other
+    // games' copies had; one shared drawing fixes that drift for good.
+    if(s.flyby) Mascots.spacesuitChicken(ctx, s.flyby.x, s.flyby.y, C.FLY_H*0.42, s.flyby.vx);
     if(s.landing>0){ overlay("#34d399","TOUCHDOWN!","+"+s.roundScore+" ("+s.padHit.name+" "+s.padHit.mult+"x)  ·  Total "+s.totalScore); }
     else if(s.over){ overlay("#f43f5e","OUT OF CHICKENS","Final score "+s.totalScore+(best?"  ·  Best "+best:"")+" — Press New Game"); }
     else if(s.dying>0){ ctx.fillStyle="#f43f5e"; ctx.font="bold 20px system-ui"; ctx.textAlign="center"; ctx.fillText("CHICKEN DOWN — "+s.lives+" left",W/2,H/2); }

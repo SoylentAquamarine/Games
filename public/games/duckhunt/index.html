@@ -32,6 +32,7 @@
   <div class="hint">8 birds a round, then the board switches — flying chickens, then thrown egg skeet · every 5th round a spacesuit chicken flies by (don't bother shooting, it's just a cameo) · 3 escapes costs a life, 3 lives and it's game over · <b>Rooster Reg</b> struts along the grass — he's a friend, shooting him costs you 25</div>
 </div>
 <script src="/arcade.js"></script>
+<script src="/mascots.js"></script>
 <script>
 (function(){
   // Whole game scaled up 35% (was 320x240 with a 24x20 bird).
@@ -245,19 +246,11 @@
       ctx.restore();
       if(eg.falling){ ctx.fillStyle="#fff"; ctx.font="bold 15px system-ui"; ctx.textAlign="center"; ctx.fillText("+"+C.EGG_POINTS,eg.x,eg.y-20); } }
 
-    // A cameo spacesuit chicken sailing across the sky — every FLYBY_EVERY rounds.
+    // A cameo spacesuit chicken sailing across the sky — every FLYBY_EVERY
+    // rounds. Drawn from the shared /mascots.js library so this sprite
+    // stays in sync with every other game that uses the same cameo.
     const fb=s.flyby;
-    if(fb){ ctx.save(); ctx.translate(fb.x,fb.y); if(fb.vx<0) ctx.scale(-1,1);
-      const w=C.FLY_W, h=C.FLY_H, r2=h*0.42, cx2=0, cy2=0;
-      ctx.fillStyle="rgba(251,146,60,.4)"; ctx.beginPath(); ctx.ellipse(cx2,cy2+r2*1.1,r2*0.4,r2*0.55,0,0,7); ctx.fill();
-      ctx.fillStyle="#f0902a"; ctx.beginPath(); ctx.arc(cx2,cy2,r2,0,7); ctx.fill();
-      ctx.fillStyle="#dc2626"; ctx.beginPath(); ctx.arc(cx2-r2*0.3,cy2-r2*0.85,r2*0.16,0,7); ctx.arc(cx2,cy2-r2*0.95,r2*0.18,0,7); ctx.arc(cx2+r2*0.3,cy2-r2*0.85,r2*0.16,0,7); ctx.fill();
-      ctx.fillStyle="#facc15"; ctx.beginPath(); ctx.moveTo(cx2+r2*0.7,cy2); ctx.lineTo(cx2+r2*1.15,cy2+r2*0.15); ctx.lineTo(cx2+r2*0.7,cy2+r2*0.28); ctx.closePath(); ctx.fill();
-      ctx.fillStyle="#fff"; ctx.beginPath(); ctx.arc(cx2+r2*0.28,cy2-r2*0.2,r2*0.2,0,7); ctx.fill();
-      ctx.fillStyle="#0b0c1a"; ctx.beginPath(); ctx.arc(cx2+r2*0.34,cy2-r2*0.2,r2*0.1,0,7); ctx.fill();
-      ctx.strokeStyle="rgba(186,230,253,.9)"; ctx.lineWidth=1.5; ctx.beginPath(); ctx.arc(cx2,cy2-r2*0.1,r2*1.3,0,7); ctx.stroke();
-      ctx.fillStyle="rgba(186,230,253,.14)"; ctx.beginPath(); ctx.arc(cx2,cy2-r2*0.1,r2*1.3,0,7); ctx.fill();
-      ctx.restore(); }
+    if(fb) Mascots.spacesuitChicken(ctx, fb.x, fb.y, C.FLY_H*0.42, fb.vx);
 
     // Rooster Reg, strutting along the grass. Do not shoot him.
     const r=s.rooster;
