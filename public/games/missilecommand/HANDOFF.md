@@ -16,13 +16,24 @@ they land, keep your cities standing.
   this is the one game with multiple simultaneous cameo sprites at once).
 - Gentler overall difficulty curve than a first pass, with a
   post-wave recovery beat (`recover`).
+- **Admin-configurable** at `/admin/games/?game=missilecommand`:
+  `BASE_AMMO`, `ENEMY_SPEED`, `INTERMISSION`, `RECOVER_EVERY`,
+  `FLYBY_EVERY`, `MAX_RAID_BOMBS`. Uses the site's generic numeric-knob
+  config pattern (see kaboom's HANDOFF.md) — saved to
+  `localStorage["missilecommand_config"]`, merged into `C` at boot via an
+  explicit allowlist. **`N_CITIES` is deliberately NOT exposed** — it's
+  tied to the fixed 6-entry `CITY_X` array of x-positions; overriding it
+  alone would desync city rendering/damage indexing.
 
 ## Most recent pass
 
-Migrated the flyby cameo(s) to `/mascots.js` as part of a site-wide
-sweep — see the root `HANDOFF.md`'s mascots.js entry. The old inline copy
-was inside the `for(const fb of s.flyers)` loop; now it's a single call
-per flyer. No gameplay change.
+Added the admin config pane described above — no gameplay change to the
+defaults.
+
+Earlier: migrated the flyby cameo(s) to `/mascots.js` as part of a
+site-wide sweep — see the root `HANDOFF.md`'s mascots.js entry. The old
+inline copy was inside the `for(const fb of s.flyers)` loop; now it's a
+single call per flyer.
 
 Prior passes: chicken-raid waves (every 5th, 5 spacesuit chickens, no
 other missiles) capped at 2 bombs on screen at once so the wave doesn't

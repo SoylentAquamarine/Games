@@ -13,10 +13,18 @@ as a friend you shouldn't shoot.
   title card, then the other board — boards alternate by round number
   (`s.board = s.round%2===1 ? 0 : 1`), not mixed bird-to-bird.
 - Difficulty ramps a flat `DIFF_STEP` (10%) per round via `diffMult()`.
+- **Admin-configurable** at `/admin/games/?game=duckhunt`: `AMMO` (shots
+  per duck), `SPEED` (duck speed), `LIVES`, `ROO_PENALTY`. Uses the
+  site's generic numeric-knob config pattern (see kaboom's HANDOFF.md) —
+  saved to `localStorage["duckhunt_config"]`, merged into `C` at boot
+  via an explicit allowlist.
 
 ## Most recent pass
 
-**Bug**: "the egg skeet are not launching onto the board, they are barely
+Added the admin config pane described above — no gameplay change to the
+defaults.
+
+Earlier pass — **bug**: "the egg skeet are not launching onto the board, they are barely
 appearing at the bottom of the screen." A prior easing pass (meant to slow
 the egg-skeet arc's pace) took the launch speeds from 3.2/6.5 down to
 1.6/4.0 — but peak arc height scales with `vy^2/(2*gravity)`, so halving
