@@ -9,13 +9,21 @@ avoid enemies and your own blast radius.
   for headless testing.
 - `Arcade.sfx` wired up for sound effects (shared pass with frogger,
   digdug, drmario).
+- **Admin-configurable** at `/admin/games/?game=bomberman`: `BOMB_TIME`
+  (fuse time), `range` (blast range in tiles), `BLAST_LIFE` (blast
+  visual duration). Uses the site's generic numeric-knob config pattern
+  (see kaboom's HANDOFF.md) — saved to `localStorage["bomberman_config"]`,
+  merged into `C` at boot via an explicit allowlist.
 
 ## Most recent pass
 
-Sound effects wired up via the shared `Arcade.sfx` helper. Earlier:
-scaling, feedback color, egg-drop, and dragon-spacing fixes shared with
-several other games in the same pass. Original build: added alongside
-Dig Dug.
+Added the admin config pane described above — no gameplay change to the
+defaults.
+
+Earlier passes: sound effects wired up via the shared `Arcade.sfx`
+helper; scaling, feedback color, egg-drop, and dragon-spacing fixes
+shared with several other games in the same pass. Original build: added
+alongside Dig Dug.
 
 ## Open / deferred
 
