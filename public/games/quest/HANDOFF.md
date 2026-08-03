@@ -7,7 +7,10 @@ level editor (`/admin/games/?game=quest`, "Configuration" panel).
 
 - `index.html` — everything: overworld, dungeon rooms, combat, bosses,
   the farmhouse store, coins. `window.__quest` exposes the pure sim for
-  headless testing (`makeBoss`, `bossTakeHit`, `BOSSES`, etc.) — see
+  headless testing (`makeBoss`, `bossTakeHit`, `BOSSES`, `doorOpen`,
+  `genRoom`, plus DOM-layer hooks `newGame`, `enterDungeon`,
+  `enterOverworld`, `tryTransition`, `getMode`, `getRoom`, `getPlayer`,
+  `setPlayerPos` added for testing navigation) — see
   `if(typeof document==="undefined") return;` for where the DOM-only part
   starts.
 - Dungeon layout is editable per-room from the admin page; edits are
@@ -17,15 +20,31 @@ level editor (`/admin/games/?game=quest`, "Configuration" panel).
 
 ## Most recent pass
 
-Fixed a "fighting Thunder Hawk froze up on me" bug report. Root cause: an
-earlier pass added a 0.5s hit-pause on bosses (`b.hurt=30`), but a hit that
-lands from a standing position could re-trigger the instant the pause
-ended, from the same spot — chaining into a near-permanent stun since the
-boss never got a frame to move. Fix: a landed hit now also knocks the boss
-back a fixed distance (wall-clamped via `boxHitsSolid`), so the same
-standing swing can't auto-reconnect. Diagnosed by source-level reasoning
-and headless simulation, not a directly reproduced stack trace — flagged
-as such in the commit message.
+Two more bug reports, both fixed:
+
+- **"swung twice and the Shadow Bat locked up"** — the earlier Thunder
+  Hawk knockback fix only tried one computed direction; if a specific
+  boss room's walls happen to block that exact direction, the knockback
+  silently fails and the stun-lock can recur. Hardened: if the primary
+  x/y knockback is fully wall-blocked, it now falls back to trying all 4
+  cardinal directions, so a hit always finds an opening regardless of
+  room geometry.
+- **"when I enter a dungeon then if I go down I pop back out"** — the
+  start room (1,1) sits at the CENTER of the 3x3 grid with a real door on
+  all 4 sides (`doorOpen()`/`genRoom()` both treat it as fully connected),
+  but `tryTransition()` had an unconditional special-case that hijacked
+  ANY south-edge touch there into an overworld exit before normal
+  room-transition logic could run — so "down" could never reach room
+  (1,2) like every other direction could. South is now a normal door;
+  leaving the dungeon has its own explicit "🚪 Leave" HUD button instead.
+
+Earlier pass: fixed a "fighting Thunder Hawk froze up on me" bug report.
+Root cause: an earlier-still pass added a 0.5s hit-pause on bosses
+(`b.hurt=30`), but a hit that lands from a standing position could
+re-trigger the instant the pause ended, from the same spot — chaining
+into a near-permanent stun since the boss never got a frame to move. Fix:
+a landed hit also knocks the boss back a fixed distance (now hardened per
+above).
 
 ## Open / deferred
 

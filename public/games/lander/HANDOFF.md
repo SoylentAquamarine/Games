@@ -8,7 +8,8 @@ freshly generated jagged terrain each round.
 
 - `index.html` — physics + terrain generation + rendering.
   `window.__lander` exposes the pure sim (`makeState`, `step`, `nextRound`,
-  `buildTerrain`, `spawnFlyby`, `C` constants) for headless testing.
+  `buildTerrain`, `spawnFlyby`, `landThresholds`, `C` constants) for
+  headless testing.
 - Terrain: `buildTerrain()` carves 3 flat pads (one per horizontal third of
   the screen, at increasing elevation/risk) into otherwise jagged
   sine-noise mountains. `terrainYAt()` interpolates ground height between
@@ -16,21 +17,31 @@ freshly generated jagged terrain each round.
 
 ## Most recent pass
 
-Reworked the game loop per player feedback: a good landing used to end
-the run outright ("Press New Game"). Now it freezes briefly on the pad
-(`C.LAND_FRAMES`), then `nextRound()` loads a fresh terrain and respawns
-the ship with a full tank — round number and total score carry forward.
-Added a bonus chicken (life) every few rounds, capped at `C.MAX_LIVES`,
-and a purely decorative flyby cameo every `C.FLYBY_EVERY` rounds (same
-site-wide cameo pattern as Chicken Hunt). Crash/game-over mechanics are
-unchanged: you still start with 3 chickens and the run ends when you're
-out of them.
+Player feedback, three parts:
 
-Non-obvious detail: the bonus-chicken/flyby checks run on the round
+1. Landing speed thresholds now scale with the pad's payout multiplier
+   (`landThresholds(mult)`) instead of one flat `LAND_VMAX`/`LAND_VXMAX`
+   for every pad — Valley (1x) is forgiving, Peak (3x) demands a
+   genuinely gentle touch. The HUD's speed-warning colour now checks
+   whichever pad is currently underneath the ship (falls back to the 1x
+   threshold over open terrain).
+2. Fuel no longer resets on every round transition or crash-respawn — it
+   persists as a real cross-round resource (`respawnShip` no longer
+   touches `s.fuel` at all).
+3. Every `FLYBY_EVERY` (5) rounds, the same transition that spawns the
+   decorative flyby cameo now also refuels the tank to full
+   (`s.justRefueled`, one-shot flag consumed by the DOM layer for its own
+   sound/message) — the flyby sprite crossing the sky doubles as the
+   "refuel animation" that was asked for.
+
+Earlier pass: reworked the game loop so a good landing advances to a new
+round (`nextRound()`, `C.LAND_FRAMES` freeze) instead of ending the run
+outright, added a bonus chicken every few rounds (capped at
+`C.MAX_LIVES`), and the flyby cameo itself. Non-obvious detail carried
+over from that pass: the bonus-chicken/flyby checks run on the round
 number *after* `s.round++`, so they fire on landing #2/#5/#8 (arriving on
-round 3/6/9) rather than landing #3/#6/#9 — still an "every 3rd landing"
-cadence, just anchored to the round you land into. See the regression
-test for the exact numbers if this needs adjusting.
+round 3/6/9), not landing #3/#6/#9 — still an "every 3rd/5th landing"
+cadence, just anchored to the round you land into.
 
 ## Open / deferred
 
