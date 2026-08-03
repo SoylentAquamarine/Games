@@ -1,6 +1,6 @@
 # Games Index
 
-101 self-contained browser games. Each lives at `public/games/<slug>/index.html` and is served live at `https://games.square-bar-75ce.workers.dev/games/<slug>/`.
+102 self-contained browser games. Each lives at `public/games/<slug>/index.html` and is served live at `https://games.square-bar-75ce.workers.dev/games/<slug>/`.
 
 Every game is a single HTML file with inline CSS/JS. Pure game logic is exposed on `window.__<name>` for headless testing. Shared helpers come from [`/arcade.js`](../arcade.js) (4:3 screen tiers, sfx, splash screens, start gate, play-stats) and per-page comment boxes from [`/comments.js`](../comments.js).
 
@@ -34,6 +34,7 @@ Every game is a single HTML file with inline CSS/JS. Pure game logic is exposed 
 | [`centipede`](centipede/) | Chickenpede | Centipede clone — blast the splitting flock |
 | [`checkers`](checkers/) | Chicken Checkers | Jump &amp; capture, with undo all the way back |
 | [`chicken1`](chicken1/) | Chicken1 | Top-down F1 racer — dodge the pack |
+| [`chickencaravan`](chickencaravan/) | Chicken Caravan | Oregon Trail-style — buy-low-sell-high trading route between towns |
 | [`chickencircus`](chickencircus/) | Chicken Circus | Circus Atari clone — seesaw and balloons |
 | [`chickenjhong`](chickenjhong/) | Chicken Jhong | Mahjong solitaire with chicken tiles |
 | [`chickenmania`](chickenmania/) | Chickenmania | Megamania clone — steer your shot in flight |

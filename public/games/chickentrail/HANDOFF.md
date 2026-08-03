@@ -46,13 +46,10 @@ page's "📖 Text Adventures" category alongside the other two.
 
 ## Open / deferred
 
-- **1 more game from the same comment**: the second "half text half
-  graphics" Oregon-Trail-style game. Not started — see the root
-  `HANDOFF.md` and the still-open home-page comment for the original
-  ask. (Two ideas worth considering so it doesn't feel like a reskin of
-  this one: a trading/economy focus at "towns" along a route, or a
-  different structural shape entirely — e.g. survival-through-seasons on
-  a fixed farm rather than a point-to-point journey.)
+- Nothing outstanding from the "4 text-based games" comment — the second
+  Oregon-Trail-style game shipped as `chickencaravan` (trading/economy
+  focus between towns, per the idea noted here previously — deliberately
+  NOT a reskin of this survival-focused game).
 - No difficulty-balance feedback yet — worth a player pass once this one
   has been played a bit (starting feed/chicken counts, weather odds,
   event weights are all first-draft numbers, not tuned against real

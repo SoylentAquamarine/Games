@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chicken Caravan — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🛒</text></svg>" />
+  <style>
+    :root{--bg:#0f1020;--panel:#1e2140;--panel2:#252a4d;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;}
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+      background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.22),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.16),transparent 60%),var(--bg);}
+    .wrap{max-width:640px;margin:0 auto;padding:14px 12px 40px;display:flex;flex-direction:column;gap:10px}
+    .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
+    .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+    .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+    h1{margin:0;font-size:1.3rem;background:linear-gradient(120deg,#f0902a,#4ade80);-webkit-background-clip:text;background-clip:text;color:transparent}
+    .hint{color:var(--muted);font-size:.82rem;line-height:1.5;margin:0}
+    canvas{width:100%;height:auto;display:block;border-radius:10px;border:1px solid #2a2f55;background:#0a0c18}
+    .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;font-size:.8rem}
+    .stat{background:var(--panel2);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:6px 8px;text-align:center}
+    .stat b{display:block;font-size:1rem;color:var(--text)}
+    .stat span{color:var(--muted)}
+    #log{background:#0a0c18;border:1px solid #2a2f55;border-radius:10px;padding:12px 14px;height:190px;overflow-y:auto;
+      font-family:"Courier New",monospace;font-size:.9rem;line-height:1.5;white-space:pre-wrap;word-break:break-word}
+    #log .town{color:#facc15;font-weight:700}
+    #log .good{color:#4ade80;font-weight:700}
+    #log .bad{color:#f87171;font-weight:700}
+    #log .cmd{color:var(--muted)}
+    table{border-collapse:collapse;width:100%;font-size:.82rem}
+    th,td{border:1px solid rgba(255,255,255,.1);padding:5px 6px;text-align:center}
+    th{color:var(--muted);font-weight:700}
+    .qty{width:46px;background:var(--panel2);border:1px solid rgba(255,255,255,.14);color:var(--text);border-radius:6px;padding:4px;text-align:center}
+    .row{display:flex;gap:8px;flex-wrap:wrap}
+    .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:10px 18px;border-radius:999px;cursor:pointer;font-size:.88rem;flex:1;min-width:110px}
+    .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,.18);color:var(--muted);flex:none}
+    .btn.small{padding:5px 10px;font-size:.76rem;flex:none;min-width:0}
+    .btn:disabled{opacity:.4;cursor:default}
+    .overlay{position:fixed;inset:0;background:rgba(15,16,32,.86);display:flex;align-items:center;justify-content:center;padding:16px;z-index:5}
+    .overlay.hidden{display:none}
+    .card{background:var(--panel);border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:20px;max-width:420px;text-align:center}
+    .card h2{margin:0 0 8px}
+    .card p{color:var(--muted);margin:0 0 14px;font-size:.9rem;white-space:pre-wrap}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar"><a class="home" href="/">← Home</a><h1>🛒 Chicken Caravan</h1><span style="width:56px"></span></div>
+    <p class="hint">Buy low, sell high. Trade eggs, feed, wool and tools between towns along the route — build up enough cash before the last stop. Watch out for bandits on the road.</p>
+    <canvas id="trail" width="600" height="70"></canvas>
+    <div class="stats">
+      <div class="stat"><b id="sDay">1</b><span>Day</span></div>
+      <div class="stat"><b id="sCash">$100</b><span>Cash</span></div>
+      <div class="stat"><b id="sWagon">0 / 100</b><span>Wagon</span></div>
+    </div>
+    <div id="log"></div>
+    <div id="marketWrap" class="row" style="display:none;flex-direction:column">
+      <div style="overflow-x:auto"><table id="marketTable"></table></div>
+      <div class="row">
+        <button class="btn" id="departBtn">🐎 Depart for the next town</button>
+        <button class="btn ghost" id="finishBtn" style="display:none">🏁 Finish the run here</button>
+      </div>
+    </div>
+    <div id="travelWrap" class="row">
+      <button class="btn" id="travelBtn">🐎 Travel</button>
+    </div>
+    <div class="row"><button class="btn ghost" id="newBtn">Start Over</button></div>
+  </div>
+
+  <div class="overlay hidden" id="ov">
+    <div class="card">
+      <h2 id="ovTitle">—</h2>
+      <p id="ovBody"></p>
+      <button class="btn" id="ovBtn">Start Over</button>
+    </div>
+  </div>
+
+  <script>
+  (function(){
+    // The fourth and last of the requested text-based games — the second
+    // "half text half graphics" Oregon Trail style one. Deliberately NOT
+    // another survival/feed-management loop like chickentrail (see that
+    // game's HANDOFF.md for why): this one is a buy-low-sell-high trading
+    // route between towns instead, so the two Oregon-Trail-style games
+    // actually play differently rather than being a reskin of each other.
+    const START_CASH=100, WAGON_CAP=100, WIN_TARGET=500;
+    const GOODS=["egg","feed","wool","tool"];
+    const GOOD_INFO={ egg:{name:"Eggs",base:5}, feed:{name:"Feed",base:3}, wool:{name:"Wool",base:8}, tool:{name:"Tools",base:15} };
+    const TOWNS=[ {name:"Coop Corner",dist:20}, {name:"Henhouse Hollow",dist:25}, {name:"Barnyard Bend",dist:30}, {name:"Market Town",dist:25} ];
+
+    function rnd(min,max){ return min+Math.floor(Math.random()*(max-min+1)); }
+
+    function newGame(){
+      return { day:1, townsVisited:0, distToNext:TOWNS[0].dist, mode:"travel",
+               cash:START_CASH, wagon:{egg:0,feed:0,wool:0,tool:0}, prices:null, over:false, won:false };
+    }
+    function wagonUsed(s){ return GOODS.reduce((sum,g)=>sum+s.wagon[g],0); }
+    function rollPrices(s){
+      s.prices={};
+      for(const g of GOODS) s.prices[g]=Math.max(1, Math.round(GOOD_INFO[g].base*(0.6+Math.random()*0.8)));
+    }
+    function checkOver(s, msgs){
+      if(s.cash<=0 && wagonUsed(s)===0){ s.over=true; s.won=false; msgs.push({t:"bad", text:"Broke, with nothing left to sell — the caravan is stranded. GAME OVER."}); return true; }
+      return false;
+    }
+
+    function travel(s){
+      if(s.over || s.mode!=="travel") return { ok:false, msgs:[{t:"bad",text:"Can't travel right now."}] };
+      const msgs=[];
+      const dist=rnd(10,20);
+      s.distToNext=Math.max(0, s.distToNext-dist);
+      s.day++;
+      msgs.push({t:"cmd", text:"Day "+s.day+": the caravan covers "+dist+" miles."});
+      const roll=Math.random();
+      if(roll<0.15){
+        const loss=Math.min(s.cash, Math.round(s.cash*(0.3+Math.random()*0.3)));
+        s.cash-=loss;
+        msgs.push({t:"bad", text:"Bandits on the road! Lost $"+loss+"."});
+      } else if(roll<0.30){
+        const gain=rnd(10,30);
+        s.cash+=gain;
+        msgs.push({t:"good", text:"A friendly farmer tips you $"+gain+" for helping fix a wheel."});
+      }
+      if(checkOver(s, msgs)) return { ok:true, msgs };
+      if(s.distToNext<=0){
+        s.townsVisited++;
+        s.mode="market";
+        rollPrices(s);
+        msgs.push({t:"town", text:"Arrived at "+TOWNS[s.townsVisited-1].name+"."});
+      }
+      return { ok:true, msgs };
+    }
+
+    function buy(s, good, qty){
+      if(s.over || s.mode!=="market") return { ok:false, msgs:[{t:"bad",text:"Not at a market right now."}] };
+      qty=Math.max(0, Math.floor(qty||0));
+      if(qty<=0) return { ok:false, msgs:[{t:"bad",text:"Buy how many?"}] };
+      const cost=qty*s.prices[good];
+      if(cost>s.cash) return { ok:false, msgs:[{t:"bad",text:"Not enough cash for that."}] };
+      if(wagonUsed(s)+qty>WAGON_CAP) return { ok:false, msgs:[{t:"bad",text:"Not enough room in the wagon."}] };
+      s.cash-=cost; s.wagon[good]+=qty;
+      return { ok:true, msgs:[{t:"good", text:"Bought "+qty+" "+GOOD_INFO[good].name+" for $"+cost+"."}] };
+    }
+    function sell(s, good, qty){
+      if(s.over || s.mode!=="market") return { ok:false, msgs:[{t:"bad",text:"Not at a market right now."}] };
+      qty=Math.max(0, Math.floor(qty||0));
+      if(qty<=0) return { ok:false, msgs:[{t:"bad",text:"Sell how many?"}] };
+      if(s.wagon[good]<qty) return { ok:false, msgs:[{t:"bad",text:"You don't have that many "+GOOD_INFO[good].name+"."}] };
+      const revenue=qty*s.prices[good];
+      s.cash+=revenue; s.wagon[good]-=qty;
+      return { ok:true, msgs:[{t:"good", text:"Sold "+qty+" "+GOOD_INFO[good].name+" for $"+revenue+"."}] };
+    }
+    function depart(s){
+      if(s.over || s.mode!=="market") return { ok:false, msgs:[{t:"bad",text:"Not at a market right now."}] };
+      if(s.townsVisited>=TOWNS.length) return { ok:false, msgs:[{t:"bad",text:"This is the last town — finish the run here instead."}] };
+      s.mode="travel";
+      s.distToNext=TOWNS[s.townsVisited].dist;
+      return { ok:true, msgs:[{t:"cmd", text:"Depart from "+TOWNS[s.townsVisited-1].name+"."}] };
+    }
+    function finishRun(s){
+      if(s.over || s.mode!=="market" || s.townsVisited<TOWNS.length) return { ok:false, msgs:[{t:"bad",text:"You can only finish the run at the last town."}] };
+      s.over=true;
+      s.won=s.cash>=WIN_TARGET;
+      const msgs=[];
+      if(s.won) msgs.push({t:"good", text:"Run complete with $"+s.cash+" in the strongbox — well past the $"+WIN_TARGET+" target. YOU WIN!"});
+      else msgs.push({t:"bad", text:"Run complete with $"+s.cash+" — short of the $"+WIN_TARGET+" target. GAME OVER."});
+      return { ok:true, msgs };
+    }
+
+    window.__chickencaravan={ START_CASH, WAGON_CAP, WIN_TARGET, GOODS, GOOD_INFO, TOWNS,
+      newGame, wagonUsed, rollPrices, travel, buy, sell, depart, finishRun };
+    if(typeof document==="undefined") return;
+
+    const cv=document.getElementById("trail"), ctx=cv.getContext("2d");
+    const logEl=document.getElementById("log");
+    const sDay=document.getElementById("sDay"), sCash=document.getElementById("sCash"), sWagon=document.getElementById("sWagon");
+    const marketWrap=document.getElementById("marketWrap"), marketTable=document.getElementById("marketTable"),
+          departBtn=document.getElementById("departBtn"), finishBtn=document.getElementById("finishBtn"),
+          travelWrap=document.getElementById("travelWrap"), travelBtn=document.getElementById("travelBtn"), newBtn=document.getElementById("newBtn");
+    const ov=document.getElementById("ov"), ovTitle=document.getElementById("ovTitle"), ovBody=document.getElementById("ovBody"), ovBtn=document.getElementById("ovBtn");
+    let s;
+
+    function print(msgs){
+      for(const m of msgs){ const div=document.createElement("div"); div.className=m.t; div.textContent=m.text; logEl.appendChild(div); }
+      logEl.scrollTop=logEl.scrollHeight;
+    }
+    function drawTrail(){
+      const W=cv.width,H=cv.height;
+      ctx.clearRect(0,0,W,H); ctx.fillStyle="#0a0c18"; ctx.fillRect(0,0,W,H);
+      const ty=H*0.6;
+      ctx.strokeStyle="#4d3f28"; ctx.lineWidth=5; ctx.beginPath(); ctx.moveTo(20,ty); ctx.lineTo(W-20,ty); ctx.stroke();
+      const totalDist=TOWNS.reduce((a,t)=>a+t.dist,0);
+      let covered=0;
+      for(let i=0;i<s.townsVisited;i++) covered+=TOWNS[i].dist;
+      if(s.mode==="travel") covered += (TOWNS[s.townsVisited]?TOWNS[s.townsVisited].dist:0) - s.distToNext;
+      const frac=Math.min(1, covered/totalDist);
+      ctx.font="18px system-ui"; ctx.textAlign="center";
+      let acc=0;
+      for(const t of TOWNS){ acc+=t.dist; const x=20+(W-40)*(acc/totalDist); ctx.fillText("🏘️",x,ty-8); }
+      const wx=20+(W-40)*frac;
+      ctx.font="24px system-ui"; ctx.fillText("🛒",wx,ty-10);
+      ctx.textAlign="left"; ctx.fillStyle="#9a9ab5"; ctx.font="12px system-ui"; ctx.fillText("Day "+s.day,14,18);
+    }
+    function renderMarket(){
+      if(s.mode!=="market"){ marketWrap.style.display="none"; travelWrap.style.display="flex"; return; }
+      marketWrap.style.display="flex"; travelWrap.style.display="none";
+      const rows=["<tr><th>Good</th><th>Price</th><th>Have</th><th>Qty</th><th></th><th></th></tr>"];
+      for(const g of window.__chickencaravan.GOODS){
+        rows.push("<tr><td>"+window.__chickencaravan.GOOD_INFO[g].name+"</td><td>$"+s.prices[g]+"</td><td>"+s.wagon[g]+"</td>"+
+          "<td><input class=\"qty\" type=\"number\" min=\"0\" value=\"1\" id=\"q-"+g+"\"></td>"+
+          "<td><button class=\"btn small\" data-buy=\""+g+"\">Buy</button></td>"+
+          "<td><button class=\"btn small ghost\" data-sell=\""+g+"\">Sell</button></td></tr>");
+      }
+      marketTable.innerHTML=rows.join("");
+      marketTable.querySelectorAll("[data-buy]").forEach(b=>b.addEventListener("click",()=>{
+        const g=b.dataset.buy, qty=+document.getElementById("q-"+g).value;
+        afterAction(window.__chickencaravan.buy(s,g,qty));
+      }));
+      marketTable.querySelectorAll("[data-sell]").forEach(b=>b.addEventListener("click",()=>{
+        const g=b.dataset.sell, qty=+document.getElementById("q-"+g).value;
+        afterAction(window.__chickencaravan.sell(s,g,qty));
+      }));
+      const isLast=s.townsVisited>=window.__chickencaravan.TOWNS.length;
+      departBtn.style.display=isLast?"none":"inline-block";
+      finishBtn.style.display=isLast?"inline-block":"none";
+    }
+    function renderHud(){
+      sDay.textContent=s.day;
+      sCash.textContent="$"+s.cash;
+      sWagon.textContent=window.__chickencaravan.wagonUsed(s)+" / "+window.__chickencaravan.WAGON_CAP;
+      drawTrail();
+      renderMarket();
+      travelBtn.disabled=s.over;
+    }
+    function afterAction(res){
+      print(res.msgs);
+      renderHud();
+      if(s.over){
+        ovTitle.textContent = s.won ? "🏆 Fortune made!" : "📉 Run over";
+        ovBody.textContent = "Day "+s.day+" — finished with $"+s.cash+".";
+        ov.classList.remove("hidden");
+      }
+    }
+    function startNew(){
+      s=window.__chickencaravan.newGame();
+      logEl.innerHTML="";
+      print([{t:"town", text:"Day 1 — the caravan sets out with $"+window.__chickencaravan.START_CASH+" toward "+window.__chickencaravan.TOWNS[0].name+"."}]);
+      renderHud();
+      ov.classList.add("hidden");
+    }
+
+    travelBtn.addEventListener("click",()=>afterAction(window.__chickencaravan.travel(s)));
+    departBtn.addEventListener("click",()=>afterAction(window.__chickencaravan.depart(s)));
+    finishBtn.addEventListener("click",()=>afterAction(window.__chickencaravan.finishRun(s)));
+    newBtn.addEventListener("click",startNew);
+    ovBtn.addEventListener("click",startNew);
+    startNew();
+  })();
+  </script>
+  <script src="/comments.js" defer></script>
+</body>
+</html>

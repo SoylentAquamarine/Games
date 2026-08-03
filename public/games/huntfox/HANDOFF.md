@@ -42,8 +42,6 @@ category.
 
 ## Open / deferred
 
-- **1 more game from the same comment**: a second "half text half
-  graphics" Oregon-Trail-style game. The other 3 are done — see
-  `eggheist` (2nd pure-text game) and `chickentrail` (1st Oregon-Trail
-  style game). Not started — see the root `HANDOFF.md` and the still-open
-  home-page comment for the original ask.
+- Nothing outstanding from the "4 text-based games" comment — all 4
+  shipped. See `eggheist` (2nd pure-text game), `chickentrail` and
+  `chickencaravan` (the 2 Oregon-Trail-style games).
