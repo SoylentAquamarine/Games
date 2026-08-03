@@ -66,9 +66,10 @@
       <button class="btn buy hidden" id="buyBtn" style="display:none">Buy</button>
       <button class="btn pass hidden" id="passBtn" style="display:none">Pass</button>
       <button class="btn ghost" id="tradeBtn">🤝 Trade</button>
+      <button class="btn ghost" id="buildBtn">🏠 Build</button>
       <button class="btn ghost" id="new">New Game</button>
     </div>
-    <p class="hint">Buy properties as you land on them. Own a whole color group and rent doubles. Land on a rival's property and you owe rent. Go bankrupt and you're out — last chicken standing (or richest, if it drags on) wins. Use <b>Trade</b> to swap properties (and cash) with another player any time it's your turn.</p>
+    <p class="hint">Buy properties as you land on them. Own a whole color group and rent doubles — improve it further with <b>Build</b> (houses, then a hotel) for even bigger rent, as long as the bank still has some left. Land on a rival's property and you owe rent. Go bankrupt and you're out — last chicken standing (or richest, if it drags on) wins. Use <b>Trade</b> to swap properties (and cash) with another player any time it's your turn.</p>
   </div>
 
   <div class="modal-back hidden" id="tradeModal">
@@ -98,6 +99,17 @@
       <p id="cardText" style="font-size:1.05rem;margin:14px 0"></p>
       <div class="modal-actions" style="justify-content:center">
         <button class="btn" id="cardContinue">Continue</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-back hidden" id="buildModal">
+    <div class="modal">
+      <h3>🏠 Build houses &amp; hotels</h3>
+      <p class="sub" id="buildBankMsg" style="margin:0 0 10px;font-size:.82rem;color:var(--muted)"></p>
+      <div id="buildList"></div>
+      <div class="modal-actions">
+        <button class="btn ghost" id="buildClose">Close</button>
       </div>
     </div>
   </div>
@@ -144,6 +156,69 @@
     const GROUP_COLOR={ brown:"#8b5a2b", blue:"#7fb0e0", pink:"#e08ac0", orange:"#f0902a",
                          red:"#e0533e", yellow:"#f4d03f", green:"#4caf50" };
 
+    // Houses & hotels — player feedback: "add the build houses and hotels
+    // features, count the houses and hotels in the original monopoly and
+    // don't let people build more houses than there are available."
+    // `s.houses[idx]` is 0-4 real houses, or 5 meaning a hotel (which
+    // replaces all 4 houses and returns them to the bank). Classic
+    // Monopoly's shared bank pool: 32 houses, 12 hotels TOTAL across all
+    // players — building can run out for everyone, not just per-player.
+    const BANK_HOUSES=32, BANK_HOTELS=12;
+    const HOUSE_COST={ brown:50, blue:50, pink:100, orange:100, red:150, yellow:150, green:200 };
+    // Rent multiplier by house count (index 0 unused — unimproved rent is
+    // handled separately via the existing monopoly-doubling rule so an
+    // owned-but-unimproved full group still rents at 2x, same as before).
+    const RENT_TIER_MULT=[1,5,15,45,62,75];
+    function groupMembers(group){
+      return SPACES.map((sp,i)=>({sp,i})).filter(x=>x.sp.type==="property"&&x.sp.group===group).map(x=>x.i);
+    }
+    // Classic Monopoly's "build evenly" rule: you can add a house to a
+    // property only if it doesn't already have MORE houses than any other
+    // property in its group — i.e. always build the least-developed one(s)
+    // first, never let one property race ahead of its groupmates.
+    function canBuild(s,pi,idx){
+      const sp=SPACES[idx];
+      if(sp.type!=="property") return { ok:false, reason:"Only properties can be improved." };
+      if(ownerOf(s,idx)!==pi) return { ok:false, reason:"You don't own this." };
+      if(!ownsFullGroup(s,pi,sp.group)) return { ok:false, reason:"You need the whole "+sp.group+" set first." };
+      const cur=s.houses[idx];
+      if(cur>=5) return { ok:false, reason:"Already a hotel." };
+      const members=groupMembers(sp.group);
+      const minInGroup=Math.min(...members.map(i=>s.houses[i]));
+      if(cur>minInGroup) return { ok:false, reason:"Build evenly — improve your other "+sp.group+" propert"+(members.length>1?"ies":"y")+" first." };
+      const cost=HOUSE_COST[sp.group];
+      if(s.players[pi].cash<cost) return { ok:false, reason:"Can't afford it ($"+cost+")." };
+      if(cur===4){ if(s.bank.hotels<=0) return { ok:false, reason:"No hotels left in the bank." }; }
+      else { if(s.bank.houses<=0) return { ok:false, reason:"No houses left in the bank." }; }
+      return { ok:true, cost };
+    }
+    function buildHouse(s,pi,idx){
+      const check=canBuild(s,pi,idx);
+      if(!check.ok) return check;
+      const sp=SPACES[idx];
+      s.players[pi].cash-=check.cost;
+      if(s.houses[idx]===4){ s.houses[idx]=5; s.bank.hotels--; s.bank.houses+=4; }
+      else { s.houses[idx]++; s.bank.houses--; }
+      return { ok:true, idx, houses:s.houses[idx] };
+    }
+    // A simple, affordable CPU building heuristic — same cash-cushion
+    // spirit as cpuShouldBuy: keep $150 in reserve, otherwise improve the
+    // least-developed property in any full group it owns, one house per
+    // call (called once per CPU turn, so building paces out naturally).
+    function cpuMaybeBuild(s,pi){
+      const groups=new Set(SPACES.filter(sp=>sp.type==="property").map(sp=>sp.group));
+      for(const g of groups){
+        if(!ownsFullGroup(s,pi,g)) continue;
+        const members=groupMembers(g).filter(i=>ownerOf(s,i)===pi);
+        const minInGroup=Math.min(...members.map(i=>s.houses[i]));
+        const target=members.find(i=>s.houses[i]===minInGroup);
+        if(target===undefined) continue;
+        const check=canBuild(s,pi,target);
+        if(check.ok && s.players[pi].cash-check.cost>=150) return buildHouse(s,pi,target);
+      }
+      return null;
+    }
+
     const CHANCE=[
       { t:"Advance to GO, collect $200", fx:(s,pi)=>{ movePlayerTo(s,pi,0,true); } },
       { t:"Go directly to Jail", fx:(s,pi)=>{ sendToJail(s,pi); } },
@@ -163,7 +238,8 @@
 
     function newPlayer(){ return { pos:0, cash:START_CASH, props:[], inJail:false, jailTurns:0, jailFreeCard:false, bankrupt:false }; }
     function newGame(){
-      return { players:Array.from({length:NP},newPlayer), turn:0, turns:0, over:false, winner:-1, pendingBuy:null, log:"" };
+      return { players:Array.from({length:NP},newPlayer), turn:0, turns:0, over:false, winner:-1, pendingBuy:null, log:"",
+               houses:new Array(SPACES.length).fill(0), bank:{houses:BANK_HOUSES,hotels:BANK_HOTELS} };
     }
     function rollDice(){ const a=1+rnd(6), b=1+rnd(6); return { a, b, total:a+b, isDouble:a===b }; }
 
@@ -173,6 +249,14 @@
       const p=s.players[pi];
       if(p.cash<0 && !p.bankrupt){
         p.bankrupt=true;
+        // Any houses/hotels on their properties return to the bank pool
+        // too — not just the properties themselves — otherwise houses a
+        // bankrupt player built would just vanish from the shared count.
+        for(const idx of p.props){
+          if(s.houses[idx]===5) s.bank.hotels++;
+          else if(s.houses[idx]>0) s.bank.houses+=s.houses[idx];
+          s.houses[idx]=0;
+        }
         p.props=[];   // simplified rule: a bankrupt player's properties just return to the bank
       }
     }
@@ -198,7 +282,11 @@
     function railroadsOwned(s,pi){ return s.players[pi].props.filter(i=>SPACES[i].type==="railroad").length; }
     function propertyRent(s,idx,ownerPi){
       const sp=SPACES[idx];
-      if(sp.type==="property") return ownsFullGroup(s,ownerPi,sp.group) ? sp.rent*2 : sp.rent;
+      if(sp.type==="property"){
+        const h=s.houses[idx];
+        if(h>0) return sp.rent*RENT_TIER_MULT[h];
+        return ownsFullGroup(s,ownerPi,sp.group) ? sp.rent*2 : sp.rent;
+      }
       if(sp.type==="railroad") return 25*railroadsOwned(s,ownerPi);
       return 0;   // utility handled separately (needs the dice roll)
     }
@@ -309,7 +397,8 @@
     window.__chickenopoly={ SPACES, TRACK, newGame, newPlayer, rollDice, movePlayerBy, landOn, resolveBuy,
       cpuShouldBuy, propertyRent, ownsFullGroup, railroadsOwned, ownerOf, sendToJail, takeJailTurn,
       checkBankrupt, checkWin, activePlayers, netWorth, START_CASH, GO_BONUS, JAIL_FINE, MAX_JAIL_TURNS, MAX_TURNS,
-      validateTrade, cpuShouldAcceptTrade, executeTrade, tradeValue };
+      validateTrade, cpuShouldAcceptTrade, executeTrade, tradeValue,
+      canBuild, buildHouse, cpuMaybeBuild, groupMembers, HOUSE_COST, RENT_TIER_MULT, BANK_HOUSES, BANK_HOTELS };
     if(typeof document==="undefined") return;
 
     const cv=document.getElementById("board"), ctx=cv.getContext("2d");
@@ -322,7 +411,10 @@
           giveCashEl=document.getElementById("giveCash"), takeCashEl=document.getElementById("takeCash"),
           tradeMsgEl=document.getElementById("tradeMsg"),
           cardModal=document.getElementById("cardModal"), cardTitleEl=document.getElementById("cardTitle"),
-          cardTextEl=document.getElementById("cardText"), cardContinueBtn=document.getElementById("cardContinue");
+          cardTextEl=document.getElementById("cardText"), cardContinueBtn=document.getElementById("cardContinue"),
+          buildBtn=document.getElementById("buildBtn"), buildModal=document.getElementById("buildModal"),
+          buildListEl=document.getElementById("buildList"), buildBankMsgEl=document.getElementById("buildBankMsg"),
+          buildCloseBtn=document.getElementById("buildClose");
     let s, anim=null, cardTimer=null;
 
     // ---- square-board layout: 7 spaces/side, corners shared ----
@@ -405,6 +497,11 @@
         // metrics, rather than trying to out-guess character widths.
         const maxW = isCorner ? size-4 : CELL-6;
         ctx.fillText(label,0,isCorner?0:size/2+9,maxW);
+        // house/hotel markers, drawn just above the tile
+        const h=s.houses?s.houses[i]:0;
+        if(h===5){ ctx.fillStyle="#dc2626"; ctx.fillRect(-size*0.28,-size/2-9,size*0.56,7); }
+        else if(h>0){ const hw=4,gap=2,totalW=h*hw+(h-1)*gap;
+          for(let k=0;k<h;k++){ ctx.fillStyle="#22c55e"; ctx.fillRect(-totalW/2+k*(hw+gap),-size/2-8,hw,6); } }
         ctx.restore();
       }
       const order=[...Array(NP).keys()].sort((a,b)=>(a===s.turn?1:0)-(b===s.turn?1:0));
@@ -533,6 +630,10 @@
     function endTurn(){
       if(s.over) return;
       hideBuyPrompt();
+      // Before handing off, let the CPU whose turn is ending try to build
+      // one house (cpuMaybeBuild is a no-op if it owns nothing to build
+      // on) — otherwise only the human could ever improve properties.
+      if(s.turn!==0 && !s.players[s.turn].bankrupt) cpuMaybeBuild(s,s.turn);
       let next=s.turn, guard=0;
       do{ next=(next+1)%NP; guard++; } while(s.players[next].bankrupt && guard<=NP);
       s.turn=next; renderPlayers(); render();
@@ -572,6 +673,34 @@
     function closeTradeModal(){ tradeModal.classList.add("hidden"); }
     tradeWithEl.addEventListener("change",()=>propChecklist(takePropsEl,+tradeWithEl.value));
     tradeBtn.addEventListener("click",()=>{ if(!s||s.over||anim) return; openTradeModal(); });
+
+    // Build houses/hotels modal — lists every property "You" (player 0)
+    // own that's part of a full color group, with its current house count
+    // and either a Build button (with cost) or the specific reason it
+    // can't be built right now (bank out of houses, unowned group, needs
+    // to build evenly elsewhere first, etc — canBuild()'s own reason).
+    function renderBuildList(){
+      buildBankMsgEl.textContent="Bank has "+s.bank.houses+" house(s) and "+s.bank.hotels+" hotel(s) left.";
+      const mine=s.players[0].props.filter(i=>SPACES[i].type==="property").sort((a,b)=>a-b);
+      if(!mine.length){ buildListEl.innerHTML="<p class=\"sub\">You don't own any properties yet.</p>"; return; }
+      buildListEl.innerHTML=mine.map(idx=>{
+        const sp=SPACES[idx], h=s.houses[idx], check=canBuild(s,0,idx);
+        const houseLabel=h===5?"🏨 Hotel":h>0?"🏠".repeat(h):"— no houses";
+        const action=check.ok
+          ? "<button class=\"btn small\" data-build=\""+idx+"\">Build — $"+check.cost+"</button>"
+          : "<span class=\"sub\" style=\"font-size:.76rem\">"+check.reason+"</span>";
+        return "<div class=\"row\" style=\"justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.06)\">"+
+          "<div><b>"+sp.name+"</b><div class=\"sub\" style=\"font-size:.76rem\">"+houseLabel+"</div></div>"+action+"</div>";
+      }).join("");
+      buildListEl.querySelectorAll("[data-build]").forEach(b=>b.addEventListener("click",()=>{
+        const idx=+b.dataset.build, r=buildHouse(s,0,idx);
+        if(r.ok){ statusEl.textContent="Built on "+SPACES[idx].name+"!"; renderPlayers(); render(); }
+        renderBuildList();
+      }));
+    }
+    function openBuildModal(){ renderBuildList(); buildModal.classList.remove("hidden"); }
+    buildBtn.addEventListener("click",()=>{ if(!s||s.over||anim) return; openBuildModal(); });
+    buildCloseBtn.addEventListener("click",()=>buildModal.classList.add("hidden"));
     document.getElementById("tradeCancel").addEventListener("click",closeTradeModal);
     document.getElementById("tradePropose").addEventListener("click",()=>{
       const toPi=+tradeWithEl.value;
