@@ -260,51 +260,12 @@
     const fb=s.flyby;
     if(fb) Mascots.spacesuitChicken(ctx, fb.x, fb.y, C.FLY_H*0.42, fb.vx);
 
-    // Rooster Reg, strutting along the grass. Do not shoot him.
+    // Rooster Reg, strutting along the grass. Do not shoot him. Drawn from
+    // the shared /mascots.js library (Mascots.rooster) — this was the
+    // character the original mascot-library request named directly
+    // ("the rooster, like in duck hunt clone").
     const r=s.rooster;
-    if(r){
-      ctx.save(); ctx.translate(r.x,r.y);
-      if(r.vx<0) ctx.scale(-1,1);
-      const W=C.ROO_W, H=C.ROO_H;
-      const bob=r.hit?0:Math.sin(r.step/7)*2;
-      ctx.translate(0,bob);
-      // legs, striding
-      const stride=r.hit?0:Math.sin(r.step/7)*4;
-      ctx.strokeStyle="#e0a33c"; ctx.lineWidth=3; ctx.lineCap="round";
-      ctx.beginPath(); ctx.moveTo(-2,-H*0.22); ctx.lineTo(-2+stride,0); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(4,-H*0.22); ctx.lineTo(4-stride,0); ctx.stroke();
-      // sweeping tail
-      ctx.fillStyle="#1f6f4a";
-      ctx.beginPath(); ctx.moveTo(-W*0.22,-H*0.42);
-      ctx.quadraticCurveTo(-W*0.72,-H*1.10,-W*0.16,-H*0.86);
-      ctx.quadraticCurveTo(-W*0.44,-H*0.62,-W*0.20,-H*0.36);
-      ctx.closePath(); ctx.fill();
-      // body
-      ctx.fillStyle="#e8e2d4";
-      ctx.beginPath(); ctx.ellipse(0,-H*0.46,W*0.30,H*0.26,0,0,7); ctx.fill();
-      // neck + head
-      ctx.beginPath(); ctx.ellipse(W*0.20,-H*0.72,W*0.13,H*0.20,-0.3,0,7); ctx.fill();
-      ctx.beginPath(); ctx.arc(W*0.28,-H*0.88,H*0.15,0,7); ctx.fill();
-      // big comb and wattle — clearly not the target
-      ctx.fillStyle="#dc2626";
-      ctx.beginPath();
-      ctx.arc(W*0.20,-H*1.03,H*0.08,0,7); ctx.arc(W*0.29,-H*1.08,H*0.09,0,7); ctx.arc(W*0.38,-H*1.02,H*0.08,0,7);
-      ctx.fill();
-      ctx.beginPath(); ctx.ellipse(W*0.30,-H*0.74,H*0.07,H*0.11,0,0,7); ctx.fill();
-      // beak
-      ctx.fillStyle="#f0a72a";
-      ctx.beginPath(); ctx.moveTo(W*0.40,-H*0.90); ctx.lineTo(W*0.58,-H*0.84); ctx.lineTo(W*0.40,-H*0.78); ctx.closePath(); ctx.fill();
-      // eye — cross if you shot him
-      if(r.hit){ ctx.strokeStyle="#0b0c1a"; ctx.lineWidth=2;
-        ctx.beginPath(); ctx.moveTo(W*0.27,-H*0.94); ctx.lineTo(W*0.35,-H*0.86);
-        ctx.moveTo(W*0.35,-H*0.94); ctx.lineTo(W*0.27,-H*0.86); ctx.stroke(); }
-      else { ctx.fillStyle="#fff"; ctx.beginPath(); ctx.arc(W*0.31,-H*0.90,H*0.06,0,7); ctx.fill();
-        ctx.fillStyle="#0b0c1a"; ctx.beginPath(); ctx.arc(W*0.33,-H*0.90,H*0.03,0,7); ctx.fill(); }
-      // wing
-      ctx.fillStyle="#cfc7b4";
-      ctx.beginPath(); ctx.ellipse(-W*0.04,-H*0.46,W*0.16,H*0.13,0.2,0,7); ctx.fill();
-      ctx.restore();
-    }
+    if(r) Mascots.rooster(ctx, r.x, r.y, C.ROO_W, C.ROO_H, r.vx, r.step, r.hit);
     if(s.scold>0){
       ctx.textAlign="center";
       ctx.fillStyle="rgba(244,63,94,"+Math.min(1,s.scold/40)+")";

@@ -99,5 +99,66 @@
     ctx.restore();
   }
 
-  global.Mascots = { spacesuitChicken: spacesuitChicken, spacesuitChickenFlying: spacesuitChickenFlying };
+  // Rooster Reg — a friendly, walking rooster cameo. First built for Duck
+  // Hunt's "he's a friend, don't shoot him" mechanic; extracted here per
+  // the original mascot-library request naming this exact character
+  // ("the rooster, like in duck hunt clone"). Unlike the spacesuit
+  // chicken (a decorative flyby/shootable-bonus target), Rooster Reg is
+  // meant to be a character you're told NOT to interact with — games
+  // reusing him should keep that "friend, not a target" framing.
+  //
+  // (x,y) is his ground/feet reference point — everything else is drawn
+  // relative to it, matching how the original duckhunt code positioned
+  // him. w/h are his footprint size (duckhunt uses C.ROO_W/C.ROO_H).
+  // facing < 0 flips him to face left. `step` (an incrementing frame
+  // counter) drives the walking bob/stride animation; pass `hit: true`
+  // once he's been "shot" to freeze the stride and swap his eye for an X.
+  function rooster(ctx, x, y, w, h, facing, step, hit) {
+    ctx.save();
+    ctx.translate(x, y);
+    if ((facing || 1) < 0) ctx.scale(-1, 1);
+    const bob = hit ? 0 : Math.sin((step || 0) / 7) * 2;
+    ctx.translate(0, bob);
+    // legs, striding
+    const stride = hit ? 0 : Math.sin((step || 0) / 7) * 4;
+    ctx.strokeStyle = "#e0a33c"; ctx.lineWidth = 3; ctx.lineCap = "round";
+    ctx.beginPath(); ctx.moveTo(-2, -h * 0.22); ctx.lineTo(-2 + stride, 0); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(4, -h * 0.22); ctx.lineTo(4 - stride, 0); ctx.stroke();
+    // sweeping tail
+    ctx.fillStyle = "#1f6f4a";
+    ctx.beginPath(); ctx.moveTo(-w * 0.22, -h * 0.42);
+    ctx.quadraticCurveTo(-w * 0.72, -h * 1.10, -w * 0.16, -h * 0.86);
+    ctx.quadraticCurveTo(-w * 0.44, -h * 0.62, -w * 0.20, -h * 0.36);
+    ctx.closePath(); ctx.fill();
+    // body
+    ctx.fillStyle = "#e8e2d4";
+    ctx.beginPath(); ctx.ellipse(0, -h * 0.46, w * 0.30, h * 0.26, 0, 0, 7); ctx.fill();
+    // neck + head
+    ctx.beginPath(); ctx.ellipse(w * 0.20, -h * 0.72, w * 0.13, h * 0.20, -0.3, 0, 7); ctx.fill();
+    ctx.beginPath(); ctx.arc(w * 0.28, -h * 0.88, h * 0.15, 0, 7); ctx.fill();
+    // big comb and wattle — clearly not the target
+    ctx.fillStyle = "#dc2626";
+    ctx.beginPath();
+    ctx.arc(w * 0.20, -h * 1.03, h * 0.08, 0, 7); ctx.arc(w * 0.29, -h * 1.08, h * 0.09, 0, 7); ctx.arc(w * 0.38, -h * 1.02, h * 0.08, 0, 7);
+    ctx.fill();
+    ctx.beginPath(); ctx.ellipse(w * 0.30, -h * 0.74, h * 0.07, h * 0.11, 0, 0, 7); ctx.fill();
+    // beak
+    ctx.fillStyle = "#f0a72a";
+    ctx.beginPath(); ctx.moveTo(w * 0.40, -h * 0.90); ctx.lineTo(w * 0.58, -h * 0.84); ctx.lineTo(w * 0.40, -h * 0.78); ctx.closePath(); ctx.fill();
+    // eye — cross if he's been "shot"
+    if (hit) {
+      ctx.strokeStyle = "#0b0c1a"; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(w * 0.27, -h * 0.94); ctx.lineTo(w * 0.35, -h * 0.86);
+      ctx.moveTo(w * 0.35, -h * 0.94); ctx.lineTo(w * 0.27, -h * 0.86); ctx.stroke();
+    } else {
+      ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(w * 0.31, -h * 0.90, h * 0.06, 0, 7); ctx.fill();
+      ctx.fillStyle = "#0b0c1a"; ctx.beginPath(); ctx.arc(w * 0.33, -h * 0.90, h * 0.03, 0, 7); ctx.fill();
+    }
+    // wing
+    ctx.fillStyle = "#cfc7b4";
+    ctx.beginPath(); ctx.ellipse(-w * 0.04, -h * 0.46, w * 0.16, h * 0.13, 0.2, 0, 7); ctx.fill();
+    ctx.restore();
+  }
+
+  global.Mascots = { spacesuitChicken: spacesuitChicken, spacesuitChickenFlying: spacesuitChickenFlying, rooster: rooster };
 })(typeof window !== "undefined" ? window : globalThis);
