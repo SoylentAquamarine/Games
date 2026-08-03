@@ -18,11 +18,20 @@ as a friend you shouldn't shoot.
   site's generic numeric-knob config pattern (see kaboom's HANDOFF.md) —
   saved to `localStorage["duckhunt_config"]`, merged into `C` at boot
   via an explicit allowlist.
+- **Rooster Reg is now drawn from the shared `/mascots.js` library**
+  (`Mascots.rooster`) instead of an inline copy — see mascots.js's own
+  comments. This is the exact character the original mascot-library
+  player comment named ("the rooster, like in duck hunt clone"); other
+  games can now reuse him as a "friend, don't shoot him" cameo.
 
 ## Most recent pass
 
-Added the admin config pane described above — no gameplay change to the
-defaults.
+Extracted Rooster Reg into `/mascots.js` as `Mascots.rooster` — no
+gameplay change, purely de-duplicating what would otherwise become a
+copy-pasted sprite the moment a second game wants him.
+
+Earlier: added the admin config pane described above — no gameplay
+change to the defaults.
 
 Earlier pass — **bug**: "the egg skeet are not launching onto the board, they are barely
 appearing at the bottom of the screen." A prior easing pass (meant to slow
