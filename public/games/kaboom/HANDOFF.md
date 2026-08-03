@@ -19,16 +19,21 @@ wave 2, rotten eggs to avoid), you slide baskets to catch them.
   Saved to `localStorage["kaboom_config"]`; the game merges it into `C`
   at boot via an explicit allowlist (see the `(function(){...})()` right
   after `const C={...}`) — only those 4 keys, only numeric values. This
-  is the first "plain numeric knobs" config pane on the site (as opposed
-  to quest/chickenmania/adventure/minigolf's board/level editors) — a
-  candidate pattern to reuse for other games whose config is tuning
-  numbers rather than editing a board.
+  was the first "plain numeric knobs" config pane on the site (as opposed
+  to quest/chickenmania/adventure/minigolf's board/level editors); the
+  admin-side UI for it is now a generic, data-driven table
+  (`NUMERIC_CONFIGS` in `admin/games/index.html`) shared with centipede,
+  boulderdash, and qbert — adding another game to this pattern only needs
+  one table entry there plus the matching allowlist snippet in that
+  game's own file, no new admin HTML/JS.
 
 ## Most recent pass
 
 Added the admin config pane described above (`/admin/games/?game=kaboom`)
 — no gameplay change to the defaults, just makes the four difficulty
-constants editable without a code change.
+constants editable without a code change. (Originally a bespoke panel;
+refactored into the shared generic table once 3 more games got the same
+treatment in the same session.)
 
 ## Earlier pass — full rework per player feedback
 

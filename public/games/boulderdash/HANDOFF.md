@@ -14,10 +14,18 @@ boulders, collect eggs, reach the exit.
   the shared one.
 - Board is 75% larger than the original size (`feat: Boulder Dash ->
   ChickenDash, board 75% larger`).
+- **Admin-configurable** at `/admin/games/?game=boulderdash`: `CHICKENS`
+  (starting lives) and `EXTRA` (extra-chicken score threshold). Uses the
+  site's generic numeric-knob config pattern (see kaboom's HANDOFF.md) —
+  saved to `localStorage["boulderdash_config"]`, merged into `C` at boot
+  via an explicit allowlist.
 
 ## Most recent pass
 
-Migrated the flyby cameo to `/mascots.js` (`Mascots.spacesuitChickenFlying`)
+Added the admin config pane described above — no gameplay change to the
+defaults.
+
+Earlier: migrated the flyby cameo to `/mascots.js` (`Mascots.spacesuitChickenFlying`)
 as part of a site-wide sweep — see the root `HANDOFF.md`'s mascots.js
 entry. No gameplay change, purely de-duplicating a copy-pasted sprite that
 had started drifting from the other games' versions.

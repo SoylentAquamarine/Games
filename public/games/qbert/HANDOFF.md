@@ -19,12 +19,20 @@ hunters, use warp pads to escape.
      based comb rather than arcs, different eyes, no visor) — this is
      NOT part of the mascot library and was deliberately left alone
      during the mascots.js migration.
+- **Admin-configurable** at `/admin/games/?game=qbert`: `EXTRA_EVERY`
+  (extra-chicken score threshold) and `CHICKENS` (starting lives). Uses
+  the site's generic numeric-knob config pattern (see kaboom's
+  HANDOFF.md) — saved to `localStorage["qbert_config"]`, merged into `C`
+  at boot via an explicit allowlist.
 
 ## Most recent pass
 
-Migrated only the flyby cameo (#1 above) to `/mascots.js` as part of a
-site-wide sweep — see the root `HANDOFF.md`'s mascots.js entry. The
-player's hero-avatar sprite (#2) is untouched. No gameplay change.
+Added the admin config pane described above — no gameplay change to the
+defaults.
+
+Earlier: migrated only the flyby cameo (#1 above) to `/mascots.js` as
+part of a site-wide sweep — see the root `HANDOFF.md`'s mascots.js
+entry. The player's hero-avatar sprite (#2) is untouched.
 
 Prior pass: 25-level plan, chickens, warp pads, and a second hunter added
 in one pass (`feat(qbert): 25-level plan, chickens, warp pads and a
