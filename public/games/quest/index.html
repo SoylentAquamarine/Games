@@ -33,7 +33,7 @@
 <body>
   <div class="wrap">
     <div class="topbar"><a class="home" href="/">← Home</a><h1>🐔 Chicken Quest</h1><span style="width:56px"></span></div>
-    <div class="hud"><span id="hearts">❤❤❤</span><span id="loot">🥚 0/12 · 🗝️ 0</span><span id="coins">🪙 0</span></div>
+    <div class="hud"><span id="hearts">❤❤❤</span><span id="loot">🥚 0/12 · 🗝️ 0</span><span id="coins">🪙 0</span><button class="btn" id="exitDungeon" style="display:none;padding:4px 12px;font-size:.8rem">🚪 Leave</button></div>
     <div class="board-wrap">
       <canvas id="c" width="480" height="352"></canvas>
       <div class="overlay" id="ov">
@@ -49,14 +49,14 @@
       </div>
       <button class="sword" data-k="attack">🗡️</button>
     </div>
-    <p class="hint">Move: arrows / WASD · Attack: Space · Roam the <b>farmyard</b> and find the burrow entrances hidden by barns, trees and haystacks. Walk into a farmhouse to look around (no enemies) — one of them is a general store where coins buy hearts and heart containers. Inside a dungeon, find the key, beat the boss for its gem egg, then walk south out of the entrance room to leave.</p>
+    <p class="hint">Move: arrows / WASD · Attack: Space · Roam the <b>farmyard</b> and find the burrow entrances hidden by barns, trees and haystacks. Walk into a farmhouse to look around (no enemies) — one of them is a general store where coins buy hearts and heart containers. Inside a dungeon, find the key and beat the boss for its gem egg — every direction from any room leads somewhere, and the <b>🚪 Leave</b> button (top right, while inside) takes you back to the farmyard any time.</p>
   </div>
   <script>
   (function(){
     const TILE=32, COLS=15, ROWS=11, W=COLS*TILE, H=ROWS*TILE, RX=3, RY=3;
     const ESIZE=24;   // weasels are the same size as the hero (player.size)
     const cv=document.getElementById("c"),ctx=cv.getContext("2d");
-    const heartsEl=document.getElementById("hearts"),lootEl=document.getElementById("loot"),coinsEl=document.getElementById("coins");
+    const heartsEl=document.getElementById("hearts"),lootEl=document.getElementById("loot"),coinsEl=document.getElementById("coins"),exitBtn=document.getElementById("exitDungeon");
     const ov=document.getElementById("ov"),ot=document.getElementById("ot"),om=document.getElementById("om"),startBtn=document.getElementById("start");
     const TRI=[0,0], KEYROOM=[2,2];
     let rooms,room,player,keys,running,raf,unlocked,over,frame;
@@ -220,9 +220,17 @@
       const EDGE=6;
       if(player.x<=EDGE)dir="W";else if(player.x+s>=W-EDGE)dir="E";else if(player.y<=EDGE)dir="N";else if(player.y+s>=H-EDGE)dir="S";
       if(!dir)return;
-      // Leave a dungeon by walking south out of the entrance (start) room.
-      if(mode==="dungeon" && room[0]===1 && room[1]===1 && dir==="S"){ enterOverworld(); return; }
-      // Leave a farmhouse/store the same way — south, out the door.
+      // Bug report: "when I enter a dungeon then if I go down I pop back out
+      // of the dungeon." Room (1,1) (the start room) sits at the CENTER of
+      // the 3x3 grid with a real door on all 4 sides (doorOpen() only
+      // restricts the boss vault's single door) — so walking south from
+      // there was always meant to reach room (1,2) like any other door, but
+      // this unconditional special-case hijacked it into an overworld exit
+      // first, making that direction behave differently from N/E/W for no
+      // reason a player could tell. South is now a normal door; leaving the
+      // dungeon has its own explicit control (the "🚪 Leave" HUD button).
+      // Leave a farmhouse/store by walking south, out the door (unambiguous
+      // there — a house has exactly one room, no "deeper" to conflict with).
       if(mode==="house" && dir==="S"){ enterOverworld(); return; }
       const RXn=(mode==="overworld"?OW_RX:mode==="house"?1:RX), RYn=(mode==="overworld"?OW_RY:mode==="house"?1:RY);
       const nx=room[0]+(dir==="E"?1:dir==="W"?-1:0), ny=room[1]+(dir==="S"?1:dir==="N"?-1:0);
@@ -334,11 +342,23 @@
               // paused in place can get hit again the instant the pause ends
               // by the exact same standing swing — chaining into a near-
               // permanent stun that reads as the fight freezing up, since it
-              // never gets a window to move or retaliate.
+              // never gets a window to move or retaliate. Report: "swung
+              // twice and the game locked up" on the Shadow Bat — its boss
+              // room's walls apparently block the primary away-from-player
+              // knockback axis, so the original single-direction attempt
+              // could still fail silently and re-stun-lock in that specific
+              // room layout. Now falls back to all 4 cardinal directions so
+              // SOME knockback always lands, regardless of room geometry.
               const bhx=b.x+b.size/2, bhy=b.y+b.size/2, phx=player.x+s/2, phy=player.y+s/2;
-              const kbx=Math.sign(bhx-phx)*18||(Math.random()<0.5?-18:18), kby=Math.sign(bhy-phy)*18;
-              if(!boxHitsSolid(b.x+kbx,b.y,b.size)) b.x+=kbx;
-              if(!boxHitsSolid(b.x,b.y+kby,b.size)) b.y+=kby;
+              const kbx=Math.sign(bhx-phx)*18||(Math.random()<0.5?-18:18), kby=Math.sign(bhy-phy)*18||(Math.random()<0.5?-18:18);
+              let moved=false;
+              if(!boxHitsSolid(b.x+kbx,b.y,b.size)){ b.x+=kbx; moved=true; }
+              if(!boxHitsSolid(b.x,b.y+kby,b.size)){ b.y+=kby; moved=true; }
+              if(!moved){
+                for(const [dx,dy] of [[18,0],[-18,0],[0,18],[0,-18]]){
+                  if(!boxHitsSolid(b.x+dx,b.y+dy,b.size)){ b.x+=dx; b.y+=dy; break; }
+                }
+              }
             }
           }
           if(player.inv<=0&&rectHit({x:player.x,y:player.y,w:s,h:s},{x:b.x,y:b.y,w:b.size,h:b.size})){
@@ -523,7 +543,8 @@
       }
     }
     function attack(){if(player.atk<=0)player.atk=18;}
-    function updateHud(){let h="";for(let i=0;i<player.maxhp;i++)h+=i<player.hp?"❤":"🖤";heartsEl.textContent=h;lootEl.textContent="🥚 "+(eggs?cartonCount(eggs):0)+"/12 · 🗝️ "+keys;coinsEl.textContent="🪙 "+(player?player.coins:0);}
+    function updateHud(){let h="";for(let i=0;i<player.maxhp;i++)h+=i<player.hp?"❤":"🖤";heartsEl.textContent=h;lootEl.textContent="🥚 "+(eggs?cartonCount(eggs):0)+"/12 · 🗝️ "+keys;coinsEl.textContent="🪙 "+(player?player.coins:0);
+      if(exitBtn) exitBtn.style.display = mode==="dungeon" ? "" : "none"; }
     function gameOver(){running=false;cancelAnimationFrame(raf);ot.textContent="💀 You fell";om.textContent="The dungeon claims another hero. Eggs gathered: "+(eggs?cartonCount(eggs):0)+"/12";startBtn.textContent="Try again";ov.classList.remove("hidden");}
     function win(){running=false;cancelAnimationFrame(raf);ot.textContent="🥚 The carton is full!";om.textContent="All 12 gemstone eggs are yours — the Fox King's lair unseals. (Final boss coming soon!)";startBtn.textContent="Play again";ov.classList.remove("hidden");}
 
@@ -537,10 +558,14 @@
       b.addEventListener("touchstart",on,{passive:false});b.addEventListener("touchend",off,{passive:false});
       b.addEventListener("mousedown",on);b.addEventListener("mouseup",off);b.addEventListener("mouseleave",off);});
     startBtn.addEventListener("click",newGame);
+    if(exitBtn) exitBtn.addEventListener("click",()=>{ if(running&&mode==="dungeon") enterOverworld(); });
     // expose for smoke test
     window.__quest={genWorld:()=>{genWorld();return rooms;},doorOpen,genOverworld,OW_RX,OW_RY,
       GEMS,BOSSES,newEggs,collectEgg,cartonCount,cartonFull,makeBoss,bossTakeHit,genHouseRoom,
-      genRoom,solidTile,TRI};
+      genRoom,solidTile,TRI,
+      newGame,enterDungeon,enterOverworld,tryTransition,
+      getMode:()=>mode,getRoom:()=>room,getPlayer:()=>player,
+      setPlayerPos:(x,y)=>{player.x=x;player.y=y;}};
   })();
   </script>
   <script src="/startgate.js" defer></script>
