@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chicken Trail — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🐔</text></svg>" />
+  <style>
+    :root{--bg:#0f1020;--panel:#1e2140;--panel2:#252a4d;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;}
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+      background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.22),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.16),transparent 60%),var(--bg);}
+    .wrap{max-width:640px;margin:0 auto;padding:14px 12px 40px;display:flex;flex-direction:column;gap:10px}
+    .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
+    .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+    .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+    h1{margin:0;font-size:1.3rem;background:linear-gradient(120deg,#f0902a,#4ade80);-webkit-background-clip:text;background-clip:text;color:transparent}
+    .hint{color:var(--muted);font-size:.82rem;line-height:1.5;margin:0}
+    canvas{width:100%;height:auto;display:block;border-radius:10px;border:1px solid #2a2f55;background:#0a0c18}
+    .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;font-size:.8rem}
+    .stat{background:var(--panel2);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:6px 8px;text-align:center}
+    .stat b{display:block;font-size:1rem;color:var(--text)}
+    .stat span{color:var(--muted)}
+    #log{background:#0a0c18;border:1px solid #2a2f55;border-radius:10px;padding:12px 14px;height:220px;overflow-y:auto;
+      font-family:"Courier New",monospace;font-size:.9rem;line-height:1.5;white-space:pre-wrap;word-break:break-word}
+    #log .day{color:#facc15;font-weight:700}
+    #log .good{color:#4ade80;font-weight:700}
+    #log .bad{color:#f87171;font-weight:700}
+    #log .cmd{color:var(--muted)}
+    .row{display:flex;gap:8px;flex-wrap:wrap}
+    .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:10px 18px;border-radius:999px;cursor:pointer;font-size:.88rem;flex:1;min-width:110px}
+    .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,.18);color:var(--muted);flex:none}
+    .btn:disabled{opacity:.4;cursor:default}
+    .overlay{position:fixed;inset:0;background:rgba(15,16,32,.86);display:flex;align-items:center;justify-content:center;padding:16px;z-index:5}
+    .overlay.hidden{display:none}
+    .card{background:var(--panel);border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:20px;max-width:420px;text-align:center}
+    .card h2{margin:0 0 8px}
+    .card p{color:var(--muted);margin:0 0 14px;font-size:.9rem;white-space:pre-wrap}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar"><a class="home" href="/">← Home</a><h1>🐔 Chicken Trail</h1><span style="width:56px"></span></div>
+    <p class="hint">Lead the flock a thousand miles to the new farm. Each day: travel to cover ground, rest to shake off the weariness that causes accidents, or hunt for feed. Watch your flock — if the feed runs out, chickens start starving.</p>
+    <canvas id="trail" width="600" height="90"></canvas>
+    <div class="stats">
+      <div class="stat"><b id="sDay">1</b><span>Day</span></div>
+      <div class="stat"><b id="sDist">0 / 1000</b><span>Miles</span></div>
+      <div class="stat"><b id="sChickens">20</b><span>Chickens</span></div>
+      <div class="stat"><b id="sFeed">100</b><span>Feed</span></div>
+      <div class="stat"><b id="sWeary">0%</b><span>Weariness</span></div>
+      <div class="stat"><b id="sWeather">☀️ Clear</b><span>Weather</span></div>
+    </div>
+    <div id="log"></div>
+    <div class="row">
+      <button class="btn" id="travelBtn">🐎 Travel</button>
+      <button class="btn" id="restBtn">🏕️ Rest</button>
+      <button class="btn" id="huntBtn">🎯 Hunt</button>
+    </div>
+    <div class="row"><button class="btn ghost" id="newBtn">Start Over</button></div>
+  </div>
+
+  <div class="overlay hidden" id="ov">
+    <div class="card">
+      <h2 id="ovTitle">—</h2>
+      <p id="ovBody"></p>
+      <button class="btn" id="ovBtn">Start Over</button>
+    </div>
+  </div>
+
+  <script>
+  (function(){
+    // Half-text-half-graphics — the third of the 4 requested text-based
+    // games (the first "Oregon Trail" style one; huntfox and eggheist are
+    // the 2 pure-text games). Unlike those two, this one pairs the text
+    // log/stat panel with a real <canvas> strip showing the wagon's
+    // progress along the trail and the current weather.
+    const TOTAL_DISTANCE=1000, START_FEED=100, START_CHICKENS=20, FEED_PER_CHICKEN=1;
+    const WEATHER_MULT={ clear:1.0, rain:0.8, storm:0.5, snow:0.6 };
+    const WEATHER_ICON={ clear:"☀️ Clear", rain:"🌧️ Rain", storm:"⛈️ Storm", snow:"❄️ Snow" };
+    const WEARY_TRAVEL_GAIN=15, WEARY_REST_LOSS=25, WEARY_ACCIDENT_AT=70;
+
+    function rnd(min,max){ return min+Math.floor(Math.random()*(max-min+1)); }
+    function pick(weights){
+      // weights: {key:weight,...} — returns a key chosen proportionally
+      const total=Object.values(weights).reduce((a,b)=>a+b,0);
+      let r=Math.random()*total;
+      for(const k in weights){ r-=weights[k]; if(r<=0) return k; }
+      return Object.keys(weights)[0];
+    }
+
+    function newGame(){
+      return { day:1, distance:0, feed:START_FEED, chickens:START_CHICKENS, weary:0, weather:"clear", over:false, won:false };
+    }
+
+    // Shared by every action: chickens eat every day regardless of what
+    // you did with it. If there isn't enough feed, a chicken starves —
+    // this is the game's real pressure valve, not a specific "bad event".
+    function applyDailyFeed(s, mult){
+      const needed=Math.max(1, Math.round(s.chickens*FEED_PER_CHICKEN*mult));
+      const msgs=[];
+      if(s.feed>=needed){ s.feed-=needed; }
+      else {
+        s.feed=0;
+        if(s.chickens>0){ s.chickens--; msgs.push({t:"bad", text:"Feed ran out — a chicken didn't make it through the night."}); }
+      }
+      return msgs;
+    }
+    function checkOver(s, msgs){
+      if(s.chickens<=0){ s.over=true; s.won=false; msgs.push({t:"bad", text:"The last of the flock is gone. GAME OVER."}); return true; }
+      if(s.distance>=TOTAL_DISTANCE){ s.over=true; s.won=true; msgs.push({t:"good", text:"You've reached the new farm with "+s.chickens+" chicken(s) still with you! YOU WIN."}); return true; }
+      return false;
+    }
+    function rollWeather(s){
+      s.weather=pick({ clear:5, rain:3, storm:1, snow:2 });
+    }
+
+    function travel(s){
+      if(s.over) return { ok:false, msgs:[{t:"bad",text:"The journey's over — start again to replay."}] };
+      const msgs=[];
+      msgs.push(...applyDailyFeed(s, 1));
+      if(checkOver(s, msgs)){ s.day++; return { ok:true, msgs }; }
+      rollWeather(s);
+      const dist=Math.round(rnd(15,25)*WEATHER_MULT[s.weather]);
+      s.distance=Math.min(TOTAL_DISTANCE, s.distance+dist);
+      s.weary=Math.min(100, s.weary+WEARY_TRAVEL_GAIN);
+      msgs.push({t:"cmd", text:"Day "+s.day+": traveled "+dist+" miles through "+WEATHER_ICON[s.weather].toLowerCase()+"."});
+      // One random event per travel day, weighted; an accident is only in
+      // the pool at all once weariness is high enough — that's what makes
+      // Rest a real choice instead of pure downtime.
+      const pool={ nothing:5, predator:2, spoilage:2, luckyfind:2 };
+      if(s.weary>=WEARY_ACCIDENT_AT) pool.accident=3;
+      const roll=pick(pool);
+      if(roll==="predator" && s.chickens>0){ const lost=Math.min(s.chickens, rnd(1,3)); s.chickens-=lost; msgs.push({t:"bad", text:"A fox got into the flock overnight — lost "+lost+" chicken(s)."}); }
+      else if(roll==="spoilage" && s.feed>0){ const lost=Math.min(s.feed, rnd(10,25)); s.feed-=lost; msgs.push({t:"bad", text:"Rain got into the feed sacks — "+lost+" feed spoiled."}); }
+      else if(roll==="luckyfind"){ const gain=rnd(10,20); s.feed+=gain; msgs.push({t:"good", text:"Found a stand of wild grain — +"+gain+" feed."}); }
+      else if(roll==="accident" && s.chickens>0){ s.chickens--; msgs.push({t:"bad", text:"Exhausted and careless, the flock scatters near a ravine — lost a chicken. (Rest more often when weariness is high.)"}); }
+      checkOver(s, msgs);
+      s.day++;
+      return { ok:true, msgs };
+    }
+
+    function rest(s){
+      if(s.over) return { ok:false, msgs:[{t:"bad",text:"The journey's over — start again to replay."}] };
+      const msgs=[];
+      msgs.push(...applyDailyFeed(s, 0.5));
+      if(checkOver(s, msgs)){ s.day++; return { ok:true, msgs }; }
+      s.weary=Math.max(0, s.weary-WEARY_REST_LOSS);
+      msgs.push({t:"cmd", text:"Day "+s.day+": rested. Weariness down to "+s.weary+"%."});
+      s.day++;
+      return { ok:true, msgs };
+    }
+
+    function hunt(s){
+      if(s.over) return { ok:false, msgs:[{t:"bad",text:"The journey's over — start again to replay."}] };
+      const msgs=[];
+      msgs.push(...applyDailyFeed(s, 1));
+      if(checkOver(s, msgs)){ s.day++; return { ok:true, msgs }; }
+      if(Math.random()<0.75){
+        const gain=rnd(10,40);
+        s.feed+=gain;
+        msgs.push({t:"good", text:"Day "+s.day+": a good day hunting — +"+gain+" feed."});
+      } else {
+        msgs.push({t:"cmd", text:"Day "+s.day+": no luck hunting today."});
+      }
+      s.day++;
+      return { ok:true, msgs };
+    }
+
+    window.__chickentrail={ TOTAL_DISTANCE, START_FEED, START_CHICKENS, WEATHER_MULT, WEARY_ACCIDENT_AT,
+      newGame, travel, rest, hunt, applyDailyFeed, checkOver, rollWeather };
+    if(typeof document==="undefined") return;
+
+    const cv=document.getElementById("trail"), ctx=cv.getContext("2d");
+    const logEl=document.getElementById("log");
+    const sDay=document.getElementById("sDay"), sDist=document.getElementById("sDist"), sChickens=document.getElementById("sChickens"),
+          sFeed=document.getElementById("sFeed"), sWeary=document.getElementById("sWeary"), sWeather=document.getElementById("sWeather");
+    const travelBtn=document.getElementById("travelBtn"), restBtn=document.getElementById("restBtn"), huntBtn=document.getElementById("huntBtn"), newBtn=document.getElementById("newBtn");
+    const ov=document.getElementById("ov"), ovTitle=document.getElementById("ovTitle"), ovBody=document.getElementById("ovBody"), ovBtn=document.getElementById("ovBtn");
+    let s;
+
+    function print(msgs){
+      for(const m of msgs){ const div=document.createElement("div"); div.className=m.t; div.textContent=m.text; logEl.appendChild(div); }
+      logEl.scrollTop=logEl.scrollHeight;
+    }
+    function drawTrail(){
+      const W=cv.width, H=cv.height;
+      ctx.clearRect(0,0,W,H);
+      const bgByWeather={ clear:"#132018", rain:"#131c28", storm:"#1a1424", snow:"#182028" };
+      ctx.fillStyle=bgByWeather[s.weather]||"#0a0c18"; ctx.fillRect(0,0,W,H);
+      // trail line
+      const ty=H*0.65;
+      ctx.strokeStyle="#4d3f28"; ctx.lineWidth=6; ctx.beginPath(); ctx.moveTo(20,ty); ctx.lineTo(W-20,ty); ctx.stroke();
+      // mile markers
+      ctx.strokeStyle="rgba(255,255,255,.15)"; ctx.lineWidth=1;
+      for(let i=0;i<=10;i++){ const x=20+((W-40)/10)*i; ctx.beginPath(); ctx.moveTo(x,ty-6); ctx.lineTo(x,ty+6); ctx.stroke(); }
+      // destination flag
+      ctx.font="20px system-ui"; ctx.textAlign="center"; ctx.fillText("🏁", W-20, ty-10);
+      // wagon position
+      const frac=Math.min(1, s.distance/TOTAL_DISTANCE);
+      const wx=20+(W-40)*frac;
+      ctx.font="26px system-ui"; ctx.fillText("🐓", wx, ty-8);
+      // weather icon top-right
+      const icon={ clear:"☀️", rain:"🌧️", storm:"⛈️", snow:"❄️" }[s.weather]||"☀️";
+      ctx.font="22px system-ui"; ctx.textAlign="right"; ctx.fillText(icon, W-14, 26);
+      ctx.textAlign="left"; ctx.fillStyle="#9a9ab5"; ctx.font="12px system-ui";
+      ctx.fillText("Day "+s.day, 14, 20);
+    }
+    function renderHud(){
+      sDay.textContent=s.day;
+      sDist.textContent=s.distance+" / "+window.__chickentrail.TOTAL_DISTANCE;
+      sChickens.textContent=s.chickens;
+      sFeed.textContent=s.feed;
+      sWeary.textContent=s.weary+"%";
+      sWeather.textContent=({clear:"☀️ Clear",rain:"🌧️ Rain",storm:"⛈️ Storm",snow:"❄️ Snow"})[s.weather];
+      drawTrail();
+      const disabled=s.over;
+      travelBtn.disabled=disabled; restBtn.disabled=disabled; huntBtn.disabled=disabled;
+    }
+    function afterAction(res){
+      print(res.msgs);
+      renderHud();
+      if(s.over){
+        ovTitle.textContent = s.won ? "🏆 You made it!" : "💀 The journey ends here";
+        ovBody.textContent = s.won
+          ? "Day "+s.day+" — "+s.chickens+" chicken(s) made it to the new farm."
+          : "Better luck on the next drive.";
+        ov.classList.remove("hidden");
+      }
+    }
+    function startNew(){
+      s=window.__chickentrail.newGame();
+      logEl.innerHTML="";
+      print([{t:"day", text:"Day 1 — the flock sets out. "+TOTAL_DISTANCE+" miles to the new farm."}]);
+      renderHud();
+      ov.classList.add("hidden");
+    }
+
+    travelBtn.addEventListener("click",()=>afterAction(window.__chickentrail.travel(s)));
+    restBtn.addEventListener("click",()=>afterAction(window.__chickentrail.rest(s)));
+    huntBtn.addEventListener("click",()=>afterAction(window.__chickentrail.hunt(s)));
+    newBtn.addEventListener("click",startNew);
+    ovBtn.addEventListener("click",startNew);
+    startNew();
+  })();
+  </script>
+  <script src="/comments.js" defer></script>
+</body>
+</html>

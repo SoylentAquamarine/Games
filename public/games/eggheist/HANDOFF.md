@@ -41,10 +41,10 @@ home page's "📖 Text Adventures" category alongside huntfox.
 
 ## Open / deferred
 
-- **2 more games from the same comment**: both "half text half graphics"
-  games in the style of Oregon Trail (status/stat display alongside
-  simple graphics, choice-driven events). Not started — see the root
-  `HANDOFF.md` and the still-open home-page comment for the original ask.
+- **1 more game from the same comment**: a second "half text half
+  graphics" Oregon-Trail-style game. `chickentrail` is the first one —
+  see its HANDOFF.md. Not started — see the root `HANDOFF.md` and the
+  still-open home-page comment for the original ask.
 - The map is small (7 rooms, 1 ending state with 3 outcome messages) —
   if the player wants more depth here later, more rooms/items/clues can
   be added to `ROOMS` without touching the engine functions at all.
