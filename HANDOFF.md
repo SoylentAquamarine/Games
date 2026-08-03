@@ -109,6 +109,7 @@ public/
 - **`comments.js`** — on every game page (injected via a Node patch script, see below). Renders the comment box, pings `/api/play`, and **stops keydown/keyup/keypress from its inputs propagating to game key handlers** (fixes WASD-in-textarea).
 - **`games/cards/cards.js`** — `window.Cards`: deck model, shuffle/deal, CSS card-face renderer. Used by war/crazy8/hearts/spades/klondike/blackjack.
 - **`games/musicmaker/engine.js`** — `window.MME`: Web Audio (instruments + 14-piece drum kit + transport). `studio.js` = shared multi-bar arranger for melody & band.
+- **`mascots.js`** — `window.Mascots.spacesuitChicken(ctx,x,y,r,facing)`: the site-wide decorative spacesuit-chicken cameo (bonus catches, flybys). Started as a per-game copy-pasted sprite in duckhunt/lander/kaboom/dk/chickenmania — already drifting (missing details in some copies) before this library existed. Player feedback asked for a proper mascot library (Hero chicken, rooster, Dr Chicken/surgical-mask variant too) — only the spacesuit-chicken part is built so far; **boulderdash, centipede, drmario, missilecommand, moonpatrol, qbert still have their own uncoverted inline copies** — migrating those, plus the other mascot characters, is the natural next slice of that comment.
 
 ### Patch script to add comments.js to every game (idempotent)
 ```js
