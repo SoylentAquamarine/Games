@@ -38,6 +38,18 @@
   const C={ W:480,H:360, CATCH_Y:318, PADDLE_W:52, BOMBER_Y:26, FALL_BASE:2.2,
              GAP:110, DEATH:120, ROTTEN_FROM:2, CARTON_SIZE:12, CARTONS_PER_WAVE:3,
              EGG_W:11, EGG_H:22, FLYBY_EVERY:5 };   // GAP/DEATH in frames (~2s); EGG size is 2x the original
+  // Admin-tunable difficulty knobs — see /admin/games/?game=kaboom. Only
+  // this exact allowlist (matching the 4 inputs the admin panel actually
+  // shows) can be overridden, and only with a number — so a malformed/
+  // stale saved config can't inject new fields or touch an unrelated
+  // constant like W/GAP that isn't meant to be admin-editable. No-ops
+  // safely (via the catch) in the headless test sandbox, where
+  // localStorage doesn't exist.
+  (function(){ try{
+    const allow=["ROTTEN_FROM","CARTON_SIZE","CARTONS_PER_WAVE","FLYBY_EVERY"];
+    const o=JSON.parse(localStorage.getItem("kaboom_config")||"{}");
+    for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
+  }catch(_){} })();
   // Redesigned per player feedback: the goal is now filling CARTONS_PER_WAVE
   // cartons of CARTON_SIZE eggs each (36 good catches) to clear a wave, not a
   // fixed egg count. From ROTTEN_FROM the hen also drops rotten eggs (green —

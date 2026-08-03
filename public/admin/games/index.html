@@ -219,6 +219,22 @@
             <span class="msg" id="g-ok"></span>
           </div>
         </div>
+
+        <!-- KABOOM -->
+        <div id="cfgKaboom" class="hidden">
+          <p class="sub">Difficulty knobs for the egg-catching game — takes effect next time the game is opened.</p>
+          <table>
+            <tr><td>Rotten eggs start on wave</td><td><input type="number" id="k-rottenFrom" min="1" max="20"></td></tr>
+            <tr><td>Eggs per carton</td><td><input type="number" id="k-cartonSize" min="1" max="99"></td></tr>
+            <tr><td>Cartons to clear a wave</td><td><input type="number" id="k-cartonsPerWave" min="1" max="20"></td></tr>
+            <tr><td>Spacesuit chicken flyby every N waves</td><td><input type="number" id="k-flybyEvery" min="1" max="20"></td></tr>
+          </table>
+          <div class="row" style="margin-top:8px">
+            <button class="btn" id="k-save">Save config</button>
+            <button class="btn ghost" id="k-reset">Reset to default</button>
+            <span class="msg" id="k-ok"></span>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -351,13 +367,14 @@
   }
 
   // ---- configuration: dispatch to the right editor pane ----
-  const CFG_PANES=["cfgGeneric","cfgQuest","cfgMania","cfgAdv","cfgGolf"];
+  const CFG_PANES=["cfgGeneric","cfgQuest","cfgMania","cfgAdv","cfgGolf","cfgKaboom"];
   function showConfig(slug){
     CFG_PANES.forEach(id=>$(id).classList.add("hidden"));
     if(slug==="quest"){ $("cfgQuest").classList.remove("hidden"); initQuestEditor(); }
     else if(slug==="chickenmania"){ $("cfgMania").classList.remove("hidden"); initManiaEditor(); }
     else if(slug==="adventure"){ $("cfgAdv").classList.remove("hidden"); initAdvEditor(); }
     else if(slug==="minigolf"){ $("cfgGolf").classList.remove("hidden"); initGolfEditor(); }
+    else if(slug==="kaboom"){ $("cfgKaboom").classList.remove("hidden"); initKaboomEditor(); }
     else { $("cfgGeneric").classList.remove("hidden"); initGenericConfig(slug); }
   }
 
@@ -662,6 +679,43 @@
     };
     $("g-par").value=gData[gHole].par;
     drawCoursePicker(); drawHolePicker(); drawGolf();
+  }
+
+  // =========================================================================
+  // KABOOM difficulty knobs — plain numeric overrides, no board/level shape.
+  // The game reads these from localStorage["kaboom_config"] at boot (see
+  // its own <script>, right after `const C={...}`) and merges any known
+  // numeric key into C. This is the simplest kind of per-game config pane —
+  // a candidate pattern for other games whose config is "tune some numbers"
+  // rather than "edit a board/level".
+  // =========================================================================
+  const KABOOM_DEFAULT={ ROTTEN_FROM:2, CARTON_SIZE:12, CARTONS_PER_WAVE:3, FLYBY_EVERY:5 };
+  let kaboomInit=false;
+  function initKaboomEditor(){
+    if(kaboomInit) return; kaboomInit=true;
+    const kData=Object.assign({}, KABOOM_DEFAULT, load("kaboom_config")||{});
+    $("k-rottenFrom").value=kData.ROTTEN_FROM;
+    $("k-cartonSize").value=kData.CARTON_SIZE;
+    $("k-cartonsPerWave").value=kData.CARTONS_PER_WAVE;
+    $("k-flybyEvery").value=kData.FLYBY_EVERY;
+    $("k-save").onclick=()=>{
+      const cfg={
+        ROTTEN_FROM:+$("k-rottenFrom").value||KABOOM_DEFAULT.ROTTEN_FROM,
+        CARTON_SIZE:+$("k-cartonSize").value||KABOOM_DEFAULT.CARTON_SIZE,
+        CARTONS_PER_WAVE:+$("k-cartonsPerWave").value||KABOOM_DEFAULT.CARTONS_PER_WAVE,
+        FLYBY_EVERY:+$("k-flybyEvery").value||KABOOM_DEFAULT.FLYBY_EVERY,
+      };
+      store("kaboom_config",cfg);
+      $("k-ok").textContent="Saved — reopen Kaboom to play with it.";
+    };
+    $("k-reset").onclick=()=>{
+      clear("kaboom_config");
+      $("k-rottenFrom").value=KABOOM_DEFAULT.ROTTEN_FROM;
+      $("k-cartonSize").value=KABOOM_DEFAULT.CARTON_SIZE;
+      $("k-cartonsPerWave").value=KABOOM_DEFAULT.CARTONS_PER_WAVE;
+      $("k-flybyEvery").value=KABOOM_DEFAULT.FLYBY_EVERY;
+      $("k-ok").textContent="Reset to the built-in difficulty.";
+    };
   }
 
   if(token){ show(true); Promise.all([refreshCommentsData(),loadCatalog()]).then(()=>{ buildGamesGrid(); initFromUrl(); }); }
