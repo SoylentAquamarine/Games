@@ -211,6 +211,7 @@
           </div>
           <div class="row" style="margin-top:8px">
             <button class="btn" id="g-save">Save course</button>
+            <button class="btn ghost" id="g-test">▶ Test this hole</button>
             <button class="btn ghost" id="g-reset">Reset to default</button>
             <span class="msg" id="g-ok"></span>
           </div>
@@ -599,6 +600,10 @@
       $("cfgGolf").querySelectorAll("[data-gbrush]").forEach(x=>x.classList.remove("on")); b.classList.add("on"); gBrush=b.dataset.gbrush; }));
     $("g-par").addEventListener("change",()=>{ gData[gHole].par=parseInt($("g-par").value)||3; });
     $("g-save").onclick=()=>{ store("minigolf_levels",gData); $("g-ok").textContent="Saved — reopen Mini Golf to play the course."; };
+    // Saves first (so unsaved edits are actually what gets tested — localStorage
+    // is shared same-origin, no round trip needed) then jumps the real game
+    // straight to this hole via ?hole=N, instead of always starting at hole 1.
+    $("g-test").onclick=()=>{ store("minigolf_levels",gData); window.open("/games/minigolf/?hole="+(gHole+1),"_blank"); };
     $("g-reset").onclick=()=>{ clear("minigolf_levels"); gData=JSON.parse(JSON.stringify(GOLF_DEFAULT)); gHole=0; drawHolePicker(); drawGolf(); $("g-ok").textContent="Reset to the built-in 18 holes."; };
     $("g-par").value=gData[gHole].par;
     drawHolePicker(); drawGolf();

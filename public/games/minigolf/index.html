@@ -131,13 +131,18 @@
     return ball;
   }
   function sunk(ball, hole){ return Math.hypot(ball.x-hole.x,ball.y-hole.y)<C.HOLE_R && Math.hypot(ball.vx,ball.vy)<7; }
-  function newState(){ const lv=LEVELS[0]; return { level:0, ball:{x:lv.start.x,y:lv.start.y,vx:0,vy:0}, strokes:0, total:0, card:[], done:false }; }
+  // startLevel lets the admin course designer jump straight to the hole
+  // being edited (?hole=N in the URL) instead of always starting at hole 1
+  // — "test the board directly from the design page".
+  function newState(startLevel){ const lv=LEVELS[startLevel||0]; return { level:startLevel||0, ball:{x:lv.start.x,y:lv.start.y,vx:0,vy:0}, strokes:0, total:0, card:[], done:false }; }
   window.__minigolf={ newState, putt, stepBall, sunk, collideWall, moving, inSand, inWater, LEVELS, C };
 
   if(typeof document==="undefined") return;
   const $=(id)=>document.getElementById(id);
   const cv=$("game"), ctx=cv.getContext("2d"); const W=C.W,H=C.H;
-  let s=newState(), aim=null, best=null, lastRest={x:0,y:0};
+  const urlHole=parseInt(new URLSearchParams(location.search).get("hole"))||0;
+  const startLevel=(urlHole>=1&&urlHole<=LEVELS.length)?urlHole-1:0;
+  let s=newState(startLevel), aim=null, best=null, lastRest={x:0,y:0};
   // Hole-in-one celebration: two seconds of fireworks over a shaking banner
   // before the course moves on.
   let ace=0, fw=[];
