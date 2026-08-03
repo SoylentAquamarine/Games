@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hunt the Fox — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🦊</text></svg>" />
+  <style>
+    :root{--bg:#0f1020;--panel:#1e2140;--panel2:#252a4d;--text:#e6e6f0;--muted:#9a9ab5;--accent:#7c5cff;--accent-2:#22d3ee;}
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+      background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.22),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.16),transparent 60%),var(--bg);}
+    .wrap{max-width:640px;margin:0 auto;padding:14px 12px 40px;display:flex;flex-direction:column;gap:10px}
+    .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
+    .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+    .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
+    h1{margin:0;font-size:1.3rem;background:linear-gradient(120deg,#f0902a,#4ade80);-webkit-background-clip:text;background-clip:text;color:transparent}
+    .hint{color:var(--muted);font-size:.82rem;line-height:1.5;margin:0}
+    .hud{display:flex;justify-content:space-between;font-weight:700;font-size:.9rem;color:var(--muted)}
+    .hud b{color:var(--text)}
+    #log{background:#0a0c18;border:1px solid #2a2f55;border-radius:10px;padding:12px 14px;height:340px;overflow-y:auto;
+      font-family:"Courier New",monospace;font-size:.92rem;line-height:1.55;white-space:pre-wrap;word-break:break-word}
+    #log .room{color:#facc15;font-weight:700}
+    #log .sense{color:#22d3ee}
+    #log .bad{color:#f87171;font-weight:700}
+    #log .good{color:#4ade80;font-weight:700}
+    #log .cmd{color:var(--muted)}
+    .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .exits{display:flex;gap:6px;flex-wrap:wrap}
+    .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:9px 16px;border-radius:999px;cursor:pointer;font-size:.85rem}
+    .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,.18);color:var(--muted)}
+    .btn.warn{background:linear-gradient(120deg,#f43f5e,#f97316)}
+    .btn:disabled{opacity:.4;cursor:default}
+    #cmdRow{display:flex;gap:8px}
+    #cmd{flex:1;background:var(--panel2);border:1px solid rgba(255,255,255,.14);color:var(--text);border-radius:10px;padding:10px 12px;font-size:.92rem;font-family:"Courier New",monospace}
+    .overlay{position:fixed;inset:0;background:rgba(15,16,32,.86);display:flex;align-items:center;justify-content:center;padding:16px;z-index:5}
+    .overlay.hidden{display:none}
+    .card{background:var(--panel);border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:20px;max-width:420px;text-align:center}
+    .card h2{margin:0 0 8px}
+    .card p{color:var(--muted);margin:0 0 14px;font-size:.9rem}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar"><a class="home" href="/">← Home</a><h1>🦊 Hunt the Fox</h1><span style="width:56px"></span></div>
+    <p class="hint">A fox has been raiding the henhouse and is hiding somewhere in the twenty-burrow warren below. You've got a slingshot and 5 stones. Move burrow to burrow following your nose, ears and the draft on your feathers — then take your shot. Type a command below, or click a lit exit / the Shoot button.</p>
+    <div class="hud"><span>Burrow: <b id="hudRoom">—</b></span><span>Stones left: <b id="hudArrows">5</b></span></div>
+    <div id="log"></div>
+    <div class="row exits" id="exits"></div>
+    <div id="cmdRow">
+      <input id="cmd" placeholder="move 5   or   shoot 5 8 12" autocomplete="off" />
+      <button class="btn" id="send">Go</button>
+      <button class="btn warn" id="shootMode">🎯 Shoot</button>
+    </div>
+    <div class="row"><button class="btn ghost" id="newBtn">New Warren</button></div>
+  </div>
+
+  <div class="overlay hidden" id="ov">
+    <div class="card">
+      <h2 id="ovTitle">—</h2>
+      <p id="ovBody"></p>
+      <button class="btn" id="ovBtn">New Warren</button>
+    </div>
+  </div>
+
+  <script>
+  (function(){
+    const N=20, DEGREE=3;
+    function rnd(n){ return Math.floor(Math.random()*n); }
+    function shuffle(a){ a=a.slice(); for(let i=a.length-1;i>0;i--){ const j=rnd(i+1); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+
+    // Random 3-regular graph over N rooms via repeated-random-matching with
+    // retries — generated fresh each game (rather than a fixed classic map)
+    // so there's nothing to memorize between plays. Retries until a clean
+    // match is found (no self-loops, no duplicate edges); a stub-matching
+    // approach can dead-end near the finish, so it just restarts rather
+    // than trying to patch a partial graph.
+    function generateCave(){
+      for(let attempt=0; attempt<200; attempt++){
+        const stubs=[];
+        for(let r=0;r<N;r++) for(let k=0;k<DEGREE;k++) stubs.push(r);
+        const order=shuffle(stubs);
+        const adj=Array.from({length:N},()=>new Set());
+        let ok=true;
+        for(let i=0;i<order.length;i+=2){
+          const a=order[i], b=order[i+1];
+          if(a===b || adj[a].has(b)){ ok=false; break; }
+          adj[a].add(b); adj[b].add(a);
+        }
+        if(!ok) continue;
+        if(adj.some(s=>s.size!==DEGREE)) continue;
+        if(!isConnected(adj)) continue;
+        return adj.map(s=>[...s].sort((x,y)=>x-y));
+      }
+      // Extremely unlikely fallback: a hand-built valid 3-regular, connected
+      // graph (two rings of 10 cross-linked), guaranteed to satisfy every
+      // invariant above even if random generation somehow keeps failing.
+      const adj=Array.from({length:N},()=>new Set());
+      const link=(a,b)=>{ adj[a].add(b); adj[b].add(a); };
+      for(let i=0;i<10;i++){ link(i,(i+1)%10); link(10+i,10+((i+1)%10)); link(i,10+i); }
+      return adj.map(s=>[...s].sort((x,y)=>x-y));
+    }
+    function isConnected(adj){
+      const seen=new Set([0]), stack=[0];
+      while(stack.length){ const r=stack.pop(); for(const n of adj[r]) if(!seen.has(n)){ seen.add(n); stack.push(n); } }
+      return seen.size===adj.length;
+    }
+
+    function pickDistinct(n, exclude){
+      const pool=[]; for(let i=0;i<N;i++) if(!exclude.includes(i)) pool.push(i);
+      return shuffle(pool).slice(0,n);
+    }
+
+    function newGame(){
+      const cave=generateCave();
+      const player=rnd(N);
+      const [fox]=pickDistinct(1,[player]);
+      const pits=pickDistinct(2,[player,fox]);
+      const hawks=pickDistinct(2,[player,fox,...pits]);
+      return { cave, player, fox, pits, hawks, arrows:5, over:false, won:false, log:[] };
+    }
+
+    function neighbors(s, room){ return s.cave[room]; }
+
+    function senses(s, room){
+      const out=[];
+      for(const n of neighbors(s,room)){
+        if(n===s.fox) out.push("You smell fox musk close by.");
+        if(s.pits.includes(n)) out.push("You feel a cold draft — a ravine is near.");
+        if(s.hawks.includes(n)) out.push("You hear the flap of wings overhead.");
+      }
+      return [...new Set(out)];
+    }
+
+    function enterRoom(s, room, msgs){
+      s.player=room;
+      msgs.push({ t:"room", text:"You're in burrow "+room+"." });
+      if(room===s.fox){
+        if(Math.random()<0.75){
+          s.over=true; s.won=false;
+          msgs.push({ t:"bad", text:"The fox was waiting! It gets you. GAME OVER." });
+          return;
+        } else {
+          const to=s.cave[s.fox][rnd(s.cave[s.fox].length)];
+          s.fox=to;
+          msgs.push({ t:"bad", text:"Something snarls and bolts past you into the dark — the fox! It's fled deeper into the warren." });
+        }
+      }
+      if(s.pits.includes(room)){
+        s.over=true; s.won=false;
+        msgs.push({ t:"bad", text:"The ground gives way — you tumble into a ravine. GAME OVER." });
+        return;
+      }
+      if(s.hawks.includes(room)){
+        if(Math.random()<0.5){
+          const to=rnd(N);
+          msgs.push({ t:"bad", text:"A hawk swoops down, grabs you by the tail feathers, and drops you somewhere else in the warren!" });
+          return enterRoom(s, to, msgs);
+        } else {
+          msgs.push({ t:"sense", text:"A hawk shrieks and dives — but you duck clear in time." });
+        }
+      }
+      if(!s.over) for(const m of senses(s, room)) msgs.push({ t:"sense", text:m });
+    }
+
+    function move(s, room){
+      const msgs=[];
+      if(s.over) return { ok:false, msgs:[{t:"bad",text:"The hunt is over — start a new warren."}] };
+      if(!neighbors(s,s.player).includes(room)) return { ok:false, msgs:[{t:"bad",text:"Burrow "+room+" isn't connected to where you are."}] };
+      enterRoom(s, room, msgs);
+      return { ok:true, msgs };
+    }
+
+    // A shot travels through up to 5 connected burrows, starting from an
+    // exit of the player's current room. Each step must be adjacent to the
+    // one before it — an unaimed stone that clatters off in a random legal
+    // direction whenever the path breaks, same spirit as the classic game.
+    function shoot(s, path){
+      const msgs=[];
+      if(s.over) return { ok:false, msgs:[{t:"bad",text:"The hunt is over — start a new warren."}] };
+      if(s.arrows<=0) return { ok:false, msgs:[{t:"bad",text:"You're out of stones."}] };
+      if(!path || !path.length) return { ok:false, msgs:[{t:"bad",text:"Shoot through which burrows?"}] };
+      s.arrows--;
+      let from=s.player, hit=false;
+      const real=[];
+      for(let step of path.slice(0,5)){
+        const legal=neighbors(s,from).includes(step);
+        const actual=legal ? step : neighbors(s,from)[rnd(neighbors(s,from).length)];
+        real.push(actual);
+        if(actual===s.fox){ hit=true; break; }
+        from=actual;
+      }
+      msgs.push({ t:"cmd", text:"Stone clatters through burrows "+real.join(" → ")+"." });
+      if(hit){
+        s.over=true; s.won=true;
+        msgs.push({ t:"good", text:"A yelp echoes through the warren — you got the fox! YOU WIN." });
+        return { ok:true, msgs };
+      }
+      msgs.push({ t:"bad", text:"Miss." });
+      if(Math.random()<0.25){
+        const to=s.cave[s.fox][rnd(s.cave[s.fox].length)];
+        s.fox=to;
+        if(to===s.player){
+          s.over=true; s.won=false;
+          msgs.push({ t:"bad", text:"Startled by the noise, the fox bolts — straight into your burrow! It gets you. GAME OVER." });
+          return { ok:true, msgs };
+        }
+        msgs.push({ t:"sense", text:"You hear scrabbling claws — the fox has moved." });
+      }
+      if(s.arrows<=0){
+        s.over=true; s.won=false;
+        msgs.push({ t:"bad", text:"That was your last stone. GAME OVER." });
+      }
+      return { ok:true, msgs };
+    }
+
+    window.__huntfox={ generateCave, isConnected, newGame, neighbors, senses, move, shoot, N, DEGREE };
+    if(typeof document==="undefined") return;
+
+    const logEl=document.getElementById("log"), exitsEl=document.getElementById("exits"),
+          cmdEl=document.getElementById("cmd"), sendBtn=document.getElementById("send"),
+          shootBtn=document.getElementById("shootMode"), newBtn=document.getElementById("newBtn"),
+          hudRoom=document.getElementById("hudRoom"), hudArrows=document.getElementById("hudArrows"),
+          ov=document.getElementById("ov"), ovTitle=document.getElementById("ovTitle"), ovBody=document.getElementById("ovBody"), ovBtn=document.getElementById("ovBtn");
+    let s, shootQueue=null;
+
+    function print(msgs){
+      for(const m of msgs){
+        const div=document.createElement("div");
+        div.className=m.t;
+        div.textContent=m.text;
+        logEl.appendChild(div);
+      }
+      logEl.scrollTop=logEl.scrollHeight;
+    }
+    // Aiming a shot: click "🎯 Shoot" to start, then click up to 5 exits to
+    // build the path (each click's exit buttons refresh to that tentative
+    // room's own exits, so you can chain hops), then click "🎯 Shoot" again
+    // (now labelled "Fire!") to actually let the stone fly. The player's
+    // real burrow (s.player) never changes while aiming — only fired.
+    function renderHud(){
+      hudRoom.textContent=s.player;
+      hudArrows.textContent=s.arrows;
+      exitsEl.innerHTML="";
+      if(shootQueue){
+        shootBtn.textContent = shootQueue.length ? "🎯 Fire!" : "🎯 Cancel";
+        const tentativeRoom = shootQueue.length ? shootQueue[shootQueue.length-1] : s.player;
+        for(const n of s.cave[tentativeRoom]){
+          const b=document.createElement("button");
+          b.className="btn ghost"; b.textContent="→ "+n;
+          b.disabled = shootQueue.length>=5;
+          b.addEventListener("click",()=>{ shootQueue.push(n); renderHud(); });
+          exitsEl.appendChild(b);
+        }
+      } else {
+        shootBtn.textContent="🎯 Shoot";
+        for(const n of s.cave[s.player]){
+          const b=document.createElement("button");
+          b.className="btn ghost"; b.textContent="Go to "+n;
+          b.addEventListener("click",()=>doMove(n));
+          exitsEl.appendChild(b);
+        }
+      }
+    }
+    function doMove(room){
+      const res=window.__huntfox.move(s, room);
+      print(res.msgs);
+      afterAction();
+    }
+    function doShoot(path){
+      const res=window.__huntfox.shoot(s, path);
+      print(res.msgs);
+      shootQueue=null;
+      afterAction();
+    }
+    function afterAction(){
+      renderHud();
+      if(s.over){
+        ovTitle.textContent = s.won ? "🏆 The fox is caught!" : "💀 The hunt ends here";
+        ovBody.textContent = s.won
+          ? "You bagged the fox in "+ (5-s.arrows) +" stone(s). The henhouse is safe again."
+          : "Better luck in the next warren.";
+        ov.classList.remove("hidden");
+      }
+    }
+    function startNew(){
+      s=window.__huntfox.newGame();
+      shootQueue=null;
+      logEl.innerHTML="";
+      print([{t:"room",text:"You slip into the warren at burrow "+s.player+"."}]);
+      print(window.__huntfox.senses(s, s.player).map(m=>({t:"sense",text:m})));
+      renderHud();
+      ov.classList.add("hidden");
+    }
+
+    function parseCommand(text){
+      const parts=text.trim().toLowerCase().split(/[\s,]+/).filter(Boolean);
+      if(!parts.length) return;
+      if(parts[0]==="move"||parts[0]==="go"){ const n=+parts[1]; if(Number.isInteger(n)) doMove(n); return; }
+      if(parts[0]==="shoot"||parts[0]==="fire"){
+        const path=parts.slice(1).map(Number).filter(Number.isInteger);
+        if(path.length) doShoot(path);
+        return;
+      }
+      const n=+parts[0];
+      if(Number.isInteger(n)) doMove(n);
+    }
+
+    sendBtn.addEventListener("click",()=>{ const v=cmdEl.value; cmdEl.value=""; parseCommand(v); });
+    cmdEl.addEventListener("keydown",(e)=>{ if(e.key==="Enter"){ e.preventDefault(); const v=cmdEl.value; cmdEl.value=""; parseCommand(v); } });
+    cmdEl.addEventListener("keydown",(e)=>e.stopPropagation());
+    shootBtn.addEventListener("click",()=>{
+      if(shootQueue===null){ shootQueue=[]; renderHud(); return; }   // enter aiming mode
+      if(shootQueue.length===0){ shootQueue=null; renderHud(); return; }   // cancel, nothing queued
+      doShoot(shootQueue);   // fire the queued path
+    });
+    newBtn.addEventListener("click",startNew);
+    ovBtn.addEventListener("click",startNew);
+    startNew();
+  })();
+  </script>
+  <script src="/comments.js" defer></script>
+</body>
+</html>

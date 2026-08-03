@@ -1,6 +1,6 @@
 # Games Index
 
-98 self-contained browser games. Each lives at `public/games/<slug>/index.html` and is served live at `https://games.square-bar-75ce.workers.dev/games/<slug>/`.
+99 self-contained browser games. Each lives at `public/games/<slug>/index.html` and is served live at `https://games.square-bar-75ce.workers.dev/games/<slug>/`.
 
 Every game is a single HTML file with inline CSS/JS. Pure game logic is exposed on `window.__<name>` for headless testing. Shared helpers come from [`/arcade.js`](../arcade.js) (4:3 screen tiers, sfx, splash screens, start gate, play-stats) and per-page comment boxes from [`/comments.js`](../comments.js).
 
@@ -62,6 +62,7 @@ Every game is a single HTML file with inline CSS/JS. Pure game logic is exposed 
 | [`hangman`](hangman/) | Hangman | Guess the word, letter by letter |
 | [`hanoi`](hanoi/) | Tower of Hanoi | Move the stacked disks |
 | [`helixjump`](helixjump/) | Helix Jump | Drop through the gaps, dodge red |
+| [`huntfox`](huntfox/) | Hunt the Fox | Hunt the Wumpus clone — pure text, track it through 20 burrows |
 | [`invaders`](invaders/) | Chicken Invaders | Space Invaders clone |
 | [`joust`](joust/) | Chicken Joust | Flap &amp; joust — hit from above |
 | [`kaboom`](kaboom/) | ChickenBoom | Catch the hen's falling eggs |
