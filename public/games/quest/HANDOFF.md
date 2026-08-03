@@ -29,8 +29,38 @@ level editor (`/admin/games/?game=quest`, "Configuration" panel).
   locked TRI room, drops that dungeon's gem egg) and `finalBoss` (the Fox
   King, fought loose in the overworld, only exists after the 12th egg).
   They're independent state — `getBoss()`/`getFinalBoss()` for tests.
+- **`finalBoss` is in-memory only — it does NOT survive a reload.**
+  `eggs` (the carton) DOES persist, via `localStorage["quest_eggs"]`. That
+  mismatch is exactly what caused the vanish/unwinnable bug below,
+  so any future final-boss-adjacent state needs the same treatment: either
+  persist it, or self-heal it every frame the way `update()` now does
+  (`foxKingDefeated()`/`markFoxKingDefeated()`, `localStorage["quest_foxking"]`).
+- A HUD "New Game" button (`#newGameBtn`) is always available during play,
+  not just on the death/win overlay — calls `resetProgress()`, which wipes
+  both `quest_eggs` and `quest_foxking` before calling `newGame()`.
 
 ## Most recent pass
+
+**Player feedback, landed right after the Fox King shipped: "triggered
+the main boss then went into a dungeon, now the main boss has vanished
+and the game is unwinnable."** Root cause: `finalBoss` was spawned exactly
+once, inside the one-time 12th-egg pickup handler, with no persistence —
+so any state that dropped it (a reload being the most likely real-world
+trigger, since `eggs` persists but `finalBoss` never did) left the player
+permanently stuck: once every `eggs[n-1]` is true, no dungeon boss or egg
+item ever spawns again, so there was no remaining path to re-trigger the
+fight. Fixed with a self-healing check at the top of `update()`: whenever
+the carton is full, the boss isn't currently spawned, and he hasn't
+actually been beaten yet, bring him back. The "hasn't actually been
+beaten yet" part needed its own persisted flag (`quest_foxking` in
+`localStorage`) — otherwise a genuine win would just respawn him forever
+on the next frame. Same round of feedback also asked for a reset button
+("we need a reset/new game button"), added to the HUD (see "What's here").
+A third comment in the same batch — "there is no stairway to climb out of
+the dungeon" — is left open; the existing "🚪 Leave" HUD button already
+does this (verified working, unrelated to the above bug), so this reads
+as a discoverability/design ask rather than something broken. Needs a
+closer look or player clarification before archiving.
 
 **Player feedback: "when we trigger final boss we have to fight him in
 the overland."** Filling the carton used to immediately end the game with
@@ -92,8 +122,12 @@ above).
 
 ## Open / deferred
 
-- Nothing outstanding from player feedback as of this pass — the last open
-  comment (final boss in the overland) was closed out above.
+- **"There is no stairway to climb out of the dungeon"** — left open
+  (not archived). The 🚪 Leave HUD button already does exactly this and
+  is confirmed working; this may be a discoverability complaint (wants a
+  more obvious/thematic in-world exit rather than a small HUD button) or
+  may have been confusion from the vanish bug above rather than a
+  separate real ask. Get more player detail before changing anything.
 - The original mascot-library comment's Hero chicken / rooster characters
   haven't been designed yet (separate from Quest specifically — see the
   root `HANDOFF.md`'s mascots.js entry).
