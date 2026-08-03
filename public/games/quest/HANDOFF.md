@@ -9,10 +9,15 @@ level editor (`/admin/games/?game=quest`, "Configuration" panel).
   the farmhouse store, coins. `window.__quest` exposes the pure sim for
   headless testing (`makeBoss`, `bossTakeHit`, `BOSSES`, `doorOpen`,
   `genRoom`, plus DOM-layer hooks `newGame`, `enterDungeon`,
-  `enterOverworld`, `tryTransition`, `getMode`, `getRoom`, `getPlayer`,
-  `setPlayerPos` added for testing navigation) — see
-  `if(typeof document==="undefined") return;` for where the DOM-only part
-  starts.
+  `enterOverworld`, `tryTransition`, `update`, `getMode`, `getRoom`,
+  `getPlayer`, `getBoss`, `setPlayerPos`, `setRoom` added for testing
+  navigation/combat) — see `if(typeof document==="undefined") return;` for
+  where the DOM-only part starts.
+- **Gotcha for future boss-fight edits**: `bcx`/`bcy` (the boss's centre
+  point) are computed once at the top of the `if(!b.dead){...}` block and
+  reused by both the movement branch AND the player-collision check below
+  it. Don't move that computation back inside the `if(b.hurt>0){}else{}`
+  split — see the crash this caused, below.
 - Dungeon layout is editable per-room from the admin page; edits are
   stored in `localStorage["quest_layout"]` and read on load, falling back
   to the built-in default dungeon (`defaultDungeon()` in the admin page's
@@ -20,15 +25,31 @@ level editor (`/admin/games/?game=quest`, "Configuration" panel).
 
 ## Most recent pass
 
-Two more bug reports, both fixed:
+**The actual cause of both "the game froze/locked up" reports, found**:
+`bcx`/`bcy` used to be `const`-declared *inside* the `else` branch of
+`if(b.hurt>0){b.hurt--;}else{...movement, declares bcx/bcy...}` — the
+branch that only runs while the boss is NOT paused. They were then
+referenced again, unconditionally, in the player-touches-boss collision
+check further down the same block. Touch a PAUSED boss (`b.hurt>0` — true
+right after you land a sword hit, exactly when melee contact is likely)
+and that reference hit a plain `ReferenceError`, with no try/catch
+anywhere above it in the call stack — silently killing the whole
+`requestAnimationFrame` loop. That's what "the game just hung" actually
+was: a crash with no visible error, not a stall. Confirmed by a second,
+more precise report — "ran into Prism Peacock without hitting it with the
+sword and the game just hung right there" — which pinpoints the exact
+trigger (touch, no swing) that only makes sense against this bug. Fixed
+by hoisting `bcx`/`bcy` to compute unconditionally before the hurt-gated
+branch.
 
-- **"swung twice and the Shadow Bat locked up"** — the earlier Thunder
-  Hawk knockback fix only tried one computed direction; if a specific
-  boss room's walls happen to block that exact direction, the knockback
-  silently fails and the stun-lock can recur. Hardened: if the primary
-  x/y knockback is fully wall-blocked, it now falls back to trying all 4
-  cardinal directions, so a hit always finds an opening regardless of
-  room geometry.
+The earlier boss-freeze work (below) was a real, worthwhile hardening
+pass, just not the actual crash:
+
+- The Thunder Hawk knockback fix only tried one computed direction; if a
+  specific boss room's walls happen to block that exact direction, the
+  knockback silently fails and the stun-lock pattern it was meant to
+  prevent can recur. Hardened: if the primary x/y knockback is fully
+  wall-blocked, it now falls back to trying all 4 cardinal directions.
 - **"when I enter a dungeon then if I go down I pop back out"** — the
   start room (1,1) sits at the CENTER of the 3x3 grid with a real door on
   all 4 sides (`doorOpen()`/`genRoom()` both treat it as fully connected),
