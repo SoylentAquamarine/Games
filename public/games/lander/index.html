@@ -51,13 +51,20 @@
   const C={ GRAVITY:0.0648, THRUST:0.176, LATERAL:0.08, FUEL:100,
     // Burn rates eased ~35% (were 0.5/0.28) — fuel was draining too fast to enjoy manoeuvring.
     BURN_UP:0.32, BURN_SIDE:0.18,
-    LAND_VMAX:1.84, LAND_VXMAX:1.12, LIVES:3, MAX_LIVES:6, DEATH_FRAMES:45,
+    LIVES:3, MAX_LIVES:6, DEATH_FRAMES:45,
     // A good landing no longer ends the run — it freezes briefly on the pad
     // (LAND_FRAMES) then a fresh terrain loads for the next round. A chicken
-    // is earned every CHICKEN_EVERY rounds, and a decorative flyby cameo
-    // crosses the sky every FLYBY_EVERY rounds, matching the site-wide pattern.
+    // is earned every CHICKEN_EVERY rounds. Every FLYBY_EVERY rounds a
+    // spacesuit chicken flies in and tops off the fuel tank — that's also
+    // now the ONLY way fuel is replenished; a tank has to last ~FLYBY_EVERY
+    // rounds of careful flying, matching the "one tank per 5 screens" ask.
     LAND_FRAMES:60, CHICKEN_EVERY:3, FLYBY_EVERY:5, FLY_W:36, FLY_H:28,
     W, H, GROUND_Y, LW, LH };
+  // Higher-value pads reward more precision: the safe landing speed window
+  // tightens as the pad's multiplier climbs (Valley 1x is forgiving, Peak 3x
+  // demands a genuinely gentle touch) instead of one flat threshold for
+  // every pad regardless of payout.
+  function landThresholds(mult){ return { vmax: 2.6-(mult-1)*0.6, vxmax: 1.6-(mult-1)*0.4 }; }
 
   function shuffle(a){ a=a.slice(); for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
   // Three landing pads at three different elevations — a wide safe valley pad,
@@ -102,10 +109,13 @@
       vx: opts.vx!=null?opts.vx:(Math.random()*1.2-0.6), vy: opts.vy!=null?opts.vy:0,
       fuel: opts.fuel!=null?opts.fuel:C.FUEL, lives: opts.lives!=null?opts.lives:C.LIVES,
       landed:false, crashed:false, over:false, dying:0, landing:0,
-      round: opts.round!=null?opts.round:1, totalScore:0, roundScore:0, padHit:null, flyby:null,
+      round: opts.round!=null?opts.round:1, totalScore:0, roundScore:0, padHit:null, flyby:null, justRefueled:false,
       terrain: built.points, pads: built.pads };
   }
-  function respawnShip(s){ s.x=60+Math.random()*(W-120); s.y=24; s.vx=Math.random()*1.2-0.6; s.vy=0; s.fuel=C.FUEL; s.crashed=false; }
+  // Fuel is NOT reset here any more — it's a resource that persists across
+  // both round transitions and crash-respawns; only the periodic refuel
+  // (nextRound, every FLYBY_EVERY rounds) tops it back up.
+  function respawnShip(s){ s.x=60+Math.random()*(W-120); s.y=24; s.vx=Math.random()*1.2-0.6; s.vy=0; s.crashed=false; }
   // A purely decorative spacesuit chicken flyby, every FLYBY_EVERY rounds —
   // cosmetic only, doesn't interact with the ship or scoring.
   function spawnFlyby(){ const goRight=Math.random()<0.5;
@@ -117,7 +127,11 @@
   function nextRound(s){
     s.round++;
     if(s.round % C.CHICKEN_EVERY === 0 && s.lives < C.MAX_LIVES) s.lives++;
-    if(s.round % C.FLYBY_EVERY === 0 && !s.flyby) s.flyby = spawnFlyby();
+    s.justRefueled=false;
+    if(s.round % C.FLYBY_EVERY === 0){
+      if(!s.flyby) s.flyby = spawnFlyby();
+      s.fuel = C.FUEL; s.justRefueled=true;
+    }
     const built = buildTerrain();
     s.terrain = built.points; s.pads = built.pads;
     respawnShip(s);
@@ -144,7 +158,8 @@
     if(s.y+LH>=groundY){
       s.y=groundY-LH;
       const pad=s.pads.find(p=>cx>=p.x && cx<=p.x+p.w);
-      if(pad && s.vy<=C.LAND_VMAX && Math.abs(s.vx)<=C.LAND_VXMAX){
+      const th=pad?landThresholds(pad.mult):null;
+      if(pad && s.vy<=th.vmax && Math.abs(s.vx)<=th.vxmax){
         s.landed=true; s.roundScore=Math.round(s.fuel*10*pad.mult); s.totalScore+=s.roundScore;
         s.padHit=pad; s.landing=C.LAND_FRAMES;
       } else {
@@ -154,7 +169,7 @@
     }
     return s;
   }
-  window.__lander={ makeState, step, buildTerrain, terrainYAt, choosePads, respawnShip, nextRound, spawnFlyby, C, PAD_TYPES };
+  window.__lander={ makeState, step, buildTerrain, terrainYAt, choosePads, respawnShip, nextRound, spawnFlyby, landThresholds, C, PAD_TYPES };
 
   if(typeof document==="undefined") return;
   const $=(id)=>document.getElementById(id);
@@ -212,8 +227,15 @@
   function overlay(col,t1,t2){ ctx.fillStyle="rgba(0,0,0,.5)"; ctx.fillRect(0,0,W,H);
     ctx.fillStyle=col; ctx.font="bold 26px system-ui"; ctx.textAlign="center"; ctx.fillText(t1,W/2,H/2-6);
     ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText(t2,W/2,H/2+18); }
-  function hud(){ $("vy").textContent=s.vy.toFixed(1); $("vy").className=s.vy>C.LAND_VMAX?"warn":"";
-    $("vx").textContent=s.vx.toFixed(1); $("vx").className=Math.abs(s.vx)>C.LAND_VXMAX?"warn":"";
+  function hud(){
+    // Warn against whichever pad the ship is currently over (its threshold
+    // is what actually matters right now); default to the most forgiving
+    // (Valley) threshold while over open terrain, same as landing on any pad
+    // requires at least that much control.
+    const cx=s.x+LW/2, underPad=s.pads.find(p=>cx>=p.x&&cx<=p.x+p.w);
+    const th=landThresholds(underPad?underPad.mult:1);
+    $("vy").textContent=s.vy.toFixed(1); $("vy").className=s.vy>th.vmax?"warn":"";
+    $("vx").textContent=s.vx.toFixed(1); $("vx").className=Math.abs(s.vx)>th.vxmax?"warn":"";
     $("alt").textContent=Math.max(0,Math.round(GROUND_Y-LH-s.y)); $("fuelbar").style.width=(s.fuel/C.FUEL*100)+"%";
     $("round").textContent=s.round; $("score").textContent=s.totalScore;
     const livesEl=$("lives"); if(livesEl) livesEl.textContent="🐔".repeat(Math.max(0,s.lives)); }
@@ -227,6 +249,13 @@
       if(typeof Arcade!=="undefined" && s.landing>0 && prevLanding<=0) Arcade.sfx.win();
       prevLanding=s.landing;
       if(s.landing>0){ $("msg").textContent="🚀 Touchdown! +"+s.roundScore+" ("+s.padHit.name+" "+s.padHit.mult+"x)  ·  Total "+s.totalScore; }
+      else if(s.justRefueled){
+        // One-shot: nextRound() sets this true only on a refuel round: consume
+        // it here (own sound + message) so it doesn't repeat every frame.
+        if(typeof Arcade!=="undefined") Arcade.sfx.pickup();
+        $("msg").textContent="⛽ The space chicken topped off your tank! Round "+s.round+" — full fuel.";
+        s.justRefueled=false;
+      }
       else if(s.over){ done=true; if(typeof Arcade!=="undefined"){ Arcade.stats.record("lander",s.totalScore); Arcade.sfx.lose(); } if(!best||(s.totalScore>best)){ best=s.totalScore; try{localStorage.setItem("lander_best",String(best));}catch(e){} } $("msg").textContent="💥 Out of chickens. Final score "+s.totalScore+(best?"  ·  Best "+best:"")+". Try again!"; }
       else if(s.crashed && s.dying>0){ $("msg").textContent="CHICKEN DOWN — "+s.lives+" left"; }
       else if(s.landing<=0 && s.dying<=0 && !s.crashed){ $("msg").textContent="Round "+s.round+" — land gently on a pad to advance!"; } }
