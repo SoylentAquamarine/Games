@@ -29,6 +29,14 @@ level editor (`/admin/games/?game=quest`, "Configuration" panel).
   locked TRI room, drops that dungeon's gem egg) and `finalBoss` (the Fox
   King, fought loose in the overworld, only exists after the 12th egg).
   They're independent state — `getBoss()`/`getFinalBoss()` for tests.
+- **The player's hero-chicken sprite is drawn from the shared
+  `/mascots.js` library** (`Mascots.heroChicken(ctx,x,y,size,dir)`) —
+  this game's existing player avatar was the one extracted to become the
+  site-wide "Hero chicken" from the original mascot-library comment.
+  `dir` follows this game's own convention (0=up,1=down,2=left,3=right).
+  Any test that boots this page through a mocked DOM (i.e. anything that
+  reaches `render()`) needs a `Mascots: { heroChicken(){} }` stub in its
+  sandbox now, same as `Arcade`/`Cards` for other games.
 - **`finalBoss` is in-memory only — it does NOT survive a reload.**
   `eggs` (the carton) DOES persist, via `localStorage["quest_eggs"]`. That
   mismatch is exactly what caused the vanish/unwinnable bug below,
@@ -41,7 +49,16 @@ level editor (`/admin/games/?game=quest`, "Configuration" panel).
 
 ## Most recent pass
 
-**Player feedback, landed right after the Fox King shipped: "triggered
+Extracted the player's hero-chicken sprite into `/mascots.js` as
+`Mascots.heroChicken` — no gameplay/visual change, purely
+de-duplicating what was this site's most developed protagonist design
+so other top-down/4-directional games can reuse it. Completes the
+original mascot-library comment's "3 standard characters" ask (mascot/
+spacesuit chicken, rooster, hero chicken — all 3 now shared library
+functions); only the separate Dr Chicken surgical-mask redesign remains
+open on that comment (see drmario's HANDOFF.md).
+
+Earlier — **player feedback, landed right after the Fox King shipped: "triggered
 the main boss then went into a dungeon, now the main boss has vanished
 and the game is unwinnable."** Root cause: `finalBoss` was spawned exactly
 once, inside the one-time 12th-egg pickup handler, with no persistence —
