@@ -97,6 +97,14 @@ public/
   account.js            Account/cloud-save client helper
   account/index.html    Register / login / profile / cloud backup+restore
   admin/index.html      Owner dashboard (token login)
+  admin/comments/index.html Comment moderation across all games
+  admin/games/index.html    Per-game config: pick a game, moderate its comments,
+                             edit its Configuration pane. Board/level editors
+                             (quest, chickenmania, adventure, minigolf) vs. plain
+                             numeric-knob panes (kaboom) vs. the generic raw-JSON
+                             fallback for everything else not yet wired up — see
+                             "Per-game HANDOFF.md rollout" below for where that
+                             stands.
   play/index.html       Multiplayer lobby / waiting room
   play/match/index.html Online match renderer (all 6 games)
   games/<slug>/index.html   One file per game
@@ -196,6 +204,7 @@ Separate transport from the turn-based `MP_GAMES` (KV+polling) — real-time nee
 - **Admin test data:** the user count / play stats include a handful of `alice_*`, `bob_*`, `tester_*`, `chk_*` accounts created during API testing. Consider a "clear test data" admin action (delete `u:<test>`, reset `stats`).
 - **KV write contention:** play counters + presence use read-modify-write on KV — fine at low traffic, undercounts under heavy concurrency. Fine for now.
 - **Per-game HANDOFF.md rollout in progress:** convention is `public/games/<slug>/HANDOFF.md` — see `docs/README.md`. Only a handful of games have one so far (started with the ones most recently touched); rolling out to the rest a few at a time per pass, same cadence as comment processing. When you finish work on a game, check whether it has a HANDOFF.md and update/create it before moving on.
+- **Per-game admin config rollout in progress:** `admin/games/index.html`'s Configuration pane falls back to a raw-JSON textarea games don't actually read yet, for any game without a dedicated pane wired into `CFG_PANES`/`showConfig()`. Two patterns exist so far: board/level editors (quest, chickenmania, adventure, minigolf — visual grid/canvas editing) and plain numeric-knob panes (kaboom — a handful of number inputs merged into the game's `C` object via an explicit allowlist at boot, see kaboom's own HANDOFF.md). The numeric-knob pattern is much cheaper to add than a board editor and fits most games (anything with tunable difficulty constants in its `C` export) — prefer it unless the game genuinely has an editable board/level shape. Rolling out a game or two at a time, same cadence as HANDOFF.md docs.
 
 ## 8. Working style that fit this project
 

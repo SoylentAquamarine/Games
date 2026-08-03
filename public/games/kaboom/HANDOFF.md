@@ -14,8 +14,23 @@ wave 2, rotten eggs to avoid), you slide baskets to catch them.
   missed). Drawn via the shared `/mascots.js` library
   (`Mascots.spacesuitChicken`) — this game used to have its own local
   `drawSpacesuitChicken()` copy, now removed.
+- **Admin-configurable** at `/admin/games/?game=kaboom`: `ROTTEN_FROM`,
+  `CARTON_SIZE`, `CARTONS_PER_WAVE`, `FLYBY_EVERY` are all editable there.
+  Saved to `localStorage["kaboom_config"]`; the game merges it into `C`
+  at boot via an explicit allowlist (see the `(function(){...})()` right
+  after `const C={...}`) — only those 4 keys, only numeric values. This
+  is the first "plain numeric knobs" config pane on the site (as opposed
+  to quest/chickenmania/adventure/minigolf's board/level editors) — a
+  candidate pattern to reuse for other games whose config is tuning
+  numbers rather than editing a board.
 
-## Most recent pass — full rework per player feedback
+## Most recent pass
+
+Added the admin config pane described above (`/admin/games/?game=kaboom`)
+— no gameplay change to the defaults, just makes the four difficulty
+constants editable without a code change.
+
+## Earlier pass — full rework per player feedback
 
 Was: a fixed egg count per wave, firecrackers to avoid from wave 3, and
 missing any egg cost a basket outright. Now:
