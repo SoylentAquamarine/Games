@@ -40,6 +40,14 @@
 <script>
 (function(){
   const C={ rows:7, EXTRA_EVERY:10000, CHICKENS:3, PAD_ROWS:[2,4] };
+  // Admin-tunable difficulty knobs — see /admin/games/?game=qbert.
+  // Same pattern as kaboom (see its HANDOFF.md): explicit allowlist, only
+  // numeric values, safe no-op with no localStorage (headless tests).
+  (function(){ try{
+    const allow=["EXTRA_EVERY","CHICKENS"];
+    const o=JSON.parse(localStorage.getItem("qbert_config")||"{}");
+    for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
+  }catch(_){} })();
 
   // Five level shapes cycle, and each pass through them turns the pressure up
   // rather than changing the rules again — so 25 levels is five passes over a set

@@ -220,19 +220,17 @@
           </div>
         </div>
 
-        <!-- KABOOM -->
-        <div id="cfgKaboom" class="hidden">
-          <p class="sub">Difficulty knobs for the egg-catching game — takes effect next time the game is opened.</p>
-          <table>
-            <tr><td>Rotten eggs start on wave</td><td><input type="number" id="k-rottenFrom" min="1" max="20"></td></tr>
-            <tr><td>Eggs per carton</td><td><input type="number" id="k-cartonSize" min="1" max="99"></td></tr>
-            <tr><td>Cartons to clear a wave</td><td><input type="number" id="k-cartonsPerWave" min="1" max="20"></td></tr>
-            <tr><td>Spacesuit chicken flyby every N waves</td><td><input type="number" id="k-flybyEvery" min="1" max="20"></td></tr>
-          </table>
+        <!-- GENERIC NUMERIC-KNOB PANE — driven by NUMERIC_CONFIGS below.
+             Any game with plain tunable difficulty constants (as opposed
+             to an editable board/level shape) gets one entry in that
+             table instead of its own bespoke HTML block. -->
+        <div id="cfgNumeric" class="hidden">
+          <p class="sub" id="n-sub">Difficulty knobs — takes effect next time the game is opened.</p>
+          <table id="n-table"></table>
           <div class="row" style="margin-top:8px">
-            <button class="btn" id="k-save">Save config</button>
-            <button class="btn ghost" id="k-reset">Reset to default</button>
-            <span class="msg" id="k-ok"></span>
+            <button class="btn" id="n-save">Save config</button>
+            <button class="btn ghost" id="n-reset">Reset to default</button>
+            <span class="msg" id="n-ok"></span>
           </div>
         </div>
       </div>
@@ -367,14 +365,14 @@
   }
 
   // ---- configuration: dispatch to the right editor pane ----
-  const CFG_PANES=["cfgGeneric","cfgQuest","cfgMania","cfgAdv","cfgGolf","cfgKaboom"];
+  const CFG_PANES=["cfgGeneric","cfgQuest","cfgMania","cfgAdv","cfgGolf","cfgNumeric"];
   function showConfig(slug){
     CFG_PANES.forEach(id=>$(id).classList.add("hidden"));
     if(slug==="quest"){ $("cfgQuest").classList.remove("hidden"); initQuestEditor(); }
     else if(slug==="chickenmania"){ $("cfgMania").classList.remove("hidden"); initManiaEditor(); }
     else if(slug==="adventure"){ $("cfgAdv").classList.remove("hidden"); initAdvEditor(); }
     else if(slug==="minigolf"){ $("cfgGolf").classList.remove("hidden"); initGolfEditor(); }
-    else if(slug==="kaboom"){ $("cfgKaboom").classList.remove("hidden"); initKaboomEditor(); }
+    else if(NUMERIC_CONFIGS[slug]){ $("cfgNumeric").classList.remove("hidden"); initNumericEditor(slug); }
     else { $("cfgGeneric").classList.remove("hidden"); initGenericConfig(slug); }
   }
 
@@ -682,39 +680,57 @@
   }
 
   // =========================================================================
-  // KABOOM difficulty knobs — plain numeric overrides, no board/level shape.
-  // The game reads these from localStorage["kaboom_config"] at boot (see
-  // its own <script>, right after `const C={...}`) and merges any known
-  // numeric key into C. This is the simplest kind of per-game config pane —
-  // a candidate pattern for other games whose config is "tune some numbers"
-  // rather than "edit a board/level".
+  // Generic numeric-knob config — plain numeric overrides, no board/level
+  // shape. Each game below reads its own entry's storageKey from
+  // localStorage at boot (see the game's own <script>, right after
+  // `const C={...}`) and merges any of its listed keys into C via the
+  // SAME explicit allowlist shown here. Add a game by adding a table
+  // entry here AND the matching read-and-merge snippet in that game's
+  // own file (copy kaboom's or centipede's as a template) — no new HTML
+  // or JS needed on the admin side.
   // =========================================================================
-  const KABOOM_DEFAULT={ ROTTEN_FROM:2, CARTON_SIZE:12, CARTONS_PER_WAVE:3, FLYBY_EVERY:5 };
-  let kaboomInit=false;
-  function initKaboomEditor(){
-    if(kaboomInit) return; kaboomInit=true;
-    const kData=Object.assign({}, KABOOM_DEFAULT, load("kaboom_config")||{});
-    $("k-rottenFrom").value=kData.ROTTEN_FROM;
-    $("k-cartonSize").value=kData.CARTON_SIZE;
-    $("k-cartonsPerWave").value=kData.CARTONS_PER_WAVE;
-    $("k-flybyEvery").value=kData.FLYBY_EVERY;
-    $("k-save").onclick=()=>{
-      const cfg={
-        ROTTEN_FROM:+$("k-rottenFrom").value||KABOOM_DEFAULT.ROTTEN_FROM,
-        CARTON_SIZE:+$("k-cartonSize").value||KABOOM_DEFAULT.CARTON_SIZE,
-        CARTONS_PER_WAVE:+$("k-cartonsPerWave").value||KABOOM_DEFAULT.CARTONS_PER_WAVE,
-        FLYBY_EVERY:+$("k-flybyEvery").value||KABOOM_DEFAULT.FLYBY_EVERY,
-      };
-      store("kaboom_config",cfg);
-      $("k-ok").textContent="Saved — reopen Kaboom to play with it.";
+  const NUMERIC_CONFIGS={
+    kaboom:{ storageKey:"kaboom_config", sub:"Difficulty knobs for the egg-catching game — takes effect next time the game is opened.", fields:[
+      { key:"ROTTEN_FROM", label:"Rotten eggs start on wave", min:1, max:20, def:2 },
+      { key:"CARTON_SIZE", label:"Eggs per carton", min:1, max:99, def:12 },
+      { key:"CARTONS_PER_WAVE", label:"Cartons to clear a wave", min:1, max:20, def:3 },
+      { key:"FLYBY_EVERY", label:"Spacesuit chicken flyby every N waves", min:1, max:20, def:5 },
+    ]},
+    centipede:{ storageKey:"centipede_config", sub:"Difficulty knobs for the centipede train — takes effect next time the game is opened.", fields:[
+      { key:"CHICKENS", label:"Starting chickens (lives)", min:1, max:9, def:3 },
+      { key:"EXTRA_EVERY", label:"Extra chicken every N points", min:100, max:100000, def:5000 },
+      { key:"FLYPAST_EVERY", label:"Spacesuit chicken flyby every N waves", min:1, max:20, def:5 },
+      { key:"mushHp", label:"Egg toughness (hits to break)", min:1, max:9, def:3 },
+    ]},
+    boulderdash:{ storageKey:"boulderdash_config", sub:"Difficulty knobs — takes effect next time the game is opened.", fields:[
+      { key:"CHICKENS", label:"Starting chickens (lives)", min:1, max:9, def:3 },
+      { key:"EXTRA", label:"Extra chicken every N points", min:100, max:100000, def:500 },
+    ]},
+    qbert:{ storageKey:"qbert_config", sub:"Difficulty knobs — takes effect next time the game is opened.", fields:[
+      { key:"EXTRA_EVERY", label:"Extra chicken every N points", min:100, max:100000, def:10000 },
+      { key:"CHICKENS", label:"Starting chickens (lives)", min:1, max:9, def:3 },
+    ]},
+  };
+  let numericInitSlug=null;
+  function initNumericEditor(slug){
+    if(numericInitSlug===slug) return;   // already built for this game this session
+    numericInitSlug=slug;
+    const cfg=NUMERIC_CONFIGS[slug];
+    $("n-sub").textContent=cfg.sub;
+    const saved=load(cfg.storageKey)||{};
+    $("n-table").innerHTML=cfg.fields.map(f=>
+      '<tr><td>'+f.label+'</td><td><input type="number" id="n-'+f.key+'" min="'+f.min+'" max="'+f.max+'" value="'+(typeof saved[f.key]==="number"?saved[f.key]:f.def)+'"></td></tr>'
+    ).join("");
+    $("n-save").onclick=()=>{
+      const out={};
+      for(const f of cfg.fields) out[f.key]=+$("n-"+f.key).value||f.def;
+      store(cfg.storageKey,out);
+      $("n-ok").textContent="Saved — reopen the game to play with it.";
     };
-    $("k-reset").onclick=()=>{
-      clear("kaboom_config");
-      $("k-rottenFrom").value=KABOOM_DEFAULT.ROTTEN_FROM;
-      $("k-cartonSize").value=KABOOM_DEFAULT.CARTON_SIZE;
-      $("k-cartonsPerWave").value=KABOOM_DEFAULT.CARTONS_PER_WAVE;
-      $("k-flybyEvery").value=KABOOM_DEFAULT.FLYBY_EVERY;
-      $("k-ok").textContent="Reset to the built-in difficulty.";
+    $("n-reset").onclick=()=>{
+      clear(cfg.storageKey);
+      for(const f of cfg.fields) $("n-"+f.key).value=f.def;
+      $("n-ok").textContent="Reset to the built-in difficulty.";
     };
   }
 

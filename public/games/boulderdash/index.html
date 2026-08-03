@@ -41,6 +41,14 @@
 <script>
 (function(){
   const C={ cols:28, rows:21, cell:22, CHICKENS:3, EXTRA:500 };   // board 75% larger; cell size unchanged
+  // Admin-tunable difficulty knobs — see /admin/games/?game=boulderdash.
+  // Same pattern as kaboom (see its HANDOFF.md): explicit allowlist, only
+  // numeric values, safe no-op with no localStorage (headless tests).
+  (function(){ try{
+    const allow=["CHICKENS","EXTRA"];
+    const o=JSON.parse(localStorage.getItem("boulderdash_config")||"{}");
+    for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
+  }catch(_){} })();
   const DIRS={left:[-1,0],right:[1,0],up:[0,-1],down:[0,1]};
   // Each screen is generated fresh; a little denser as the levels climb.
   function buildLevel(level){

@@ -48,6 +48,14 @@
 (function(){
   const C={ cols:24, rows:18, cell:20, playerZone:4, mushHp:3, EXTRA_EVERY:5000, CHICKENS:3, FLYPAST_EVERY:5,
             DEATH_FRAMES:50, BANNER_FRAMES:110 };
+  // Admin-tunable difficulty knobs — see /admin/games/?game=centipede.
+  // Same pattern as kaboom (see its HANDOFF.md): explicit allowlist, only
+  // numeric values, safe no-op with no localStorage (headless tests).
+  (function(){ try{
+    const allow=["CHICKENS","EXTRA_EVERY","FLYPAST_EVERY","mushHp"];
+    const o=JSON.parse(localStorage.getItem("centipede_config")||"{}");
+    for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
+  }catch(_){} })();
   const key=(c,r)=>c+","+r;
   function newState(){ const start={c:Math.floor(C.cols/2), r:C.rows-1};
     const s={ cols:C.cols, rows:C.rows, trains:[], mush:{}, bullet:null,
