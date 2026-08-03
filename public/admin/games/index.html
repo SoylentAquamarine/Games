@@ -190,6 +190,9 @@
         <!-- MINI GOLF -->
         <div id="cfgGolf" class="hidden">
           <p class="sub">Design any of the 18 holes: drag on the green to draw walls (brown), sand (tan) or water (blue); click the ball/flag buttons then click the green to place the start or the hole. Par is editable per hole.</p>
+          <div class="row"><span class="sub">Course:</span><select id="g-course"></select>
+            <button class="btn small" id="g-newcourse">+ New course</button>
+            <button class="btn small ghost" id="g-delcourse">Delete course</button></div>
           <div class="row"><span class="sub">Hole:</span><div class="holepick" id="g-holes"></div></div>
           <div class="row2" style="margin-top:6px">
             <div>
@@ -549,11 +552,53 @@
     {walls:[{x:90,y:90,w:16,h:150},{x:200,y:200,w:16,h:150}],sand:[{x:110,y:280,w:90,h:60}],water:[{x:120,y:110,w:90,h:60}],start:{x:60,y:392},hole:{x:260,y:70},par:5},
     {walls:[{x:0,y:140,w:130,h:16},{x:190,y:140,w:130,h:16},{x:130,y:250,w:16,h:120},{x:174,y:250,w:16,h:120}],sand:[{x:130,y:290,w:60,h:70}],water:[{x:130,y:80,w:60,h:50}],start:{x:160,y:394},hole:{x:160,y:55},par:6},
   ];
-  let golfInit=false, gData, gHole=0, gBrush="wall";
+  // Player feedback: "We need to be able to create different courses with
+  // names and their own 18 holes, and you should get to choose which
+  // course you are going to play or a random course." Courses are named
+  // {id,name,holes} objects saved as an array under "minigolf_courses";
+  // the built-in "Classic 18" isn't stored here at all — it's always
+  // available in-game as a separate, unmanaged default (see minigolf's
+  // own COURSES list). gData always points at the SAME array object as
+  // whichever course.holes is currently selected — mutate it in place
+  // (never reassign to a fresh array) so saves stay in sync automatically.
+  let golfInit=false, golfCourses, curCourseId, gData, gHole=0, gBrush="wall";
+  function loadGolfCourses(){
+    const arr=load("minigolf_courses");
+    if(Array.isArray(arr)&&arr.length) return arr;
+    const old=load("minigolf_levels");   // migrate the pre-multi-course format
+    if(Array.isArray(old)&&old.length) return [{id:"custom",name:"Custom Course",holes:old}];
+    return [];
+  }
+  function saveGolfCourses(){ store("minigolf_courses",golfCourses); }
   function initGolfEditor(){
-    if(golfInit){ drawHolePicker(); drawGolf(); return; } golfInit=true;
-    gData = load("minigolf_levels") || JSON.parse(JSON.stringify(GOLF_DEFAULT));
+    if(golfInit){ drawCoursePicker(); drawHolePicker(); drawGolf(); return; } golfInit=true;
+    golfCourses=loadGolfCourses();
+    if(!golfCourses.length){ golfCourses=[{id:"c"+Date.now(),name:"My Course",holes:JSON.parse(JSON.stringify(GOLF_DEFAULT))}]; saveGolfCourses(); }
+    curCourseId=golfCourses[0].id; gData=golfCourses[0].holes;
     const gcv=$("g-canvas"), gx=gcv.getContext("2d");
+    function drawCoursePicker(){
+      $("g-course").innerHTML=golfCourses.map(c=>`<option value="${esc(c.id)}"${c.id===curCourseId?" selected":""}>${esc(c.name)}</option>`).join("");
+    }
+    function switchCourse(id){
+      curCourseId=id; gData=golfCourses.find(c=>c.id===id).holes; gHole=0;
+      drawHolePicker(); drawGolf(); $("g-par").value=gData[gHole].par;
+    }
+    $("g-course").addEventListener("change",()=>switchCourse($("g-course").value));
+    $("g-newcourse").onclick=()=>{
+      const name=(prompt("Name this course:")||"").trim(); if(!name) return;
+      const nc={id:"c"+Date.now(),name,holes:JSON.parse(JSON.stringify(GOLF_DEFAULT))};
+      golfCourses.push(nc); saveGolfCourses();
+      drawCoursePicker(); switchCourse(nc.id);
+      $("g-ok").textContent="Created \""+name+"\".";
+    };
+    $("g-delcourse").onclick=()=>{
+      if(golfCourses.length<=1){ $("g-ok").textContent="Can't delete the last course."; return; }
+      const cur=golfCourses.find(c=>c.id===curCourseId);
+      if(!confirm("Delete \""+cur.name+"\"? This can't be undone.")) return;
+      golfCourses=golfCourses.filter(c=>c.id!==curCourseId); saveGolfCourses();
+      drawCoursePicker(); switchCourse(golfCourses[0].id);
+      $("g-ok").textContent="Deleted.";
+    };
     function drawHolePicker(){
       $("g-holes").innerHTML = gData.map((_,i)=>`<button data-h="${i}" class="${i===gHole?"on":""}">${i+1}</button>`).join("");
       $("g-holes").querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>{ gHole=+b.dataset.h; $("g-par").value=gData[gHole].par; drawHolePicker(); drawGolf(); }));
@@ -599,14 +644,24 @@
     $("cfgGolf").querySelectorAll("[data-gbrush]").forEach(b=>b.addEventListener("click",()=>{
       $("cfgGolf").querySelectorAll("[data-gbrush]").forEach(x=>x.classList.remove("on")); b.classList.add("on"); gBrush=b.dataset.gbrush; }));
     $("g-par").addEventListener("change",()=>{ gData[gHole].par=parseInt($("g-par").value)||3; });
-    $("g-save").onclick=()=>{ store("minigolf_levels",gData); $("g-ok").textContent="Saved — reopen Mini Golf to play the course."; };
+    $("g-save").onclick=()=>{ saveGolfCourses(); $("g-ok").textContent="Saved \""+golfCourses.find(c=>c.id===curCourseId).name+"\" — reopen Mini Golf to play it."; };
     // Saves first (so unsaved edits are actually what gets tested — localStorage
     // is shared same-origin, no round trip needed) then jumps the real game
-    // straight to this hole via ?hole=N, instead of always starting at hole 1.
-    $("g-test").onclick=()=>{ store("minigolf_levels",gData); window.open("/games/minigolf/?hole="+(gHole+1),"_blank"); };
-    $("g-reset").onclick=()=>{ clear("minigolf_levels"); gData=JSON.parse(JSON.stringify(GOLF_DEFAULT)); gHole=0; drawHolePicker(); drawGolf(); $("g-ok").textContent="Reset to the built-in 18 holes."; };
+    // straight to this hole ON THIS COURSE via ?course=<id>&hole=N, instead
+    // of always starting the Classic 18 course over from hole 1.
+    $("g-test").onclick=()=>{ saveGolfCourses(); window.open("/games/minigolf/?course="+encodeURIComponent(curCourseId)+"&hole="+(gHole+1),"_blank"); };
+    // "Reset" mutates gData IN PLACE (not a reassignment) so it stays the
+    // same array object referenced by golfCourses[i].holes — no separate
+    // re-sync needed before saving.
+    $("g-reset").onclick=()=>{
+      const fresh=JSON.parse(JSON.stringify(GOLF_DEFAULT));
+      gData.length=0; gData.push(...fresh);
+      saveGolfCourses(); gHole=0; drawHolePicker(); drawGolf();
+      $("g-par").value=gData[gHole].par;
+      $("g-ok").textContent="Reset this course to the default 18-hole layout.";
+    };
     $("g-par").value=gData[gHole].par;
-    drawHolePicker(); drawGolf();
+    drawCoursePicker(); drawHolePicker(); drawGolf();
   }
 
   if(token){ show(true); Promise.all([refreshCommentsData(),loadCatalog()]).then(()=>{ buildGamesGrid(); initFromUrl(); }); }

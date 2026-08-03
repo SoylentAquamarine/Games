@@ -29,15 +29,29 @@
   canvas{width:min(94vw,420px,calc(60vh * (320/420)));aspect-ratio:320/420;height:auto;border-radius:10px;border:2px solid #2a2f55;background:#1a5a2a;cursor:crosshair;touch-action:none}
   .msg{min-height:1.3em;font-weight:800;text-align:center}
   .hint{font-size:.78rem;color:var(--muted);text-align:center}
+  .modal-back{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:20;padding:14px}
+  .modal-back.hidden{display:none}
+  .modal{background:var(--panel);border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:16px;max-width:340px;width:100%;max-height:86vh;overflow-y:auto;text-align:center}
+  .modal h3{margin:0 0 12px}
+  .courseBtn{display:block;width:100%;background:#141726;color:var(--text);border:1px solid rgba(255,255,255,.14);border-radius:10px;padding:10px 14px;margin-bottom:8px;font-size:.95rem;cursor:pointer;text-align:left}
+  .courseBtn:hover{border-color:var(--accent-2)}
+  .courseBtn.random{color:var(--accent-2);font-weight:700;text-align:center}
 </style>
 </head>
 <body>
 <div class="wrap">
   <div class="topbar"><a class="home" href="/">← Home</a><h1>Mini Golf</h1><button class="btn" id="new">New Game</button></div>
-  <div class="hud"><span>Hole <b id="hole">1</b>/<b id="holes">18</b></span><span>Par <b id="par">3</b></span><span>Strokes <b id="strokes">0</b></span><span>Total <b id="total">0</b></span></div>
+  <div class="hud"><span>Hole <b id="hole">1</b>/<b id="holes">18</b></span><span>Par <b id="par">3</b></span><span>Strokes <b id="strokes">0</b></span><span>Total <b id="total">0</b></span><span id="courseName" style="display:none"><b id="courseNameB"></b></span></div>
   <canvas id="game" width="320" height="420"></canvas>
   <div class="msg" id="msg">Drag back from the ball to aim & set power, release to putt.</div>
   <div class="hint">Sand slows the ball · water costs a penalty stroke</div>
+</div>
+
+<div class="modal-back hidden" id="coursePicker">
+  <div class="modal">
+    <h3>⛳ Choose a course</h3>
+    <div id="courseList"></div>
+  </div>
 </div>
 <script src="/arcade.js"></script>
 <script>
@@ -68,10 +82,31 @@
     {walls:[{x:90,y:90,w:16,h:150},{x:200,y:200,w:16,h:150}],sand:[{x:110,y:280,w:90,h:60}],water:[{x:120,y:110,w:90,h:60}],start:{x:60,y:392},hole:{x:260,y:70},par:5},
     {walls:[{x:0,y:140,w:130,h:16},{x:190,y:140,w:130,h:16},{x:130,y:250,w:16,h:120},{x:174,y:250,w:16,h:120}],sand:[{x:130,y:290,w:60,h:70}],water:[{x:130,y:80,w:60,h:50}],start:{x:160,y:394},hole:{x:160,y:55},par:6},
   ];
-  // A saved course from the admin editor overrides the built-in 18 holes.
-  let LEVELS=DEFAULT_LEVELS;
-  try{ const j=localStorage.getItem("minigolf_levels"); if(j){ const o=JSON.parse(j);
-    if(Array.isArray(o)&&o.length&&o.every(h=>h&&h.start&&h.hole&&Array.isArray(h.walls)&&Array.isArray(h.sand)&&Array.isArray(h.water))) LEVELS=o; } }catch(e){}
+  // Player feedback: "We need to be able to create different courses with
+  // names and their own 18 holes, and you should get to choose which
+  // course you are going to play or a random course." COURSES is always
+  // headed by the built-in "Classic 18", followed by whatever named custom
+  // courses the admin course designer has saved to "minigolf_courses". The
+  // older single-course format ("minigolf_levels") is migrated in as one
+  // more course so nothing an admin already designed gets lost.
+  function isValidHoles(o){ return Array.isArray(o)&&o.length>0&&o.every(h=>h&&h.start&&h.hole&&Array.isArray(h.walls)&&Array.isArray(h.sand)&&Array.isArray(h.water)); }
+  function loadCourses(){
+    const courses=[{id:"classic",name:"Classic 18",holes:DEFAULT_LEVELS}];
+    try{
+      const j=localStorage.getItem("minigolf_courses");
+      if(j){
+        const arr=JSON.parse(j);
+        if(Array.isArray(arr)) for(const c of arr) if(c&&c.id&&c.name&&isValidHoles(c.holes)) courses.push(c);
+      } else {
+        const old=localStorage.getItem("minigolf_levels");
+        if(old){ const o=JSON.parse(old); if(isValidHoles(o)) courses.push({id:"custom",name:"Custom Course",holes:o}); }
+      }
+    }catch(e){}
+    return courses;
+  }
+  const COURSES=loadCourses();
+  function courseById(id){ return COURSES.find(c=>c.id===id); }
+  let LEVELS=COURSES[0].holes;
   function collideWall(ball, w){
     const cx=clamp(ball.x,w.x,w.x+w.w), cy=clamp(ball.y,w.y,w.y+w.h);
     const dx=ball.x-cx, dy=ball.y-cy; const d2=dx*dx+dy*dy;
@@ -143,14 +178,43 @@
   // being edited (?hole=N in the URL) instead of always starting at hole 1
   // — "test the board directly from the design page".
   function newState(startLevel){ const lv=LEVELS[startLevel||0]; return { level:startLevel||0, ball:{x:lv.start.x,y:lv.start.y,vx:0,vy:0}, strokes:0, total:0, card:[], done:false }; }
-  window.__minigolf={ newState, putt, stepBall, sunk, collideWall, moving, inSand, inWater, LEVELS, C };
+  window.__minigolf={ newState, putt, stepBall, sunk, collideWall, moving, inSand, inWater, LEVELS, C, COURSES, courseById, isValidHoles,
+    getLEVELS:()=>LEVELS };   // live getter (LEVELS above is a snapshot at export time, before DOM-layer course selection runs)
 
   if(typeof document==="undefined") return;
   const $=(id)=>document.getElementById(id);
   const cv=$("game"), ctx=cv.getContext("2d"); const W=C.W,H=C.H;
-  const urlHole=parseInt(new URLSearchParams(location.search).get("hole"))||0;
+  const qs=new URLSearchParams(location.search);
+  // The admin course designer's "Test this hole" button passes ?course=<id>
+  // so testing always targets the exact course being edited, skipping the
+  // course picker entirely.
+  const urlCourse=qs.get("course");
+  if(urlCourse && courseById(urlCourse)) LEVELS=courseById(urlCourse).holes;
+  const urlHole=parseInt(qs.get("hole"))||0;
   const startLevel=(urlHole>=1&&urlHole<=LEVELS.length)?urlHole-1:0;
   let s=newState(startLevel), aim=null, best=null, lastRest={x:0,y:0};
+  // Course picker: only shown when there's an actual choice to make (more
+  // than the built-in course exists) and the URL didn't already pick one
+  // for us (the admin "Test this hole" button always passes ?course=).
+  let pickingCourse=COURSES.length>1 && !urlCourse;
+  function setCourse(course,startLvl){
+    LEVELS=course.holes; s=newState(startLvl||0);
+    const cn=$("courseName"), cnb=$("courseNameB");
+    if(cn&&cnb){ if(COURSES.length>1){ cn.style.display=""; cnb.textContent=course.name; } else cn.style.display="none"; }
+  }
+  function showCoursePicker(){
+    const list=$("courseList"); list.innerHTML="";
+    for(const c of COURSES){
+      const b=document.createElement("button"); b.className="courseBtn"; b.textContent=c.name+" ("+c.holes.length+" holes)";
+      b.addEventListener("click",()=>{ setCourse(c); $("coursePicker").classList.add("hidden"); pickingCourse=false; });
+      list.appendChild(b);
+    }
+    const r=document.createElement("button"); r.className="courseBtn random"; r.textContent="🎲 Random course";
+    r.addEventListener("click",()=>{ setCourse(COURSES[Math.floor(Math.random()*COURSES.length)]); $("coursePicker").classList.add("hidden"); pickingCourse=false; });
+    list.appendChild(r);
+    $("coursePicker").classList.remove("hidden");
+  }
+  if(pickingCourse) showCoursePicker(); else setCourse(courseById(urlCourse)||COURSES[0],startLevel);
   // Hole-in-one celebration: two seconds of fireworks over a shaking banner
   // before the course moves on.
   let ace=0, fw=[];
@@ -266,7 +330,7 @@
     if(s.level+1>=LEVELS.length){ s.done=true; if(!best||s.total<best){ best=s.total; try{localStorage.setItem("minigolf_best",String(best));}catch(e){} } $("msg").textContent="Course complete! Total "+s.total+(best?"  ·  Best "+best:""); return; }
     s.level++; s.strokes=0; const l=lv(); s.ball={x:l.start.x,y:l.start.y,vx:0,vy:0}; $("msg").textContent=(rel<=-2?"Eagle!":rel===-1?"Birdie!":rel===0?"Par!":rel===1?"Bogey.":"+"+rel)+" — next hole."; }
   function pos(ev){ const r=cv.getBoundingClientRect(); const t=ev.touches?ev.touches[0]:ev; return { x:(t.clientX-r.left)*(W/r.width), y:(t.clientY-r.top)*(H/r.height) }; }
-  function down(ev){ if(s.done||ace>0||moving(s.ball)) return; const p=pos(ev); if(Math.hypot(p.x-s.ball.x,p.y-s.ball.y)<40) aim={x:p.x,y:p.y,sx:p.x,sy:p.y}; }
+  function down(ev){ if(pickingCourse||s.done||ace>0||moving(s.ball)) return; const p=pos(ev); if(Math.hypot(p.x-s.ball.x,p.y-s.ball.y)<40) aim={x:p.x,y:p.y,sx:p.x,sy:p.y}; }
   function move(ev){ if(!aim) return; ev.preventDefault(); const p=pos(ev); aim.x=p.x; aim.y=p.y; }
   function up(){ if(!aim) return; const dx=aim.sx-aim.x, dy=aim.sy-aim.y; const dist=Math.hypot(dx,dy);
     if(dist>8){ lastRest={x:s.ball.x,y:s.ball.y}; const ang=Math.atan2(dy,dx); putt(s.ball, ang, Math.min(dist,120)/120*C.MAXPOW); s.strokes++; } aim=null; }
