@@ -91,6 +91,16 @@
       </div>
     </div>
   </div>
+
+  <div class="modal-back hidden" id="cardModal">
+    <div class="modal" style="text-align:center">
+      <h3 id="cardTitle">—</h3>
+      <p id="cardText" style="font-size:1.05rem;margin:14px 0"></p>
+      <div class="modal-actions" style="justify-content:center">
+        <button class="btn" id="cardContinue">Continue</button>
+      </div>
+    </div>
+  </div>
   <script src="/arcade.js"></script>
   <script>
   (function(){
@@ -220,7 +230,7 @@
         const deck=sp.type==="chance"?CHANCE:CHEST, card=deck[rnd(deck.length)];
         card.fx(s,pi);
         checkBankrupt(s,pi);
-        return { text:(sp.type==="chance"?"Chance: ":"Community Chest: ")+card.t, idx };
+        return { text:(sp.type==="chance"?"Chance: ":"Community Chest: ")+card.t, idx, cardType:sp.type, cardText:card.t };
       }
       if(sp.type==="property"||sp.type==="railroad"||sp.type==="utility"){
         const owner=ownerOf(s,idx);
@@ -310,8 +320,10 @@
           tradeModal=document.getElementById("tradeModal"), tradeWithEl=document.getElementById("tradeWith"),
           givePropsEl=document.getElementById("giveProps"), takePropsEl=document.getElementById("takeProps"),
           giveCashEl=document.getElementById("giveCash"), takeCashEl=document.getElementById("takeCash"),
-          tradeMsgEl=document.getElementById("tradeMsg");
-    let s, anim=null;
+          tradeMsgEl=document.getElementById("tradeMsg"),
+          cardModal=document.getElementById("cardModal"), cardTitleEl=document.getElementById("cardTitle"),
+          cardTextEl=document.getElementById("cardText"), cardContinueBtn=document.getElementById("cardContinue");
+    let s, anim=null, cardTimer=null;
 
     // ---- square-board layout: 7 spaces/side, corners shared ----
     // A slimmer margin so the tiles themselves get most of the space — they
@@ -383,7 +395,16 @@
         else { ctx.strokeStyle="rgba(0,0,0,.3)"; ctx.lineWidth=1.2; ctx.beginPath(); ctx.roundRect(-size/2,-size/2,size,size,5); ctx.stroke(); }
         ctx.fillStyle="#0b0c1a"; ctx.font="bold "+(isCorner?"10px":"8.5px")+" system-ui"; ctx.textAlign="center"; ctx.textBaseline="middle";
         const label = isCorner ? {go:"GO",jail:"JAIL",park:"PARK",gotojail:"→JAIL"}[sp.kind] : sp.name.slice(0,9);
-        ctx.fillText(label,0,isCorner?0:size/2+9);
+        // Player report: "text is bleeding off... make sure it is all
+        // visible on the board." The name truncation to 9 chars wasn't
+        // always enough on its own — some names (bold font, wide letters)
+        // still rendered wider than the gap between tile centers and
+        // overlapped the neighbour. fillText's optional maxWidth param
+        // makes the canvas compress the glyphs to fit instead, which
+        // guarantees no overflow regardless of the exact string/font
+        // metrics, rather than trying to out-guess character widths.
+        const maxW = isCorner ? size-4 : CELL-6;
+        ctx.fillText(label,0,isCorner?0:size/2+9,maxW);
         ctx.restore();
       }
       const order=[...Array(NP).keys()].sort((a,b)=>(a===s.turn?1:0)-(b===s.turn?1:0));
@@ -431,10 +452,28 @@
     }
     function hideBuyPrompt(){ buyBtn.style.display="none"; passBtn.style.display="none"; }
 
+    // Player feedback: "when someone lands on chance or community chest I
+    // can't tell what's going on, we need to see a card in the middle of
+    // the board for 10 seconds." Shows a modal with the drawn card's text;
+    // auto-dismisses (and resumes the normal turn flow) after 10s, or
+    // immediately if the Continue button is clicked. The card's effects
+    // (charge/pay/move/etc, from card.fx in landOn) have ALREADY been
+    // applied to state by this point — this is purely a "make sure the
+    // human actually sees what happened" display step, not new game logic.
+    function showCardModal(result, onDone){
+      cardTitleEl.textContent = result.cardType==="chance" ? "🔶 Chance" : "🔷 Community Chest";
+      cardTextEl.textContent = result.cardText;
+      cardModal.classList.remove("hidden");
+      if(cardTimer) clearTimeout(cardTimer);
+      const finish=()=>{ cardModal.classList.add("hidden"); cardTimer=null; onDone(); };
+      cardContinueBtn.onclick=finish;
+      cardTimer=setTimeout(finish,10000);
+    }
     function afterLanding(result){
       if(result && result.text) statusEl.textContent=(PNAMES[s.turn]?PNAMES[s.turn]+": ":"")+result.text;
       renderPlayers(); render();
       if(checkWin(s)){ finishGame(); return; }
+      if(result && result.cardType){ showCardModal(result, ()=>{ if(checkWin(s)){ finishGame(); } else { setTimeout(endTurn,150); } }); return; }
       if(s.pendingBuy){
         if(s.pendingBuy.pi===0){ showBuyPrompt(s.pendingBuy.idx); return; }
         // CPU buy decision, then continue
