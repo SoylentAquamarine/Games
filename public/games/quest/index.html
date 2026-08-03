@@ -52,6 +52,7 @@
     </div>
     <p class="hint">Move: arrows / WASD · Attack: Space · Roam the <b>farmyard</b> and find the burrow entrances hidden by barns, trees and haystacks. Walk into a farmhouse to look around (no enemies) — one of them is a general store where coins buy hearts and heart containers. Inside a dungeon, find the key and beat the boss for its gem egg — every direction from any room leads somewhere, and the <b>🚪 Leave</b> button (top right, while inside) takes you back to the farmyard any time.</p>
   </div>
+  <script src="/mascots.js"></script>
   <script>
   (function(){
     const TILE=32, COLS=15, ROWS=11, W=COLS*TILE, H=ROWS*TILE, RX=3, RY=3;
@@ -560,34 +561,13 @@
         ctx.fillStyle="#0b0c1a"; ctx.beginPath(); ctx.arc(ESIZE*0.34,-5,2,0,7); ctx.fill();                                              // eye
         ctx.beginPath(); ctx.arc(ESIZE*0.50,0,1.6,0,7); ctx.fill();                                                                      // nose
         ctx.restore(); }
-      // hero chicken (blink when invulnerable)
+      // Hero chicken (blink when invulnerable). Drawn from the shared
+      // /mascots.js library (Mascots.heroChicken) — this was the
+      // exact design extracted to become the site-wide "Hero chicken"
+      // named in the original mascot-library player comment.
       if(player.inv<=0||Math.floor(player.inv/5)%2===0){
         const s=player.size, hx=player.x+s/2, hy=player.y+s/2;
-        // The whole chicken now turns to face the way you walk: drawn in a local
-        // frame that faces +x (forward), then rotated by the travel direction, so
-        // the tail always trails behind rather than sitting on the left.
-        // Face the way you walk. Left mirrors horizontally — a 180° rotate would
-        // flip the hen upside down; up and down turn a quarter turn.
-        ctx.save(); ctx.translate(hx,hy);
-        if(player.dir===2) ctx.scale(-1,1);                 // left
-        else if(player.dir===0) ctx.rotate(-Math.PI/2);     // up
-        else if(player.dir===1) ctx.rotate(Math.PI/2);      // down
-        // dir 3 (right): drawn as-is, facing +x
-        ctx.fillStyle="#c96f14";                                     // tail feathers (trailing, -x)
-        ctx.beginPath(); ctx.moveTo(-s*0.30,0); ctx.lineTo(-s*0.62,-s*0.24); ctx.lineTo(-s*0.30,s*0.26); ctx.closePath(); ctx.fill();
-        ctx.fillStyle="#facc15";                                     // body
-        ctx.beginPath(); ctx.arc(0,0,s*0.40,0,7); ctx.fill();
-        ctx.fillStyle="#fde68a";                                     // wing
-        ctx.beginPath(); ctx.ellipse(-s*0.02,s*0.10,s*0.22,s*0.13,0,0,7); ctx.fill();
-        ctx.fillStyle="#dc2626";                                     // comb, up over the leading head
-        ctx.beginPath(); ctx.arc(s*0.16,-s*0.34,s*0.10,0,7); ctx.arc(s*0.28,-s*0.30,s*0.11,0,7); ctx.arc(s*0.36,-s*0.20,s*0.10,0,7); ctx.fill();
-        ctx.fillStyle="#fb923c";                                     // beak, leading (+x)
-        ctx.beginPath(); ctx.moveTo(s*0.40,-4); ctx.lineTo(s*0.40,4); ctx.lineTo(s*0.62,0); ctx.closePath(); ctx.fill();
-        ctx.fillStyle="#dc2626";                                     // wattle under the beak
-        ctx.beginPath(); ctx.arc(s*0.40,s*0.06,s*0.05,0,7); ctx.fill();
-        ctx.fillStyle="#fff"; ctx.beginPath(); ctx.arc(s*0.22,-s*0.14,s*0.09,0,7); ctx.fill();   // eye white
-        ctx.fillStyle="#0b0c1a"; ctx.beginPath(); ctx.arc(s*0.26,-s*0.14,s*0.05,0,7); ctx.fill(); // pupil
-        ctx.restore();
+        Mascots.heroChicken(ctx, hx, hy, s, player.dir);
       }
       // sword
       if(player.atk>6){ctx.fillStyle="#fde68a";const cx=player.x+player.size/2,cy=player.y+player.size/2,len=34,wid=6;

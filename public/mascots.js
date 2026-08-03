@@ -160,5 +160,50 @@
     ctx.restore();
   }
 
-  global.Mascots = { spacesuitChicken: spacesuitChicken, spacesuitChickenFlying: spacesuitChickenFlying, rooster: rooster };
+  // Hero chicken — the third and last character from the original
+  // mascot-library request ("we need the Hero chicken, the mascot
+  // chicken, and the rooster... to be standard characters"). Extracted
+  // from Quest's existing player-avatar sprite (the site's most
+  // developed protagonist design — a 4-directional top-down hero with a
+  // trailing tail, comb, and wattle) so other top-down/4-directional
+  // games can draw the SAME hero instead of building their own from
+  // scratch. Deliberately NOT retrofitted onto every existing game's
+  // player sprite here — several games (qbert's hopping avatar, the
+  // driving games' car, etc.) have their own established, different
+  // player identity, and swapping those out is a bigger visual call than
+  // "make a shared character available."
+  //
+  // (x,y) is the CENTER of the chicken (unlike rooster's feet-reference
+  // point). size is roughly the player's hitbox size. dir follows Quest's
+  // own convention: 0=up, 1=down, 2=left, 3=right — the sprite is drawn
+  // facing +x (right) in its own local frame, then rotated/flipped so the
+  // tail always trails behind the direction of travel rather than
+  // dragging sideways. No blink/invulnerability flag — like the other
+  // two mascots, animation timing (e.g. skipping a draw call to blink)
+  // is left to the calling game, not baked into the library.
+  function heroChicken(ctx, x, y, size, dir) {
+    const s = size;
+    ctx.save(); ctx.translate(x, y);
+    if (dir === 2) ctx.scale(-1, 1);                 // left
+    else if (dir === 0) ctx.rotate(-Math.PI / 2);     // up
+    else if (dir === 1) ctx.rotate(Math.PI / 2);      // down
+    // dir 3 (right, or dir omitted): drawn as-is, facing +x
+    ctx.fillStyle = "#c96f14";                                     // tail feathers (trailing, -x)
+    ctx.beginPath(); ctx.moveTo(-s * 0.30, 0); ctx.lineTo(-s * 0.62, -s * 0.24); ctx.lineTo(-s * 0.30, s * 0.26); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = "#facc15";                                     // body
+    ctx.beginPath(); ctx.arc(0, 0, s * 0.40, 0, 7); ctx.fill();
+    ctx.fillStyle = "#fde68a";                                     // wing
+    ctx.beginPath(); ctx.ellipse(-s * 0.02, s * 0.10, s * 0.22, s * 0.13, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = "#dc2626";                                     // comb, up over the leading head
+    ctx.beginPath(); ctx.arc(s * 0.16, -s * 0.34, s * 0.10, 0, 7); ctx.arc(s * 0.28, -s * 0.30, s * 0.11, 0, 7); ctx.arc(s * 0.36, -s * 0.20, s * 0.10, 0, 7); ctx.fill();
+    ctx.fillStyle = "#fb923c";                                     // beak, leading (+x)
+    ctx.beginPath(); ctx.moveTo(s * 0.40, -4); ctx.lineTo(s * 0.40, 4); ctx.lineTo(s * 0.62, 0); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = "#dc2626";                                     // wattle under the beak
+    ctx.beginPath(); ctx.arc(s * 0.40, s * 0.06, s * 0.05, 0, 7); ctx.fill();
+    ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(s * 0.22, -s * 0.14, s * 0.09, 0, 7); ctx.fill();   // eye white
+    ctx.fillStyle = "#0b0c1a"; ctx.beginPath(); ctx.arc(s * 0.26, -s * 0.14, s * 0.05, 0, 7); ctx.fill(); // pupil
+    ctx.restore();
+  }
+
+  global.Mascots = { spacesuitChicken: spacesuitChicken, spacesuitChickenFlying: spacesuitChickenFlying, rooster: rooster, heroChicken: heroChicken };
 })(typeof window !== "undefined" ? window : globalThis);
