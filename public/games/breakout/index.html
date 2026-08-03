@@ -50,18 +50,25 @@
     const scoreEl=document.getElementById("score"),livesEl=document.getElementById("lives"),levelEl=document.getElementById("level");
     const ov=document.getElementById("ov"),ot=document.getElementById("ot"),om=document.getElementById("om"),startBtn=document.getElementById("start");
     const COLS=8,ROWS=5,BW=W/COLS,BH=22,TOP=50;
-    let paddle,ball,bricks,score,lives,level,running,raf;
+    const DEATH_FRAMES=120;   // 2s @ 60fps — the site-wide "room to breathe" pause after a death
+    let paddle,ball,bricks,score,lives,level,running,raf,dying=0;
     function reset(full){
       if(full){score=0;lives=3;level=1;}
       paddle={w:84,h:12,x:W/2-42,y:H-28};
       ball={x:W/2,y:H-42,r:7,vx:4*(Math.random()<.5?1:-1),vy:-4.5};
       bricks=[];
+      dying=0;
       for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++)bricks.push({x:c*BW,y:TOP+r*BH,alive:true,hue:200+r*28});
       scoreEl.textContent=score;livesEl.textContent=lives;levelEl.textContent=level;
     }
     function start(){reset(true);ov.classList.add("hidden");running=true;loop();}
     function loop(){if(!running)return;update();render();raf=requestAnimationFrame(loop);}
     function update(){
+      // Player feedback: the ball used to relaunch the instant it was missed,
+      // giving no time to reposition before it was already barreling back
+      // down. Now it freezes for DEATH_FRAMES (matching the site-wide 2s
+      // death pause every other game uses) before respawning.
+      if(dying>0){ if(--dying<=0){ ball={x:W/2,y:H-42,r:7,vx:4*(Math.random()<.5?1:-1),vy:-4.5}; paddle.x=W/2-paddle.w/2; } return; }
       ball.x+=ball.vx;ball.y+=ball.vy;
       if(ball.x<ball.r){ball.x=ball.r;ball.vx*=-1;}
       if(ball.x>W-ball.r){ball.x=W-ball.r;ball.vx*=-1;}
@@ -87,14 +94,21 @@
       // lose life
       if(ball.y-ball.r>H){lives--;livesEl.textContent=lives;
         if(lives<=0){return gameOver();}
-        ball={x:W/2,y:H-42,r:7,vx:4*(Math.random()<.5?1:-1),vy:-4.5};paddle.x=W/2-paddle.w/2;
+        ball.vx=0;ball.vy=0;dying=DEATH_FRAMES;
       }
     }
     function render(){
       ctx.clearRect(0,0,W,H);
       for(const b of bricks){if(!b.alive)continue;ctx.fillStyle=`hsl(${b.hue} 70% 55%)`;roundRect(b.x+2,b.y+2,BW-4,BH-4,5);ctx.fill();}
       ctx.fillStyle="#7c5cff";roundRect(paddle.x,paddle.y,paddle.w,paddle.h,6);ctx.fill();
-      ctx.fillStyle="#22d3ee";ctx.beginPath();ctx.arc(ball.x,ball.y,ball.r,0,7);ctx.fill();
+      if(dying<=0){ ctx.fillStyle="#22d3ee";ctx.beginPath();ctx.arc(ball.x,ball.y,ball.r,0,7);ctx.fill(); }
+      if(dying>0){
+        ctx.fillStyle="rgba(0,0,0,.5)";ctx.fillRect(0,0,W,H);
+        ctx.fillStyle="#f43f5e";ctx.font="bold 22px system-ui";ctx.textAlign="center";
+        ctx.fillText("BALL LOST",W/2,H/2-6);
+        ctx.fillStyle="#e6e6f0";ctx.font="13px system-ui";
+        ctx.fillText(lives+" "+(lives===1?"life":"lives")+" left",W/2,H/2+16);
+      }
     }
     function roundRect(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
     function gameOver(){running=false;cancelAnimationFrame(raf);ot.textContent="Game Over";om.textContent=`Score ${score} · reached level ${level}`;startBtn.textContent="Play again";ov.classList.remove("hidden");}
@@ -107,6 +121,10 @@
     setInterval(()=>{if(running&&dir)paddle.x=Math.max(0,Math.min(W-paddle.w,paddle.x+dir*7));},16);
     startBtn.addEventListener("click",start);
     reset(true);render();
+    // expose for headless testing
+    window.__breakout={ update, reset, DEATH_FRAMES,
+      getBall:()=>ball, getLives:()=>lives, getDying:()=>dying,
+      setBallY:(y)=>{ball.y=y;} };
   })();
   </script>
   <script src="/startgate.js" defer></script>
