@@ -326,11 +326,24 @@
         if(!boss || boss.dungeon!==curDungeon) boss=makeBoss(curDungeon);
         const b=boss;
         if(!b.dead){
+          // bcx/bcy (boss centre) are needed below whether or not the boss is
+          // currently paused, so they're computed here unconditionally now —
+          // they used to be declared inside the `else` (movement-only)
+          // branch, which meant touching a PAUSED boss (b.hurt>0, e.g. right
+          // after landing a hit) hit an undeclared-variable ReferenceError
+          // in the player-collision check further down and silently killed
+          // the whole requestAnimationFrame loop. Reports: "swung twice and
+          // the game locked up" (Shadow Bat) and "ran into Prism Peacock
+          // without hitting it with the sword and the game just hung" — both
+          // match this exactly, more precisely than the earlier knockback-
+          // direction theory (which is still a real hardening, just wasn't
+          // the actual crash).
+          const bcx=b.x+b.size/2, bcy=b.y+b.size/2;
           // A landed hit pauses the boss in place for half a second — a beat of
           // impact instead of it barrelling on through the flinch.
           if(b.hurt>0){ b.hurt--; }
           else {
-            const bcx=b.x+b.size/2, bcy=b.y+b.size/2, pcx=player.x+s/2, pcy=player.y+s/2;
+            const pcx=player.x+s/2, pcy=player.y+s/2;
             const a=Math.atan2(pcy-bcy,pcx-bcx), bs=1.15;
             if(!boxHitsSolid(b.x+Math.cos(a)*bs,b.y,b.size)) b.x+=Math.cos(a)*bs;
             if(!boxHitsSolid(b.x,b.y+Math.sin(a)*bs,b.size)) b.y+=Math.sin(a)*bs;
@@ -563,9 +576,9 @@
     window.__quest={genWorld:()=>{genWorld();return rooms;},doorOpen,genOverworld,OW_RX,OW_RY,
       GEMS,BOSSES,newEggs,collectEgg,cartonCount,cartonFull,makeBoss,bossTakeHit,genHouseRoom,
       genRoom,solidTile,TRI,
-      newGame,enterDungeon,enterOverworld,tryTransition,
-      getMode:()=>mode,getRoom:()=>room,getPlayer:()=>player,
-      setPlayerPos:(x,y)=>{player.x=x;player.y=y;}};
+      newGame,enterDungeon,enterOverworld,tryTransition,update,
+      getMode:()=>mode,getRoom:()=>room,getPlayer:()=>player,getBoss:()=>boss,
+      setPlayerPos:(x,y)=>{player.x=x;player.y=y;},setRoom:(x,y)=>{room=[x,y];}};
   })();
   </script>
   <script src="/startgate.js" defer></script>
