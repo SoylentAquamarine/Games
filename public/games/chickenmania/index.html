@@ -291,14 +291,14 @@
     // wave cleared
     if(s.enemies.every(e=>!e.alive)){
       s.score+=C.WAVE_BONUS*s.wave;               // clearing a flock is the bonus
-      // A flawless wave (zero missed shots) on a wave%EVERY checkpoint
-      // unlocks the ONE SHOT ONE KILL bonus. Bug: s.misses used to only get
-      // reset when a checkpoint wave was reached, so it silently accumulated
-      // across the whole multi-wave cycle — a single miss back on wave 1
-      // could block wave 4's bonus even after playing wave 4 itself
-      // perfectly. Misses now reset every wave, so the bonus is judged on
-      // the wave that actually clears the checkpoint, not stale history.
-      if(s.wave % OK.EVERY === 0 && s.misses===0){ startOneKill(s); return s; }
+      // Player feedback: they expect ONE SHOT ONE KILL to mean exactly what
+      // it says — clear ANY wave without missing a shot and the bonus round
+      // fires, full stop. It used to also require the wave number to be a
+      // multiple of OK.EVERY (4), so a flawless wave 1 (or 2 or 3) did
+      // nothing even though every kill in it genuinely was one-shot-one-kill.
+      // That gating is gone; misses still reset every wave (see the earlier
+      // fix for the bug where a stale miss from an old wave could block it).
+      if(s.misses===0){ startOneKill(s); return s; }
       s.wave++;
       s.enemies=makeEnemies(s.wave);
       s.bullet=null; s.eggs=[]; s.dir=1; s.t=0; s.cleared=true; s.misses=0;
@@ -321,16 +321,14 @@
   }
 
   // ---- ONE SHOT ONE KILL bonus round --------------------------------------
-  // Fires immediately after clearing the wave that's a multiple of EVERY (the
-  // wave%EVERY check runs before wave++, so it's the just-cleared wave that
-  // triggers it — not a delayed "end of the 8-formation cycle"). A shaky title
-  // holds for ~3s, then ten spacesuit chickens spiral across Galaga-style (not
-  // shooting); shooting one is worth 25,000. When they've all spiralled off (or
-  // been shot), play resumes on the next wave.
-  // T slowed a further 25% on top of the earlier 10% (140->156->208); the
-  // stagger between each chicken's entry widened 25% (9->11) so they're spread
-  // out more; TITLE lengthened for a longer, clearer bonus-round announcement.
-  const OK={ T:208, LOOPS:2, AMP:44, TITLE:240, SCORE:25000, N:10, EVERY:4, DELAY_STEP:11 };
+  // Fires the instant ANY wave clears with zero missed shots — the name is
+  // literal, not a once-every-4-waves checkpoint. A shaky title holds
+  // briefly, then ten spacesuit chickens spiral across Galaga-style (not
+  // shooting); shooting one is worth 25,000. When they've all spiralled off
+  // (or been shot), play resumes on the next wave. Chickens are staggered
+  // (DELAY_STEP) well short of their crossing time (T) so only ~2 are ever
+  // in flight together — not all ~9 of them the way it used to be.
+  const OK={ T:208, LOOPS:2, AMP:44, TITLE:90, SCORE:25000, N:10, DELAY_STEP:100 };
   function startOneKill(st){
     st.mode="onekill"; st.bullet=null; st.eggs=[]; st.misses=0;
     const chickens=[];
@@ -557,7 +555,10 @@
         // The bonus round doesn't advance s.wave (that only happens once it ends),
         // so without its own announcement here it never got the splash/sound/message
         // every other transition gets — easy to miss entirely mid-flight.
-        Arcade.sfx.wave();
+        // Uses win() (4-note triangle fanfare) rather than wave() (3-note
+        // square blip) so the bonus round has its own distinct sound cue,
+        // not the same one every ordinary wave transition already uses.
+        Arcade.sfx.win();
         splash=Arcade.splash.message("ONE SHOT ONE KILL!","Shoot the spiralling chicken — 25,000 pts",90);
         $("msg").textContent="🎯 ONE SHOT ONE KILL! Shoot the spiralling chicken.";
       } else if(s.lives<wasLives && !s.over){
