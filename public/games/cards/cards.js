@@ -19,16 +19,24 @@
   // cards can have different pictures of the chickens in different styles."
   // Each theme's `face` block instead recolours the King/Queen/Jack portrait
   // and adds a small themed accessory badge, via faceArt() further down.
+  //
+  // Follow-up player feedback: "the suit colors should be standard red and
+  // black for all card sets." Suit colour used to be per-theme (e.g.
+  // Barnyard's suits were orange/dark-brown, Sunny Side's amber/navy) — now
+  // every theme uses the same classic red/black, matching the classic suit
+  // GLYPHS fixed in the pass above. Only the card back and the KQJ portrait
+  // still vary by theme.
+  const SUIT_RED = "#dc2626", SUIT_BLACK = "#15151f";
   const THEMES = [
-    { id:"classic",  name:"Classic",       red:"#dc2626", black:"#15151f", back:{glyph:"🐔", a:"#3b3f8f", b:"#2b2f6f"},
+    { id:"classic",  name:"Classic",       back:{glyph:"🐔", a:"#3b3f8f", b:"#2b2f6f"},
       face:{comb:"#dc2626", beak:"#f59e0b", gold:"#eab308", shell:"#f3ead7", accessory:null} },
-    { id:"barnyard", name:"Barnyard",      red:"#e0692a", black:"#4a3b2a", back:{glyph:"🌾", a:"#7a5a2a", b:"#5a3f1c"},
+    { id:"barnyard", name:"Barnyard",      back:{glyph:"🌾", a:"#7a5a2a", b:"#5a3f1c"},
       face:{comb:"#c2410c", beak:"#b45309", gold:"#a16207", shell:"#e7d8b8", accessory:"wheat"} },
-    { id:"coop",     name:"Coop",          red:"#d94a6a", black:"#2a2f4a", back:{glyph:"🥚", a:"#4a5a7a", b:"#35425c"},
+    { id:"coop",     name:"Coop",          back:{glyph:"🥚", a:"#4a5a7a", b:"#35425c"},
       face:{comb:"#db2777", beak:"#f59e0b", gold:"#fbbf24", shell:"#fce7f3", accessory:"egg"} },
-    { id:"sunny",    name:"Sunny Side",    red:"#f59e0b", black:"#1e293b", back:{glyph:"☀️", a:"#b8860b", b:"#8a6508"},
+    { id:"sunny",    name:"Sunny Side",    back:{glyph:"☀️", a:"#b8860b", b:"#8a6508"},
       face:{comb:"#f59e0b", beak:"#78350f", gold:"#fde047", shell:"#fef3c7", accessory:"sun"} },
-    { id:"orchard",  name:"Orchard",       red:"#16a34a", black:"#14532d", back:{glyph:"🌻", a:"#2e7d32", b:"#1b5e20"},
+    { id:"orchard",  name:"Orchard",       back:{glyph:"🌻", a:"#2e7d32", b:"#1b5e20"},
       face:{comb:"#dc2626", beak:"#f59e0b", gold:"#4d7c0f", shell:"#dcfce7", accessory:"leaf"} },
   ];
   let active = THEMES[0];
@@ -37,7 +45,7 @@
   function applyTheme(){
     if (typeof document === "undefined" || !document.documentElement) return;
     const r = document.documentElement.style;
-    r.setProperty("--card-red", active.red); r.setProperty("--card-black", active.black);
+    r.setProperty("--card-red", SUIT_RED); r.setProperty("--card-black", SUIT_BLACK);
     r.setProperty("--card-back-a", active.back.a); r.setProperty("--card-back-b", active.back.b);
     r.setProperty("--card-back-glyph", '"' + active.back.glyph + '"');
   }
@@ -201,5 +209,5 @@
   }
   if (typeof document !== "undefined") { injectStyles(); applyTheme(); }
 
-  global.Cards = { SUITS, SUIT_SYMBOL, RED, RANKS, rankLabel, makeDeck, shuffle, deal, split, cardEl, THEMES, getTheme, setTheme };
+  global.Cards = { SUITS, SUIT_SYMBOL, RED, RANKS, rankLabel, makeDeck, shuffle, deal, split, cardEl, THEMES, getTheme, setTheme, SUIT_RED, SUIT_BLACK };
 })(typeof window !== "undefined" ? window : globalThis);
