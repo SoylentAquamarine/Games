@@ -7,16 +7,21 @@ dragons that chase, castles, a 100%-completion secret ending.
 
 - `index.html` — everything. `window.__adventure` exposes the pure sim
   (`newGame`, `tick`, `drop`, `respawn`, `dragonStep`, `collide`, `ROOMS`,
-  `borderWalls`, `roomWalls`, `LABEL`, `doorwaySpot`) for headless testing.
+  `borderWalls`, `roomWalls`, `LABEL`, `doorwaySpot`, `distToExit`,
+  `chaseDelayFor`, `placeDragonsAway`) for headless testing.
 - Rooms sit on a real grid with an overworld map shown beside the game
   canvas (side-by-side row, not stacked below it).
 - Dragons have a real chase behavior: leaving a room with a live dragon in
-  it gives it a 33% chance to follow, arriving `CHASE_DELAY` (~3s) behind
-  — but that 33% halves for every additional CONSECUTIVE room the same
-  dragon follows through (`CHASE_DECAY`), so a chase streak can't
-  realistically go on forever. A failed roll, or a respawn, resets the
-  streak. A dragon that follows arrives through the same doorway the hero
-  just used (`doorwaySpot`), not a far corner.
+  it gives it a flat `CHASE_CHANCE` (90%) chance to follow — `CHASE_DECAY`
+  exists but is currently a no-op (1); see "Most recent pass" for why. A
+  dragon that follows arrives through the same doorway the hero just used
+  (`doorwaySpot`), after a delay proportional to how far it actually was
+  from that exit, divided by its own speed (`chaseDelayFor`/`distToExit`)
+  — not a flat constant.
+- **A dragon simply resident in a room stays exactly where it physically
+  is between visits** — `placeDragonsAway` (far-corner placement) is only
+  called by `respawn()` now, giving dragons a fresh, safe layout after a
+  death, not on every ordinary room transition.
 - Dragons the hero has ever shared a room with (`d.triggered`) show their
   live current room on the overworld map from then on, including while
   chasing — untriggered (never-encountered) dragons stay hidden.
@@ -28,21 +33,46 @@ dragons that chase, castles, a 100%-completion secret ending.
 
 ## Most recent pass
 
-**Player feedback: "once a dragon follows you to a new room, 100% chance
-it will keep following you to new rooms. When it follows, have it follow
-you through the same doorway you came through, not appear in the
-corner." and "once the dragons are triggered, show them on the world
-map."** Three changes, described above: the chase-streak decay
-(`CHASE_DECAY`), doorway-entry positioning for a chasing dragon
-(`doorwaySpot`), and triggered-dragon map tracking (`d.triggered`). The
-underlying 33% per-room roll was already independent each time — nothing
-capped how many times in a row the same dragon could keep winning it, so
-a bad-luck streak could feel (and statistically often was) close to
-inescapable; the decay directly addresses that.
+**A follow-up round of player feedback, after the previous pass shipped:**
+"We need the dragons to appear where they left off when I reenter a
+screen, not reset into the corner." · "if the dragon follows you to the
+next room it has to make sense, if he is halfway across the last room he
+can't appear right in the doorway in the next room, you have to time it
+so it is like he travelled at his particular speed the distance needed
+to follow you." · "if a dragon follows me to one room then it has a 90%
+chance of following me into each other room."
 
-Earlier: changed the secret screen's credit text from "CREATED BY" to
-"ADAPTED BY" (both `s.msg` and the render-path `ctx.fillText` calls) —
-this is a reskin of the original 1979 Atari Adventure's hidden easter
+- Removed the automatic far-corner reset for dragons simply resident in
+  a room the hero enters (see "What's here"). This DIRECTLY contradicted
+  a small part of the fix below it in the same batch of feedback, so
+  read carefully if touching this again: dragons should stay put, full
+  stop, not "stay put unless X."
+- `chaseDelayFor`/`distToExit` replace the flat `CHASE_DELAY` constant
+  with a real distance/speed calculation, computed from the dragon's
+  actual position BEFORE it's moved to the doorway spot.
+- `CHASE_CHANCE` raised 33%→90%, and `CHASE_DECAY` (added in the
+  previous pass, see below) is now a no-op (1) — this later, more
+  specific ask for a flat high chance overrides the earlier decay
+  design. `chaseStreak` bookkeeping is left in place in case a future
+  pass wants decay back.
+
+**Still open from this same round of feedback** (see "Open / deferred"):
+a bigger black-castle maze + bridge-as-barrier redesign, the bridge's
+visual redesign, and the secret ending's trigger/vertical-text redesign.
+The screen-size request is part of a separate, cross-cutting "make every
+game the same size" initiative touching several games at once, not
+specific to this one.
+
+Earlier: added the chase-streak decay (`CHASE_DECAY`, now disabled — see
+above), doorway-entry positioning for a chasing dragon (`doorwaySpot`),
+and triggered-dragon map tracking (`d.triggered`), in response to "once
+a dragon follows you to a new room, 100% chance it will keep following
+you to new rooms" and "once the dragons are triggered, show them on the
+world map."
+
+Earlier still: changed the secret screen's credit text from "CREATED BY"
+to "ADAPTED BY" (both `s.msg` and the render-path `ctx.fillText` calls)
+— this is a reskin of the original 1979 Atari Adventure's hidden easter
 egg, not an original creation, so the wording should say so.
 
 Earlier still: dragon chase behavior added in two steps: first a 25%
@@ -55,4 +85,26 @@ and title cleanup.
 
 ## Open / deferred
 
-Nothing currently open for this game.
+Three items, all from the same recent round of player feedback:
+
+1. **"We need the black castle to have a lot of rooms inside it and to
+   be a maze, and we need to have to use the bridge to cross a barrier
+   to get to the chalice."** Currently `blackIn` is a single fixed room
+   (see the `ROOMS` table) — needs a real multi-room maze interior, plus
+   a barrier obstacle inside it that specifically requires carrying the
+   bridge to cross. A genuine level-design pass, not a quick tweak.
+2. **"The bridge needs to be more like a bridge."** Currently drawn as a
+   plain brown rectangle in `drawObject()`'s `"bridge"` case — wants a
+   more recognizably bridge-shaped sprite (planks/rails). Small on its
+   own, but makes most sense done alongside #1 once there's an actual
+   barrier for it to visually span.
+3. **"instead of triggering the secret text across the screen with the
+   gold castle on it, the secret is the guy enters the gold castle and
+   then the secret text is vertical like the warren robinette text is
+   in the original game."** Currently the secret-ending text flashes as
+   a horizontal overlay on the main play screen the instant you win with
+   full completion (see `state.secretWin` in `draw()`). Wants it
+   triggered specifically by walking into the Gold Castle, with the
+   credit text rendered vertically (one letter per line or rotated),
+   matching how the original 1979 Atari Adventure's hidden easter egg
+   room actually displayed it.
