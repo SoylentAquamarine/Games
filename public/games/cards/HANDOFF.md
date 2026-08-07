@@ -16,13 +16,22 @@ Hearts, Klondike, Pyramid, Spades, Video Poker and War. One file, one
   show a hand-drawn chicken portrait (`faceArt`) — a cockerel jack, hen
   queen, rooster king. The body uses `currentColor` so it always takes the
   card's red/black suit colour.
-- **Suit glyphs on the card itself are always the classic ♠♥♦♣** — see
-  `Cards.SUIT_SYMBOL`. Deck themes never override this; only the K/Q/J
-  portrait and the card back change per theme (see "Most recent pass").
+- **Suit glyphs AND suit colour on the card itself are always the
+  classic ♠♥♦♣ in classic red/black** — see `Cards.SUIT_SYMBOL`,
+  `Cards.SUIT_RED`, `Cards.SUIT_BLACK`. Deck themes never override
+  either; only the K/Q/J portrait and the card back change per theme
+  (see "Most recent pass").
 
 ## Most recent pass
 
-**Player feedback: "ok i like the new card sets but the suits need to
+**Player feedback: "the suit colors should be standard red and black for
+all card sets."** Suit colour used to be per-theme too (Barnyard's suits
+were orange/dark-brown, Sunny Side's amber/navy) — every theme now
+applies the same fixed `SUIT_RED`/`SUIT_BLACK` via the `--card-red`/
+`--card-black` CSS vars, a natural follow-up to the suit-glyph fix below.
+The per-theme `red`/`black` fields are gone from `THEMES` entirely.
+
+Earlier: **player feedback: "ok i like the new card sets but the suits need to
 remain normal suits but the KQJ cards can have different pictures of the
 chickens in different styles."** Two changes:
 
