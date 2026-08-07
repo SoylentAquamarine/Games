@@ -35,7 +35,7 @@
 <script src="/mascots.js"></script>
 <script>
 (function(){
-  const C={ W:360,H:300, GROUND_Y:280, N_CITIES:6, EXP_MAX_R:30, EXP_GROW:1.0, EXP_LIFE:55, ENEMY_SPEED:0.55, INT_SPEED:6, BASE_AMMO:10, BASE_X:[20,180,340], CITY_X:[60,100,140,220,260,300], INTERMISSION:120, RECOVER_EVERY:8000, FLYBY_EVERY:5, BOMB_SPEED:1.1, MAX_RAID_BOMBS:2 };   // at most 2 chicken bombs on screen so you can keep up
+  const C={ W:360,H:300, GROUND_Y:280, N_CITIES:6, EXP_MAX_R:30, EXP_GROW:1.0, EXP_LIFE:55, ENEMY_SPEED:0.55, INT_SPEED:6, BASE_AMMO:10, BASE_X:[20,180,340], CITY_X:[60,100,140,220,260,300], INTERMISSION:120, RECOVER_EVERY:8000, FLYBY_EVERY:5 };
   // Admin-tunable difficulty knobs — see /admin/games/?game=missilecommand.
   // Same pattern as kaboom (see its HANDOFF.md): explicit allowlist, only
   // numeric values, safe no-op with no localStorage (headless tests).
@@ -43,7 +43,7 @@
   // CITY_X's fixed 6-entry array of x-positions, or city rendering/damage
   // indexing goes out of bounds.
   (function(){ try{
-    const allow=["BASE_AMMO","ENEMY_SPEED","INTERMISSION","RECOVER_EVERY","FLYBY_EVERY","MAX_RAID_BOMBS"];
+    const allow=["BASE_AMMO","ENEMY_SPEED","INTERMISSION","RECOVER_EVERY","FLYBY_EVERY"];
     const o=JSON.parse(localStorage.getItem("missilecommand_config")||"{}");
     for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
   }catch(_){} })();
@@ -54,30 +54,36 @@
     const cities=C.CITY_X.map(x=>({x,alive:true}));
     const bases=C.BASE_X.map(x=>({x,ammo:C.BASE_AMMO,dead:false}));
     const s={cities,bases,enemies:[],interceptors:[],explosions:[],score:0,wave:0,waveLeftToSpawn:0,spawnTimer:0,spawnEvery:80,intermission:null,enemySpeed:C.ENEMY_SPEED,over:false,
-      nextRecover:C.RECOVER_EVERY, flyers:[], chickensLeft:0, chickenWave:false, chickenSpawnT:0, bombs:[], flybyMsg:0};
+      nextRecover:C.RECOVER_EVERY, flyers:[], chickensLeft:0, chickenWave:false, chickenSpawnT:0, flybyMsg:0};
     startWave(s); return s;
   }
-  // Every per-wave growth term is scaled by 0.9, so the curve rises the same
-  // shape but 10% less steeply: fewer missiles per wave, a longer gap between
-  // launches, and a gentler speed climb.
-  // Eased further: fewer extra missiles per wave, a gap that closes more slowly,
-  // and a speed climb that is both gentler and capped, so the ramp is a long
-  // shallow slope rather than a wall by wave 8.
+  // Player feedback: "difficulty curve too difficult... the rounds get
+  // EXTREMELY difficult too quickly." Eased a THIRD time — the per-wave
+  // growth terms below are the ones already described as "eased further"
+  // in the comment underneath, and they were still too steep. Missile
+  // count growth cut from 1.25/wave to 0.9/wave, the spawn-gap floor
+  // raised (closes more slowly AND never gets as tight), and the speed
+  // ramp both gentler and capped lower.
   function startWave(s){ s.wave++;
-    s.waveLeftToSpawn=Math.round(3+s.wave*1.25);
-    s.spawnEvery=Math.max(30,92-s.wave*5);
+    s.waveLeftToSpawn=Math.round(3+s.wave*0.9);
+    s.spawnEvery=Math.max(38,92-s.wave*3.5);
     s.spawnTimer=25;
-    s.enemySpeed=Math.min(1.25, C.ENEMY_SPEED+s.wave*0.06);
+    s.enemySpeed=Math.min(1.05, C.ENEMY_SPEED+s.wave*0.045);
     if(s.bases) for(const b of s.bases) if(!b.dead) b.ammo=C.BASE_AMMO;
-    // Every 5th wave is a chicken raid: no missiles at all, just a squad of five
-    // spacesuit chickens streaming across the top dropping their own bombs.
+    // Every 5th wave is a chicken raid: no missiles at all, just a squad of
+    // five spacesuit chickens streaming across the top. Player feedback:
+    // "the bonus chicken round is 10x as difficult as it should be, space
+    // them out and make them not shoot" — they used to drop bombs at
+    // cities/bases just like a real wave (see the removed code this
+    // replaced), which made a "bonus" round more dangerous than a normal
+    // one. Now purely a shooting-gallery bonus: no bombs, ever.
     if(s.wave%C.FLYBY_EVERY===0){
       s.chickenWave=true; s.chickensLeft=5; s.waveLeftToSpawn=0; s.chickenSpawnT=10; s.flybyMsg=90;
     } else { s.chickenWave=false; s.chickensLeft=0; }
   }
   function spawnChicken(s){
     const fromLeft=Math.random()<0.5;
-    s.flyers.push({ x: fromLeft?-24:C.W+24, y:24+Math.random()*26, vx:(fromLeft?1:-1)*(1.7+Math.random()*0.5), dropT:20+Math.floor(Math.random()*25), alive:true });
+    s.flyers.push({ x: fromLeft?-24:C.W+24, y:24+Math.random()*26, vx:(fromLeft?1:-1)*(1.7+Math.random()*0.5), alive:true });
     s.chickensLeft--;
   }
   // Score milestones rebuild a lost coop, or failing that a dead launcher.
@@ -144,7 +150,7 @@
     s.enemies=s.enemies.filter(m=>m.alive);
     s.explosions=s.explosions.filter(e=>e.life>0);
     // Breather between waves: hold for 2 seconds and announce the next one.
-    if(s.waveLeftToSpawn===0 && s.chickensLeft===0 && s.flyers.length===0 && s.bombs.length===0 && s.enemies.length===0 && s.explosions.length===0 && s.interceptors.length===0){
+    if(s.waveLeftToSpawn===0 && s.chickensLeft===0 && s.flyers.length===0 && s.enemies.length===0 && s.explosions.length===0 && s.interceptors.length===0){
       if(s.intermission==null) s.intermission=C.INTERMISSION;
       if(s.intermission>0){ s.intermission--; }
       else { s.intermission=null; startWave(s); }
@@ -153,39 +159,24 @@
     return s;
   }
   function stepFlyby(s){
-    // release the squad a little apart so they stream across rather than arrive together
-    if(s.chickensLeft>0){ if(--s.chickenSpawnT<=0){ spawnChicken(s); s.chickenSpawnT=48+Math.floor(Math.random()*34); } }
-    // each spacesuit chicken crosses the top dropping bombs; a blast kills it for a bonus
+    // Player feedback: "the bonus chicken round is 10x as difficult as it
+    // should be, space them out and make them not shoot." A raid used to
+    // drop real city/base-destroying bombs (see the removed code this
+    // replaced) — a "bonus" round shouldn't be more dangerous than a real
+    // wave. Now it's a pure risk-free shooting gallery: chickens just fly
+    // across for bonus points, no bombs, ever. The spawn gap is also wide
+    // enough that two are never on-screen at once: a chicken travels the
+    // full 414px span (off one edge to off the other) at 1.7-2.2px/frame,
+    // so the slowest possible chicken takes up to ~244 frames to clear —
+    // the 250-290 frame gap below always exceeds that worst case.
+    if(s.chickensLeft>0){ if(--s.chickenSpawnT<=0){ spawnChicken(s); s.chickenSpawnT=250+Math.floor(Math.random()*40); } }
     for(const fb of s.flyers){
       if(!fb.alive) continue;
       fb.x+=fb.vx;
-      if(--fb.dropT<=0 && fb.x>10 && fb.x<C.W-10){
-        fb.dropT=45+Math.floor(Math.random()*30);
-        if(s.bombs.length < C.MAX_RAID_BOMBS){        // never more than two bombs falling at once
-          const targets=[...s.cities.filter(c=>c.alive), ...s.bases.filter(b=>!b.dead)];
-          const tgt=targets.length?targets[Math.floor(Math.random()*targets.length)]:{x:fb.x};
-          s.bombs.push({x:fb.x,y:fb.y+6,tx:tgt.x,ty:C.GROUND_Y});
-        }
-      }
       for(const e of s.explosions){ if(e.life>0 && dist(e.x,e.y,fb.x,fb.y)<=e.r+8){ s.score+=1000; fb.alive=false; if(typeof Arcade!=="undefined") Arcade.sfx.hit(); break; } }
       if(fb.alive && (fb.x<-30||fb.x>C.W+30)) fb.alive=false;
     }
     s.flyers=s.flyers.filter(f=>f.alive);
-    // bombs fall like enemy missiles and can be shot down
-    for(const b of s.bombs){
-      const dx=b.tx-b.x, dy=b.ty-b.y, d=Math.hypot(dx,dy)||1;
-      b.x+=dx/d*C.BOMB_SPEED; b.y+=dy/d*C.BOMB_SPEED;
-      if(b.y>=C.GROUND_Y){ b.dead=true;
-        const bi=s.bases.findIndex(x=>!x.dead && Math.abs(x.x-b.x)<=14);
-        if(bi>=0){ s.bases[bi].dead=true; s.bases[bi].ammo=0; }
-        else { const ci=cityIndexAtX(s.cities,b.x); if(ci>=0&&s.cities[ci].alive){ s.cities[ci].alive=false;
-          if(typeof Arcade!=="undefined") Arcade.sfx.death(); } }
-      }
-    }
-    for(const e of s.explosions){ if(e.life<=0) continue;
-      for(const b of s.bombs){ if(!b.dead && dist(e.x,e.y,b.x,b.y)<=e.r+3){ b.dead=true; s.score+=50;
-        if(typeof Arcade!=="undefined") Arcade.sfx.hit(); } } }
-    s.bombs=s.bombs.filter(b=>!b.dead);
   }
   window.__mc={ newGame, startWave, spawnEnemy, spawnChicken, stepEnemy, fire, stepExplosion, explosionHits, cityIndexAtX, tick, stepFlyby, recover, dist, C };
 
@@ -225,11 +216,6 @@
     for(const m of s.enemies){ ctx.strokeStyle="rgba("+wc.trail+",.55)"; ctx.lineWidth=1.4; ctx.beginPath(); ctx.moveTo(m.ox,m.oy); ctx.lineTo(m.x,m.y); ctx.stroke();
       ctx.fillStyle=wc.missile; ctx.beginPath(); ctx.arc(m.x,m.y,2.8,0,7); ctx.fill();
       ctx.fillStyle="rgba(255,255,255,.85)"; ctx.beginPath(); ctx.arc(m.x,m.y,1.1,0,7); ctx.fill(); }
-    // the bomber chicken's bombs, in a warning red
-    for(const b of s.bombs){ ctx.strokeStyle="rgba(244,63,94,.5)"; ctx.lineWidth=1.4;
-      ctx.beginPath(); ctx.moveTo(b.x-(b.tx-b.x)*0.04,b.y-(b.ty-b.y)*0.04); ctx.lineTo(b.x,b.y); ctx.stroke();
-      ctx.fillStyle="#f43f5e"; ctx.beginPath(); ctx.arc(b.x,b.y,3,0,7); ctx.fill();
-      ctx.fillStyle="#fde68a"; ctx.beginPath(); ctx.arc(b.x,b.y,1.2,0,7); ctx.fill(); }
     // the bomber squad — drawn from the shared /mascots.js library (the
     // "Flying" variant: jetpack + pack).
     for(const fb of s.flyers) Mascots.spacesuitChickenFlying(ctx, fb.x, fb.y, 9, fb.vx);
