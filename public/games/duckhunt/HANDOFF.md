@@ -26,12 +26,29 @@ as a friend you shouldn't shoot.
 
 ## Most recent pass
 
-Extracted Rooster Reg into `/mascots.js` as `Mascots.rooster` — no
-gameplay change, purely de-duplicating what would otherwise become a
+Two player comments:
+
+1. **"gravity is too much on the skeet round, kill gravity by 33%"** —
+   `EGG_GRAVITY` 0.22 → 0.147.
+2. **"space chicken bonus round started while the screen was still dim
+   then didn't respond properly, we need the space chicken to fly by all
+   the way off the screen before the next round starts"** — the round
+   title card (which blocks shooting via `s.roundTitleT>0`) used to
+   expire on its fixed `ROUND_TITLE` timer regardless of whether the
+   flyby was still mid-flight (the flyby moves every frame even during
+   the title, but the title itself only lasts 110 frames while a full
+   crossing takes ~240). Fixed in `step()`: the title now holds at 1
+   (still blocking, still visually shown) for as long as `s.flyby` is
+   truthy, only finishing the countdown once the flyby has genuinely
+   cleared. See the inline comment right above the fix for the exact
+   mechanics.
+
+Earlier: extracted Rooster Reg into `/mascots.js` as `Mascots.rooster` —
+no gameplay change, purely de-duplicating what would otherwise become a
 copy-pasted sprite the moment a second game wants him.
 
-Earlier: added the admin config pane described above — no gameplay
-change to the defaults.
+Earlier still: added the admin config pane described above — no
+gameplay change to the defaults.
 
 Earlier pass — **bug**: "the egg skeet are not launching onto the board, they are barely
 appearing at the bottom of the screen." A prior easing pass (meant to slow

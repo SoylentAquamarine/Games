@@ -17,7 +17,13 @@ freshly generated jagged terrain each round.
 
 ## Most recent pass
 
-Player feedback, three parts:
+**Player feedback: "need to use fuel at half the rate, also decrease
+gravity by 30%."** Burn rates halved (`BURN_UP` 0.32→0.16, `BURN_SIDE`
+0.18→0.09 — these were themselves already eased ~35% from an original
+0.5/0.28 in an earlier pass), and `GRAVITY` cut 30% (0.0648→0.04536).
+Pure constant tuning, no logic changes.
+
+Earlier pass, three parts:
 
 1. Landing speed thresholds now scale with the pad's payout multiplier
    (`landThresholds(mult)`) instead of one flat `LAND_VMAX`/`LAND_VXMAX`

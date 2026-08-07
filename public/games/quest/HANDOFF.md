@@ -49,7 +49,18 @@ level editor (`/admin/games/?game=quest`, "Configuration" panel).
 
 ## Most recent pass
 
-Extracted the player's hero-chicken sprite into `/mascots.js` as
+**Player feedback: "when i kill the fox king i will be banging on the
+space bar so the space bar can't trigger the next thing or else it will
+fly past."** The keydown handler already called `preventDefault()` for
+Space (stops the page from scrolling), but the keyup handler didn't —
+and browsers activate a focused `<button>` on Space's **keyup**, not
+keydown. Whatever button last had focus (e.g. "Play again", freshly
+revealed the instant the fight ends) could get a phantom click from the
+very same spacebar mash that landed the winning hit, skipping straight
+past the win screen into a new game. Fixed by adding
+`e.preventDefault()` for Space to the keyup handler too.
+
+Earlier: extracted the player's hero-chicken sprite into `/mascots.js` as
 `Mascots.heroChicken` — no gameplay/visual change, purely
 de-duplicating what was this site's most developed protagonist design
 so other top-down/4-directional games can reuse it. Completes the
@@ -145,6 +156,31 @@ above).
   more obvious/thematic in-world exit rather than a small HUD button) or
   may have been confusion from the vanish bug above rather than a
   separate real ask. Get more player detail before changing anything.
-- The original mascot-library comment's Hero chicken / rooster characters
-  haven't been designed yet (separate from Quest specifically — see the
-  root `HANDOFF.md`'s mascots.js entry).
+- **"I don't want the levels to be random, they will be the same always,
+  I will design each of them in the designer screen"** — need to confirm
+  what's actually random today. The admin Level Editor + `quest_layout`
+  persistence already exist (see "What's here"), so a saved custom layout
+  should already stick — check whether this is about something ELSE
+  being randomized on top of a saved layout (enemy placement within a
+  room? which of the 12 dungeons maps to which board shape?) before
+  assuming the fix is "turn off randomness" broadly.
+- **"I want specific sprites for each of the bosses, and the main boss
+  is a fox — it should be a fox with a crown, not a chicken sprite"** —
+  currently `drawBoss()` draws every per-dungeon boss AND the Fox King
+  with the same generic rooster-ish silhouette (comb/beak/body), just
+  recolored per `BOSSES[i].color`. Needs real per-boss art, and the Fox
+  King specifically needs an actual fox shape (not a reskinned chicken)
+  plus a crown. A real design/art pass, not a quick tint change.
+- **"Not every house should have the same thing — also the houses should
+  have wooden plank flooring and furniture and stuff, and only a few
+  should have a coin or a heart, and they should not respawn"** —
+  `genHouseRoom(isStore)` currently generates identical decor-free
+  interiors every time (2 fixed items: a coin + a heart, always present,
+  and — since `R.items` resets on each `enterHouse()` call — they
+  effectively DO respawn every visit). Needs: real per-house variety
+  (decor tiles, not just 4 walls), a "few houses have loot, most don't"
+  distribution instead of every house guaranteeing both a coin and a
+  heart, and persisted taken-state so a looted house stays looted.
+- The original mascot-library comment is fully resolved — see the root
+  `HANDOFF.md`'s mascots.js entry (spacesuit chicken, rooster, hero
+  chicken, and Dr Chicken's redesign are all done).
