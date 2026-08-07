@@ -17,31 +17,41 @@ levels.
      `/mascots.js` library (`Mascots.spacesuitChicken`, the plain
      variant, no jetpack).
   2. **"Dr Chicken"** — the persistent side-panel portrait watching the
-     bottle (`docCtx`-based, a more elaborate composed pose: white coat +
-     helmet dome). This one is **deliberately NOT migrated** to
-     `/mascots.js`. The original mascot-library player comment wants this
-     specific character redesigned as a surgical-mask variant instead of
-     a spacesuit — unifying it with the shared spacesuit sprite now would
-     move it the wrong direction. Leave it alone until that redesign
-     happens.
+     bottle (`docCtx`-based, `drawDoc()`). **Deliberately NOT drawn from
+     `/mascots.js`** — she's a surgical-mask doctor now (her own body,
+     a teal mask with an ear-loop strap, the white coat, a head-mirror
+     band), not a spacesuit variant, so unifying her with the shared
+     spacesuit sprite would be the wrong direction on purpose.
 - Chickens-as-lives with a 9-row (not 6) neck-unjam so one lost chicken
   gives real breathing room instead of cascading into an instant game
   over.
 
 ## Most recent pass
 
-Migrated the bonus-round cameo (#1 above) to `/mascots.js` as part of a
-site-wide sweep — see the root `HANDOFF.md`'s mascots.js entry. Dr
-Chicken's own portrait (#2) is untouched by design. No gameplay change.
+**Redesigned Dr Chicken's portrait (#2 above)** from the old spacesuit
+look (jetpack flare, life-support pack, helmet dome — same visual
+language as the site's spacesuit cameos) to an actual doctor: surgical
+mask with an ear-loop strap over her beak, the white coat kept (it
+already read as "doctor"), and a head mirror on a band replacing the
+helmet. This was the last open piece of the original mascot-library
+comment — the whole comment is now archived. `drawDoc()` isn't exported
+on `window.__drmario` (it's DOM-only, closure-scoped over `docCv`); any
+future test needs to boot the whole page through a mocked `document`
+(canvas mock for `id==="doc"`) and let the page's own initial
+`requestAnimationFrame(frame)` call it once — see the scratchpad test
+`drmario-doctorredesign-test.js` for the pattern (separate ctx mocks
+per canvas, since `draw()`/`drawNext()` share the same call log
+otherwise and pollute assertions meant only for the portrait).
 
-Prior passes: bonus round every 5 levels (spacesuit chicken drifts the
+Earlier: migrated the bonus-round cameo (#1 above) to `/mascots.js` as
+part of a site-wide sweep — see the root `HANDOFF.md`'s mascots.js
+entry. No gameplay change either time.
+
+Earlier still: bonus round every 5 levels (spacesuit chicken drifts the
 bottle, drop bricks on it for points, then advance); eased virus
 density/drop-speed curves and the more generous unjam; levels with a
 denser bottle each clear; chickens as lives with the original neck-unjam.
 
 ## Open / deferred
 
-- **Dr Chicken's surgical-mask redesign** — the original mascot-library
-  comment asked for this character to become a different design (mask,
-  not spacesuit) with more per-game detail. Not started; needs a design
-  pass, not a migration.
+Nothing currently open for this game.
