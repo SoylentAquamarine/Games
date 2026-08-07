@@ -20,10 +20,19 @@ Pinball table: flippers, launch lane, bumpers.
   values matter here — if the ease factor (currently `*0.4`) or the
   0.15 threshold ever change, "swinging lasts ~3-4 frames after a press"
   is the invariant to preserve, not the exact numbers.
+- **Admin-configurable** at `/admin/games/?game=pinball`: `BUMP_BOOST`
+  (bumper bounce strength), `FLIP_IMPULSE` (flipper strength). Uses the
+  site's generic numeric-knob config pattern (see kaboom's HANDOFF.md) —
+  saved to `localStorage["pinball_config"]`, merged into `C` at boot via
+  an explicit allowlist. Table geometry and base gravity/damping are
+  deliberately not exposed.
 
 ## Most recent pass
 
-Two player comments:
+Added the admin config pane described above — no gameplay change to the
+defaults.
+
+Earlier, two player comments:
 
 1. **"paddles 10% longer"** — `FLEN` 50 → 55.
 2. **"if i am holding the paddles up the ball should not bounce that
