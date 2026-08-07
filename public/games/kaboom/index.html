@@ -26,67 +26,65 @@
 <body>
 <div class="wrap">
   <div class="topbar"><a class="home" href="/">← Home</a><h1>🥚 ChickenBoom</h1><button class="btn" id="new">New Game</button></div>
-  <div class="hud"><span>Score: <b id="score">0</b></span><span>Wave: <b id="wave">1</b></span><span>Baskets: <b id="buckets">3</b></span><span>Cartons: <b id="cartons">🧺⬜⬜</b></span></div>
+  <div class="hud"><span>Score: <b id="score">0</b></span><span>Wave: <b id="wave">1</b></span><span>Chickens: <b id="buckets">3</b></span><span>Cartons: <b id="cartons">🧺0  🥚0/12</b></span></div>
   <canvas id="game" width="480" height="360"></canvas>
-  <div class="msg" id="msg">Fill 3 cartons of 12 eggs each. Miss one and the carton spills!</div>
-  <div class="hint">Move the mouse / drag / ←→ to slide the baskets · fill every carton, but <b>let rotten eggs hit the ground</b></div>
+  <div class="msg" id="msg">Fill cartons of 12 eggs. Don't let an egg break — and never catch a rotten one!</div>
+  <div class="hint">Move the mouse / drag / ←→ to slide the baskets · every egg you miss or rotten egg you catch costs a chicken · every 10 cartons filled earns a bonus chicken</div>
 </div>
 <script src="/arcade.js"></script>
 <script src="/mascots.js"></script>
 <script>
 (function(){
   const C={ W:480,H:360, CATCH_Y:318, PADDLE_W:52, BOMBER_Y:26, FALL_BASE:2.2,
-             GAP:110, DEATH:120, ROTTEN_FROM:2, CARTON_SIZE:12, CARTONS_PER_WAVE:3,
+             GAP:110, DEATH:120, ROTTEN_FROM:2, CARTON_SIZE:12, CHICKEN_EVERY:10, MAX_CHICKENS:9,
              EGG_W:11, EGG_H:22, FLYBY_EVERY:5 };   // GAP/DEATH in frames (~2s); EGG size is 2x the original
   // Admin-tunable difficulty knobs — see /admin/games/?game=kaboom. Only
-  // this exact allowlist (matching the 4 inputs the admin panel actually
+  // this exact allowlist (matching the inputs the admin panel actually
   // shows) can be overridden, and only with a number — so a malformed/
   // stale saved config can't inject new fields or touch an unrelated
   // constant like W/GAP that isn't meant to be admin-editable. No-ops
   // safely (via the catch) in the headless test sandbox, where
   // localStorage doesn't exist.
   (function(){ try{
-    const allow=["ROTTEN_FROM","CARTON_SIZE","CARTONS_PER_WAVE","FLYBY_EVERY"];
+    const allow=["ROTTEN_FROM","CARTON_SIZE","CHICKEN_EVERY","FLYBY_EVERY"];
     const o=JSON.parse(localStorage.getItem("kaboom_config")||"{}");
     for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
   }catch(_){} })();
-  // Redesigned per player feedback: the goal is now filling CARTONS_PER_WAVE
-  // cartons of CARTON_SIZE eggs each (36 good catches) to clear a wave, not a
-  // fixed egg count. From ROTTEN_FROM the hen also drops rotten eggs (green —
-  // avoid catching them) instead of the old firecrackers. Missing a good egg
-  // no longer costs a basket/life — it spills the CURRENT carton back to 0
-  // (real cost, but the run continues); only catching a rotten egg costs a
-  // basket. Every FLYBY_EVERY-th wave a spacesuit chicken cameo drops in
-  // once, mid-wave — catch it for a bonus, matching the site-wide pattern.
+  // Player feedback: "start with three chickens, lose a chicken when you
+  // break an egg or catch a green egg" and "the baskets should be an egg
+  // carton that has to get filled up with 12 eggs, every 10 cartons is an
+  // extra chicken." Redesigned from the previous 3-cartons-per-wave/spill
+  // model: it's now ONE continuous carton at a time (no more per-wave
+  // grouping or "spill" penalty) — filling it advances the wave (the
+  // difficulty stage) and, every CHICKEN_EVERY cartons, awards a bonus
+  // chicken (capped at MAX_CHICKENS). Missing a good egg costs a chicken
+  // outright now, same as catching a rotten one — there is no longer a
+  // free, no-penalty way to lose an egg. From ROTTEN_FROM the hen also
+  // drops rotten eggs (green — avoid catching them). Every FLYBY_EVERY-th
+  // wave a spacesuit chicken cameo drops in once, mid-wave — catch it for
+  // a bonus, matching the site-wide pattern.
   function waveFall(w){ return C.FALL_BASE + (w-1)*0.22; }
   function waveSpacing(w){ return Math.max(16, 44 - w*2.5); }
   function rottenChance(w){ return w < C.ROTTEN_FROM ? 0 : Math.min(0.28, 0.10 + (w-C.ROTTEN_FROM)*0.03); }
   const clamp=(v,a,b)=>v<a?a:v>b?b:v;
-  function newState(){ return { paddleX:C.W/2, buckets:3, bombs:[], bomberX:C.W/2, bomberDir:1,
+  function newState(){ return { paddleX:C.W/2, chickens:3, bombs:[], bomberX:C.W/2, bomberDir:1,
     score:0, wave:1, dropT:35, fall:C.FALL_BASE, caught:0, bonusCaught:0,
-    cartonsFilled:0, cartonEggs:0, spilled:0, flybySpawned:false,
+    cartonsTotal:0, cartonEggs:0, flybySpawned:false,
     gap:0, dying:0, over:false, msg:"" }; }
   function catchCheck(bomb, paddleX){ return Math.abs(bomb.x-paddleX)<=C.PADDLE_W/2; }
   function startWave(s, w){
     s.wave=w; s.fall=waveFall(w);
-    s.dropT=20; s.bombs=[]; s.gap=0;
-    s.cartonsFilled=0; s.cartonEggs=0; s.flybySpawned=false;
+    s.dropT=20; s.bombs=[]; s.gap=0; s.flybySpawned=false;
   }
-  function loseBasket(s, why){
-    s.buckets--; s.bombs=[]; s.dying=C.DEATH; s.msg=why;
-    if(s.buckets<=0) s.over=true;
-    return s;
-  }
-  // Missing a good egg spills whatever's already in the carton you're
-  // filling — real lost progress, but the run (and your baskets) are safe.
-  function spillCarton(s, why){
-    s.cartonEggs=0; s.spilled++; s.msg=why;
+  function loseChicken(s, why){
+    s.chickens--; s.bombs=[]; s.dying=C.DEATH; s.msg=why;
+    if(s.chickens<=0) s.over=true;
     return s;
   }
   function step(s, input){
     if(s.over) return s;
 
-    // 2 second beat after losing a basket, so you can gather yourself
+    // 2 second beat after losing a chicken, so you can gather yourself
     if(s.dying>0){ if(--s.dying<=0){ startWave(s, s.wave); } return s; }
     // breather between waves
     if(s.gap>0){ if(--s.gap<=0) startWave(s, s.wave+1); return s; }
@@ -98,14 +96,14 @@
     const bspeed=1.4+s.wave*0.2; s.bomberX+=s.bomberDir*bspeed;
     if(s.bomberX<24){ s.bomberX=24; s.bomberDir=1; } if(s.bomberX>C.W-24){ s.bomberX=C.W-24; s.bomberDir=-1; }
 
-    // keep laying eggs (and rotten eggs, from ROTTEN_FROM) until all 3 cartons are filled
-    if(s.cartonsFilled<C.CARTONS_PER_WAVE && --s.dropT<=0){
+    // the hen keeps laying eggs (and rotten eggs, from ROTTEN_FROM) continuously
+    if(--s.dropT<=0){
       const rotten = Math.random() < rottenChance(s.wave);
       s.bombs.push({ x:s.bomberX, y:C.BOMBER_Y+8, kind: rotten?"rotten":"egg" });
       s.dropT=waveSpacing(s.wave);
     }
     // a cameo spacesuit chicken, once, roughly mid-wave, every FLYBY_EVERY waves
-    if(!s.flybySpawned && s.wave % C.FLYBY_EVERY===0 && s.cartonsFilled>=1){
+    if(!s.flybySpawned && s.wave % C.FLYBY_EVERY===0 && s.cartonEggs>=1){
       s.bombs.push({ x:s.bomberX, y:C.BOMBER_Y+8, kind:"bonus" });
       s.flybySpawned=true;
     }
@@ -117,27 +115,25 @@
       const caught=catchCheck(b,s.paddleX);
       if(b.kind==="rotten"){
         // rotten eggs are the opposite: catching one is what hurts you
-        if(caught){ s.bombs=survivors; return loseBasket(s,"You caught a rotten egg!"); }
+        if(caught){ s.bombs=survivors; return loseChicken(s,"You caught a rotten egg!"); }
       } else if(b.kind==="bonus"){
         if(caught){ s.score+=200; s.bonusCaught++; }   // uncaught: no penalty, it's a pure treat
       } else {
         if(caught){
           s.score+= 1 + Math.floor(s.wave/2);
           s.caught++; s.cartonEggs++;
-          if(s.cartonEggs>=C.CARTON_SIZE){ s.cartonEggs=0; s.cartonsFilled++; s.score+=50; }
-        } else { s.bombs=survivors; return spillCarton(s,"An egg hit the ground — carton spilled!"); }
+          if(s.cartonEggs>=C.CARTON_SIZE){
+            s.cartonEggs=0; s.cartonsTotal++; s.score+=50;
+            if(s.cartonsTotal%C.CHICKEN_EVERY===0 && s.chickens<C.MAX_CHICKENS){ s.chickens++; s.msg="🐔 Bonus chicken! 10 cartons filled."; }
+            s.bombs=survivors; s.gap=C.GAP; return s;
+          }
+        } else { s.bombs=survivors; return loseChicken(s,"An egg hit the ground!"); }
       }
     }
     s.bombs=survivors;
-
-    // wave finished once all 3 cartons are filled and nothing's still in the air
-    if(s.cartonsFilled>=C.CARTONS_PER_WAVE && s.bombs.length===0 && s.gap===0){
-      s.score+=100*s.wave;
-      s.gap=C.GAP;
-    }
     return s;
   }
-  window.__kaboom={ newState, step, catchCheck, startWave, loseBasket, spillCarton,
+  window.__kaboom={ newState, step, catchCheck, startWave, loseChicken,
                     waveFall, waveSpacing, rottenChance, C };
 
   if(typeof document==="undefined") return;
@@ -192,59 +188,51 @@
         ctx.bezierCurveTo(b.x-C.EGG_W,b.y+C.EGG_H*0.35,b.x-C.EGG_W*0.8,b.y-C.EGG_H/2,b.x,b.y-C.EGG_H/2);
         ctx.closePath(); ctx.fill(); ctx.stroke();
       } }
-    // the farmer's baskets
-    for(let i=0;i<s.buckets;i++){ const y=C.CATCH_Y+i*11, hw=C.PADDLE_W/2;
+    // the farmer's baskets — one per remaining chicken
+    for(let i=0;i<s.chickens;i++){ const y=C.CATCH_Y+i*11, hw=C.PADDLE_W/2;
       ctx.fillStyle=i===0?"#b45309":"#8a5a12";
       ctx.beginPath(); ctx.moveTo(s.paddleX-hw,y); ctx.lineTo(s.paddleX+hw,y);
       ctx.lineTo(s.paddleX+hw-3,y+8); ctx.lineTo(s.paddleX-hw+3,y+8); ctx.closePath(); ctx.fill();
       ctx.fillStyle=i===0?"#d97706":"#a16207"; ctx.fillRect(s.paddleX-hw,y,C.PADDLE_W,2.5); }
     ctx.fillStyle="#2b2f4d"; ctx.fillRect(0,C.H-4,C.W,4);
-    // the 2s beat after losing a basket
+    // the 2s beat after losing a chicken
     if(s.dying>0 && !s.over){
       ctx.fillStyle="rgba(0,0,0,"+(0.5*Math.min(1,s.dying/40))+")"; ctx.fillRect(0,0,C.W,C.H);
       const j=()=>(Math.random()-0.5)*4;
       ctx.fillStyle="#f43f5e"; ctx.font="bold 20px system-ui"; ctx.textAlign="center";
       ctx.fillText(s.msg||"SPLAT!",C.W/2+j(),C.H/2-4);
       ctx.fillStyle="#e6e6f0"; ctx.font="12px system-ui";
-      ctx.fillText(s.buckets+" basket"+(s.buckets===1?"":"s")+" left · back in "+(s.dying/60).toFixed(1)+"s",C.W/2,C.H/2+18);
+      ctx.fillText(s.chickens+" chicken"+(s.chickens===1?"":"s")+" left · back in "+(s.dying/60).toFixed(1)+"s",C.W/2,C.H/2+18);
     }
     // between-wave breather
     if(s.gap>0 && !s.over){
       ctx.fillStyle="rgba(0,0,0,.45)"; ctx.fillRect(0,0,C.W,C.H);
       ctx.fillStyle="#ffcf5a"; ctx.font="bold 20px system-ui"; ctx.textAlign="center";
-      ctx.fillText("WAVE "+(s.wave+1),C.W/2,C.H/2-4);
+      ctx.fillText(s.msg||("WAVE "+(s.wave+1)),C.W/2,C.H/2-4);
       ctx.fillStyle="#e6e6f0"; ctx.font="12px system-ui";
       ctx.fillText(rottenChance(s.wave+1)>0?"Watch for rotten eggs — let them fall!":"Get ready…",C.W/2,C.H/2+18);
     }
     if(s.over){ ctx.fillStyle="rgba(0,0,0,.55)"; ctx.fillRect(0,0,C.W,C.H); ctx.fillStyle="#f43f5e"; ctx.font="bold 24px system-ui"; ctx.textAlign="center"; ctx.fillText("SPLAT!",C.W/2,C.H/2-4); ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Score "+s.score+(best?"  ·  Best "+best:""),C.W/2,C.H/2+18); }
   }
   function hud(){
-    $("score").textContent=s.score; $("wave").textContent=s.wave; $("buckets").textContent=Math.max(0,s.buckets);
-    // 🧺 = a filled carton, 🥚+count = the one currently being filled, ⬜ = not started yet
-    let cartons="";
-    for(let i=0;i<C.CARTONS_PER_WAVE;i++){
-      if(i<s.cartonsFilled) cartons+="🧺";
-      else if(i===s.cartonsFilled) cartons+="🥚"+s.cartonEggs+"/"+C.CARTON_SIZE;
-      else cartons+="⬜";
-    }
-    $("cartons").textContent=cartons;
+    $("score").textContent=s.score; $("wave").textContent=s.wave; $("buckets").textContent=Math.max(0,s.chickens);
+    // one carton in progress at a time — 🧺+total filled so far, 🥚 progress toward the next
+    $("cartons").textContent="🧺"+s.cartonsTotal+"  🥚"+s.cartonEggs+"/"+C.CARTON_SIZE;
   }
-  let prevDying=0, prevGap=0, prevCaught=0, prevBonus=0, prevSpilled=0, wasOver=false;
+  let prevDying=0, prevGap=0, prevCaught=0, prevBonus=0, prevCartons=0, wasOver=false;
   function frame(){
     if(!GATE.open){ draw(); GATE.paint(); return requestAnimationFrame(frame); }
     step(s,input); input.left=input.right=false;
-    const justSpilled = s.spilled>prevSpilled;
+    const justFilled = s.cartonsTotal>prevCartons;
     if(typeof Arcade!=="undefined"){
       Arcade.stats.record("kaboom",s.score);
       if(s.caught>prevCaught) Arcade.sfx.pickup();                                    // caught a good egg
       if(s.bonusCaught>prevBonus) Arcade.sfx.coin();                                   // caught the spacesuit chicken cameo
-      if(justSpilled) Arcade.sfx.bounce();                                             // missed one — carton spilled (no life lost)
-      if(s.dying>0 && prevDying<=0) Arcade.sfx.explode();                              // caught a rotten egg — lost a basket
-      if(s.gap>0 && prevGap<=0 && s.dying<=0) Arcade.sfx.wave();                       // wave cleared, next one incoming
+      if(justFilled) Arcade.sfx.wave();                                                // carton filled, next one incoming
+      if(s.dying>0 && prevDying<=0) Arcade.sfx.explode();                              // broke an egg or caught a rotten one — lost a chicken
       if(s.over && !wasOver) Arcade.sfx.lose();
     }
-    prevDying=s.dying; prevGap=s.gap; prevCaught=s.caught; prevBonus=s.bonusCaught; prevSpilled=s.spilled; wasOver=s.over;
-    if(justSpilled && !s.over) $("msg").textContent="💥 "+s.msg;
+    prevDying=s.dying; prevGap=s.gap; prevCaught=s.caught; prevBonus=s.bonusCaught; prevCartons=s.cartonsTotal; wasOver=s.over;
     if(s.over && s.score>best){ best=s.score; try{localStorage.setItem("kaboom_best",String(best));}catch(e){} }
     if(s.over) $("msg").textContent="🥚 Splat! Final score "+s.score+". New Game to try again.";
     draw(); hud(); requestAnimationFrame(frame); }
@@ -253,7 +241,7 @@
   cv.addEventListener("touchmove",(e)=>{ e.preventDefault(); input.x=px(e); },{passive:false});
   cv.addEventListener("touchstart",(e)=>{ e.preventDefault(); input.x=px(e); },{passive:false});
   addEventListener("keydown",(e)=>{ if(e.key==="ArrowLeft"){input.left=true;input.x=null;} else if(e.key==="ArrowRight"){input.right=true;input.x=null;} });
-  $("new").addEventListener("click",()=>{ s=newState(); input={x:null,left:false,right:false}; $("msg").textContent="Fill 3 cartons of 12 eggs each. Miss one and the carton spills!"; });
+  $("new").addEventListener("click",()=>{ s=newState(); input={x:null,left:false,right:false}; $("msg").textContent="Fill cartons of 12 eggs. Don't let an egg break — and never catch a rotten one!"; });
   requestAnimationFrame(frame);
 })();
 </script>
