@@ -73,12 +73,17 @@
       s.flyby={ x: fromLeft?-24:C.W+24, y:44, vx:(fromLeft?1:-1)*1.6, dropT:36 }; }
   }
   // Swooping entrance: in low from the side, arc up and over, ease into the slot.
+  // Player feedback: "the swooping entrance should be a bigger slower
+  // loop that goes past more of the screen." Duration up from 46 to 72
+  // frames (~57% slower), and the midpoint pushed further across (0.75
+  // -> 0.90 of the width) and deeper down (150 -> 210) so the arc swings
+  // through noticeably more of the screen before easing into formation.
   function enterStep(e){
     e.enterT++;
     if(e.enterT < e.enterDelay) return;             // still queued off-screen
-    const u = Math.min(1,(e.enterT-e.enterDelay)/46);
+    const u = Math.min(1,(e.enterT-e.enterDelay)/72);
     const startX = e.fromLeft ? -20 : C.W+20, startY = 20;
-    const midX = e.fromLeft ? C.W*0.75 : C.W*0.25,  midY = 150;
+    const midX = e.fromLeft ? C.W*0.90 : C.W*0.10,  midY = 210;
     const ax = startX+(midX-startX)*u, ay = startY+(midY-startY)*u;
     const bx = midX+(e.fx-midX)*u,     by = midY+(e.fy-midY)*u;
     e.x = ax+(bx-ax)*u;

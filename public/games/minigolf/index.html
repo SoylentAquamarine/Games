@@ -233,8 +233,11 @@
   function lv(){ return LEVELS[s.level]; }
 
   function draw(){
-    ctx.clearRect(0,0,W,H); ctx.fillStyle="#1a5a2a"; ctx.fillRect(0,0,W,H);
-    ctx.fillStyle="#176a2c"; for(let y=0;y<H;y+=24) ctx.fillRect(0,y,W,12);
+    // Player feedback: "I don't like the striped green background, make
+    // it a solid color, the lighter of the two greens is nice." Was a
+    // mowed-lawn stripe pattern (#1a5a2a base + #176a2c stripes every
+    // 24px) — now a flat fill of the lighter shade.
+    ctx.clearRect(0,0,W,H); ctx.fillStyle="#176a2c"; ctx.fillRect(0,0,W,H);
     // Trace the blob outline with smooth curves through the midpoints.
     const tracePath=(r)=>{ const p=blobPoints(r); ctx.beginPath();
       let mx=(p[p.length-1].x+p[0].x)/2, my=(p[p.length-1].y+p[0].y)/2;
