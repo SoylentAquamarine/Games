@@ -609,7 +609,17 @@
     // input
     const map={ArrowUp:"up",ArrowDown:"down",ArrowLeft:"left",ArrowRight:"right",w:"up",s:"down",a:"left",d:"right"};
     document.addEventListener("keydown",e=>{if(map[e.key]){e.preventDefault();keyState[map[e.key]]=true;}if(e.key===" "){e.preventDefault();if(running)attack();}});
-    document.addEventListener("keyup",e=>{if(map[e.key]){keyState[map[e.key]]=false;}});
+    // Player report: "when i kill the fox king i will be banging on the
+    // space bar so the space bar can't trigger the next thing or else it
+    // will fly past." Browsers activate a focused <button> on the SPACE
+    // KEYUP, not keydown — the keydown handler above already calls
+    // preventDefault(), which stops the page from scrolling, but does
+    // NOT suppress that separate keyup-triggered click. Whatever button
+    // last had focus (e.g. "Play again", freshly revealed the instant
+    // the fight ends) would get a phantom click from the very same
+    // spacebar mash that landed the winning hit, skipping the win screen
+    // straight into a new game. preventDefault() on keyup closes that.
+    document.addEventListener("keyup",e=>{if(map[e.key]){keyState[map[e.key]]=false;}if(e.key===" ")e.preventDefault();});
     document.querySelectorAll("[data-k]").forEach(b=>{const k=b.dataset.k;
       const on=(e)=>{e.preventDefault();if(k==="attack"){if(running)attack();}else keyState[k]=true;};
       const off=(e)=>{e.preventDefault();if(k!=="attack")keyState[k]=false;};

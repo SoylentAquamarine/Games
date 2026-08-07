@@ -39,7 +39,7 @@
 <script>
 (function(){
   const C={ W:420,H:630, R:8, GRAV:0.24, WALL_DAMP:0.82, BUMP_BOOST:2.6, DRAIN_Y:622, THICK:6, FLIP_IMPULSE:5.5,
-            PIVOT_DX:78, PIVOT_Y:46, FLEN:50, LANE_W:26 };
+            PIVOT_DX:78, PIVOT_Y:46, FLEN:55, LANE_W:26 };   // flippers 10% longer per player feedback (was 50)
   // Static rails, as on a real table: angled outlane guides run from the side walls
   // down to just outside each flipper pivot, so the only way to drain is through the
   // gap between the flipper tips — the ball can no longer slip down beside them.
@@ -132,13 +132,25 @@
   }
   function frame(){
     if(!GATE.open){ draw(); GATE.paint(); return requestAnimationFrame(frame); }
-    // animate flippers
-    for(const f of [fl,fr]){ const target=f.pressed?f.up:f.rest; f.angle+=(target-f.angle)*0.4; }
+    // animate flippers. Player feedback: "if i am holding the paddles up
+    // the ball should not bounce that high, bounce high only if i swing
+    // the paddle and connect with the ball while the paddle is in
+    // motion." The old "active" check was just `pressed && near the up
+    // angle` — true for the ENTIRE time a flipper is held up, not just
+    // while it's actually swinging. The ease-toward-target animation
+    // already gives a natural motion signal for free: right after a
+    // press, `target-angle` is large (fast catch-up); once it settles at
+    // the target it shrinks toward 0 (holding still). `swinging` treats
+    // "still catching up by a meaningful amount" as "in motion" — a
+    // steady hold naturally settles below the threshold within a few
+    // frames, while a fresh swing starts well above it.
+    for(const f of [fl,fr]){ const target=f.pressed?f.up:f.rest; const delta=target-f.angle;
+      f.swinging=Math.abs(delta)>0.15; f.angle+=delta*0.4; }
     if(bumpCool>0) bumpCool--;
     if(!s.over && s.ball.live){
       stepBall(s.ball);
       for(const b of s.bumpers){ if(bumperHit(s.ball,b)){ s.score+=100; b.lit=8; } }
-      for(const f of [fl,fr]){ if(flipperReflect(s.ball, flipSeg(f), f.pressed && Math.abs(f.angle-f.up)<0.5)) s.score+=5; }
+      for(const f of [fl,fr]){ if(flipperReflect(s.ball, flipSeg(f), f.pressed && f.swinging)) s.score+=5; }
       // top rollover lanes: light one when the ball passes through it
       if(s.ball.y<58){ for(let i=0;i<3;i++){ if(Math.abs(s.ball.x-LANE_X[i])<18 && !s.lanes[i]){ s.lanes[i]=true; s.score+=250; } }
         if(s.lanes.every(l=>l)){ s.score+=5000; s.bonus++; s.lanes=[false,false,false]; if(s.balls<5) s.balls++; $("msg").textContent="LANES COMPLETE! +5000 & an extra ball!"; } }

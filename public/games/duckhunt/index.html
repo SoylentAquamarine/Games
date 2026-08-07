@@ -38,7 +38,7 @@
   // Whole game scaled up 35% (was 320x240 with a 24x20 bird).
   const C={ W:432,H:324, GROUND:278, DUCK_W:32, DUCK_H:27, AMMO:3, SPEED:2.0,
             ROO_W:44, ROO_H:38, ROO_PENALTY:25,
-            LIVES:3, EGG_W:22, EGG_H:26, EGG_GRAVITY:0.22, EGG_POINTS:15,
+            LIVES:3, EGG_W:22, EGG_H:26, EGG_GRAVITY:0.147, EGG_POINTS:15,   // gravity cut 33% per player feedback (was 0.22)
             // Boards used to swap every single bird, which read as "mixed in"
             // instead of two distinct rounds. Now a round is a solid block of
             // ROUND_SIZE birds on one board before the next round (and title
@@ -149,7 +149,19 @@
     // The round title card freezes the birds/rooster for a beat, like every
     // other wave/round announcement on the site — otherwise it's just text
     // flashing over a game that never paused to let you read it.
-    if(s.roundTitleT>0){ s.roundTitleT--; return s; }
+    //
+    // Player report: "the space chicken bonus round started while the
+    // screen was still dim then didn't respond properly, we need the
+    // space chicken to fly by all the way off the screen before the next
+    // round starts." The flyby (spawned at the same instant as the title
+    // card) takes far longer to cross the screen than the fixed title
+    // duration, so the old code would let the title expire and hand
+    // control back mid-flyby — shooting unblocks, the new duck/egg starts
+    // moving, while the flyby cameo is still crossing on top of it. Hold
+    // the title at 1 (still >0, so it keeps showing/dimming and shooting
+    // stays blocked) for as long as a flyby is in flight, instead of
+    // letting the fixed timer alone decide when the round actually starts.
+    if(s.roundTitleT>0){ if(!(s.roundTitleT<=1 && s.flyby)) s.roundTitleT--; return s; }
     const r=s.rooster;
     if(r){
       r.step++;

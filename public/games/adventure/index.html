@@ -278,7 +278,7 @@
         // the original 1979 Atari Adventure.
         const allItems = Object.values(s.everCollected).every(Boolean);
         const allDragonsDead = s.dragons.every(d=>!d.alive);
-        if(allItems && allDragonsDead){ s.secretWin=true; s.msg="CREATED BY STEPHEN PLEASANTS"; }
+        if(allItems && allDragonsDead){ s.secretWin=true; s.msg="ADAPTED BY STEPHEN PLEASANTS"; }
         else s.msg="You returned the Chalice home. You win!";
         return;
       }
@@ -538,7 +538,7 @@
         const flash=["#ffd94a","#f43f5e","#22d3ee","#4ade80","#c084fc"][Math.floor(Date.now()/90)%5];
         ctx.fillStyle="rgba(0,0,0,.55)"; ctx.fillRect(0,0,SIZE,SIZE);
         ctx.fillStyle=flash; ctx.font="bold 13px system-ui"; ctx.textAlign="center";
-        ctx.fillText("CREATED BY",100,88);
+        ctx.fillText("ADAPTED BY",100,88);
         ctx.font="bold 15px system-ui";
         ctx.fillText("STEPHEN PLEASANTS",100,106);
       } else if(state.won){ ctx.fillStyle="rgba(0,0,0,.55)"; ctx.fillRect(0,0,SIZE,SIZE); ctx.fillStyle="#ffd94a"; ctx.font="bold 16px system-ui"; ctx.textAlign="center"; ctx.fillText("YOU WIN!",100,100); }

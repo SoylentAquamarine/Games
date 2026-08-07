@@ -49,9 +49,11 @@
 (function(){
   // Board scaled up ~1.3x (was 480x360) — everything below is proportional.
   const W=624,H=468, GROUND_Y=434, LW=34, LH=34;
-  const C={ GRAVITY:0.0648, THRUST:0.176, LATERAL:0.08, FUEL:100,
-    // Burn rates eased ~35% (were 0.5/0.28) — fuel was draining too fast to enjoy manoeuvring.
-    BURN_UP:0.32, BURN_SIDE:0.18,
+  const C={ GRAVITY:0.04536, THRUST:0.176, LATERAL:0.08, FUEL:100,
+    // Burn rates eased ~35% then halved again per player feedback ("use
+    // fuel at half the rate") — were 0.5/0.28, then 0.32/0.18, now 0.16/0.09.
+    // Gravity also cut 30% per the same feedback (was 0.0648).
+    BURN_UP:0.16, BURN_SIDE:0.09,
     LIVES:3, MAX_LIVES:6, DEATH_FRAMES:45,
     // A good landing no longer ends the run — it freezes briefly on the pad
     // (LAND_FRAMES) then a fresh terrain loads for the next round. A chicken
