@@ -84,7 +84,17 @@
   // Leaving a room where a dragon is still alive gives it a 33% chance to
   // follow you into the next one — but it takes it 3s (~180 frames at 60fps)
   // to catch up, so you always get a head start.
-  const CHASE_CHANCE=0.33, CHASE_DELAY=180;
+  //
+  // Player feedback: "once a dragon follows you to a new room, 100% chance
+  // it will keep following you to new rooms." The roll itself was already
+  // independent per room (33% each time), but nothing capped how many times
+  // in a row a dragon could keep winning it, so a run of bad luck could
+  // FEEL like — and statistically often did amount to — an unbreakable
+  // chase. CHASE_DECAY halves the odds each additional CONSECUTIVE room the
+  // same dragon follows through (33% -> 16.5% -> 8.25% -> ...), so a long
+  // chase streak gets rapidly less likely instead of staying flat forever.
+  // A failed roll (or losing the hero entirely) resets the streak to zero.
+  const CHASE_CHANCE=0.33, CHASE_DELAY=180, CHASE_DECAY=0.5;
   const clamp=(v,a,b)=>v<a?a:v>b?b:v;
   const overlap=(a,b)=>a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;
   const heroRect=(s)=>({x:s.hero.x,y:s.hero.y,w:HS,h:HS});
@@ -170,6 +180,20 @@
   const roomWalls=(id)=>borderWalls(id).concat(ROOMS[id].inner||[]);
   function collide(id,rect,bridge){ if(bridge) return false; for(const w of roomWalls(id)) if(overlap(rect,w)) return true; return false; }
 
+  // Player feedback: "when it follows, have it follow you through the same
+  // doorway you came through, not appear in the corner." Mirrors enter()'s
+  // hero placement (same edge, centred on the door gap) so a chasing dragon
+  // visibly comes through the door behind you instead of teleporting to a
+  // far corner of the room.
+  function doorwaySpot(fromDir,size){
+    const mid=100;   // centre of borderWalls' 80..120 door gap
+    if(fromDir==="E") return {x:BW+2, y:mid-size/2};
+    if(fromDir==="W") return {x:SIZE-BW-size-2, y:mid-size/2};
+    if(fromDir==="N") return {x:mid-size/2, y:SIZE-BW-size-2};
+    if(fromDir==="S") return {x:mid-size/2, y:BW+2};
+    return null;
+  }
+
   // Rooms an item or dragon may start in: outdoor rooms only, never a castle
   // interior and never the room you spawn in.
   function spawnRooms(){
@@ -233,7 +257,8 @@
       dragons:(function(){
         const dens=pickRooms(3);
         const mk=(id,color,spd,stunFor,room)=>{ const p=freeSpot(room,DS);
-          return {id,color,room,hr:room,x:p.x,y:p.y,hx:p.x,hy:p.y,alive:true,spd,stunFor,stun:0,chaseDelay:0}; };
+          return {id,color,room,hr:room,x:p.x,y:p.y,hx:p.x,hy:p.y,alive:true,spd,stunFor,stun:0,chaseDelay:0,
+            chaseStreak:0, triggered:false}; };
         return [
           mk("yellow","#d8c020",SPEED*0.45,STUN.yellow,dens[0]),
           mk("green", "#38b038",SPEED*0.60,STUN.green, dens[1]),
@@ -249,7 +274,7 @@
     if(!collide(s.room,{x:s.hero.x,y:s.hero.y+dy,w:HS,h:HS},bridge)) s.hero.y+=dy;
   }
   function enter(s,room,fromDir,old){
-    s.room=room; const er=ROOMS[old].exitReturn;
+    s.room=room; s.lastEnterDir=fromDir; const er=ROOMS[old].exitReturn;
     if(fromDir==="S"&&er){ s.hero.x=er.x; s.hero.y=er.y; return; }
     if(fromDir==="E") s.hero.x=2;
     else if(fromDir==="W") s.hero.x=SIZE-HS-2;
@@ -332,8 +357,9 @@
     if(s.carry){ const o=s.objects[s.carry]; o.carried=false; o.room=s.room; o.x=clamp(s.hero.x,BW,SIZE-BW-OBJ); o.y=clamp(s.hero.y,BW,SIZE-BW-OBJ); s.carry=null; }
     s.room="commons"; s.hero.x=96; s.hero.y=150; s.dead=false; s.dropLock=null;
     // A death clears any mid-chase state — dragons return to their home room, not
-    // wherever they last chased to.
-    for(const d of s.dragons){ d.x=d.hx; d.y=d.hy; d.room=d.hr; d.chaseDelay=0; } placeDragonsAway(s);
+    // wherever they last chased to. The chase streak resets too, so a dragon
+    // that was deep into a long chase doesn't pick up right where it left off.
+    for(const d of s.dragons){ d.x=d.hx; d.y=d.hy; d.room=d.hr; d.chaseDelay=0; d.chaseStreak=0; } placeDragonsAway(s);
   }
   function tick(s,dir){
     if(s.won||s.dead) return s;
@@ -344,15 +370,34 @@
     moveHero(s,dx,dy); transition(s); castle(s); pickup(s);
     if(s.visited) s.visited[s.room]=true;       // fills in the overworld map
     if(s.room!==wasRoom){
-      // Leaving a room with a live dragon in it: 25% chance it follows you,
-      // arriving CHASE_DELAY frames (~3s) behind.
+      // Fresh room: first reposition any dragon ALREADY resident there (an
+      // ambush dragon unrelated to chasing) away from the doorway. This has
+      // to run BEFORE the chase roll below, since a dragon that's about to
+      // follow isn't in s.room yet — placeDragonsAway would otherwise also
+      // catch it and override its doorway entry with a far-corner one.
+      placeDragonsAway(s);
+      // Leaving a room with a live dragon in it: 33% chance it follows you,
+      // arriving CHASE_DELAY frames (~3s) behind — but that 33% halves for
+      // every additional room the SAME dragon has followed through in a row
+      // (chaseStreak), so a chase can't realistically go on forever. A dragon
+      // that follows arrives through the same doorway the hero just used.
       for(const d of s.dragons){
-        if(d.alive && d.room===wasRoom && Math.random()<CHASE_CHANCE){
-          d.room=s.room; d.chaseDelay=CHASE_DELAY;
+        if(!d.alive || d.room!==wasRoom) continue;
+        const streak=d.chaseStreak||0;
+        const chance=CHASE_CHANCE*Math.pow(CHASE_DECAY,streak);
+        if(Math.random()<chance){
+          d.room=s.room; d.chaseDelay=CHASE_DELAY; d.chaseStreak=streak+1;
+          const spot=doorwaySpot(s.lastEnterDir,DS);
+          if(spot){ d.x=spot.x; d.y=spot.y; }
+        } else {
+          d.chaseStreak=0;
         }
       }
-      placeDragonsAway(s);   // fresh room: give the hero room to react
     }
+    // A dragon that shares the hero's room has been encountered — the map
+    // starts tracking it from here on (see the "show them on the world map"
+    // feedback below and drawMap()'s use of d.triggered).
+    for(const d of s.dragons) if(d.room===s.room) d.triggered=true;
     for(const d of s.dragons) dragonStep(s,d);
     return s;
   }
@@ -367,8 +412,8 @@
   }
 
   window.__adventure={ newGame, tick, drop, respawn, dragonStep, collide, ROOMS, borderWalls, roomWalls, LABEL,
-    spawnRooms, pickRooms, brokenDoors, freeSpot,
-    C:{SIZE,HS,OBJ,BW,DS,SPEED,DSPEED,HIT_DMG,HIT_INV,STUN,CHASE_CHANCE,CHASE_DELAY} };
+    spawnRooms, pickRooms, brokenDoors, freeSpot, doorwaySpot,
+    C:{SIZE,HS,OBJ,BW,DS,SPEED,DSPEED,HIT_DMG,HIT_INV,STUN,CHASE_CHANCE,CHASE_DELAY,CHASE_DECAY} };
 
   // ===== Rendering + input (skipped in headless: no #game canvas / no DOMContentLoaded) =====
   function boot(){
@@ -505,6 +550,23 @@
         mapCtx.strokeStyle=here?"#22d3ee":"rgba(0,0,0,.5)";
         mapCtx.lineWidth=here?2:1;
         mapCtx.strokeRect(x+.5,y+.5,sz-1,sz-1);
+      }
+      // Player feedback: "once the dragons are triggered, show them on the
+      // world map." A dragon starts appearing here the first time you've
+      // shared a room with it (state.dragons[].triggered), and then tracks
+      // its LIVE current room from then on — including while it's chasing
+      // you — so you can see it coming. Slain dragons still show, faded.
+      for(const d of state.dragons){
+        if(!d.triggered) continue;
+        const r=ROOMS[d.room]; if(!r || r.gx==null) continue;   // castle interiors aren't on the grid
+        const x=px(r.gx), y=py(r.gy);
+        mapCtx.save();
+        if(!d.alive) mapCtx.globalAlpha=.4;
+        mapCtx.fillStyle=d.color;
+        mapCtx.beginPath(); mapCtx.arc(x+sz-3,y+3,2.6,0,7); mapCtx.fill();
+        mapCtx.strokeStyle="rgba(0,0,0,.6)"; mapCtx.lineWidth=.8;
+        mapCtx.beginPath(); mapCtx.arc(x+sz-3,y+3,2.6,0,7); mapCtx.stroke();
+        mapCtx.restore();
       }
     }
     function draw(){
