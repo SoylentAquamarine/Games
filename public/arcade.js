@@ -94,6 +94,8 @@
                      setTimeout(() => tone({ from: 1319, dur: 0.13, type: "square", vol: 0.13 }), 70); },
     jump:    () => tone({ from: 300, to: 720, dur: 0.13, type: "square", vol: 0.13 }),
     step:    () => tone({ from: 180, to: 140, dur: 0.05, type: "square", vol: 0.07 }),
+    power:   () => tone({ from: 200, to: 640, dur: 0.28, type: "sawtooth", vol: 0.15 }),
+    warn:    () => tone({ from: 900, dur: 0.05, type: "square", vol: 0.10 }),
     bounce:  () => tone({ from: 520, to: 300, dur: 0.08, type: "triangle", vol: 0.12 }),
     death:   () => { noise({ dur: 0.5, cut: 900, cutTo: 60, vol: 0.3 });
                      tone({ from: 340, to: 60, dur: 0.55, type: "sawtooth", vol: 0.16 }); },
