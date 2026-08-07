@@ -81,20 +81,21 @@
   // get a window to escape. Stun lengths are in frames at ~60fps.
   const HIT_DMG=20, HIT_INV=45;
   const STUN={ yellow:120, green:60, red:30 };   // 2s / 1s / 0.5s
-  // Leaving a room where a dragon is still alive gives it a 33% chance to
-  // follow you into the next one — but it takes it 3s (~180 frames at 60fps)
-  // to catch up, so you always get a head start.
+  // Leaving a room where a dragon is still alive gives it a chance to
+  // follow you into the next one, catching up after a delay proportional to
+  // how far it actually was from the doorway (see chaseDelayFor below) — so
+  // you always get at least some head start, more if it was on the far side
+  // of the room.
   //
-  // Player feedback: "once a dragon follows you to a new room, 100% chance
-  // it will keep following you to new rooms." The roll itself was already
-  // independent per room (33% each time), but nothing capped how many times
-  // in a row a dragon could keep winning it, so a run of bad luck could
-  // FEEL like — and statistically often did amount to — an unbreakable
-  // chase. CHASE_DECAY halves the odds each additional CONSECUTIVE room the
-  // same dragon follows through (33% -> 16.5% -> 8.25% -> ...), so a long
-  // chase streak gets rapidly less likely instead of staying flat forever.
-  // A failed roll (or losing the hero entirely) resets the streak to zero.
-  const CHASE_CHANCE=0.33, CHASE_DELAY=180, CHASE_DECAY=0.5;
+  // Earlier player feedback: "once a dragon follows you to a new room, 100%
+  // chance it will keep following you to new rooms" led to a CHASE_DECAY
+  // mechanic that halved the odds each additional consecutive room. A
+  // follow-up round of feedback asked for the opposite: "if a dragon
+  // follows me to one room then it has a 90% chance of following me into
+  // each other room" — a flat, high per-room chance, no decay. CHASE_DECAY
+  // is kept at 1 (a no-op multiplier) rather than deleted outright, so
+  // chaseStreak bookkeeping still exists if a future pass wants it back.
+  const CHASE_CHANCE=0.9, CHASE_DELAY=180, CHASE_DECAY=1;
   const clamp=(v,a,b)=>v<a?a:v>b?b:v;
   const overlap=(a,b)=>a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;
   const heroRect=(s)=>({x:s.hero.x,y:s.hero.y,w:HS,h:HS});
@@ -192,6 +193,27 @@
     if(fromDir==="N") return {x:mid-size/2, y:SIZE-BW-size-2};
     if(fromDir==="S") return {x:mid-size/2, y:BW+2};
     return null;
+  }
+  // Player feedback: "if the dragon follows you to the next room it has to
+  // make sense, if he is halfway across the last room he can't appear
+  // right in the doorway in the next room, you have to time it so it is
+  // like he travelled at his particular speed the distance needed to
+  // follow you." fromDir is the direction the HERO was travelling when it
+  // crossed into the new room (see enter()), so the matching exit edge of
+  // the room the dragon is leaving is the opposite side from where it
+  // entered that room — e.g. fromDir "E" means the hero left via that
+  // room's east edge, so a dragon's distance to catch up is how far short
+  // of x=SIZE it currently is.
+  function distToExit(d,fromDir){
+    const cx=d.x+DS/2, cy=d.y+DS/2;
+    if(fromDir==="E") return SIZE-cx;
+    if(fromDir==="W") return cx;
+    if(fromDir==="S") return SIZE-cy;
+    if(fromDir==="N") return cy;
+    return SIZE/2;
+  }
+  function chaseDelayFor(d,fromDir){
+    return Math.max(1, Math.round(distToExit(d,fromDir)/(d.spd||DSPEED)));
   }
 
   // Rooms an item or dragon may start in: outdoor rooms only, never a castle
@@ -370,23 +392,27 @@
     moveHero(s,dx,dy); transition(s); castle(s); pickup(s);
     if(s.visited) s.visited[s.room]=true;       // fills in the overworld map
     if(s.room!==wasRoom){
-      // Fresh room: first reposition any dragon ALREADY resident there (an
-      // ambush dragon unrelated to chasing) away from the doorway. This has
-      // to run BEFORE the chase roll below, since a dragon that's about to
-      // follow isn't in s.room yet — placeDragonsAway would otherwise also
-      // catch it and override its doorway entry with a far-corner one.
-      placeDragonsAway(s);
-      // Leaving a room with a live dragon in it: 33% chance it follows you,
-      // arriving CHASE_DELAY frames (~3s) behind — but that 33% halves for
-      // every additional room the SAME dragon has followed through in a row
-      // (chaseStreak), so a chase can't realistically go on forever. A dragon
-      // that follows arrives through the same doorway the hero just used.
+      // Player feedback: "we need the dragons to appear where they left off
+      // when I reenter a screen, not reset into the corner." A dragon that
+      // was simply resident in the room you're entering (not chasing) now
+      // just stays exactly where it physically is — no more automatic
+      // far-corner placement on room entry. (placeDragonsAway still exists
+      // for respawn(), which legitimately wants a fresh, safe layout after
+      // death.)
+      //
+      // Leaving a room with a live dragon in it gives it a chance to follow
+      // you, arriving after a delay proportional to how far it actually was
+      // from the doorway (chaseDelayFor) — computed BEFORE its position is
+      // overwritten below, using its real distance in the room it's leaving.
+      // A dragon that follows arrives through the same doorway the hero
+      // just used.
       for(const d of s.dragons){
         if(!d.alive || d.room!==wasRoom) continue;
         const streak=d.chaseStreak||0;
         const chance=CHASE_CHANCE*Math.pow(CHASE_DECAY,streak);
         if(Math.random()<chance){
-          d.room=s.room; d.chaseDelay=CHASE_DELAY; d.chaseStreak=streak+1;
+          const delay=chaseDelayFor(d,s.lastEnterDir);
+          d.room=s.room; d.chaseDelay=delay; d.chaseStreak=streak+1;
           const spot=doorwaySpot(s.lastEnterDir,DS);
           if(spot){ d.x=spot.x; d.y=spot.y; }
         } else {
@@ -401,8 +427,11 @@
     for(const d of s.dragons) dragonStep(s,d);
     return s;
   }
-  // On entering a room, any dragon waiting in it retreats to the far corner rather
-  // than ambushing the hero right at the doorway.
+  // Used only by respawn(): after dying, dragons return to their home room
+  // and get a fresh, safe layout (a far corner, not the doorway) rather
+  // than ambushing the hero right where they respawn. No longer called
+  // during normal room transitions — see the "appear where they left off"
+  // feedback in tick() above.
   function placeDragonsAway(s){
     for(const d of s.dragons){
       if(!d.alive || d.room!==s.room) continue;
@@ -412,7 +441,7 @@
   }
 
   window.__adventure={ newGame, tick, drop, respawn, dragonStep, collide, ROOMS, borderWalls, roomWalls, LABEL,
-    spawnRooms, pickRooms, brokenDoors, freeSpot, doorwaySpot,
+    spawnRooms, pickRooms, brokenDoors, freeSpot, doorwaySpot, distToExit, chaseDelayFor, placeDragonsAway,
     C:{SIZE,HS,OBJ,BW,DS,SPEED,DSPEED,HIT_DMG,HIT_INV,STUN,CHASE_CHANCE,CHASE_DELAY,CHASE_DECAY} };
 
   // ===== Rendering + input (skipped in headless: no #game canvas / no DOMContentLoaded) =====
