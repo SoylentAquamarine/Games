@@ -173,13 +173,35 @@
 
     // ===== farmhouses: a small no-enemy interior behind each screen's barn door.
     // Board 7's is a general store instead — walk onto an item to buy it. =====
-    function genHouseRoom(isStore){
+    //
+    // Player feedback: "not every house should have the same thing also the
+    // houses should have wooden plank flooring and furniture and stuff and
+    // only a few should have a coin or a heart and they should not respawn."
+    // Each regular farmhouse's loot is now rolled ONCE per game, at overworld
+    // generation time (see genOverworldScreen's `house.loot`), and that SAME
+    // array is reused every time the player re-enters — so a taken item's
+    // `taken:true` flag sticks instead of the room (and its items) being
+    // rebuilt from scratch on every visit. Most houses roll empty; a
+    // minority get a coin, a heart, or both. `genHouseRoom(isStore, loot,
+    // furniture)`'s loot/furniture params are both optional — omitting them
+    // (as the pre-existing tests do) reproduces the exact original
+    // always-coin-and-heart loadout, so nothing that called it before broke.
+    const FURNITURE_KINDS=["table","bed","shelf","rug"];
+    function genHouseLoot(){
+      const r=Math.random(), items=[];
+      if(r<0.55) return items;                                              // most houses: empty
+      else if(r<0.80) items.push({x:6*TILE+8,y:4*TILE+8,type:"coin"});
+      else if(r<0.95) items.push({x:6*TILE+8,y:4*TILE+8,type:"heart"});
+      else { items.push({x:6*TILE+8,y:4*TILE+8,type:"coin"}); items.push({x:9*TILE+8,y:5*TILE+8,type:"heart"}); }
+      return items;
+    }
+    function genHouseRoom(isStore, loot, furniture){
       const map=[]; for(let y=0;y<ROWS;y++){ const row=[]; for(let x=0;x<COLS;x++) row.push((x===0||x===COLS-1||y===0||y===ROWS-1)?"#":"."); map.push(row); }
       for(let x=6;x<=8;x++) map[ROWS-1][x]="."; // door south, back out to the farmyard
       const items = isStore
         ? [{x:5*TILE+8,y:4*TILE+8,type:"buy_heal",cost:5},{x:9*TILE+8,y:4*TILE+8,type:"buy_heart",cost:30}]
-        : [{x:6*TILE+8,y:4*TILE+8,type:"coin"},{x:9*TILE+8,y:5*TILE+8,type:"heart"}];
-      return { map, enemies:[], items, visited:false, isStore };
+        : (loot || [{x:6*TILE+8,y:4*TILE+8,type:"coin"},{x:9*TILE+8,y:5*TILE+8,type:"heart"}]);
+      return { map, enemies:[], items, visited:false, isStore, furniture:furniture||FURNITURE_KINDS[rnd(FURNITURE_KINDS.length)] };
     }
 
     // ===== the farmyard overworld: 4x3 screens, a semi-hidden dungeon entrance in each =====
@@ -208,8 +230,12 @@
         if(ex<0){ for(let y=2;y<ROWS-2&&ex<0;y++) for(let x=2;x<COLS-2;x++){ if(map[y][x]==="."&&!(x===7&&y===5)){ ex=x; ey=y; break; } } }
         if(ex>=0){ map[ey][ex]="E"; entrances.push({dungeon:dungeonNum, tx:ex, ty:ey}); }
       }
-      // the barn doubles as a farmhouse door — board 7's is a store instead
-      const house = barnPos ? { tx:barnPos.x, ty:barnPos.y, isStore: dungeonNum===7 } : null;
+      // the barn doubles as a farmhouse door — board 7's is a store instead.
+      // Loot and furniture are rolled ONCE here (not on every enterHouse()
+      // call) so a house's contents and taken-state persist across visits.
+      const houseIsStore = dungeonNum===7;
+      const house = barnPos ? { tx:barnPos.x, ty:barnPos.y, isStore:houseIsStore,
+        loot: houseIsStore ? null : genHouseLoot(), furniture: FURNITURE_KINDS[rnd(FURNITURE_KINDS.length)] } : null;
       return { map, enemies:[], items:[], entrances, house, visited:false };
     }
     function genOverworld(){ const g=[]; let d=1;
@@ -278,11 +304,11 @@
       mode="overworld"; rooms=owRooms; room=owReturn.pos.slice();
       player.x=owReturn.x; player.y=owReturn.y; boss=null; curDungeon=0; entLock=true; updateHud();
     }
-    function enterHouse(isStore){
+    function enterHouse(house){
       owReturn={pos:room.slice(), x:player.x, y:player.y};
-      mode="house"; rooms=[[genHouseRoom(isStore)]]; room=[0,0];
+      mode="house"; rooms=[[genHouseRoom(house.isStore, house.loot, house.furniture)]]; room=[0,0];
       player.x=7*TILE+4; player.y=6*TILE+4;
-      flash(isStore?"🏪 General Store — walk onto an item to buy it":"🏠 An old farmhouse... let's see what's inside.");
+      flash(house.isStore?"🏪 General Store — walk onto an item to buy it":"🏠 An old farmhouse... let's see what's inside.");
       updateHud();
     }
     let flashMsg="",flashT=0;
@@ -311,7 +337,7 @@
         const on=(R.entrances||[]).find(en=>rectHit({x:player.x,y:player.y,w:s,h:s},{x:en.tx*TILE,y:en.ty*TILE,w:TILE,h:TILE}));
         const onHouse=R.house && rectHit({x:player.x,y:player.y,w:s,h:s},{x:R.house.tx*TILE,y:R.house.ty*TILE,w:TILE,h:TILE});
         if(!on && !onHouse) entLock=false;
-        else if(!entLock){ if(on) enterDungeon(on.dungeon); else enterHouse(R.house.isStore); return; }
+        else if(!entLock){ if(on) enterDungeon(on.dungeon); else enterHouse(R.house); return; }
       }
       // sword hitbox
       let sword=null;
@@ -529,11 +555,52 @@
           ctx.fillStyle="#2f5f28"; ctx.beginPath(); ctx.arc(px+8,py+22,5,0,7); ctx.arc(px+24,py+22,5,0,7); ctx.fill(); }   // grass half-hides it
       }
     }
+    // Player feedback: "the houses should have wooden plank flooring and
+    // furniture and stuff." Each row of floor tiles is now one plank course
+    // (a per-row wood tint plus a seam under it), with the plank end-seams
+    // staggered every other row so it reads as real boards, not a
+    // checkerboard. A small furniture piece (persisted per house — see
+    // house.furniture) sits in a corner clear of the door and any loot.
+    const PLANK_ROWS=["#a9855a","#9c7a4a","#a07a4a"];
     function drawHouseTiles(R){
       for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){const t=R.map[y][x], px=x*TILE, py=y*TILE;
         if(t==="#"){ ctx.fillStyle="#5a3a1e"; ctx.fillRect(px,py,TILE,TILE); ctx.fillStyle="#6b4a26"; ctx.fillRect(px+3,py+3,TILE-6,TILE-6); }
-        else{ ctx.fillStyle=((x+y)%2)?"#9c7a4a":"#a9855a"; ctx.fillRect(px,py,TILE,TILE); ctx.strokeStyle="rgba(0,0,0,.12)"; ctx.strokeRect(px,py,TILE,TILE); }
+        else{
+          ctx.fillStyle=PLANK_ROWS[y%PLANK_ROWS.length]; ctx.fillRect(px,py,TILE,TILE);
+          ctx.strokeStyle="rgba(0,0,0,.16)"; ctx.lineWidth=1;
+          ctx.beginPath(); ctx.moveTo(px,py+TILE-.5); ctx.lineTo(px+TILE,py+TILE-.5); ctx.stroke();   // plank-course seam
+          const seamX = (y%2===0) ? px : px+TILE/2;                                                    // staggered board ends
+          ctx.beginPath(); ctx.moveTo(seamX,py); ctx.lineTo(seamX,py+TILE); ctx.stroke();
+        }
       }
+      drawHouseFurniture(R);
+    }
+    function drawHouseFurniture(R){
+      const kind=R.furniture; if(!kind) return;
+      ctx.save();
+      if(kind==="table"){
+        const x=2*TILE, y=TILE;
+        ctx.fillStyle="#6b4423"; ctx.fillRect(x,y+10,48,20);
+        ctx.fillStyle="#4a2f18"; ctx.fillRect(x+2,y+28,4,10); ctx.fillRect(x+42,y+28,4,10);
+        ctx.fillStyle="#8a5a2a"; ctx.fillRect(x+56,y+14,16,20);
+        ctx.fillStyle="#5c3a1a"; ctx.fillRect(x+56,y+4,16,10);
+      } else if(kind==="bed"){
+        const x=TILE, y=TILE;
+        ctx.fillStyle="#8a3a3a"; ctx.fillRect(x,y,56,36);
+        ctx.fillStyle="#e8e0cc"; ctx.fillRect(x+4,y+4,16,10);
+        ctx.fillStyle="#5c1e1e"; ctx.fillRect(x,y+26,56,10);
+      } else if(kind==="shelf"){
+        const x=(COLS-4)*TILE, y=TILE;
+        ctx.fillStyle="#5a3a1e"; ctx.fillRect(x,y,40,64);
+        ctx.fillStyle="#3a2410"; ctx.fillRect(x+2,y+20,36,3); ctx.fillRect(x+2,y+42,36,3);
+        const bookCols=["#c0392b","#2980b9","#27ae60","#f39c12"];
+        for(let i=0;i<4;i++){ ctx.fillStyle=bookCols[i%4]; ctx.fillRect(x+4+i*8,y+6,6,12); }
+      } else if(kind==="rug"){
+        const x=5*TILE, y=6*TILE;
+        ctx.fillStyle="#7a2a3a"; ctx.fillRect(x,y,3*TILE,2*TILE);
+        ctx.strokeStyle="#c9a24b"; ctx.lineWidth=2; ctx.strokeRect(x+4,y+4,3*TILE-8,2*TILE-8);
+      }
+      ctx.restore();
     }
     function render(){
       const R=rooms[room[1]][room[0]];
@@ -635,9 +702,11 @@
     // expose for smoke test
     window.__quest={genWorld:()=>{genWorld();return rooms;},doorOpen,genOverworld,OW_RX,OW_RY,
       GEMS,BOSSES,newEggs,collectEgg,cartonCount,cartonFull,makeBoss,bossTakeHit,makeFinalBoss,genHouseRoom,
+      genHouseLoot,FURNITURE_KINDS,
       genRoom,solidTile,TRI,
-      newGame,enterDungeon,enterOverworld,tryTransition,update,
-      getMode:()=>mode,getRoom:()=>room,getPlayer:()=>player,getBoss:()=>boss,getFinalBoss:()=>finalBoss,
+      newGame,enterDungeon,enterOverworld,enterHouse,tryTransition,update,
+      getMode:()=>mode,getRoom:()=>room,getRooms:()=>rooms,getOwRooms:()=>owRooms,
+      getPlayer:()=>player,getBoss:()=>boss,getFinalBoss:()=>finalBoss,
       setPlayerPos:(x,y)=>{player.x=x;player.y=y;},setRoom:(x,y)=>{room=[x,y];},
       setFinalBoss:(b)=>{finalBoss=b;},setEggs:(e)=>{eggs=e;},
       foxKingDefeated,markFoxKingDefeated,resetProgress,setMode:(m)=>{mode=m;}};
