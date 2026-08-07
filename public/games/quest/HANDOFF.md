@@ -49,7 +49,20 @@ level editor (`/admin/games/?game=quest`, "Configuration" panel).
 
 ## Most recent pass
 
-**Player feedback: "not every house should have the same thing also the
+**Player feedback: "I don't want the levels to be random, they will be
+the same always, I will design each of them in the designer screen."**
+The saved room MAP already stuck via `localStorage["quest_layout"]`, but
+the ENEMY list inside that same room was always freshly re-rolled with
+`Math.random()` on every single visit regardless — so a fully
+hand-designed dungeon still felt random. A custom room's enemies
+(position, count, direction, timer) now come from a seeded,
+deterministic stream keyed on `(curDungeon, rx, ry)` — the SAME custom
+room always produces the SAME enemies on every visit. Procedurally-
+generated (non-custom) rooms are completely untouched, still freshly
+randomized each time. Also exported `RX`/`RY` (the dungeon room-grid
+size) from `window.__quest` for testing.
+
+Earlier: **"not every house should have the same thing also the
 houses should have wooden plank flooring and furniture and stuff and
 only a few should have a coin or a heart and they should not respawn."**
 `genHouseRoom(isStore)` used to generate an identical, decor-free
@@ -179,14 +192,6 @@ above).
   more obvious/thematic in-world exit rather than a small HUD button) or
   may have been confusion from the vanish bug above rather than a
   separate real ask. Get more player detail before changing anything.
-- **"I don't want the levels to be random, they will be the same always,
-  I will design each of them in the designer screen"** — need to confirm
-  what's actually random today. The admin Level Editor + `quest_layout`
-  persistence already exist (see "What's here"), so a saved custom layout
-  should already stick — check whether this is about something ELSE
-  being randomized on top of a saved layout (enemy placement within a
-  room? which of the 12 dungeons maps to which board shape?) before
-  assuming the fix is "turn off randomness" broadly.
 - **"I want specific sprites for each of the bosses, and the main boss
   is a fox — it should be a fox with a crown, not a chicken sprite"** —
   currently `drawBoss()` draws every per-dungeon boss AND the Fox King
