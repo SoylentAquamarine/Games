@@ -53,6 +53,15 @@
             PW:Math.round(BASE.PW*BOARD*SPRITE), PH:Math.round(BASE.PH*BOARD*SPRITE), TOL:BASE.TOL*BOARD,
             LAND_BAND:BASE.LAND_BAND*BOARD, LAVA:Math.round(BASE.H*SCREEN-(BASE.H-BASE.LAVA)*BOARD),
             NEST:0, SPAWN_FRAMES:48, INVULN_FRAMES:96, FLIP_CHANCE:0.004 };   // NEST = which platform is the respawn nest
+  // Admin-tunable difficulty knobs — see /admin/games/?game=joust. Same
+  // pattern as kaboom (see its HANDOFF.md): explicit allowlist, only
+  // numeric values, safe no-op with no localStorage (headless tests).
+  // Core flight feel (GRAV/FLAP/MOVE/MAXVX) is deliberately NOT exposed.
+  (function(){ try{
+    const allow=["SPAWN_FRAMES","INVULN_FRAMES","FLIP_CHANCE"];
+    const o=JSON.parse(localStorage.getItem("joust_config")||"{}");
+    for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
+  }catch(_){} })();
   // Map a base-space point/box into the scaled world: content is centred
   // horizontally and anchored to the bottom of the taller canvas.
   const sx=(bx)=>C.W/2+(bx-BASE.W/2)*BOARD;

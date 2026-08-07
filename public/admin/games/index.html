@@ -762,6 +762,15 @@
       { key:"START", label:"Starting speed", min:1, max:10, def:5 },
       { key:"MAX", label:"Max speed", min:5, max:25, def:12.5 },
     ]},
+    joust:{ storageKey:"joust_config", sub:"Difficulty knobs — takes effect next time the game is opened.", fields:[
+      { key:"SPAWN_FRAMES", label:"Respawn delay (frames)", min:10, max:200, def:48 },
+      { key:"INVULN_FRAMES", label:"Invulnerability after respawn (frames)", min:10, max:300, def:96 },
+      { key:"FLIP_CHANCE", label:"Enemy random-flip chance per frame", min:0, max:0.05, def:0.004 },
+    ]},
+    pinball:{ storageKey:"pinball_config", sub:"Difficulty knobs — takes effect next time the game is opened.", fields:[
+      { key:"BUMP_BOOST", label:"Bumper bounce strength", min:1, max:6, def:2.6 },
+      { key:"FLIP_IMPULSE", label:"Flipper strength", min:2, max:12, def:5.5 },
+    ]},
   };
   let numericInitSlug=null;
   function initNumericEditor(slug){

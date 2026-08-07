@@ -40,6 +40,15 @@
 (function(){
   const C={ W:420,H:630, R:8, GRAV:0.24, WALL_DAMP:0.82, BUMP_BOOST:2.6, DRAIN_Y:622, THICK:6, FLIP_IMPULSE:5.5,
             PIVOT_DX:78, PIVOT_Y:46, FLEN:55, LANE_W:26 };   // flippers 10% longer per player feedback (was 50)
+  // Admin-tunable difficulty knobs — see /admin/games/?game=pinball. Same
+  // pattern as kaboom (see its HANDOFF.md): explicit allowlist, only
+  // numeric values, safe no-op with no localStorage (headless tests).
+  // Table geometry and base gravity/damping are deliberately NOT exposed.
+  (function(){ try{
+    const allow=["BUMP_BOOST","FLIP_IMPULSE"];
+    const o=JSON.parse(localStorage.getItem("pinball_config")||"{}");
+    for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
+  }catch(_){} })();
   // Static rails, as on a real table: angled outlane guides run from the side walls
   // down to just outside each flipper pivot, so the only way to drain is through the
   // gap between the flipper tips — the ball can no longer slip down beside them.
