@@ -14,10 +14,19 @@ freshly generated jagged terrain each round.
   the screen, at increasing elevation/risk) into otherwise jagged
   sine-noise mountains. `terrainYAt()` interpolates ground height between
   sampled points.
+- **Admin-configurable** at `/admin/games/?game=lander`: `GRAVITY`,
+  `THRUST`, `LATERAL`, `FUEL`, `BURN_UP`, `BURN_SIDE`, `LIVES`,
+  `CHICKEN_EVERY`, `FLYBY_EVERY`. Uses the site's generic numeric-knob
+  config pattern (see kaboom's HANDOFF.md) — saved to
+  `localStorage["lander_config"]`, merged into `C` at boot via an
+  explicit allowlist.
 
 ## Most recent pass
 
-**Player feedback: "need to use fuel at half the rate, also decrease
+Added the admin config pane described above — no gameplay change to the
+defaults.
+
+Earlier: **player feedback: "need to use fuel at half the rate, also decrease
 gravity by 30%."** Burn rates halved (`BURN_UP` 0.32→0.16, `BURN_SIDE`
 0.18→0.09 — these were themselves already eased ~35% from an original
 0.5/0.28 in an earlier pass), and `GRAVITY` cut 30% (0.0648→0.04536).
