@@ -137,6 +137,12 @@
     function genRoom(rx,ry){
       const custom = OVERRIDE && OVERRIDE[ry] && OVERRIDE[ry][rx];
       const start=(rx===1&&ry===1);
+      // A deterministic RNG for custom rooms only, seeded from this exact
+      // (dungeon, room) so a saved layout's enemies are stable across every
+      // visit instead of being re-rolled — see the "enemies" comment below.
+      let seedN=0; const seedBase=curDungeon*10000+ry*100+rx;
+      const srand=()=>seeded(seedBase+(seedN++)*97.13);
+      const srnd=(n)=>Math.floor(srand()*n);
       let map;
       if(custom){ map = OVERRIDE[ry][rx].map(row=>String(row).padEnd(COLS,"#").slice(0,COLS).split("")); }
       else {
@@ -158,10 +164,22 @@
           if(isBossRoom && x>=5&&x<=9&&y>=1&&y<=5)continue;
           if(map[y][x]===".")map[y][x]="O";}
       }
-      // enemies — the boss fights alone, no rank-and-file weasels crowding the room
-      const enemies=[];const eN=start?0:(rx===TRI[0]&&ry===TRI[1]?0:2+rnd(2));
-      for(let k=0;k<eN;k++){let x,y,tries=0;do{x=2+rnd(COLS-4);y=2+rnd(ROWS-4);tries++;}while((map[y][x]!=="."||(x===7&&y===5))&&tries<40);
-        enemies.push({x:x*TILE+8,y:y*TILE+8,dir:rnd(4),timer:rnd(40),alive:true,hp:1,hurt:0});}
+      // enemies — the boss fights alone, no rank-and-file weasels crowding the room.
+      // Player feedback: "I don't want the levels to be random, they will be
+      // the same always, I will design each of them in the designer
+      // screen." The room MAP already stuck to a saved custom layout, but
+      // enemies were always freshly re-rolled with Math.random() on every
+      // single visit regardless — so even a fully custom-designed room
+      // still felt random. A custom room's enemies now come from a seeded,
+      // deterministic stream keyed on (dungeon, room), so the SAME custom
+      // room always produces the SAME enemies. Procedurally-generated
+      // (non-custom) rooms are untouched — still freshly randomized each
+      // visit, exactly as before.
+      const enemies=[];const isBoss=(rx===TRI[0]&&ry===TRI[1]);
+      const eN=start?0:(isBoss?0:2+(custom?srnd(2):rnd(2)));
+      const rand=custom?srnd:rnd;
+      for(let k=0;k<eN;k++){let x,y,tries=0;do{x=2+rand(COLS-4);y=2+rand(ROWS-4);tries++;}while((map[y][x]!=="."||(x===7&&y===5))&&tries<40);
+        enemies.push({x:x*TILE+8,y:y*TILE+8,dir:rand(4),timer:rand(40),alive:true,hp:1,hurt:0});}
       // items
       const items=[];
       // the goal room (0,0) holds this dungeon's boss, which drops the gem egg
@@ -700,7 +718,7 @@
     function resetProgress(){ try{ localStorage.removeItem("quest_eggs"); localStorage.removeItem("quest_foxking"); }catch(_){} newGame(); }
     if(newGameBtn) newGameBtn.addEventListener("click",resetProgress);
     // expose for smoke test
-    window.__quest={genWorld:()=>{genWorld();return rooms;},doorOpen,genOverworld,OW_RX,OW_RY,
+    window.__quest={genWorld:()=>{genWorld();return rooms;},doorOpen,genOverworld,OW_RX,OW_RY,RX,RY,
       GEMS,BOSSES,newEggs,collectEgg,cartonCount,cartonFull,makeBoss,bossTakeHit,makeFinalBoss,genHouseRoom,
       genHouseLoot,FURNITURE_KINDS,
       genRoom,solidTile,TRI,
