@@ -11,16 +11,25 @@
   const RANKS = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]; // 11=J 12=Q 13=K 14=A
   const RANK_LABEL = { 11: "J", 12: "Q", 13: "K", 14: "A" };
 
-  // Deck themes — swap the whole deck's suit glyphs, colours and back from one
-  // place and every card game updates. "Classic" is the standard deck; the rest
-  // are chicken-farm sets. Suits stay S/H/D/C internally (game logic is unchanged);
-  // only the displayed glyph, colours and card back change.
+  // Deck themes — swap the deck's colours, card back and face-card chicken
+  // portrait style from one place and every card game updates. "Classic" is
+  // the standard deck; the rest are chicken-farm sets. Suits always stay the
+  // normal ♠♥♦♣ glyphs on the card itself — see cardEl()/SUIT_SYMBOL below —
+  // player feedback: "the suits need to remain normal suits but the KQJ
+  // cards can have different pictures of the chickens in different styles."
+  // Each theme's `face` block instead recolours the King/Queen/Jack portrait
+  // and adds a small themed accessory badge, via faceArt() further down.
   const THEMES = [
-    { id:"classic",  name:"Classic",       sym:{S:"♠",H:"♥",D:"♦",C:"♣"},     red:"#dc2626", black:"#15151f", back:{glyph:"🐔", a:"#3b3f8f", b:"#2b2f6f"} },
-    { id:"barnyard", name:"Barnyard",      sym:{S:"🪶",H:"🐓",D:"🥚",C:"🌽"}, red:"#e0692a", black:"#4a3b2a", back:{glyph:"🌾", a:"#7a5a2a", b:"#5a3f1c"} },
-    { id:"coop",     name:"Coop",          sym:{S:"🪺",H:"🐥",D:"🥚",C:"🐔"}, red:"#d94a6a", black:"#2a2f4a", back:{glyph:"🥚", a:"#4a5a7a", b:"#35425c"} },
-    { id:"sunny",    name:"Sunny Side",    sym:{S:"🌙",H:"☀️",D:"⭐",C:"🔥"}, red:"#f59e0b", black:"#1e293b", back:{glyph:"☀️", a:"#b8860b", b:"#8a6508"} },
-    { id:"orchard",  name:"Orchard",       sym:{S:"🌰",H:"🍎",D:"🌻",C:"🍃"}, red:"#16a34a", black:"#14532d", back:{glyph:"🌻", a:"#2e7d32", b:"#1b5e20"} },
+    { id:"classic",  name:"Classic",       red:"#dc2626", black:"#15151f", back:{glyph:"🐔", a:"#3b3f8f", b:"#2b2f6f"},
+      face:{comb:"#dc2626", beak:"#f59e0b", gold:"#eab308", shell:"#f3ead7", accessory:null} },
+    { id:"barnyard", name:"Barnyard",      red:"#e0692a", black:"#4a3b2a", back:{glyph:"🌾", a:"#7a5a2a", b:"#5a3f1c"},
+      face:{comb:"#c2410c", beak:"#b45309", gold:"#a16207", shell:"#e7d8b8", accessory:"wheat"} },
+    { id:"coop",     name:"Coop",          red:"#d94a6a", black:"#2a2f4a", back:{glyph:"🥚", a:"#4a5a7a", b:"#35425c"},
+      face:{comb:"#db2777", beak:"#f59e0b", gold:"#fbbf24", shell:"#fce7f3", accessory:"egg"} },
+    { id:"sunny",    name:"Sunny Side",    red:"#f59e0b", black:"#1e293b", back:{glyph:"☀️", a:"#b8860b", b:"#8a6508"},
+      face:{comb:"#f59e0b", beak:"#78350f", gold:"#fde047", shell:"#fef3c7", accessory:"sun"} },
+    { id:"orchard",  name:"Orchard",       red:"#16a34a", black:"#14532d", back:{glyph:"🌻", a:"#2e7d32", b:"#1b5e20"},
+      face:{comb:"#dc2626", beak:"#f59e0b", gold:"#4d7c0f", shell:"#dcfce7", accessory:"leaf"} },
   ];
   let active = THEMES[0];
   function themeById(id){ return THEMES.find(t => t.id === id) || THEMES[0]; }
@@ -76,9 +85,29 @@
 
   // Court cards: a rooster king, a hen queen and a young cockerel jack.
   // Body art uses currentColor so each takes on its suit colour; combs, beaks
-  // and regalia keep their own colours.
-  const COMB = "#dc2626", BEAK = "#f59e0b", GOLD = "#eab308", SHELL = "#f3ead7";
-  function faceArt(rank) {
+  // and regalia are recoloured per deck theme (see THEMES' `face` block), and
+  // each non-classic theme adds a small badge near the crown so the portrait
+  // reads as a genuinely different picture, not just a recolour.
+  function accessoryArt(kind) {
+    switch (kind) {
+      case "wheat": return `<g transform="translate(35,3)"><path d="M0 10 V0" stroke="#a16207" stroke-width="1.2"/>
+        <ellipse cx="-2" cy="2" rx="2" ry="1.3" fill="#eab308" transform="rotate(-30 -2 2)"/>
+        <ellipse cx="2" cy="2" rx="2" ry="1.3" fill="#eab308" transform="rotate(30 2 2)"/>
+        <ellipse cx="-2" cy="5" rx="2" ry="1.3" fill="#eab308" transform="rotate(-30 -2 5)"/>
+        <ellipse cx="2" cy="5" rx="2" ry="1.3" fill="#eab308" transform="rotate(30 2 5)"/></g>`;
+      case "egg": return `<ellipse cx="37" cy="6" rx="3.4" ry="4.4" fill="#fce7f3" stroke="#db2777" stroke-width="1"/>`;
+      case "sun": return `<g transform="translate(37,6)"><circle r="3" fill="#fde047"/>
+        <g stroke="#fde047" stroke-width="1.2"><line x1="0" y1="-5" x2="0" y2="-6.5"/><line x1="0" y1="5" x2="0" y2="6.5"/>
+        <line x1="-5" y1="0" x2="-6.5" y2="0"/><line x1="5" y1="0" x2="6.5" y2="0"/>
+        <line x1="-3.5" y1="-3.5" x2="-4.6" y2="-4.6"/><line x1="3.5" y1="3.5" x2="4.6" y2="4.6"/></g></g>`;
+      case "leaf": return `<path d="M37 2 C41 2 42 6 38 9 C36 6 36 3 37 2 Z" fill="#4d7c0f" stroke="#14532d" stroke-width=".6"/>`;
+      default: return "";
+    }
+  }
+  function faceArt(rank, theme) {
+    const f = (theme && theme.face) || THEMES[0].face;
+    const COMB = f.comb, BEAK = f.beak, GOLD = f.gold, SHELL = f.shell;
+    const badge = f.accessory ? accessoryArt(f.accessory) : "";
     if (rank === 13) return `
       <svg viewBox="0 0 44 60" class="court" aria-hidden="true">
         <path d="M14 34 C4 30 2 18 8 12 C8 22 14 26 18 28 Z" fill="currentColor" opacity=".85"/>
@@ -92,6 +121,7 @@
         <circle cx="33" cy="19" r="1.7" fill="#0b0c1a"/>
         <ellipse cx="22" cy="37" rx="6" ry="4" fill="#fff" opacity=".35"/>
         <rect x="20" y="46" width="2" height="6" fill="${BEAK}"/><rect x="27" y="46" width="2" height="6" fill="${BEAK}"/>
+        ${badge}
       </svg>`;
     if (rank === 12) return `
       <svg viewBox="0 0 44 60" class="court" aria-hidden="true">
@@ -107,6 +137,7 @@
         <ellipse cx="22" cy="38" rx="5.5" ry="3.6" fill="#fff" opacity=".35"/>
         <ellipse cx="13" cy="50" rx="4" ry="5" fill="${SHELL}" stroke="#c9bda3"/>
         <rect x="21" y="47" width="2" height="5" fill="${BEAK}"/><rect x="27" y="47" width="2" height="5" fill="${BEAK}"/>
+        ${badge}
       </svg>`;
     return `
       <svg viewBox="0 0 44 60" class="court" aria-hidden="true">
@@ -120,6 +151,7 @@
         <circle cx="31" cy="21" r="1.5" fill="#0b0c1a"/>
         <ellipse cx="22" cy="37" rx="5" ry="3.4" fill="#fff" opacity=".35"/>
         <rect x="21" y="45" width="2" height="6" fill="${BEAK}"/><rect x="27" y="45" width="2" height="6" fill="${BEAK}"/>
+        ${badge}
       </svg>`;
   }
 
@@ -127,9 +159,12 @@
     const d = document.createElement("div");
     if (faceUp === false || !card) { d.className = "pcard back"; return d; }
     d.className = "pcard " + (RED[card.suit] ? "red" : "black");
-    const lab = rankLabel(card.rank), sym = active.sym[card.suit];
+    // Suits are always the normal ♠♥♦♣ glyphs on the card face, regardless of
+    // deck theme — player feedback: "the suits need to remain normal suits."
+    // Only the King/Queen/Jack portrait (faceArt) varies by theme.
+    const lab = rankLabel(card.rank), sym = SUIT_SYMBOL[card.suit];
     const middle = card.rank >= 11 && card.rank <= 13
-      ? `<div class="face">${faceArt(card.rank)}</div>`
+      ? `<div class="face">${faceArt(card.rank, active)}</div>`
       : `<div class="pip">${sym}</div>`;
     d.innerHTML =
       `<div class="corner tl"><span>${lab}</span><span>${sym}</span></div>` +

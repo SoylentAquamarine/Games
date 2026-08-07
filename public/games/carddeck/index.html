@@ -67,12 +67,11 @@
     function renderBack(){ backEl.innerHTML=""; const c=Cards.cardEl(null,false); c.style.setProperty("--cw",curSize+"px"); backEl.appendChild(c); }
     function render(){
       tableEl.innerHTML="";
-      const th=Cards.getTheme();
       for(const suit of Cards.SUITS){
         const lab=document.createElement("div"); lab.className="rowlabel";
         const sym=document.createElement("span");
         sym.className="sym"+(Cards.RED[suit]?" red":"");
-        sym.textContent=th.sym[suit];
+        sym.textContent=Cards.SUIT_SYMBOL[suit];
         const name=document.createElement("span");
         name.textContent={S:"Spades",H:"Hearts",D:"Diamonds",C:"Clubs"}[suit];
         lab.appendChild(sym); lab.appendChild(name); tableEl.appendChild(lab);
