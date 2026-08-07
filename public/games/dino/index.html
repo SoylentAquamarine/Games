@@ -36,6 +36,14 @@
 <script>
 (function(){
   const C={ W:600,H:180, GROUND:150, DINO_X:52, DINO_W:20, DINO_H:26, DUCK_H:16, GRAVITY:0.72, JUMP_V:-11, START:5, MAX:12.5 };
+  // Admin-tunable difficulty knobs — see /admin/games/?game=dino. Same
+  // pattern as kaboom (see its HANDOFF.md): explicit allowlist, only
+  // numeric values, safe no-op with no localStorage (headless tests).
+  (function(){ try{
+    const allow=["START","MAX"];
+    const o=JSON.parse(localStorage.getItem("dino_config")||"{}");
+    for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
+  }catch(_){} })();
   const rov=(a,b)=>a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;
   function newState(){ return { dino:{y:C.GROUND-C.DINO_H,vy:0,onGround:true,ducking:false}, obs:[], speed:C.START, score:0, over:false, t:0 }; }
   function dinoRect(d){ const h=d.ducking?C.DUCK_H:C.DINO_H; return {x:C.DINO_X,y:d.y,w:C.DINO_W,h:h}; }

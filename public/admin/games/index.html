@@ -738,6 +738,30 @@
       { key:"range", label:"Blast range (tiles)", min:1, max:8, def:2 },
       { key:"BLAST_LIFE", label:"Blast visual duration (frames)", min:5, max:100, def:20 },
     ]},
+    lander:{ storageKey:"lander_config", sub:"Difficulty knobs — takes effect next time the game is opened.", fields:[
+      { key:"GRAVITY", label:"Gravity", min:0.01, max:0.2, def:0.04536 },
+      { key:"THRUST", label:"Main thruster power", min:0.05, max:0.5, def:0.176 },
+      { key:"LATERAL", label:"Lateral thruster power", min:0.02, max:0.3, def:0.08 },
+      { key:"FUEL", label:"Starting fuel", min:20, max:400, def:100 },
+      { key:"BURN_UP", label:"Main thruster fuel burn rate", min:0.02, max:0.6, def:0.16 },
+      { key:"BURN_SIDE", label:"Lateral thruster fuel burn rate", min:0.02, max:0.4, def:0.09 },
+      { key:"LIVES", label:"Starting ships", min:1, max:9, def:3 },
+      { key:"CHICKEN_EVERY", label:"Bonus ship every N rounds", min:1, max:20, def:3 },
+      { key:"FLYBY_EVERY", label:"Fuel-refill flyby every N rounds", min:1, max:20, def:5 },
+    ]},
+    moonpatrol:{ storageKey:"moonpatrol_config", sub:"Difficulty knobs — takes effect next time the game is opened.", fields:[
+      { key:"SPEED0", label:"Starting buggy speed", min:0.5, max:10, def:3.2 },
+      { key:"SPEEDMAX", label:"Max buggy speed", min:1, max:15, def:6.5 },
+      { key:"BSPEED", label:"Enemy bullet speed", min:1, max:20, def:9 },
+      { key:"MAX_VOLLEYS", label:"Max enemy bullets on screen at once", min:1, max:10, def:2 },
+      { key:"CHICKENS", label:"Starting lives", min:1, max:9, def:3 },
+      { key:"EXTRA", label:"Bonus life every N points", min:100, max:20000, def:1500 },
+      { key:"BOARD_DIST", label:"Board length (distance to clear)", min:1000, max:20000, def:5000 },
+    ]},
+    dino:{ storageKey:"dino_config", sub:"Difficulty knobs — takes effect next time the game is opened.", fields:[
+      { key:"START", label:"Starting speed", min:1, max:10, def:5 },
+      { key:"MAX", label:"Max speed", min:5, max:25, def:12.5 },
+    ]},
   };
   let numericInitSlug=null;
   function initNumericEditor(slug){

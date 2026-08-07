@@ -63,6 +63,14 @@
     // rounds of careful flying, matching the "one tank per 5 screens" ask.
     LAND_FRAMES:60, CHICKEN_EVERY:3, FLYBY_EVERY:5, FLY_W:36, FLY_H:28,
     W, H, GROUND_Y, LW, LH };
+  // Admin-tunable difficulty knobs — see /admin/games/?game=lander. Same
+  // pattern as kaboom (see its HANDOFF.md): explicit allowlist, only
+  // numeric values, safe no-op with no localStorage (headless tests).
+  (function(){ try{
+    const allow=["GRAVITY","THRUST","LATERAL","FUEL","BURN_UP","BURN_SIDE","LIVES","CHICKEN_EVERY","FLYBY_EVERY"];
+    const o=JSON.parse(localStorage.getItem("lander_config")||"{}");
+    for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
+  }catch(_){} })();
   // Higher-value pads reward more precision: the safe landing speed window
   // tightens as the pad's multiplier climbs (Valley 1x is forgiving, Peak 3x
   // demands a genuinely gentle touch) instead of one flat threshold for
