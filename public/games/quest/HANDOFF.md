@@ -49,7 +49,30 @@ level editor (`/admin/games/?game=quest`, "Configuration" panel).
 
 ## Most recent pass
 
-**Player feedback: "when i kill the fox king i will be banging on the
+**Player feedback: "not every house should have the same thing also the
+houses should have wooden plank flooring and furniture and stuff and
+only a few should have a coin or a heart and they should not respawn."**
+`genHouseRoom(isStore)` used to generate an identical, decor-free
+interior every time — 2 fixed items (a coin + a heart), always present,
+and since a fresh `R.items` array was built on every `enterHouse()` call,
+anything taken effectively DID respawn on the next visit. Now:
+
+- Each regular farmhouse's loot is rolled ONCE per game
+  (`genHouseLoot()`), at overworld-generation time, and stored on that
+  screen's `house.loot`. Most houses roll empty; a minority get a coin, a
+  heart, or (rarely) both. `enterHouse()` reuses that SAME array on every
+  re-entry instead of rebuilding it, so `taken:true` sticks.
+- `genHouseRoom(isStore, loot, furniture)`'s new params are both
+  optional, defaulting to the exact original always-coin-and-heart
+  loadout — every pre-existing caller (including the test suite) is
+  unaffected.
+- Floors are wood plank courses (`PLANK_ROWS`, staggered board-end
+  seams) instead of a flat two-colour checkerboard, and every house gets
+  one small persisted furniture piece (table+chair, bed, bookshelf, or
+  rug — `FURNITURE_KINDS`, drawn by `drawHouseFurniture`) in a corner
+  clear of the door and any loot.
+
+Earlier: **"when i kill the fox king i will be banging on the
 space bar so the space bar can't trigger the next thing or else it will
 fly past."** The keydown handler already called `preventDefault()` for
 Space (stops the page from scrolling), but the keyup handler didn't —
@@ -171,16 +194,6 @@ above).
   recolored per `BOSSES[i].color`. Needs real per-boss art, and the Fox
   King specifically needs an actual fox shape (not a reskinned chicken)
   plus a crown. A real design/art pass, not a quick tint change.
-- **"Not every house should have the same thing — also the houses should
-  have wooden plank flooring and furniture and stuff, and only a few
-  should have a coin or a heart, and they should not respawn"** —
-  `genHouseRoom(isStore)` currently generates identical decor-free
-  interiors every time (2 fixed items: a coin + a heart, always present,
-  and — since `R.items` resets on each `enterHouse()` call — they
-  effectively DO respawn every visit). Needs: real per-house variety
-  (decor tiles, not just 4 walls), a "few houses have loot, most don't"
-  distribution instead of every house guaranteeing both a coin and a
-  heart, and persisted taken-state so a looted house stays looted.
 - The original mascot-library comment is fully resolved — see the root
   `HANDOFF.md`'s mascots.js entry (spacesuit chicken, rooster, hero
   chicken, and Dr Chicken's redesign are all done).
