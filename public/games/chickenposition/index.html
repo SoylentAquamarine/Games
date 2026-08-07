@@ -30,10 +30,11 @@
 <div class="wrap">
   <div class="topbar"><a class="home" href="/">← Home</a><h1>🏁 Chicken Position</h1><button class="btn" id="new">New Game</button></div>
   <div class="hud"><span>Score: <b id="score">0</b></span><span>Speed: <b id="spd">0</b></span><span>Time: <b id="time">0</b></span><span>Best: <b id="best">0</b></span></div>
+  <div class="ctl"><button class="cbtn" id="prevr">◀</button><span class="msg" id="racename" style="min-width:150px">Circuit (1/5)</span><button class="cbtn" id="nextr">▶</button></div>
   <canvas id="game" width="480" height="360"></canvas>
-  <div class="msg" id="msg">Gas to go, steer through the bends, reach each checkpoint before TIME runs out!</div>
+  <div class="msg" id="msg">Gas to go, steer through the bends, reach the finish line before TIME runs out!</div>
   <div class="ctl"><button class="cbtn" id="bl">◀</button><button class="gas" id="bg">GAS</button><button class="cbtn" id="bk">BRAKE</button><button class="cbtn" id="br">▶</button></div>
-  <p class="hint">Arrows/A·D steer · ↑/Space/W gas · ↓/S brake. Curves throw you wide — steer into them. Off-track slows you; hit a rival and you spin out.</p>
+  <p class="hint">Arrows/A·D steer · ↑/Space/W gas · ↓/S brake. Curves throw you wide — steer into them. Off-track slows you; hit a rival and you spin out. ◀▶ above picks between five races with their own turns and length — reach the checkered line to finish.</p>
 </div>
 <script src="/arcade.js"></script>
 <script>
@@ -56,20 +57,64 @@
     // still on". RENDER_CLAMP (not playerX itself) absorbs the excess beyond
     // the threshold so a hard bend still can't blow the render out.
     STEER_SHIFT:0.9, RENDER_CLAMP:1.2,
-    CHECK_DIST:6500, CHECK_BONUS:42, TIME_START:80, TIME_RATE:0.028 };
+    CHECK_DIST:6500, CHECK_BONUS:42, TIME_START:80, TIME_RATE:0.028,
+    FINISH_DIST:26000 };   // default (RACES[0]) finish distance — see RACES below
   const clamp=(v,a,b)=>v<a?a:v>b?b:v;
-  // The course: a windy track. curveAt>0 bends right, <0 bends left. It ramps in
-  // from dead straight over the first stretch so you don't start mid-corner.
-  function curveAt(pos){ const ramp=Math.min(1, pos/4000);
-    return (Math.sin(pos*0.00058)*0.7 + Math.sin(pos*0.00131)*0.3)*ramp; }
   const RIVAL_COLORS=["#f43f5e","#22d3ee","#a3e635","#c084fc","#fb923c"];
 
-  function newState(){
+  // Player feedback: "needs actual turns, not just slight curves, needs a
+  // finish line and different races." The old course was one continuous
+  // sine blend — the whole track read as a gentle, constant wobble instead
+  // of distinct corners. Tracks are now built from named segments (a
+  // length + a target curve strength); each segment eases in from the
+  // previous one over its first 22% and then holds flat — a real straight,
+  // then a real, sustained turn, not a smooth sine everywhere. Five races,
+  // each its own segment layout and finish distance.
+  function buildTrack(pattern){
+    const cum=[0]; for(const seg of pattern) cum.push(cum[cum.length-1]+seg[0]);
+    return { pattern, cum, total:cum[cum.length-1] };
+  }
+  const RACES=[
+    { id:"circuit",    name:"Circuit",       finish:26000, track:buildTrack([
+      [1200,0],[900,-0.55],[700,0],[650,0.9],[900,0],[500,-1.0],[1100,0],[450,0.75],[450,-0.75],[900,0] ]) },
+    { id:"switchback", name:"Switchback",    finish:22000, track:buildTrack([
+      [700,0],[500,0.8],[400,-0.85],[500,0.9],[400,-0.7],[500,1.0],[400,-0.95],[700,0],[500,0.7],[400,-0.8] ]) },
+    { id:"speedway",   name:"Speedway",      finish:32000, track:buildTrack([
+      [2200,0],[900,0.4],[2200,0],[900,-0.4],[2200,0],[700,0.5],[1800,0] ]) },
+    { id:"hairpins",   name:"Hairpins",      finish:20000, track:buildTrack([
+      [900,0],[500,1.0],[900,0],[500,-1.0],[900,0],[450,1.0],[900,0],[450,-1.0],[900,0] ]) },
+    { id:"rally",      name:"Rally Stage",   finish:24000, track:buildTrack([
+      [800,0.3],[600,-0.6],[700,0.85],[500,-0.4],[900,0.6],[600,-0.9],[700,0.35],[800,-0.55],[600,0.7] ]) },
+  ];
+  // The raw segment value at a track position, looping the pattern (curveAt
+  // is called at arbitrary/unbounded positions by both physics and the
+  // look-ahead renderer, so it has to stay defined everywhere, not just
+  // within one race's finish distance).
+  function segCurveAt(pos, track){
+    const p=((pos%track.total)+track.total)%track.total;
+    let i=0; while(i<track.pattern.length-1 && p>=track.cum[i+1]) i++;
+    const segStart=track.cum[i], segLen=track.pattern[i][0], target=track.pattern[i][1];
+    const prevTarget = i>0 ? track.pattern[i-1][1] : track.pattern[track.pattern.length-1][1];
+    const localT=(p-segStart)/segLen, BLEND=0.22;
+    if(localT<BLEND){ const u=localT/BLEND, ease=u*u*(3-2*u); return prevTarget+(target-prevTarget)*ease; }
+    return target;
+  }
+  // curveAt>0 bends right, <0 bends left. Ramps in from dead straight over the
+  // first stretch so you don't start mid-corner. `track` defaults to RACES[0]'s.
+  function curveAt(pos, track){ const ramp=Math.min(1, pos/4000);
+    return segCurveAt(pos, track||RACES[0].track)*ramp; }
+
+  function savedRaceIdx(){ try{ const i=parseInt(localStorage.getItem("chickenposition_raceidx")); return isNaN(i)?0:i; }catch(e){ return 0; } }
+
+  function newState(raceIdx){
+    const idx=((raceIdx==null?savedRaceIdx():raceIdx)%RACES.length+RACES.length)%RACES.length;
+    const race=RACES[idx];
     const cars=[];
     for(let i=0;i<5;i++) cars.push({ pos:(i+2)*C.CAR_LEN*4, x:(Math.random()*2-1)*0.7,
       speed:C.MAXSPD*(0.4+Math.random()*0.28), col:RIVAL_COLORS[i%RIVAL_COLORS.length] });
     return { pos:0, playerX:0, speed:0, cars, score:0, time:C.TIME_START,
-      nextCheck:C.CHECK_DIST, checkFlash:0, crashT:0, invuln:0, spins:0, offroad:false, over:false, won:false };
+      nextCheck:C.CHECK_DIST, checkFlash:0, crashT:0, invuln:0, spins:0, offroad:false, over:false, won:false,
+      raceIdx:idx, track:race.track, finishDist:race.finish };
   }
   // A crash spins you out; the invulnerability window outlasts the freeze so the
   // rival can pull clear instead of re-colliding on the very next frame forever.
@@ -88,7 +133,7 @@
     const sf=s.speed/C.MAXSPD;
     s.pos += s.speed;
     // curves throw you toward the outside
-    const curve=curveAt(s.pos);
+    const curve=curveAt(s.pos, s.track);
     s.playerX -= curve * sf * C.CENTRIFUGAL;
     // steering, more effective the faster you go
     if(input.left)  s.playerX -= C.STEER*(0.35+0.65*sf);
@@ -105,6 +150,8 @@
     s.score=Math.floor(s.pos/40);
     if(s.checkFlash>0) s.checkFlash--;
     if(s.pos>=s.nextCheck){ s.nextCheck+=C.CHECK_DIST; s.time+=C.CHECK_BONUS; s.checkFlash=45; s.laps=(s.laps||0)+1; }
+    // reaching the finish line wins the race outright, even if TIME is critically low
+    if(s.pos>=s.finishDist){ s.pos=s.finishDist; s.over=true; s.won=true; return s; }
     tickTime(s);
     return s;
   }
@@ -113,7 +160,9 @@
   // from the horizon down to the bottom of the canvas, given the car's world
   // position and lateral offset. Pulled out as a pure function so the "does the
   // road stay on-canvas through a hard bend + full steering" case is testable.
-  function computeRoadRows(pos, playerX, W, H, horizon){
+  // `track` defaults to RACES[0]'s so every existing caller keeps working.
+  function computeRoadRows(pos, playerX, W, H, horizon, track){
+    track = track || RACES[0].track;
     const cx=new Array(H), hw=new Array(H); let offset=0;
     for(let y=H-1; y>=horizon; y--){
       const persp=(y-horizon)/(H-horizon);
@@ -121,11 +170,11 @@
       const shiftX=clamp(playerX,-C.RENDER_CLAMP,C.RENDER_CLAMP);
       hw[y]=halfW; cx[y]=W/2+offset-shiftX*halfW*C.STEER_SHIFT;
       const look=pos+(1-persp)*C.LOOK;
-      offset+=curveAt(look)*C.BEND*(1-persp);
+      offset+=curveAt(look, track)*C.BEND*(1-persp);
     }
     return {cx,hw};
   }
-  window.__chickenposition={ newState, step, curveAt, crash, computeRoadRows, C };
+  window.__chickenposition={ newState, step, curveAt, crash, computeRoadRows, RACES, C };
 
   // ---- rendering / wiring --------------------------------------------------
   if(typeof document==="undefined"||!document.getElementById) return;
@@ -150,7 +199,7 @@
     // Project the road from the BOTTOM up: the player's row starts centred
     // (offset 0) so the car always sits on the road; the curve accumulates into
     // the distance. This is what keeps the start on-track and kills the artifacts.
-    const rowGeom=computeRoadRows(s.pos, s.playerX, W, H, horizon);
+    const rowGeom=computeRoadRows(s.pos, s.playerX, W, H, horizon, s.track);
     for(let y=horizon;y<H;y++){ rowCX[y]=rowGeom.cx[y]; rowHW[y]=rowGeom.hw[y]; }
     // paint the road rows
     for(let y=horizon; y<H; y++){
@@ -163,6 +212,14 @@
       ctx.fillStyle = band? "#f4f4f4" : "#f43f5e"; ctx.fillRect(cx-halfW,y,rw,1); ctx.fillRect(cx+halfW-rw,y,rw,1);
       if(band){ ctx.fillStyle="#e8e8b0"; const cw=Math.max(1,halfW*0.04); ctx.fillRect(cx-cw,y,cw*2,1); }
     }
+    // the finish line — a checkered band at the row where world position reaches finishDist
+    { const remain=s.finishDist-s.pos;
+      if(remain>=0 && remain<C.LOOK){
+        const persp=1-remain/C.LOOK;
+        const fy=clamp(Math.round(horizon+persp*(H-horizon)), horizon, H-1);
+        const fcx=rowCX[fy], fhalf=rowHW[fy], cw=Math.max(2,fhalf*0.14);
+        for(let i=0;i<fhalf*2;i+=cw*2){ ctx.fillStyle=(Math.floor(i/cw)%2)?"#0b0c1a":"#f4f4f4"; ctx.fillRect(fcx-fhalf+i,fy-6,cw,6); }
+      } }
     // rivals, far to near, placed from the same per-row projection
     const ordered=s.cars.filter(o=>{ const r=o.pos-s.pos; return r>0 && r<C.LOOK*1.1; }).sort((a,b)=> (b.pos-s.pos)-(a.pos-s.pos));
     for(const o of ordered){
@@ -178,7 +235,7 @@
     if(s.offroad && !s.over){ ctx.fillStyle="rgba(120,200,120,.14)"; ctx.fillRect(0,0,W,H); }
     if(s.checkFlash>0){ ctx.fillStyle="#ffcf5a"; ctx.font="bold 22px system-ui"; ctx.textAlign="center"; ctx.fillText("CHECKPOINT! +"+C.CHECK_BONUS,W/2,horizon-14); }
     if(s.over){ ctx.fillStyle="rgba(0,0,0,.6)"; ctx.fillRect(0,0,W,H);
-      ctx.fillStyle="#f43f5e"; ctx.font="bold 24px system-ui"; ctx.textAlign="center"; ctx.fillText("TIME UP",W/2,H/2-6);
+      ctx.fillStyle=s.won?"#34d399":"#f43f5e"; ctx.font="bold 24px system-ui"; ctx.textAlign="center"; ctx.fillText(s.won?"FINISH!":"TIME UP",W/2,H/2-6);
       ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Score "+s.score+"  ·  Best "+best,W/2,H/2+16); }
   }
 
@@ -204,7 +261,9 @@
       if(typeof Arcade!=="undefined"){ Arcade.stats.record("chickenposition",s.score);
         if(s.crashT>wasCrash) Arcade.sfx.explode();
         if(s.checkFlash>wasCheck) Arcade.sfx.coin(); }
-      if(s.over){ if(s.score>best){ best=s.score; try{localStorage.setItem("chickenposition_best",String(best));}catch(e){} } $("msg").textContent="Time up! Score "+s.score; }
+      if(s.over){ if(s.score>best){ best=s.score; try{localStorage.setItem("chickenposition_best",String(best));}catch(e){} }
+        if(typeof Arcade!=="undefined"&&s.won) Arcade.sfx.win();
+        $("msg").textContent = s.won ? "🏁 Finished! Score "+s.score : "Time up! Score "+s.score; }
       else $("msg").textContent = s.crashT>0 ? "Spun out!" : (s.offroad ? "Off the track — steer back on!" : "");
     }
     $("score").textContent=s.score; $("spd").textContent=Math.round(s.speed/C.MAXSPD*300); $("time").textContent=Math.ceil(s.time); $("best").textContent=best;
@@ -216,7 +275,16 @@
   const hold=(id,k)=>{ const el=$(id); const on=(e)=>{e.preventDefault();press(k,true);}; const off=(e)=>{e.preventDefault();press(k,false);};
     el.addEventListener("touchstart",on,{passive:false}); el.addEventListener("touchend",off); el.addEventListener("mousedown",on); el.addEventListener("mouseup",off); el.addEventListener("mouseleave",off); };
   hold("bl","left"); hold("br","right"); hold("bg","gas"); hold("bk","brake");
-  $("new").addEventListener("click",()=>{ s=newState(); $("msg").textContent="Green light — GO!"; });
+  function updateRaceLabel(){ $("racename").textContent=RACES[s.raceIdx].name+" ("+(s.raceIdx+1)+"/"+RACES.length+")"; }
+  $("new").addEventListener("click",()=>{ s=newState(); updateRaceLabel(); $("msg").textContent="Green light — GO!"; });
+  function pickRace(delta){
+    const idx=((s.raceIdx+delta)%RACES.length+RACES.length)%RACES.length;
+    try{ localStorage.setItem("chickenposition_raceidx", String(idx)); }catch(e){}
+    s=newState(idx); updateRaceLabel(); $("msg").textContent="Green light — GO!";
+  }
+  $("prevr").addEventListener("click",()=>pickRace(-1));
+  $("nextr").addEventListener("click",()=>pickRace(1));
+  updateRaceLabel();
   GATE = (typeof Arcade!=="undefined"&&Arcade.startGate) ? Arcade.startGate(cv,"Chicken Position") : {open:true,paint:()=>{}};
   requestAnimationFrame(frame);
 })();
