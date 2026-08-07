@@ -29,7 +29,15 @@ full course designer on the admin Game Admin page.
   rectangles — the outline is deterministic from the trap's own position
   so the drawn shape and the physics hit-test are always identical.
 
-## Most recent pass — three rounds of player feedback
+## Most recent pass
+
+**Player feedback: "I don't like the striped green background, make it
+a solid color, the lighter of the two greens is nice."** The fairway
+used to be a mowed-lawn stripe pattern (`#1a5a2a` base with `#176a2c`
+stripes every 24px); now a single flat `fillRect` in the lighter shade.
+Traps, walls, the hole, and everything else are unchanged.
+
+## Earlier pass — three rounds of player feedback
 
 1. **"test the board directly from the design page"** — added a
    "▶ Test this hole" button to the admin course editor.

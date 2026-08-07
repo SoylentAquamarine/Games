@@ -20,10 +20,22 @@ beam can capture your ship (rescuable for a dual-ship power-up).
 
 ## Most recent pass
 
-Added the admin config pane described above — no gameplay change to the
-defaults.
+**Player feedback: "the swooping entrance should be a bigger slower loop
+that goes past more of the screen."** `enterStep()`'s quadratic-bezier
+entrance: duration up from 46 to 72 frames (~57% slower), and the
+midpoint control coordinate pushed further across (0.75→0.90 of the
+width) and deeper down (150→210). Worth remembering for any future tune:
+a quadratic bezier does NOT pass through its own midpoint coordinate at
+u=0.5 — the actual peak position it swings through depends on where the
+enemy's start and final formation-slot coordinates are too, so "does the
+loop cover more screen" needs comparing against the old formula for the
+same start/end (see `galaga-swoop-test.js` in the scratchpad for the
+pattern), not an absolute on-screen threshold.
 
-Earlier passes: sound effects wired up via `Arcade.sfx` (shared with
+Earlier: added the admin config pane described above — no gameplay
+change to the defaults.
+
+Earlier still: sound effects wired up via `Arcade.sfx` (shared with
 lander/pacman); swooping wave entrances (enemies fly into formation
 instead of just appearing) plus a bomber-chicken flyby cameo; and before
 that, the animated tractor-beam capture mechanic, dual-ship rescue, and
