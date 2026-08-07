@@ -49,7 +49,20 @@ level editor (`/admin/games/?game=quest`, "Configuration" panel).
 
 ## Most recent pass
 
-**Player feedback: "I don't want the levels to be random, they will be
+**Player feedback: "I want specific sprites for each of the bosses and
+the main boss is a fox it shuld be a fox with a crown not a chicken
+sprite."** Partially addressed — see "Open / deferred" for what's still
+outstanding. The Fox King (the boss named explicitly) is the one that
+mattered most here, since he's the single final boss every player
+fights, unlike the 12 per-dungeon bosses. He now renders through his own
+`drawFoxKing()` instead of the shared `drawBoss()`: pointed ears with
+dark inner triangles, a white muzzle patch and nose, a bushy
+white-tipped tail, and a gold crown with a red jewel — no rooster
+comb/beak anywhere. The shared name+hp-bar label was factored out into
+`drawBossLabel()` so both draw functions call the same one rather than
+duplicating it.
+
+Earlier: **"I don't want the levels to be random, they will be
 the same always, I will design each of them in the designer screen."**
 The saved room MAP already stuck via `localStorage["quest_layout"]`, but
 the ENEMY list inside that same room was always freshly re-rolled with
@@ -194,11 +207,15 @@ above).
   separate real ask. Get more player detail before changing anything.
 - **"I want specific sprites for each of the bosses, and the main boss
   is a fox — it should be a fox with a crown, not a chicken sprite"** —
-  currently `drawBoss()` draws every per-dungeon boss AND the Fox King
-  with the same generic rooster-ish silhouette (comb/beak/body), just
-  recolored per `BOSSES[i].color`. Needs real per-boss art, and the Fox
-  King specifically needs an actual fox shape (not a reskinned chicken)
-  plus a crown. A real design/art pass, not a quick tint change.
+  **partially done.** The Fox King (the boss explicitly named in the
+  comment) now has his own `drawFoxKing()` sprite — pointed ears, a white
+  muzzle, a bushy tail, a gold crown with a jewel, no rooster comb/beak —
+  see "Most recent pass". **Still open**: the 12 per-dungeon bosses
+  (`BOSSES[]`) still all share `drawBoss()`'s generic rooster-ish
+  silhouette, just recolored per `BOSSES[i].color`. Giving each of THEM
+  bespoke art is a much larger design/art pass (12 distinct sprites, not
+  a quick tint change) — left for a future comment; don't archive this
+  one until that's done too.
 - The original mascot-library comment is fully resolved — see the root
   `HANDOFF.md`'s mascots.js entry (spacesuit chicken, rooster, hero
   chicken, and Dr Chicken's redesign are all done).
