@@ -138,6 +138,18 @@
   const cv=$("game"); if(!cv) return;
   const ctx=cv.getContext("2d");
   if(typeof Arcade!=="undefined" && Arcade.fitScreen) Arcade.fitScreen(cv,"large");
+  // Player feedback: "the images are faded and not easy to see, make more
+  // clear tileset." The canvas backing store was fixed at its logical CSS
+  // size regardless of the device's pixel ratio, so on a high-DPI phone
+  // (2-3x) the browser had to upscale a lower-res render to fill the
+  // physical screen — soft, "faded" detail, worst on the small tile-face
+  // emoji. LOGICAL_W/LOGICAL_H keep every draw/layout/click calculation in
+  // the original 640x480 coordinate system; the actual backing store is
+  // scaled up by devicePixelRatio and the context scaled back down so it
+  // renders at full device resolution instead.
+  const LOGICAL_W=cv.width, LOGICAL_H=cv.height;
+  const DPR=Math.max(1, window.devicePixelRatio||1);
+  if(DPR>1){ cv.width=Math.round(LOGICAL_W*DPR); cv.height=Math.round(LOGICAL_H*DPR); ctx.scale(DPR,DPR); }
   const TW=44, TH=54, DX=6, DY=9;      // tile size and the per-layer raise offset
 
   let board=null, boardIdx=1, sel=null, GATE=null;
@@ -146,7 +158,7 @@
     let maxC=0,maxR=0,maxZ=0;
     for(const t of board.tiles){ maxC=Math.max(maxC,t.c); maxR=Math.max(maxR,t.r); maxZ=Math.max(maxZ,t.z); }
     const gw=(maxC+1)*TW + maxZ*DX, gh=(maxR+1)*TH + maxZ*DY;
-    return { ox:(cv.width-gw)/2 + maxZ*DX, oy:(cv.height-gh)/2 + maxZ*DY };
+    return { ox:(LOGICAL_W-gw)/2 + maxZ*DX, oy:(LOGICAL_H-gh)/2 + maxZ*DY };
   }
   function tileXY(t){ const o=layoutOrigin(); return { x:o.ox + t.c*TW - t.z*DX, y:o.oy + t.r*TH - t.z*DY }; }
 
@@ -166,26 +178,29 @@
     ctx.strokeStyle = seld ? "#22d3ee" : (free ? "#c9a24b" : "#b7b0a0");
     ctx.lineWidth = seld?2.5:1.4; roundRect(x,y,TW-2,TH-2,6); ctx.stroke();
     if(!free && !seld){ ctx.fillStyle="rgba(11,12,26,.22)"; roundRect(x,y,TW-2,TH-2,6); ctx.fill(); }
-    // face
-    ctx.font="22px system-ui"; ctx.textAlign="center"; ctx.textBaseline="middle";
+    // face — a soft shadow makes pale glyphs (feathers, eggs, stars) read
+    // clearly against the light tile body instead of blending into it
+    ctx.font="26px system-ui"; ctx.textAlign="center"; ctx.textBaseline="middle";
+    ctx.shadowColor="rgba(0,0,0,.35)"; ctx.shadowBlur=2;
     ctx.fillText(t.face, x+(TW-2)/2, y+(TH-2)/2+1);
+    ctx.shadowColor="transparent"; ctx.shadowBlur=0;
   }
   function roundRect(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
 
   function draw(){
-    ctx.clearRect(0,0,cv.width,cv.height);
-    ctx.fillStyle="#0a0c18"; ctx.fillRect(0,0,cv.width,cv.height);
+    ctx.clearRect(0,0,LOGICAL_W,LOGICAL_H);
+    ctx.fillStyle="#0a0c18"; ctx.fillRect(0,0,LOGICAL_W,LOGICAL_H);
     // felt
-    ctx.fillStyle="#10233a"; roundRect(16,16,cv.width-32,cv.height-32,14); ctx.fill();
+    ctx.fillStyle="#10233a"; roundRect(16,16,LOGICAL_W-32,LOGICAL_H-32,14); ctx.fill();
     // draw bottom layers first, then up; within a layer, back rows first
     const order=board.tiles.filter(t=>!t.removed).slice().sort((a,b)=> a.z-b.z || a.r-b.r || a.c-b.c);
     for(const t of order) drawTile(t);
     if(won(board)){ overlay("🎉 Board cleared!","New Game for another stack"); }
     else if(!anyMoves(board)){ overlay("No moves left","Shuffle to re-deal the tiles"); }
   }
-  function overlay(a,b){ ctx.fillStyle="rgba(0,0,0,.6)"; ctx.fillRect(0,0,cv.width,cv.height);
-    ctx.fillStyle="#34d399"; ctx.font="bold 26px system-ui"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText(a,cv.width/2,cv.height/2-10);
-    ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText(b,cv.width/2,cv.height/2+18); }
+  function overlay(a,b){ ctx.fillStyle="rgba(0,0,0,.6)"; ctx.fillRect(0,0,LOGICAL_W,LOGICAL_H);
+    ctx.fillStyle="#34d399"; ctx.font="bold 26px system-ui"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText(a,LOGICAL_W/2,LOGICAL_H/2-10);
+    ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText(b,LOGICAL_W/2,LOGICAL_H/2+18); }
 
   // topmost non-removed tile under a point
   function pick(px,py){
@@ -208,7 +223,7 @@
   }
 
   function evtXY(e){ const r=cv.getBoundingClientRect(); const cx=(e.touches?e.touches[0].clientX:e.clientX)-r.left, cy=(e.touches?e.touches[0].clientY:e.clientY)-r.top;
-    return { x:cx*(cv.width/r.width), y:cy*(cv.height/r.height) }; }
+    return { x:cx*(LOGICAL_W/r.width), y:cy*(LOGICAL_H/r.height) }; }
 
   function frame(){ if(GATE && !GATE.open){ draw(); GATE.paint(); return requestAnimationFrame(frame); } updateHud(); draw(); requestAnimationFrame(frame); }
 
