@@ -58,7 +58,7 @@
     { speed:0.30, y:C.GROUND-62, h:48, color:"#33244f", step:104, amp:24 },
     { speed:0.62, y:C.GROUND-30, h:30, color:"#432f63", step:70,  amp:15 },
   ];
-  function newState(){ return { x:C.BUGGY_X, y:C.GROUND-C.BH, vy:0, onGround:true, obstacles:[], bullets:[], scroll:[0,0,0], speed:C.SPEED0, dist:0, score:0, lives:C.CHICKENS, nextExtra:C.EXTRA, gotExtra:0, board:1, over:false, spawnGap:60, volleys:0, nextVid:0, justCrashed:false, newBoard:false, flyby:null, flybyDone:false }; }
+  function newState(){ return { x:C.BUGGY_X, y:C.GROUND-C.BH, vy:0, onGround:true, obstacles:[], bullets:[], scroll:[0,0,0], speed:C.SPEED0, dist:0, score:0, distScore:0, lives:C.CHICKENS, nextExtra:C.EXTRA, gotExtra:0, board:1, over:false, spawnGap:60, volleys:0, nextVid:0, justCrashed:false, newBoard:false, flyby:null, flybyDone:false }; }
   function step(s, input){
     if(s.over) return s;
     // Player feedback: "left and right should move the car each direction a
@@ -78,7 +78,13 @@
     s.obstacles=s.obstacles.filter(o=>o.x+o.w>-4);
     s.bullets=s.bullets.filter(b=>b.x<C.W+10 && b.x>-14 && b.y>-14);
     s.volleys=new Set(s.bullets.map(b=>b.vid)).size;   // a volley is live while any of its shots is
-    s.dist+=s.speed; s.score=Math.floor(s.dist/10);
+    // Distance score has to be an INCREMENT, not a flat reassignment — this
+    // used to be `s.score=Math.floor(s.dist/10)` every frame, which quietly
+    // wiped out any rock-kill/flyby bonus added earlier in this same step()
+    // (or in a previous frame) as soon as the next frame recomputed it from
+    // distance alone. Track how much distance-score has already been
+    // credited and only add the delta, so bonuses actually stick.
+    s.dist+=s.speed; const distScore=Math.floor(s.dist/10); s.score+=distScore-s.distScore; s.distScore=distScore;
     if(s.speed<C.SPEEDMAX) s.speed+=0.0016;
     // an extra chicken as the score climbs
     while(s.score>=s.nextExtra){ s.lives++; s.nextExtra+=C.EXTRA; s.gotExtra++; }
