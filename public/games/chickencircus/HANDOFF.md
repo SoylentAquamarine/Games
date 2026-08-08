@@ -23,12 +23,16 @@ landing end, time the catch.
 
 ## Most recent pass
 
-Added admin-configurable difficulty knobs (see above) as part of the
-site-wide numeric-knob config rollout — no player feedback prompted this,
-just extending an existing pattern to a game that already had a suitable
-`C` object.
+**Player feedback: "reduce gravity by 10%."** `C.GRAV` 0.15 → 0.135
+(also updated the admin config pane's default so "Reset to default"
+matches).
 
-Earlier: launch physics reworked to fling toward the corner of the
+Earlier: added admin-configurable difficulty knobs (see above) as part of
+the site-wide numeric-knob config rollout — no player feedback prompted
+this, just extending an existing pattern to a game that already had a
+suitable `C` object.
+
+Earlier still: launch physics reworked to fling toward the corner of the
 landing end with the square-catch/near-miss-hop split. Before that: fixed
 the game halting outright, and the chicken now waits on the ground end
 between launches instead of an undefined idle state.
