@@ -90,16 +90,25 @@
       const tiles=positions.map((p,i)=>({c:p.c,r:p.r,z:p.z,i,face:null,removed:false}));
       const board=indexBoard(tiles);
       const nPairs=tiles.length/2; let ok=true;
+      const faceOrder=shuffle(Array.from({length:FACES.length},(_,i)=>i));   // randomize which face goes with which peel step too
       for(let k=0;k<nPairs;k++){
         const free=freeTiles(board);
         if(free.length<2){ ok=false; break; }
         // Prefer two free tiles in the same row/layer: peeling row segments in
         // pairs keeps every (even-width) row balanced and never strands a single.
+        // Player feedback: "the tile setup was ridiculously easy, they were just
+        // mirrored." Always taking the FIRST same-row match (in fixed tile-creation
+        // order) made every board layout peel in the exact same deterministic
+        // pattern every time -- on the site's symmetric layouts that pattern IS a
+        // left-right mirror, so the matching faces were fully guessable. Collect
+        // every valid same-row candidate pair and pick one at random instead.
+        const candidates=[];
+        for(let i=0;i<free.length;i++) for(let j=i+1;j<free.length;j++){
+          if(free[i].z===free[j].z && free[i].r===free[j].r) candidates.push([free[i],free[j]]); }
         let a=null,b=null;
-        outer: for(let i=0;i<free.length;i++) for(let j=i+1;j<free.length;j++){
-          if(free[i].z===free[j].z && free[i].r===free[j].r){ a=free[i]; b=free[j]; break outer; } }
-        if(!a){ const f=shuffle(free.slice()); a=f[0]; b=f[1]; }
-        a.face=b.face=FACES[k%FACES.length]; a.removed=b.removed=true;   // peel to expose the next layer
+        if(candidates.length){ [a,b]=candidates[Math.floor(rng()*candidates.length)]; }
+        else{ const f=shuffle(free.slice()); a=f[0]; b=f[1]; }
+        a.face=b.face=FACES[faceOrder[k%faceOrder.length]]; a.removed=b.removed=true;   // peel to expose the next layer
       }
       if(ok){ for(const t of tiles) t.removed=false; return indexBoard(tiles); }   // un-peel: the real start
     }
@@ -168,16 +177,24 @@
 
   function drawTile(t){
     const {x,y}=tileXY(t), free=isFree(board,t), seld=(sel===t);
-    // body
+    // Player feedback: "the colors are extremely faded, need to be crisp and
+    // clear." The old borders (#c9a24b free / #b7b0a0 blocked) were both
+    // low-saturation tans that barely stood out against the cream tile body,
+    // so playability was hard to read at a glance -- boosted both to
+    // higher-contrast, more saturated colors, and added a small drop shadow
+    // so each tile reads as a crisp, raised piece instead of a flat pale square.
+    ctx.save();
+    ctx.shadowColor="rgba(0,0,0,.4)"; ctx.shadowBlur=4; ctx.shadowOffsetY=2;
     ctx.fillStyle = seld ? "#2b3a63" : "#f4efe4";
     roundRect(x,y,TW-2,TH-2,6); ctx.fill();
+    ctx.restore();
     // left/top bevel
     ctx.fillStyle = seld ? "#3d5488" : "#fffdf7"; roundRect(x,y,TW-2,6,3); ctx.fill();
     ctx.fillStyle = "rgba(0,0,0,.18)"; ctx.fillRect(x+2,y+TH-6,TW-6,3);
     // border — brighter when the tile is playable
-    ctx.strokeStyle = seld ? "#22d3ee" : (free ? "#c9a24b" : "#b7b0a0");
-    ctx.lineWidth = seld?2.5:1.4; roundRect(x,y,TW-2,TH-2,6); ctx.stroke();
-    if(!free && !seld){ ctx.fillStyle="rgba(11,12,26,.22)"; roundRect(x,y,TW-2,TH-2,6); ctx.fill(); }
+    ctx.strokeStyle = seld ? "#22d3ee" : (free ? "#ffb020" : "#5b5648");
+    ctx.lineWidth = seld?2.5:1.8; roundRect(x,y,TW-2,TH-2,6); ctx.stroke();
+    if(!free && !seld){ ctx.fillStyle="rgba(11,12,26,.3)"; roundRect(x,y,TW-2,TH-2,6); ctx.fill(); }
     // face — a soft shadow makes pale glyphs (feathers, eggs, stars) read
     // clearly against the light tile body instead of blending into it
     ctx.font="26px system-ui"; ctx.textAlign="center"; ctx.textBaseline="middle";
