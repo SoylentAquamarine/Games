@@ -16,9 +16,28 @@ until the board is empty.
 
 ## Most recent pass
 
-**Player feedback: "the images are faded and not easy to see, make more
-clear tileset."** Two changes, both purely in the DOM/canvas rendering
-layer (the pure sim in `window.__chickenjhong` is untouched):
+**Player feedback: "the colors are extremely faded, need to be crisp and
+clear. The tile setup was ridiculously easy, they were just mirrored.
+Needs a randomized setup."** Two independent fixes:
+
+1. `dealSolvable()`'s same-row pairing preference always took the FIRST
+   matching pair found (in fixed tile-creation order). On the site's
+   symmetric board layouts that produced the exact same deterministic
+   left-right-mirrored face arrangement every single deal — zero actual
+   randomization on the primary path. Now collects every valid same-row
+   candidate pair and picks one at random, and randomizes which face
+   lands on which peel step. Solvability-by-construction is unaffected
+   (still only pairs currently-free tiles).
+2. The free/blocked tile borders (`#c9a24b` / `#b7b0a0`) were both
+   low-saturation tans that barely stood out against the cream tile body
+   — playability was hard to read and the whole board looked washed out.
+   Boosted both to higher-contrast colors (`#ffb020` free / `#5b5648`
+   blocked), strengthened the not-free dimming overlay, and added a small
+   drop shadow so tiles read as crisp, raised pieces.
+
+Earlier: **player feedback: "the images are faded and not easy to see,
+make more clear tileset."** Two changes, both purely in the DOM/canvas
+rendering layer (the pure sim in `window.__chickenjhong` is untouched):
 
 1. The canvas backing store was fixed at its logical CSS size (640x480)
    regardless of the device's pixel ratio, so on a high-DPI phone (2-3x)
