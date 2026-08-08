@@ -10,7 +10,7 @@ levels.
   (`newState`, `emptyGrid`, `clearMatches`, `settle`, `resolve`,
   `countViruses`, `cellsOf`, `canPlace`, `newPill`, `virusesFor`,
   `dropSpeed`, `winLevel`, `advanceLevel`, `startBonus`, `bonusStep`,
-  `bonusDrop`, `bonusMove`, `loseChicken`, `C`).
+  `bonusDrop`, `bonusMove`, `jamOver`, `C`).
 - **Two separate spacesuit-chicken-colored sprites in this file — do not
   conflate them:**
   1. The bonus-round cameo (`drawBonus()`) — drawn via the shared
@@ -22,13 +22,20 @@ levels.
      a teal mask with an ear-loop strap, the white coat, a head-mirror
      band), not a spacesuit variant, so unifying her with the shared
      spacesuit sprite would be the wrong direction on purpose.
-- Chickens-as-lives with a 9-row (not 6) neck-unjam so one lost chicken
-  gives real breathing room instead of cascading into an instant game
-  over.
+- **No lives** — jamming the neck (a new pill can't be placed because the
+  stack reached the spawn point) ends the game immediately (`jamOver()`),
+  matching the original Dr. Mario rule. No chickens/lives HUD panel.
 
 ## Most recent pass
 
-**Redesigned Dr Chicken's portrait (#2 above)** from the old spacesuit
+**Player feedback: "this should not have lives, it should end when the
+blocks reach the top."** Removed the "chickens as lives" system entirely
+— it used to cost one of 3 lives on a jam and clear 9 rows so play
+continued, a deviation from the original game's rule that reaching the
+top ends the run outright. `loseChicken()` → `jamOver()`, which just sets
+`over=true`; the `chickens` state field and its HUD panel are gone.
+
+Earlier: **redesigned Dr Chicken's portrait (#2 above)** from the old spacesuit
 look (jetpack flare, life-support pack, helmet dome — same visual
 language as the site's spacesuit cameos) to an actual doctor: surgical
 mask with an ear-loop strap over her beak, the white coat kept (it
