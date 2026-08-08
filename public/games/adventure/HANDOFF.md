@@ -28,12 +28,30 @@ dragons that chase, castles, a 100%-completion secret ending.
 - A secret ending exists for 100% map completion.
 - Level layout is editable from the admin page's Level Editor
   (`/admin/games/?game=adventure`) — same convention as Quest/
-  Chickenmania; edits are stored in `localStorage` and read on load with
-  a safe fallback to the built-in default map.
+  Chickenmania; edits are stored in `localStorage["adventure_rooms"]` and
+  read on load with a safe fallback to the built-in default map. Two
+  editable pieces: the room POSITION grid (drag a room to a new cell,
+  doorways derive automatically from grid adjacency) and, per selected
+  room, its INTERIOR WALLS (`inner`, a drag-to-draw rectangle tool
+  matching mini golf's wall brush) — the game's `ROOMS[id].inner` is what
+  actually renders as obstacles inside a room.
 
 ## Most recent pass
 
-**Player feedback: "screen needs to be a lot bigger, all arcade games
+**User request: "we need board editors on everything, and on adventure I
+need an individual board editor not just how to organize the boards."**
+The admin editor's position grid (drag rooms, recolour them) previously
+had no way to edit a room's actual interior layout — added a per-room
+wall canvas (`/admin/games/?game=adventure`, select a room then drag to
+draw/erase interior walls), operating on the same `ROOMS[id].inner` data
+the live game already reads. `ADV_DEFAULT` in the admin file now carries
+each room's default walls (copied from the game's own `ROOMS` table,
+cross-checked for an exact match by a headless test) instead of just
+position/colour, so Reset to default restores walls too. This is the
+first game in the broader "board editors on every grid/room-based game"
+initiative — see the root HANDOFF.md for the rest of that rollout.
+
+Earlier: **player feedback: "screen needs to be a lot bigger, all arcade games
 should be the same size screen."** CSS display cap raised from 380px to
 440px — deliberately NOT the usual 480/560 other games use, since this
 game's map canvas sits beside the game canvas in a flex row capped at
