@@ -34,7 +34,16 @@ wave 2, rotten eggs to avoid), you slide baskets to catch them.
 
 ## Most recent pass
 
-**Player feedback: "start with three chickens, lose a chicken when you
+**Player feedback: "I should be catching the eggs into one egg carton and
+every 12 eggs there should be a carton counter at the top to indicate how
+many dozen eggs i have caught."** Already fully satisfied by the carton
+system added in the pass right below this one — the HUD's `Cartons:`
+field (`🧺{cartonsTotal} 🥚{cartonEggs}/12`) already shows a running
+dozen-count plus progress toward the next dozen, positioned in the top
+HUD bar. The comment arrived after that feature shipped; no code change
+needed, just confirmed live and archived.
+
+Earlier: **player feedback: "start with three chickens, lose a chicken when you
 break an egg or catch a green egg" and "the baskets should be an egg
 carton that has to get filled up with 12 eggs, every 10 cartons is an
 extra chicken."** Redesigned from the previous 3-cartons-per-wave/spill
