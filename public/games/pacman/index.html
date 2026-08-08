@@ -174,10 +174,17 @@
       for(const g of ghosts){
         g.prog=(g.prog||0)+grate;
         while(g.prog>=1){
-          g.prog-=1; moveGhost(g);
+          g.prog-=1; const fromR=g.r,fromC=g.c; moveGhost(g);
           // the exact point on the shared timeline where this move landed, so
           // the glide can finish precisely as the next one begins
           g.moveAt=ghostCum-g.prog;
+          // Pac and a ghost can cross paths in the same tick without ever
+          // landing on the same cell (pac moves into the ghost's old cell
+          // while the ghost moves into pac's old cell). checkCollisions()
+          // below only catches same-cell overlap, so a chasing ghost could
+          // glide straight through the player in a 1-wide corridor. Catch
+          // that swap here, right when we know the ghost's before/after cell.
+          if(!g.eaten&&g.r===pac.pr&&g.c===pac.pc&&pac.r===fromR&&pac.c===fromC)catchPac(g);
         }
       }
       checkCollisions();
@@ -231,10 +238,13 @@
       for(const g of ghosts){
         if(g.r===pac.r&&g.c===pac.c){
           if(g.eaten)continue;
-          if(fright>0){g.eaten=true;score+=200;scoreEl.textContent=score;if(typeof Arcade!=="undefined")Arcade.sfx.coin();}
-          else return die();
+          catchPac(g);
         }
       }
+    }
+    function catchPac(g){
+      if(fright>0){g.eaten=true;score+=200;scoreEl.textContent=score;if(typeof Arcade!=="undefined")Arcade.sfx.coin();}
+      else die();
     }
     // Death plays out over two seconds before anything resets.
     function die(){
