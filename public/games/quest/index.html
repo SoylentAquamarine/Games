@@ -268,6 +268,17 @@
     function boxHitsSolid(x,y,s){return solidAt(x,y)||solidAt(x+s,y)||solidAt(x,y+s)||solidAt(x+s,y+s);}
 
     function newGame(){
+      // Player reports: "the speed got way too fast" / "there is a speed
+      // glitch it will suddenly be like 4x the speed." The "↺ New Game" HUD
+      // button is always visible, even mid-game, and this function used to
+      // start a fresh requestAnimationFrame chain (running=true;loop()) WITHOUT
+      // cancelling whatever chain was already in flight -- unlike gameOver()/
+      // win(), which both call cancelAnimationFrame(raf) first. Clicking New
+      // Game while already playing stacked a second, fully independent loop()
+      // chain on top of the first (each calling update() once per real frame),
+      // doubling movement speed; a second accidental click tripled it, and so
+      // on -- exactly the reported "sudden 4x speed."
+      if(raf) cancelAnimationFrame(raf);
       keys=0;unlocked=false;over=false;frame=0;
       eggs=newEggs(); boss=null; finalBoss=null; curDungeon=0;
       owRooms=genOverworld(); mode="overworld"; rooms=owRooms; room=[1,1]; owRooms[1][1].visited=true;
@@ -377,7 +388,10 @@
         // sword hit — drops a coin or heart instead of items just sitting in the room
         if(sword&&rectHit(sword,{x:e.x,y:e.y,w:ESIZE,h:ESIZE})){
           e.alive=false;
-          if(Math.random()<0.8) R.items.push({x:e.x,y:e.y,type:Math.random()<0.3?"heart":"coin"});
+          // Player feedback: "the dungeon weasels seem to drop mostly coins,
+          // we need slightly more % chance of hearts." Was 30% heart / 70%
+          // coin among drops; raised to 45% heart / 55% coin.
+          if(Math.random()<0.8) R.items.push({x:e.x,y:e.y,type:Math.random()<0.45?"heart":"coin"});
           continue;
         }
         // touch player
