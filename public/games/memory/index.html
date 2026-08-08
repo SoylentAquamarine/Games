@@ -113,7 +113,7 @@
     let best = localStorage.getItem(BEST_KEY);
     bestEl.textContent = best ? `${best} moves` : "—";
 
-    let deck, first, second, lock, moves, matched, timer, seconds, started;
+    let deck, first, second, lock, moves, matched, timer, seconds, started, flipTimeout, epoch = 0;
 
     function shuffle(a) {
       for (let i = a.length - 1; i > 0; i--) {
@@ -125,6 +125,8 @@
 
     function newGame() {
       clearInterval(timer);
+      clearTimeout(flipTimeout);
+      epoch++; // invalidate any in-flight flip-resolution timer from the previous game
       deck = shuffle(EMOJIS.slice(0, PAIRS).flatMap((e) => [e, e]));
       first = second = null; lock = false;
       moves = 0; matched = 0; seconds = 0; started = false;
@@ -169,18 +171,25 @@
       moves++; movesEl.textContent = moves;
       lock = true;
 
+      // Capture this pair and the game's epoch locally so a pending timer
+      // from an abandoned game (e.g. "New Game" clicked mid-resolution)
+      // can't operate on stale/null state or corrupt the new game.
+      const f = first, s = second, myEpoch = epoch;
+
       if (first.emoji === second.emoji) {
-        setTimeout(() => {
-          first.card.classList.add("matched");
-          second.card.classList.add("matched");
+        flipTimeout = setTimeout(() => {
+          if (myEpoch !== epoch) return;
+          f.card.classList.add("matched");
+          s.card.classList.add("matched");
           resetTurn();
           matched++;
           if (matched === PAIRS) win();
         }, 350);
       } else {
-        setTimeout(() => {
-          first.card.classList.remove("flipped");
-          second.card.classList.remove("flipped");
+        flipTimeout = setTimeout(() => {
+          if (myEpoch !== epoch) return;
+          f.card.classList.remove("flipped");
+          s.card.classList.remove("flipped");
           resetTurn();
         }, 800);
       }
