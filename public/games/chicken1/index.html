@@ -151,8 +151,11 @@
   // resized the canvas backing store bigger than what draw() paints, leaving an
   // unrepainted strip along the right and bottom edges (the reported artifacts).
   if(typeof Arcade!=="undefined"&&Arcade.fitScreen) Arcade.fitScreen(cv,"small");
-  let s=newState(), best=null, input={left:false,right:false,gas:false,brake:false}, GATE=null;
-  try{ const b=parseFloat(localStorage.getItem("chicken1_best")); if(!isNaN(b)) best=b; }catch(e){}
+  // Races have different finish distances (9000/11000/16000), so completion
+  // times aren't comparable across races — each race needs its own "best".
+  function bestKey(idx){ return "chicken1_best_"+RACES[idx].id; }
+  function loadBest(idx){ try{ const b=parseFloat(localStorage.getItem(bestKey(idx))); return isNaN(b)?null:b; }catch(e){ return null; } }
+  let s=newState(), best=loadBest(s.raceIdx), input={left:false,right:false,gas:false,brake:false}, GATE=null;
   function updateRaceLabel(){ $("racename").textContent=RACES[s.raceIdx].name+" ("+(s.raceIdx+1)+"/"+RACES.length+")"; }
 
   function carArt(x,y,col,facingUp){
@@ -209,7 +212,7 @@
     if(!s.over){ const wasSpd=s.speed; step(s,input);
       if(typeof Arcade!=="undefined"){ Arcade.stats.record("chicken1",s.dist);
         if(s.crashT===48 && wasSpd>0) Arcade.sfx.explode(); }
-      if(s.over){ if(s.won && (!best||s.time<best)){ best=s.time; try{localStorage.setItem("chicken1_best",String(best));}catch(e){} }
+      if(s.over){ if(s.won && (!best||s.time<best)){ best=s.time; try{localStorage.setItem(bestKey(s.raceIdx),String(best));}catch(e){} }
         if(typeof Arcade!=="undefined"&&s.won) Arcade.sfx.win();
         $("msg").textContent = s.won ? "🏁 Finished in "+fmtTime(s.time)+"!" : ""; }
       else $("msg").textContent = s.offroad ? "On the grass — get back on the tarmac!" : "";
@@ -224,11 +227,11 @@
   const hold=(id,k)=>{ const el=$(id); const on=(e)=>{e.preventDefault();press(k,true);}; const off=(e)=>{e.preventDefault();press(k,false);};
     el.addEventListener("touchstart",on,{passive:false}); el.addEventListener("touchend",off); el.addEventListener("mousedown",on); el.addEventListener("mouseup",off); el.addEventListener("mouseleave",off); };
   hold("bl","left"); hold("br","right"); hold("bg","gas"); hold("bk","brake");
-  $("new").addEventListener("click",()=>{ s=newState(); updateRaceLabel(); $("msg").textContent="Hold GAS — race to the finish!"; });
+  $("new").addEventListener("click",()=>{ s=newState(); best=loadBest(s.raceIdx); updateRaceLabel(); $("msg").textContent="Hold GAS — race to the finish!"; });
   function pickRace(delta){
     const idx=((s.raceIdx+delta)%RACES.length+RACES.length)%RACES.length;
     try{ localStorage.setItem("chicken1_raceidx", String(idx)); }catch(e){}
-    s=newState(idx); updateRaceLabel(); $("msg").textContent="Hold GAS — race to the finish!";
+    s=newState(idx); best=loadBest(s.raceIdx); updateRaceLabel(); $("msg").textContent="Hold GAS — race to the finish!";
   }
   $("prevr").addEventListener("click",()=>pickRace(-1));
   $("nextr").addEventListener("click",()=>pickRace(1));
