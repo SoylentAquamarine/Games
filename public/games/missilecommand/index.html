@@ -198,7 +198,14 @@
   cv.width=Math.round(LOGICAL_W*RENDER_SCALE*DPR); cv.height=Math.round(LOGICAL_H*RENDER_SCALE*DPR);
   ctx.scale(RENDER_SCALE*DPR, RENDER_SCALE*DPR);
   // Hold the loop until the player asks for it (comment: Press Spacebar To Begin)
-  const GATE = Arcade.startGate(cv, "Coop Command");
+  // Player feedback: "at the beginning there are 2 conflicting texts
+  // showing, and one of them is too big for the screen. Remove the coop
+  // command one." draw()'s own "INCOMING MISSILES / ALL CHICKENS REPORT"
+  // opening call-to-arms (below, gated on `opening>0`) already shows the
+  // whole time the gate is closed, so a second startGate title on top of
+  // it was redundant even before the oversized-text bug (fixed in
+  // arcade.js's startGate itself) made it worse. No title here now.
+  const GATE = Arcade.startGate(cv, null);
   let s=newGame(), best=null, pointer={x:180,y:120};
   // Opening call-to-arms, then it hands over to the normal wave flow.
   let opening=170;
