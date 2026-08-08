@@ -73,17 +73,18 @@
       s.flyby={ x: fromLeft?-24:C.W+24, y:44, vx:(fromLeft?1:-1)*1.6, dropT:36 }; }
   }
   // Swooping entrance: in low from the side, arc up and over, ease into the slot.
-  // Player feedback: "the swooping entrance should be a bigger slower
-  // loop that goes past more of the screen." Duration up from 46 to 72
-  // frames (~57% slower), and the midpoint pushed further across (0.75
-  // -> 0.90 of the width) and deeper down (150 -> 210) so the arc swings
-  // through noticeably more of the screen before easing into formation.
+  // Player feedback: "the swooping entrance should be a bigger slower loop
+  // that goes past more of the screen" — eased once already (46->72 frames,
+  // midpoint 0.75->0.90/150->210) — then a follow-up round asked again for
+  // "large slow sweeping swoops," so eased further still: duration up to
+  // 110 frames (~53% slower again) and the midpoint pushed even further
+  // across (0.90 -> 0.96 of the width) and deeper down (210 -> 280).
   function enterStep(e){
     e.enterT++;
     if(e.enterT < e.enterDelay) return;             // still queued off-screen
-    const u = Math.min(1,(e.enterT-e.enterDelay)/72);
+    const u = Math.min(1,(e.enterT-e.enterDelay)/110);
     const startX = e.fromLeft ? -20 : C.W+20, startY = 20;
-    const midX = e.fromLeft ? C.W*0.90 : C.W*0.10,  midY = 210;
+    const midX = e.fromLeft ? C.W*0.96 : C.W*0.04,  midY = 280;
     const ax = startX+(midX-startX)*u, ay = startY+(midY-startY)*u;
     const bx = midX+(e.fx-midX)*u,     by = midY+(e.fy-midY)*u;
     e.x = ax+(bx-ax)*u;
@@ -91,7 +92,7 @@
     if(u>=1){ e.x=e.fx; e.y=e.fy; e.state="form"; }
   }
   function newState(){ const s={ px:C.W/2, bullets:[], enemies:[], score:0, wave:0, lives:3, over:false, sway:0,
-    diveTimer:90, beamTimer:150, dual:false, rescue:null, captured:false, pull:null, flyby:null, bombs:[] }; makeWave(s); return s; }
+    diveTimer:90, beamTimer:150, dual:false, rescue:null, captured:false, pull:null, flyby:null, bombs:[], captureFlash:0 }; makeWave(s); return s; }
   // Width of the beam cone at a given depth below the boss.
   function beamHalfWidth(e, y){ const d=Math.max(0,y-e.y);
     const open = e.beamOpen==null ? 1 : e.beamOpen;
@@ -107,6 +108,7 @@
   function step(s, input){
     if(s.over) return s;
     if(input){ if(input.left) s.px=Math.max(C.PW/2,s.px-5); if(input.right) s.px=Math.min(C.W-C.PW/2,s.px+5); if(input.x!=null) s.px=Math.max(C.PW/2,Math.min(C.W-C.PW/2,input.x)); }
+    if(s.captureFlash>0) s.captureFlash--;
     s.sway+=0.03;
     for(const b of s.bullets) b.y-=C.BSPEED;
     s.bullets=s.bullets.filter(b=>b.y>-12);
@@ -131,6 +133,14 @@
             if(typeof Arcade!=="undefined")Arcade.sfx.death();
             s.lives--; if(s.lives<=0){ s.over=true; return s; }
             s.px=C.W/2;
+            // Player feedback: "when the enemy captures the hero, it needs
+            // to trigger a second ship like if the life was lost." A life
+            // IS already spent and play already continues with a fresh
+            // single fighter (recentred above) — captureFlash is the
+            // missing visible "you just lost a ship" beat every other
+            // life-loss on the site gets, so it reads the same way instead
+            // of silently ticking the lives counter down.
+            s.captureFlash=60;
           }
           if(e.beamT<=0 && !e.returning) e.returning=true;
         }
@@ -208,6 +218,26 @@
   try{ best=parseInt(localStorage.getItem("galaga_best")||"0")||0; }catch(e){}
   for(let i=0;i<50;i++) stars.push({x:Math.random()*W,y:Math.random()*H,s:0.3+Math.random()});
 
+  // Player feedback: "the enemies need to be chickens." Replaced the plain
+  // recolored rectangle with a real chicken silhouette (comb, beak, wings,
+  // eyes) — the comb and beak stay their normal colours regardless of row,
+  // matching every other chicken sprite on the site; only the body/wings
+  // take the row's tint (boss red, mid yellow, drone cyan). The beak points
+  // down since enemies face the player.
+  function drawEnemy(e){
+    const x=e.x, y=e.y, w=C.EW, h=C.EH;
+    ctx.fillStyle=e.color;
+    ctx.beginPath(); ctx.ellipse(x-w*0.55,y+h*0.05,w*0.28,h*0.32,0,0,7); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(x+w*0.55,y+h*0.05,w*0.28,h*0.32,0,0,7); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(x,y,w*0.5,h*0.5,0,0,7); ctx.fill();
+    ctx.fillStyle="#dc2626";
+    ctx.beginPath(); ctx.arc(x-w*0.18,y-h*0.5,w*0.11,0,7); ctx.arc(x,y-h*0.58,w*0.12,0,7); ctx.arc(x+w*0.18,y-h*0.5,w*0.11,0,7); ctx.fill();
+    ctx.fillStyle="#facc15";
+    ctx.beginPath(); ctx.moveTo(x-w*0.14,y+h*0.35); ctx.lineTo(x,y+h*0.62); ctx.lineTo(x+w*0.14,y+h*0.35); ctx.closePath(); ctx.fill();
+    ctx.fillStyle="#0b0c1a";
+    ctx.beginPath(); ctx.arc(x-w*0.16,y-h*0.05,w*0.09,0,7); ctx.fill();
+    ctx.beginPath(); ctx.arc(x+w*0.16,y-h*0.05,w*0.09,0,7); ctx.fill();
+  }
   function draw(){
     ctx.clearRect(0,0,W,H); ctx.fillStyle="#05060f"; ctx.fillRect(0,0,W,H);
     ctx.fillStyle="#2a2f55"; for(const st of stars){ st.y=(st.y+st.s)%H; ctx.fillRect(st.x,st.y,1,1); }
@@ -232,8 +262,7 @@
       ctx.fillStyle="#22d3ee"; ctx.fillRect(-C.PW/2,-C.PH/2,C.PW,C.PH*0.7);
       ctx.restore(); ctx.globalAlpha=1;
     }
-    for(const e of s.enemies){ if(!e.alive) continue; ctx.fillStyle=e.color; ctx.fillRect(e.x-C.EW/2,e.y-C.EH/2,C.EW,C.EH);
-      ctx.fillStyle="#0b0c1a"; ctx.fillRect(e.x-6,e.y-2,4,4); ctx.fillRect(e.x+2,e.y-2,4,4); ctx.fillStyle=e.color; ctx.fillRect(e.x-C.EW/2-3,e.y,3,5); ctx.fillRect(e.x+C.EW/2,e.y,3,5);
+    for(const e of s.enemies){ if(!e.alive) continue; drawEnemy(e);
       // your captured ship, slung underneath the boss that took it
       if(e.hasShip){ ctx.fillStyle="#22d3ee"; ctx.fillRect(e.x-C.PW/2,e.y+C.EH/2+3,C.PW,C.PH*0.7); ctx.fillRect(e.x-2,e.y+C.EH/2+C.PH*0.7+2,4,4); } }
     ctx.fillStyle="#fff"; for(const b of s.bullets) ctx.fillRect(b.x,b.y,3,10);
@@ -261,6 +290,11 @@
       ctx.fillRect(s.px-C.PW/2-14,C.PLY-C.PH/2,C.PW,C.PH); ctx.fillRect(s.px-2-14,C.PLY-C.PH/2-6,4,6);
       ctx.fillRect(s.px-C.PW/2+14,C.PLY-C.PH/2,C.PW,C.PH); ctx.fillRect(s.px-2+14,C.PLY-C.PH/2-6,4,6);
     } else { ctx.fillRect(s.px-C.PW/2,C.PLY-C.PH/2,C.PW,C.PH); ctx.fillRect(s.px-2,C.PLY-C.PH/2-6,4,6); }
+    // a brief non-blocking "you lost a ship" beat right after a capture —
+    // play continues on the fresh, recentred single fighter underneath
+    if(s.captureFlash>0 && Math.floor(s.captureFlash/6)%2===0){
+      ctx.fillStyle="#f43f5e"; ctx.font="bold 18px system-ui"; ctx.textAlign="center"; ctx.fillText("SHIP CAPTURED!",W/2,H/2-40);
+    }
     if(s.over){ ctx.fillStyle="rgba(0,0,0,.6)"; ctx.fillRect(0,0,W,H); ctx.fillStyle="#f43f5e"; ctx.font="bold 24px system-ui"; ctx.textAlign="center"; ctx.fillText("GAME OVER",W/2,H/2-6); ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Score "+s.score+"  ·  Best "+best,W/2,H/2+16); }
   }
   let wasOver=false;
