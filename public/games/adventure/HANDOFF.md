@@ -33,7 +33,24 @@ dragons that chase, castles, a 100%-completion secret ending.
 
 ## Most recent pass
 
-**A follow-up round of player feedback, after the previous pass shipped:**
+**Player feedback: "screen needs to be a lot bigger, all arcade games
+should be the same size screen."** CSS display cap raised from 380px to
+440px — deliberately NOT the usual 480/560 other games use, since this
+game's map canvas sits beside the game canvas in a flex row capped at
+580px total width; 440px is the largest cap that still leaves room for
+the 120px map + gap without wrapping it below (an earlier, deliberate
+"map beside the canvas" layout fix — see further down). No click/touch
+coordinate mapping exists in this game (movement is D-pad/keyboard
+only), so the fix is purely a backing-store scale-up for
+devicePixelRatio, same non-invasive pattern as missilecommand/minigolf.
+
+**Still open, newly reported this same round:** "there needs to be a
+restart button beside New Game, so you can restart the same level if you
+die without resetting the dead dragons to alive" — not yet started, see
+"Open / deferred".
+
+Earlier: **a follow-up round of player feedback, after the previous pass
+shipped:**
 "We need the dragons to appear where they left off when I reenter a
 screen, not reset into the corner." · "if the dragon follows you to the
 next room it has to make sense, if he is halfway across the last room he
@@ -59,9 +76,9 @@ chance of following me into each other room."
 **Still open from this same round of feedback** (see "Open / deferred"):
 a bigger black-castle maze + bridge-as-barrier redesign, the bridge's
 visual redesign, and the secret ending's trigger/vertical-text redesign.
-The screen-size request is part of a separate, cross-cutting "make every
-game the same size" initiative touching several games at once, not
-specific to this one.
+The screen-size request (part of a separate, cross-cutting "make every
+game the same size" initiative touching several games at once) has since
+been resolved — see the top of this section.
 
 Earlier: added the chase-streak decay (`CHASE_DECAY`, now disabled — see
 above), doorway-entry positioning for a chasing dragon (`doorwaySpot`),
@@ -85,7 +102,21 @@ and title cleanup.
 
 ## Open / deferred
 
-Three items, all from the same recent round of player feedback:
+Four items:
+
+1. **"There needs to be a restart button beside New Game, so you can
+   restart the same level if you die without resetting the dead dragons
+   to alive and everything in the game will continue."** Distinct from
+   the existing "New Game" button, which starts an entirely fresh run.
+   Wants a second button that restarts the CURRENT room/level layout
+   specifically — re-placing the hero at the start but keeping which
+   dragons are already dead, which items are already collected, etc.
+   Needs a design decision on exactly what "restart the same level"
+   preserves vs. resets before implementing (e.g. does it reset the
+   hero's position within the room, or the whole room layout back to
+   how it was at the start of that dragon-fight attempt?). Not started.
+
+Three items, all from an earlier round of player feedback:
 
 1. **"We need the black castle to have a lot of rooms inside it and to
    be a maze, and we need to have to use the bridge to cross a barrier
