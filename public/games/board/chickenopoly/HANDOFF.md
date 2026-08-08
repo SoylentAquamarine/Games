@@ -24,7 +24,20 @@ Monopoly-style board game: 28-space square board (7/side), 4 players (you
   property has ≥1 house; at 0 houses it falls back to the pre-existing
   unimproved/full-group-doubled behavior unchanged.
 
-## Most recent pass — build houses & hotels
+## Most recent pass — board size fix
+
+**Player feedback: "the board is way too small and the words for the
+properties are cut off."** The two flanking player columns (118px each,
+added in the "player panels + trading" pass below) plus their gaps
+already ate up to 256px of the old 560px page-wrap budget, leaving only
+~304px for a board whose canvas is natively 432px — the whole board
+(tile labels included) rendered scaled down to ~70% of its intended size
+via the canvas's own `width:100%` CSS, which read as illegibly
+cramped/cut-off text. Widened the page wrap from 560px to 700px so the
+board can reach close to its native 432px width even with both player
+columns present.
+
+## Earlier pass — build houses & hotels
 
 Player feedback: "add the build houses and hotels features, count the
 houses and hotels in the original monopoly and don't let people build
