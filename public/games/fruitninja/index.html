@@ -35,6 +35,14 @@
 <script>
 (function(){
   const C={ W:360,H:300, GRAVITY:0.18, LIVES:3, FRUIT_R:17, BOMB_R:16 };
+  // Admin-tunable difficulty knobs — see /admin/games/?game=fruitninja.
+  // Same pattern as kaboom (see its HANDOFF.md): explicit allowlist, only
+  // numeric values, safe no-op with no localStorage (headless tests).
+  (function(){ try{
+    const allow=["GRAVITY","LIVES"];
+    const o=JSON.parse(localStorage.getItem("fruitninja_config")||"{}");
+    for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
+  }catch(_){} })();
   const FRUITS=["#f43f5e","#ffcf5a","#8ad48a","#22d3ee","#c77dff"];
   function newState(){ return { fruits:[], score:0, lives:C.LIVES, spawnT:20, over:false }; }
   function spawn(s){ const bomb=Math.random()<0.14; const x=40+Math.random()*(C.W-80);

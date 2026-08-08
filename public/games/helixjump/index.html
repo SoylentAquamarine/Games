@@ -36,6 +36,16 @@
 (function(){
   const TAU=Math.PI*2;
   const C={ W:300,H:420, SEG:12, GAP:120, BALL_R:11, GRAVITY:0.5, BOUNCE:9.5, ROT_STEP:0.16 };
+  // Admin-tunable difficulty knobs — see /admin/games/?game=helixjump.
+  // Same pattern as kaboom (see its HANDOFF.md): explicit allowlist, only
+  // numeric values, safe no-op with no localStorage (headless tests).
+  // SEG is deliberately NOT exposed — it's a board-shape constant (platform
+  // segment count), not a plain difficulty knob.
+  (function(){ try{
+    const allow=["GRAVITY","BOUNCE","ROT_STEP"];
+    const o=JSON.parse(localStorage.getItem("helixjump_config")||"{}");
+    for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
+  }catch(_){} })();
   const norm=(a)=>((a%TAU)+TAU)%TAU;
   function segIndexUnder(rot){ return Math.floor(norm(rot)/(TAU/C.SEG))%C.SEG; }
   function genPlatform(i){ const segs=new Array(C.SEG).fill("solid");
