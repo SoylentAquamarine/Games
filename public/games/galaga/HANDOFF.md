@@ -9,7 +9,14 @@ beam can capture your ship (rescuable for a dual-ship power-up).
   headless testing.
 - Animated tractor beam that must actually be flown into to trigger a
   capture (not just proximity) — capturing and then rescuing your ship
-  grants a dual-ship.
+  grants a dual-ship. A capture spends a life and continues play on a
+  fresh, recentred single fighter, with a brief non-blocking
+  `s.captureFlash` "SHIP CAPTURED!" beat so the loss is visible, matching
+  the life-loss convention used elsewhere on the site.
+- Enemies are drawn as real chickens (`drawEnemy`): wings, body, comb,
+  beak, eyes — comb/beak stay their normal fixed colours regardless of
+  row, only the body/wings take the row's own tint (boss red, mid
+  yellow, drone cyan) so the three enemy roles stay visually distinct.
 - Screen is 50% larger than the original size.
 - `Arcade.sfx` wired up for sound (shared pass with lander, pacman).
 - **Admin-configurable** at `/admin/games/?game=galaga`: `BSPEED` (player
@@ -20,20 +27,38 @@ beam can capture your ship (rescuable for a dual-ship power-up).
 
 ## Most recent pass
 
-**Player feedback: "the swooping entrance should be a bigger slower loop
-that goes past more of the screen."** `enterStep()`'s quadratic-bezier
-entrance: duration up from 46 to 72 frames (~57% slower), and the
-midpoint control coordinate pushed further across (0.75→0.90 of the
-width) and deeper down (150→210). Worth remembering for any future tune:
-a quadratic bezier does NOT pass through its own midpoint coordinate at
-u=0.5 — the actual peak position it swings through depends on where the
-enemy's start and final formation-slot coordinates are too, so "does the
-loop cover more screen" needs comparing against the old formula for the
-same start/end (see `galaga-swoop-test.js` in the scratchpad for the
-pattern), not an absolute on-screen threshold.
+Two player comments:
 
-Earlier: added the admin config pane described above — no gameplay
-change to the defaults.
+1. **"the enemies need to be chickens."** Replaced the plain recoloured
+   rectangle with the chicken silhouette described above.
+2. **"at the beginning when the enemy swoops in they need to be large
+   slow sweeping swoops. When the enemy captures the hero, it needs to
+   trigger a second ship like if the life was lost, then we get the ship
+   back when we shoot it."** Two parts:
+   - Swoop entrance eased further still (a follow-up to the previous
+     pass below): duration 72→110 frames, midpoint pushed from 0.90/210
+     to 0.96/280.
+   - The capture-and-rescue mechanic already matched what was described
+     (a life spent, play continues on a fresh single fighter, shooting
+     the captor frees the ship into a dual-fighter) — what was actually
+     missing was the `captureFlash` visible feedback beat above; the
+     underlying state machine was untouched.
+
+Earlier: **player feedback: "the swooping entrance should be a bigger
+slower loop that goes past more of the screen."** `enterStep()`'s
+quadratic-bezier entrance: duration up from 46 to 72 frames (~57%
+slower), and the midpoint control coordinate pushed further across
+(0.75→0.90 of the width) and deeper down (150→210). Worth remembering
+for any future tune: a quadratic bezier does NOT pass through its own
+midpoint coordinate at u=0.5 — the actual peak position it swings
+through depends on where the enemy's start and final formation-slot
+coordinates are too, so "does the loop cover more screen" needs
+comparing against the old formula for the same start/end (see
+`galaga-swoop-test.js` in the scratchpad for the pattern), not an
+absolute on-screen threshold.
+
+Earlier still: added the admin config pane described above — no
+gameplay change to the defaults at that point.
 
 Earlier still: sound effects wired up via `Arcade.sfx` (shared with
 lander/pacman); swooping wave entrances (enemies fly into formation
