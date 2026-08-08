@@ -30,8 +30,30 @@ own URL, and each is listed as its own entry in `public/games/INDEX.md`.
 
 ## Most recent pass
 
-No player-feedback pass yet at the hub level — this HANDOFF.md was
-created as part of a documentation sweep (see the root HANDOFF.md's
+**Bug fixes (found in a code-review pass, not player-reported) in two
+sub-games:**
+
+- **`sorry`** — a slide could carry a pawn past another pawn resting on
+  the slide's own first square without bumping it. `resolveLanding()`'s
+  slide-clearing loop ran from `sl.start+1` to `sl.end`, skipping
+  `sl.start` itself. A pawn of the slide's own color is legitimately
+  immune to triggering that slide and can rest exactly on `sl.start` — a
+  normal, reachable square. Landing there with a different-color pawn
+  should bump the resting pawn like any other landing, before riding the
+  slide onward, but the off-by-one skipped that square entirely. Fixed
+  by starting the bump loop at `sl.start` (excluding the mover itself).
+- **`candyland`** — a 3-way mud-skip cascade could hand the mover an
+  extra turn. `advance()`'s skip-search loop was bounded to exactly 3
+  iterations (one per player), enough when at most 2 of 3 players are
+  simultaneously flagged "stuck in mud." But if all 3 land in mud on 3
+  consecutive turns — reachable in a normal game — the loop exhausts its
+  3 iterations, clears every flag along the way, and lands back on
+  whichever player just moved, silently giving them an unearned repeat
+  turn instead of skipping anyone. Fixed by extending the loop by one
+  iteration so the cascade resolves onto the next player in sequence.
+
+Earlier: no player-feedback pass yet at the hub level — this HANDOFF.md
+was created as part of a documentation sweep (see the root HANDOFF.md's
 "Per-game HANDOFF.md rollout" note). Individual sub-games (notably
 `chickenopoly`) have had their own passes — see their own HANDOFF.md
 files.
