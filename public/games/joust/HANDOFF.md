@@ -7,7 +7,8 @@ altitude, joust higher than the enemy to win the collision.
 
 - `index.html` — everything. `window.__joust` exposes the pure sim
   (`newState`, `step`, `physics`, `joustResult`, `makeWave`, `moveEnemy`,
-  `spawnOnNest`, `die`, `PLATS`, `C`).
+  `spawnOnNest`, `die`, `drainSpawnQueue`, `waveClear`, `PLATS`, `NESTS`,
+  `C`).
 - The board wraps horizontally — flying off one edge brings you back on
   the other side. There is no "touches the wall" invariant to preserve;
   that was a stale test assumption fixed in an earlier bug-hunt pass, not
@@ -15,6 +16,22 @@ altitude, joust higher than the enemy to win the collision.
 - Enemies patrol left/right along platforms rather than homing in on the
   player; a nest respawn plays a hatch animation with a brief safe
   no-hit window afterward.
+- **Several respawn nests** (`NESTS=[0,1]`, the two ground-level side
+  platforms) — `spawnOnNest()` picks one at random each time, not always
+  the same fixed platform. Both are drawn with the twig/egg nest
+  decoration (`NESTS.includes(i)` in `draw()`).
+- **Enemies spawn one at a time**, not all at once already airborne — a
+  wave's enemies are queued (`s.enemyQueue`) and released into
+  `s.enemies` one every `SPAWN_GAP` frames (`drainSpawnQueue()`, called
+  from both the normal and hatching branches of `step()`).
+  `waveClear(s)` checks the queue is ALSO empty before advancing to the
+  next wave, not just the active list.
+- **Defeating an enemy has an `EGG_CHANCE` (25%) chance to drop an egg**
+  — it falls like anything else and can be flown into for a 200-point
+  bonus, or is lost if it reaches the lava uncollected.
+- A dirt ground layer covers most of the lava strip visually (the actual
+  death line, `C.LAVA`, is unchanged) — lava still peeks through in
+  patches every third segment.
 - **Admin-configurable** at `/admin/games/?game=joust`: `SPAWN_FRAMES`
   (respawn delay), `INVULN_FRAMES` (post-respawn safe window),
   `FLIP_CHANCE` (enemy random-flip chance per frame). Uses the site's
@@ -25,15 +42,34 @@ altitude, joust higher than the enemy to win the collision.
 
 ## Most recent pass
 
-Added the admin config pane described above — no gameplay change to the
-defaults.
+**Player feedback: "this is a good standard arcade screen size. we need
+ground covering the lava. we need several respawn nests. The enemies
+have to spawn one at a time at the beginning of a level. Reduce gravity
+by 25%. When an enemy is killed, 25% chance it will drop an egg."** All
+five actionable parts landed together — described above. Gravity: an
+earlier pass already cut it 10% (`GRAV_MUL` 0.9); this request layered a
+further 25% cut on top (`0.9*0.75` = 0.675 total), not a fresh
+standalone 25%. The screen-size line names joust's OWN canvas as the
+reference for a separate, cross-cutting "make every game the same size"
+initiative touching other games — nothing to change here for that part.
 
-Earlier: scaled everything up: hero + enemy sprites doubled (2x), 10%
-less gravity to keep the larger sprites feeling right at the new scale.
-Earlier still: the whole screen/board scaled 50%/25% bigger; enemy AI
-changed from homing to left/right patrol, plus the nest-hatch respawn
-animation and its safe window.
+Earlier: added the admin config pane described above — no gameplay
+change to the defaults at that point.
+
+Earlier still: scaled everything up: hero + enemy sprites doubled (2x),
+10% less gravity to keep the larger sprites feeling right at the new
+scale. Earlier still: the whole screen/board scaled 50%/25% bigger;
+enemy AI changed from homing to left/right patrol, plus the nest-hatch
+respawn animation and its safe window.
 
 ## Open / deferred
 
-Nothing currently open for this game.
+- **"New sprites with more detail, it should be the farmer riding a
+  chicken, fighting other chickens."** Currently `bird()` draws a single
+  simple pixel-art chicken silhouette (comb/beak/wattle/tail + a small
+  rider blob) for both the hero and every enemy, just recoloured. Wants
+  real, more detailed art: a distinct farmer figure actually riding the
+  chicken (not just a small rectangle on its back), and enemies that
+  read as chickens too (currently mostly generic, since they reuse the
+  same `bird()` silhouette recoloured red). A genuine art/design pass,
+  not a quick tint change.
