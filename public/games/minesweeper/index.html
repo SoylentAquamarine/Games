@@ -64,9 +64,10 @@
       clearInterval(timer);timeEl.textContent=0;minesEl.textContent=M;statusEl.textContent="";
       gridEl.style.gridTemplateColumns=`repeat(${N},1fr)`;gridEl.innerHTML="";
       for(let i=0;i<N*N;i++){const d=document.createElement("div");d.className="cell";d.dataset.i=i;
-        d.addEventListener("click",()=>onCell(i));
+        let lp,longPressed=false;
+        d.addEventListener("click",()=>{if(longPressed){longPressed=false;return;}onCell(i);});
         d.addEventListener("contextmenu",e=>{e.preventDefault();toggleFlag(i);});
-        let lp;d.addEventListener("touchstart",()=>{lp=setTimeout(()=>{toggleFlag(i);lp=null;},350);},{passive:true});
+        d.addEventListener("touchstart",()=>{lp=setTimeout(()=>{toggleFlag(i);longPressed=true;lp=null;},350);},{passive:true});
         d.addEventListener("touchend",()=>{if(lp){clearTimeout(lp);}},{passive:true});
         gridEl.appendChild(d);cells.push(d);}
     }

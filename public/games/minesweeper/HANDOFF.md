@@ -12,8 +12,19 @@ suspected mines, numbers show adjacent mine counts.
 
 ## Most recent pass
 
-No dedicated feedback pass yet beyond the original build and the
-site-wide comments-widget rollout.
+Fixed a mobile touch bug: long-pressing a flagged cell to remove the
+flag left a trailing synthetic `click` event (fired by mobile browsers
+after `touchend` when neither `touchstart` nor `touchend` calls
+`preventDefault`) to fall through to the reveal handler, since
+`flags.has(i)` was already false by the time the click ran. This meant
+attempting to *unflag* a cell instead revealed it — if that cell was a
+mine, an "unflag" gesture could cause an unintended game over. Fixed
+by tracking a per-cell `longPressed` flag set when the long-press timer
+fires, and having the `click` handler consume-and-skip once instead of
+calling `onCell`.
+
+Earlier: No dedicated feedback pass yet beyond the original build and
+the site-wide comments-widget rollout.
 
 ## Open / deferred
 
