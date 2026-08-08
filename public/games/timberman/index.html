@@ -36,6 +36,14 @@
 <script>
 (function(){
   const C={ TRUNK_LEN:9, TIMER_MAX:100, TIMER_GAIN:15, TIMER_DRAIN:0.4 };
+  // Admin-tunable difficulty knobs — see /admin/games/?game=timberman.
+  // Same pattern as kaboom (see its HANDOFF.md): explicit allowlist, only
+  // numeric values, safe no-op with no localStorage (headless tests).
+  (function(){ try{
+    const allow=["TRUNK_LEN","TIMER_MAX","TIMER_GAIN","TIMER_DRAIN"];
+    const o=JSON.parse(localStorage.getItem("timberman_config")||"{}");
+    for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
+  }catch(_){} })();
   function genBlock(){ const r=Math.random(); return { branch: r<0.32?"left":r<0.64?"right":"none" }; }
   function newState(){ const trunk=[{branch:"none"},{branch:"none"}]; while(trunk.length<C.TRUNK_LEN) trunk.push(genBlock());
     return { trunk, score:0, timer:C.TIMER_MAX, side:"left", over:false, started:false }; }

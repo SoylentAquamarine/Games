@@ -35,6 +35,14 @@
 <script>
 (function(){
   const C={ COLS:4, W:300, H:420, ROW_H:105, START_SPEED:3.2, MAX_SPEED:8 };
+  // Admin-tunable difficulty knobs — see /admin/games/?game=pianotiles.
+  // Same pattern as kaboom (see its HANDOFF.md): explicit allowlist, only
+  // numeric values, safe no-op with no localStorage (headless tests).
+  (function(){ try{
+    const allow=["START_SPEED","MAX_SPEED"];
+    const o=JSON.parse(localStorage.getItem("pianotiles_config")||"{}");
+    for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
+  }catch(_){} })();
   const NROWS=Math.ceil(C.H/C.ROW_H)+2;
   function makeRow(y){ return { black:Math.floor(Math.random()*C.COLS), tapped:false, y }; }
   function newState(){ const rows=[]; for(let i=0;i<NROWS;i++) rows.push(makeRow(C.H-C.ROW_H-i*C.ROW_H)); // fill from bottom up

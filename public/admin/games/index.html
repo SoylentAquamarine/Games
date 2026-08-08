@@ -789,6 +789,16 @@
       { key:"FLAP", label:"Flap strength (more negative = stronger)", min:-12, max:-2, def:-6.4 },
       { key:"RING_GAP", label:"Spacing between rings", min:80, max:300, def:170 },
     ]},
+    pianotiles:{ storageKey:"pianotiles_config", sub:"Difficulty knobs — takes effect next time the game is opened.", fields:[
+      { key:"START_SPEED", label:"Starting fall speed", min:1, max:10, def:3.2 },
+      { key:"MAX_SPEED", label:"Max fall speed", min:2, max:20, def:8 },
+    ]},
+    timberman:{ storageKey:"timberman_config", sub:"Difficulty knobs — takes effect next time the game is opened.", fields:[
+      { key:"TRUNK_LEN", label:"Visible trunk length (blocks)", min:3, max:20, def:9 },
+      { key:"TIMER_MAX", label:"Timer max", min:20, max:300, def:100 },
+      { key:"TIMER_GAIN", label:"Timer gained per chop", min:1, max:60, def:15 },
+      { key:"TIMER_DRAIN", label:"Timer drain per tick", min:0.05, max:2, def:0.4 },
+    ]},
   };
   let numericInitSlug=null;
   function initNumericEditor(slug){
