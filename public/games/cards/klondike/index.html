@@ -102,7 +102,7 @@
     // Vegas bankroll carries across deals, so it needs a way back to zero.
     function resetBank(){
       if(!confirm("Reset your Vegas bankroll to $0? This clears your running total.")) return;
-      bank=0; committed=true;
+      bank=0;
       try{ localStorage.setItem("klondike_bank","0"); }catch(e){}
       updateScore(); statusEl.textContent="Bankroll reset to $0.";
     }
