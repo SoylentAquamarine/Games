@@ -49,7 +49,23 @@ level editor (`/admin/games/?game=quest`, "Configuration" panel).
 
 ## Most recent pass
 
-**Player feedback: "I want specific sprites for each of the bosses and
+**Player reports: "the speed got way too fast" / "there is a speed
+glitch it will suddenly be like 4x the speed."** Root cause: the "↺ New
+Game" HUD button is always visible, even mid-game, and `newGame()`
+started a fresh `requestAnimationFrame` chain (`running=true;loop()`)
+without cancelling whatever chain was already in flight — unlike
+`gameOver()`/`win()`, which both `cancelAnimationFrame(raf)` first.
+Clicking New Game while already playing stacked a second, fully
+independent `loop()` chain on top of the first, each calling `update()`
+once per real frame — doubling movement speed. A second accidental click
+tripled it, matching the reported sudden 4x speed exactly. Fixed by
+cancelling any in-flight frame before starting a new one.
+
+Also: **"the dungeon weasels seem to drop mostly coins, we need slightly
+more % chance of hearts."** Heart-drop chance among weasel kills raised
+30% → 45%.
+
+Earlier: **player feedback: "I want specific sprites for each of the bosses and
 the main boss is a fox it shuld be a fox with a crown not a chicken
 sprite."** Partially addressed — see "Open / deferred" for what's still
 outstanding. The Fox King (the boss named explicitly) is the one that
@@ -199,6 +215,36 @@ above).
 
 ## Open / deferred
 
+- **"Dungeon weasels need to respawn."** Currently, once a room's weasels
+  (`R.enemies`) are killed within a single dungeon visit, they stay dead
+  for the rest of that visit — walking to another room and back doesn't
+  bring them back (the `rooms` grid for the current dungeon is only
+  rebuilt when the whole dungeon is re-entered via `enterDungeon()`,
+  which DOES reroll fresh weasels for non-custom rooms). Needs a scoping
+  decision before implementing: respawn on every room re-entry (walking
+  out the door and back), respawn after some time delay, or something
+  else — genre convention (this is modeled on Zelda-style dungeons) is
+  usually "cleared stays cleared until you leave the dungeon," so
+  implementing literal in-room respawn is a deliberate departure from
+  that, not just a bug fix.
+- **"The dungeons need to be randomized a bit, keep the boss in the same
+  place but the location of the key needs to be random."** Currently the
+  key always sits at a fixed spot in the goal room (`KEYROOM=[2,2]`,
+  hardcoded item at `{x:7*TILE+8,y:3*TILE+8}` within it) for procedurally
+  generated (non-custom) dungeons. Wants the key's specific tile position
+  randomized per dungeon while the boss room location (`TRI=[0,0]`) stays
+  fixed. Not started — needs to pick a valid floor tile within the key
+  room that isn't inside a wall/rock.
+- **"The weasels are too hard to hit, they never line up with me."** Not
+  yet investigated in depth. Both player and weasel are the same size
+  (24px), and the sword hitbox is a `34×22` rectangle extending from the
+  player in the facing direction — landing a hit requires the weasel to
+  be within that fairly narrow band. Weasels wander with random-direction
+  changes every 30-80 frames (`e.timer`), so alignment can be inconsistent.
+  Possible directions: widen the sword hitbox further, slow/smooth weasel
+  movement, or add a small forgiveness margin to the hit-test — needs
+  more player detail or hands-on testing to pick the right one rather
+  than guessing.
 - **"There is no stairway to climb out of the dungeon"** — left open
   (not archived). The 🚪 Leave HUD button already does exactly this and
   is confirmed working; this may be a discoverability complaint (wants a
