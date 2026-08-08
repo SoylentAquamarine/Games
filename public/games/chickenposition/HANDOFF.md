@@ -29,11 +29,27 @@ that shift the rendered road, an offroad penalty.
   taking priority over the TIME countdown even on the same frame. TIME
   running out (the only way to end a race before this pass) is still a
   loss condition if you don't reach the line first.
+- **Admin-configurable** at `/admin/games/?game=chickenposition`:
+  `MAXSPD`, `ACCEL`, `BRAKE`, `DRAG`, `TIME_START`, `TIME_RATE`. Uses the
+  site's generic numeric-knob config pattern (see kaboom's HANDOFF.md) —
+  saved to `localStorage["chickenposition_config"]`, merged into `C` at
+  boot via an explicit allowlist. **Steering/render constants (`STEER`,
+  `CENTRIFUGAL`, `STEER_SHIFT`, `RENDER_CLAMP`, `CAR_WIDE`, etc.) are
+  deliberately NOT exposed** — the in-code comments document them as
+  carefully coupled to fix the road-vs-collision desync bug described
+  below, and an untested admin combination could reintroduce it. The
+  exposed knobs apply identically across every race in `RACES` since only
+  `track`/`finishDist` vary per-race, not these.
 
 ## Most recent pass
 
-**Player feedback: "needs actual turns, not just slight curves, needs a
-finish line and different races."** All three landed together:
+Added admin-configurable difficulty knobs (see above) as part of the
+site-wide numeric-knob config rollout — no player feedback prompted this,
+just extending an existing pattern to a game that already had a suitable
+`C` object.
+
+Earlier: **player feedback: "needs actual turns, not just slight curves,
+needs a finish line and different races."** All three landed together:
 
 1. Replaced the single continuous sine-blend course with the segment
    system described above — the whole track used to read as one gentle,
