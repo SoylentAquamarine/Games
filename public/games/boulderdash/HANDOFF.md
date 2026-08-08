@@ -22,8 +22,17 @@ boulders, collect eggs, reach the exit.
 
 ## Most recent pass
 
-Added the admin config pane described above — no gameplay change to the
-defaults.
+**Bug fix (found in a code-review pass, not player-reported): a boulder
+rolling sideways could crush the player unnoticed.** `physicsStep()`'s
+straight-down fall branch already checked whether it landed on the
+player and set `s.crushed`, but the sideways roll-off branch (a boulder
+rolling off another boulder/gem) had no such check — since the player's
+own occupied cell reads as `"empty"` in the grid, a boulder could
+silently roll onto the exact cell the player stands in. Added the same
+player-position check to both roll-off destinations.
+
+Earlier: added the admin config pane described above — no gameplay
+change to the defaults.
 
 Earlier: migrated the flyby cameo to `/mascots.js` (`Mascots.spacesuitChickenFlying`)
 as part of a site-wide sweep — see the root `HANDOFF.md`'s mascots.js

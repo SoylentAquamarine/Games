@@ -27,7 +27,18 @@ beam can capture your ship (rescuable for a dual-ship power-up).
 
 ## Most recent pass
 
-Two player comments:
+**Bug fix (found in a code-review pass, not player-reported): overlapping
+divers could cost two lives for one collision.** A new dive can launch
+every ~30 frames while a dive takes far longer than that to cross the
+screen, so multiple divers are routinely in flight together — it's
+normal, not an edge case, for two of them to both reach the player's
+hitbox on the same tick. `step()`'s enemy loop decremented `s.lives`
+directly for every colliding enemy with no per-frame guard, so that
+ordinary overlap cost two (or more) lives for what reads as a single
+hit. Added a `hitThisFrame` guard shared by the beam-capture and
+dive-collision paths so at most one life is lost per frame.
+
+Earlier: two player comments:
 
 1. **"the enemies need to be chickens."** Replaced the plain recoloured
    rectangle with the chicken silhouette described above.

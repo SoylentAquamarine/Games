@@ -35,7 +35,16 @@ Moon Patrol-style side-scrolling buggy: jump craters, three-way fire
 
 ## Most recent pass
 
-**Player feedback: "figure out a way to make this more like moon patrol.
+**Bug fix (found in a code-review pass, not player-reported): rock-kill
+and flyby score bonuses were wiped every frame.** `step()` set
+`s.score=Math.floor(s.dist/10)` as a flat reassignment every single
+frame, then added rock-kill (+25) / flyby (+500) bonuses on top for that
+frame only. The very next frame's reassignment silently erased those
+bonuses — the visible score would drop right back down immediately after
+a kill, every time. Now tracks a `distScore` baseline and adds only the
+incremental delta each frame, so bonuses persist.
+
+Earlier: **player feedback: "figure out a way to make this more like moon patrol.
 Make the space bar fire and the up arrow jump. Left and right should
 move the car each direction a little, while the screen is still rolling
 a constant speed. Original game has levels i think, research that."**

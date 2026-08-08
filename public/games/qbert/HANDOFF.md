@@ -27,10 +27,21 @@ hunters, use warp pads to escape.
 
 ## Most recent pass
 
-Added the admin config pane described above — no gameplay change to the
-defaults.
+**Bug fix (found in a code-review pass, not player-reported): dying on
+the final cube could silently complete the level.** `hop()` coated the
+landing cube with color BEFORE checking for an enemy on that cell.
+Getting caught returned early via `loseChicken`, skipping the `done(s)`
+check for that hop — but the cube's color was already mutated, so the
+board could become secretly "done" underneath a death. The very next
+completely ordinary hop would then re-trigger `done(s)===true` and
+silently award a bogus level-complete bonus and advance the level. Moved
+the enemy-collision check before the cube-coloring logic so a caught hop
+never touches the cube.
 
-Earlier: migrated only the flyby cameo (#1 above) to `/mascots.js` as
+Earlier: added the admin config pane described above — no gameplay
+change to the defaults.
+
+Earlier still: migrated only the flyby cameo (#1 above) to `/mascots.js` as
 part of a site-wide sweep — see the root `HANDOFF.md`'s mascots.js
 entry. The player's hero-avatar sprite (#2) is untouched.
 
