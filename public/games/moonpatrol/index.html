@@ -33,13 +33,14 @@
   <div class="hud"><span>Score: <b id="score">0</b></span><span>Chickens: <b id="lives">🐔🐔🐔</b></span><span>Best: <b id="best">0</b></span></div>
   <canvas id="game" width="720" height="360"></canvas>
   <div class="msg" id="msg">Jump craters, shoot the rocks. Keep the buggy rolling!</div>
-  <div class="ctl"><button class="cbtn" id="bjump">▲ JUMP</button><button class="cbtn fire" id="bfire">FIRE</button></div>
-  <div class="hint">Space/↑ jump · F/Ctrl or FIRE to shoot · tap canvas to jump</div>
+  <div class="ctl"><button class="cbtn" id="bleft">◀</button><button class="cbtn" id="bjump">▲ JUMP</button><button class="cbtn" id="bright">▶</button><button class="cbtn fire" id="bfire">FIRE</button></div>
+  <div class="hint">Space fires · ↑ jumps · ←/→ nudge the buggy — the road keeps rolling at its own pace · tap canvas to jump</div>
 </div>
 <script src="/arcade.js"></script>
 <script>
 (function(){
-  const C={ W:720,H:360, GROUND:316, BUGGY_X:70, BW:44, BH:22, GRAV:0.7, JUMP_V:-11, SPEED0:3.2, SPEEDMAX:6.5, BSPEED:9, MAX_VOLLEYS:2, CHICKENS:3, EXTRA:1500, BOARD_DIST:5000, FLYBY_SCORE:500 };
+  const C={ W:720,H:360, GROUND:316, BUGGY_X:70, BW:44, BH:22, GRAV:0.7, JUMP_V:-11, SPEED0:3.2, SPEEDMAX:6.5, BSPEED:9, MAX_VOLLEYS:2, CHICKENS:3, EXTRA:1500, BOARD_DIST:5000, FLYBY_SCORE:500,
+             BUGGY_MOVE:3, BUGGY_RANGE:44 };   // how far left/right the buggy can nudge from BUGGY_X — the screen itself always scrolls at s.speed, untouched by steering
   // Admin-tunable difficulty knobs — see /admin/games/?game=moonpatrol.
   // Same pattern as kaboom (see its HANDOFF.md): explicit allowlist, only
   // numeric values, safe no-op with no localStorage (headless tests).
@@ -49,7 +50,7 @@
     for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
   }catch(_){} })();
   const rov=(a,b)=>a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;
-  function buggyRect(s){ return {x:C.BUGGY_X,y:s.y,w:C.BW,h:C.BH}; }
+  function buggyRect(s){ return {x:s.x,y:s.y,w:C.BW,h:C.BH}; }
   // Three background bands scrolling at different rates — distant hills barely
   // move, near dunes rush past, which is what sells the speed.
   const LAYERS=[
@@ -57,9 +58,15 @@
     { speed:0.30, y:C.GROUND-62, h:48, color:"#33244f", step:104, amp:24 },
     { speed:0.62, y:C.GROUND-30, h:30, color:"#432f63", step:70,  amp:15 },
   ];
-  function newState(){ return { y:C.GROUND-C.BH, vy:0, onGround:true, obstacles:[], bullets:[], scroll:[0,0,0], speed:C.SPEED0, dist:0, score:0, lives:C.CHICKENS, nextExtra:C.EXTRA, gotExtra:0, board:1, over:false, spawnGap:60, volleys:0, nextVid:0, justCrashed:false, newBoard:false, flyby:null, flybyDone:false }; }
+  function newState(){ return { x:C.BUGGY_X, y:C.GROUND-C.BH, vy:0, onGround:true, obstacles:[], bullets:[], scroll:[0,0,0], speed:C.SPEED0, dist:0, score:0, lives:C.CHICKENS, nextExtra:C.EXTRA, gotExtra:0, board:1, over:false, spawnGap:60, volleys:0, nextVid:0, justCrashed:false, newBoard:false, flyby:null, flybyDone:false }; }
   function step(s, input){
     if(s.over) return s;
+    // Player feedback: "left and right should move the car each direction a
+    // little, while the screen is still rolling a constant speed." The
+    // buggy can nudge within BUGGY_RANGE of its base BUGGY_X; s.speed (the
+    // world's forward scroll) is completely untouched by this.
+    if(input.left)  s.x=Math.max(C.BUGGY_X-C.BUGGY_RANGE, s.x-C.BUGGY_MOVE);
+    if(input.right) s.x=Math.min(C.BUGGY_X+C.BUGGY_RANGE, s.x+C.BUGGY_MOVE);
     // buggy vertical
     if(input.jump && s.onGround){ s.vy=C.JUMP_V; s.onGround=false; }
     if(!s.onGround){ s.vy+=C.GRAV; s.y+=s.vy; const floor=C.GROUND-C.BH; if(s.y>=floor){ s.y=floor; s.vy=0; s.onGround=true; } }
@@ -102,20 +109,20 @@
     for(const o of s.obstacles){
       if(o.type==="rock"){ if(rov(br,{x:o.x,y:o.y,w:o.w,h:o.h})){ crash(s); return s; } }
       else if(o.type==="crater"){ // fall in if on the ground and horizontally over the pit
-        if(s.onGround && C.BUGGY_X+C.BW>o.x+4 && C.BUGGY_X<o.x+o.w-4){ crash(s); return s; } }
+        if(s.onGround && s.x+C.BW>o.x+4 && s.x<o.x+o.w-4){ crash(s); return s; } }
     }
     return s;
   }
-  function crash(s){ s.lives--; s.justCrashed=true; if(s.lives<=0){ s.over=true; } else { s.obstacles=[]; s.bullets=[]; s.y=C.GROUND-C.BH; s.vy=0; s.onGround=true; } }
+  function crash(s){ s.lives--; s.justCrashed=true; if(s.lives<=0){ s.over=true; } else { s.obstacles=[]; s.bullets=[]; s.x=C.BUGGY_X; s.y=C.GROUND-C.BH; s.vy=0; s.onGround=true; } }
   // One press fires three ways at once: ahead, behind, and straight up.
   // Forward and back clear rocks; the upward shot is what reaches the hawks.
   function fire(s){
     if(s.over) return s;
     if(new Set(s.bullets.map(b=>b.vid)).size>=C.MAX_VOLLEYS) return s;
     const vid=++s.nextVid;
-    s.bullets.push({ vid, x:C.BUGGY_X+C.BW,   y:s.y+4, vx: C.BSPEED, vy:0,         dir:"fwd" });
-    s.bullets.push({ vid, x:C.BUGGY_X-6,      y:s.y+4, vx:-C.BSPEED, vy:0,         dir:"back" });
-    s.bullets.push({ vid, x:C.BUGGY_X+C.BW/2, y:s.y-4, vx:0,         vy:-C.BSPEED, dir:"up" });
+    s.bullets.push({ vid, x:s.x+C.BW,   y:s.y+4, vx: C.BSPEED, vy:0,         dir:"fwd" });
+    s.bullets.push({ vid, x:s.x-6,      y:s.y+4, vx:-C.BSPEED, vy:0,         dir:"back" });
+    s.bullets.push({ vid, x:s.x+C.BW/2, y:s.y-4, vx:0,         vy:-C.BSPEED, dir:"up" });
     return s;
   }
   function spawn(s){ if(Math.random()<0.5){ const w=18+Math.floor(Math.random()*16); s.obstacles.push({type:"crater",x:C.W,y:C.GROUND,w,h:C.H-C.GROUND}); }
@@ -127,7 +134,7 @@
   const cv=$("game"), ctx=cv.getContext("2d"); const W=C.W,H=C.H;
   // Hold the loop until the player asks for it (comment: Press Spacebar To Begin)
   const GATE = Arcade.startGate(cv, "Moon Chicken");
-  let s=newState(), input={jump:false}, best=0, stars=[], wheel=0;
+  let s=newState(), input={jump:false,left:false,right:false}, best=0, stars=[], wheel=0;
   try{ best=parseInt(localStorage.getItem("moon_best")||"0")||0; }catch(e){}
   for(let i=0;i<40;i++) stars.push({x:Math.random()*W,y:Math.random()*C.GROUND*0.8});
 
@@ -172,14 +179,14 @@
     }
     // buggy
     wheel=(wheel+s.speed*0.3)%(Math.PI*2);
-    ctx.fillStyle="#22d3ee"; ctx.fillRect(C.BUGGY_X,s.y,C.BW,C.BH-6); ctx.fillRect(C.BUGGY_X+8,s.y-8,C.BW-20,10);
+    ctx.fillStyle="#22d3ee"; ctx.fillRect(s.x,s.y,C.BW,C.BH-6); ctx.fillRect(s.x+8,s.y-8,C.BW-20,10);
     // hen at the wheel, poking out of the cockpit
-    { const hx=C.BUGGY_X+C.BW/2-2, hy=s.y-12;
+    { const hx=s.x+C.BW/2-2, hy=s.y-12;
       ctx.fillStyle="#dc2626"; ctx.fillRect(hx-3,hy-5,2,3); ctx.fillRect(hx,hy-6,2,4); ctx.fillRect(hx+3,hy-5,2,3);
       ctx.fillStyle="#facc15"; ctx.beginPath(); ctx.arc(hx,hy,5,0,7); ctx.fill();
       ctx.fillStyle="#0b1030"; ctx.fillRect(hx-3,hy-2,2,2); ctx.fillRect(hx+1,hy-2,2,2);
       ctx.fillStyle="#fb923c"; ctx.fillRect(hx+4,hy,4,2); }
-    ctx.fillStyle="#0b0c1a"; for(const wx of [C.BUGGY_X+9,C.BUGGY_X+C.BW-9]){ ctx.beginPath(); ctx.arc(wx,s.y+C.BH-4,6,0,7); ctx.fill(); ctx.strokeStyle="#5a5f7a"; ctx.beginPath(); ctx.moveTo(wx,s.y+C.BH-4); ctx.lineTo(wx+Math.cos(wheel)*5,s.y+C.BH-4+Math.sin(wheel)*5); ctx.stroke(); }
+    ctx.fillStyle="#0b0c1a"; for(const wx of [s.x+9,s.x+C.BW-9]){ ctx.beginPath(); ctx.arc(wx,s.y+C.BH-4,6,0,7); ctx.fill(); ctx.strokeStyle="#5a5f7a"; ctx.beginPath(); ctx.moveTo(wx,s.y+C.BH-4); ctx.lineTo(wx+Math.cos(wheel)*5,s.y+C.BH-4+Math.sin(wheel)*5); ctx.stroke(); }
     if(banner>0){ ctx.fillStyle="#facc15"; ctx.font="bold 22px system-ui"; ctx.textAlign="center"; ctx.fillText("BOARD "+s.board,W/2,64); }
     if(s.over){ ctx.fillStyle="rgba(0,0,0,.6)"; ctx.fillRect(0,0,W,H); ctx.fillStyle="#f43f5e"; ctx.font="bold 24px system-ui"; ctx.textAlign="center"; ctx.fillText("GAME OVER",W/2,H/2-6); ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Score "+s.score+"  ·  Best "+best,W/2,H/2+16); }
   }
@@ -195,7 +202,7 @@
       if(s.newBoard){ s.newBoard=false; banner=110; if(typeof Arcade!=="undefined") Arcade.sfx.wave(); $("msg").textContent="Board "+s.board+"!"; }
       if(s.flybyHit){ s.flybyHit=false; if(typeof Arcade!=="undefined") Arcade.sfx.win(); $("msg").textContent="🚀 Space chicken! +"+C.FLYBY_SCORE; }
       if(s.justCrashed){ s.justCrashed=false;
-        dying=70; debris=[]; const bx=C.BUGGY_X+C.BW/2, by=s.y+C.BH/2;
+        dying=70; debris=[]; const bx=s.x+C.BW/2, by=s.y+C.BH/2;
         for(let i=0;i<16;i++){ const a=Math.random()*Math.PI*2, sp=1.4+Math.random()*3.2;
           debris.push({x:bx,y:by,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-1.6,life:70,rot:Math.random()*7,vr:(Math.random()-0.5)*0.5}); }
         if(typeof Arcade!=="undefined") Arcade.sfx.explode();
@@ -208,12 +215,29 @@
   let dying=0, debris=[], banner=0;
   function renderChix(){ $("lives").textContent="🐔".repeat(Math.max(0,s.lives)); }
   function jump(){ if(!s.over && dying<=0) input.jump=true; }
-  addEventListener("keydown",(e)=>{ if(e.key===" "||e.key==="ArrowUp"||e.key==="w"){ e.preventDefault(); jump(); } else if(e.key==="f"||e.key==="Control"){ e.preventDefault(); fire(s); } });
+  // Player feedback: "make the space bar fire and the up arrow jump. Left
+  // and right should move the car each direction a little, while the
+  // screen is still rolling a constant speed." Space used to also jump;
+  // now it's fire-only, ArrowUp/W are jump-only, and Left/Right are new
+  // held (not edge-triggered) inputs that nudge s.x — see step().
+  addEventListener("keydown",(e)=>{
+    if(e.key==="ArrowUp"||e.key==="w"){ e.preventDefault(); jump(); }
+    else if(e.key===" "||e.key==="f"||e.key==="Control"){ e.preventDefault(); fire(s); }
+    else if(e.key==="ArrowLeft"||e.key==="a"){ e.preventDefault(); input.left=true; }
+    else if(e.key==="ArrowRight"||e.key==="d"){ e.preventDefault(); input.right=true; }
+  });
+  addEventListener("keyup",(e)=>{
+    if(e.key==="ArrowLeft"||e.key==="a") input.left=false;
+    else if(e.key==="ArrowRight"||e.key==="d") input.right=false;
+  });
   cv.addEventListener("touchstart",(e)=>{ e.preventDefault(); jump(); },{passive:false});
-  const jb=$("bjump"), fb=$("bfire");
+  const jb=$("bjump"), fb=$("bfire"), lb=$("bleft"), rb=$("bright");
   jb.addEventListener("touchstart",(e)=>{e.preventDefault();jump();},{passive:false}); jb.addEventListener("mousedown",jump);
   fb.addEventListener("touchstart",(e)=>{e.preventDefault();fire(s);},{passive:false}); fb.addEventListener("mousedown",()=>fire(s));
-  $("new").addEventListener("click",()=>{ s=newState(); input={jump:false}; dying=0; debris=[]; banner=0; renderChix(); $("msg").textContent="Jump craters, shoot the rocks!"; });
+  const bindHold=(el,k)=>{ const on=(e)=>{e.preventDefault();input[k]=true;}; const off=(e)=>{e.preventDefault();input[k]=false;};
+    el.addEventListener("touchstart",on,{passive:false}); el.addEventListener("touchend",off); el.addEventListener("mousedown",on); el.addEventListener("mouseup",off); el.addEventListener("mouseleave",off); };
+  bindHold(lb,"left"); bindHold(rb,"right");
+  $("new").addEventListener("click",()=>{ s=newState(); input={jump:false,left:false,right:false}; dying=0; debris=[]; banner=0; renderChix(); $("msg").textContent="Jump craters, shoot the rocks!"; });
   requestAnimationFrame(frame);
 })();
 </script>
