@@ -33,6 +33,14 @@
 (function(){
   const COLORS=["#f43f5e","#22d3ee","#8ad48a","#ffcf5a"];
   const C={ W:320,H:480, GRAVITY:0.34, FLAP:-6.4, BALL_R:9, RING_GAP:170, RING_R:56 };
+  // Admin-tunable difficulty knobs — see /admin/games/?game=colorswitch.
+  // Same pattern as kaboom (see its HANDOFF.md): explicit allowlist, only
+  // numeric values, safe no-op with no localStorage (headless tests).
+  (function(){ try{
+    const allow=["GRAVITY","FLAP","RING_GAP"];
+    const o=JSON.parse(localStorage.getItem("colorswitch_config")||"{}");
+    for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
+  }catch(_){} })();
   function perm(){ const a=[0,1,2,3]; for(let i=3;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
   function makeRing(y){ return { y, rot:Math.random()*Math.PI*2, spin:(Math.random()<.5?1:-1)*(0.03+Math.random()*0.02), colors:perm(), passed:false }; }
   function makeStar(y){ return { y, color:Math.floor(Math.random()*4), taken:false }; }

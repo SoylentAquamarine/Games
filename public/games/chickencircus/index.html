@@ -53,6 +53,14 @@
     LIVES:3,
     SOLID_CATCH:0.55,      // catch quality above this = a predictable outward launch; below = a random hop
   };
+  // Admin-tunable difficulty knobs — see /admin/games/?game=chickencircus.
+  // Same pattern as kaboom (see its HANDOFF.md): explicit allowlist, only
+  // numeric values, safe no-op with no localStorage (headless tests).
+  (function(){ try{
+    const allow=["LIVES","GRAV","SEESAW_SPEED","ROW_GAP"];
+    const o=JSON.parse(localStorage.getItem("chickencircus_config")||"{}");
+    for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
+  }catch(_){} })();
   const ROW_POINTS=[30,20,10];                 // top row is worth the most
   const ROW_COLOR=["#f472b6","#38bdf8","#facc15"];
   const clamp=(v,a,b)=>v<a?a:v>b?b:v;
