@@ -113,6 +113,12 @@
     for(const b of s.bullets) b.y-=C.BSPEED;
     s.bullets=s.bullets.filter(b=>b.y>-12);
     // formation sway + dives
+    // A new dive can launch every ~30 frames while a dive takes far longer
+    // than that to cross the screen, so multiple divers are routinely in
+    // flight together — it's normal, not an edge case, for two of them to
+    // both reach the player's hitbox on the same tick. Guard against that
+    // costing two lives (or more) for what reads as a single collision.
+    let hitThisFrame=false;
     for(const e of s.enemies){ if(!e.alive) continue;
       if(e.state==="enter"){ enterStep(e); }
       else if(e.state==="form"){ e.x=e.fx+Math.sin(s.sway)*10; e.y=e.fy; }
@@ -131,7 +137,7 @@
             s.captured=true; e.hasShip=true; e.beamT=0; e.returning=true;
             s.pull={ x:s.px, y:C.PLY, tx:e.x, ty:e.y+C.EH, t:C.PULL_T };
             if(typeof Arcade!=="undefined")Arcade.sfx.death();
-            s.lives--; if(s.lives<=0){ s.over=true; return s; }
+            if(!hitThisFrame){ hitThisFrame=true; s.lives--; if(s.lives<=0){ s.over=true; return s; } }
             s.px=C.W/2;
             // Player feedback: "when the enemy captures the hero, it needs
             // to trigger a second ship like if the life was lost." A life
@@ -148,7 +154,7 @@
       }
       else { e.t+=0.05; e.y+=C.ESPEED+s.wave*0.15; e.x=e.diveX+Math.sin(e.t*4)*46;
         if(e.y>C.H+20){ e.y=-10; e.state="form"; } // looped back to formation
-        if(rov(enemyRect(e),{x:s.px-C.PW/2,y:C.PLY-C.PH/2,w:C.PW,h:C.PH})){ e.alive=false; if(typeof Arcade!=="undefined")Arcade.sfx.death(); s.lives--; if(s.lives<=0) s.over=true; }
+        if(rov(enemyRect(e),{x:s.px-C.PW/2,y:C.PLY-C.PH/2,w:C.PW,h:C.PH})){ e.alive=false; if(typeof Arcade!=="undefined")Arcade.sfx.death(); if(!hitThisFrame){ hitThisFrame=true; s.lives--; if(s.lives<=0) s.over=true; } }
       }
     }
     const entering = s.enemies.some(e=>e.alive&&e.state==="enter");
