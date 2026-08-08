@@ -26,10 +26,22 @@ they land, keep your cities standing.
   deliberately NOT exposed** — it's tied to the fixed 6-entry `CITY_X`
   array of x-positions; overriding it alone would desync city
   rendering/damage indexing.
+- **Renders at a bigger, standard-size screen.** `C.W`/`C.H` (360x300)
+  stay the LOGICAL/gameplay coordinate system — every draw call and
+  `canvasXY`'s click-mapping keep working unchanged. `LOGICAL_W`/
+  `LOGICAL_H` capture that size before the canvas backing store is scaled
+  up (`RENDER_SCALE=480/LOGICAL_W`) and further scaled for
+  `devicePixelRatio`, via a single `ctx.scale()` at setup — the same
+  pattern used for chickenjhong's tile-clarity fix.
 
 ## Most recent pass
 
-**Player feedback: "difficulty curve too difficult, the bonus chicken
+**Player feedback: "screen needs to be bigger, need standard arcade
+screen size."** The bigger-screen change described above — CSS display
+cap raised from 420px to the site's common 560px, backing store scaled
+to match plus devicePixelRatio.
+
+Earlier: **player feedback: "difficulty curve too difficult, the bonus chicken
 round is 10x as difficult as it should be, space them out and make them
 not shoot, the rounds get EXTREMELY difficult too quickly."** Three
 changes:
