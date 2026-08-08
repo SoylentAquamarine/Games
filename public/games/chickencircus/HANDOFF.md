@@ -15,13 +15,23 @@ landing end, time the catch.
   pass (`fix(chickencircus): game no longer halts` / `fix(pool): could
   not get out of cue-ball placement`) — worth checking together if either
   regresses.
+- **Admin-configurable** at `/admin/games/?game=chickencircus`: `LIVES`,
+  `GRAV` (fall gravity), `SEESAW_SPEED`, `ROW_GAP` (balloon row spacing).
+  Uses the site's generic numeric-knob config pattern (see kaboom's
+  HANDOFF.md) — saved to `localStorage["chickencircus_config"]`, merged
+  into `C` at boot via an explicit allowlist.
 
 ## Most recent pass
 
-Launch physics reworked to fling toward the corner of the landing end
-with the square-catch/near-miss-hop split. Earlier: fixed the game
-halting outright, and the chicken now waits on the ground end between
-launches instead of an undefined idle state.
+Added admin-configurable difficulty knobs (see above) as part of the
+site-wide numeric-knob config rollout — no player feedback prompted this,
+just extending an existing pattern to a game that already had a suitable
+`C` object.
+
+Earlier: launch physics reworked to fling toward the corner of the
+landing end with the square-catch/near-miss-hop split. Before that: fixed
+the game halting outright, and the chicken now waits on the ground end
+between launches instead of an undefined idle state.
 
 ## Open / deferred
 
