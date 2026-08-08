@@ -32,12 +32,20 @@ points, avoid slicing bombs, don't let fruit fall uncaught.
 
 ## Most recent pass
 
-Added admin-configurable difficulty knobs (see above) as part of the
-site-wide numeric-knob config rollout — no player feedback prompted this,
-just extending an existing pattern to a game that already had a suitable
-`C` object.
+**Bug fix (found in a code-review pass, not player-reported): a swipe
+crossing a bomb kept scoring fruit after game over.** `sliceSegment()`
+looped over all fruit unconditionally. If a single swipe crossed a bomb
+and a regular fruit (bomb earlier in the fruits array), hitting the bomb
+correctly set `s.over=true`, but the loop kept going and still scored
+the fruit after it, inflating the final score post-game-over. Added a
+`break` right after the bomb sets `s.over`.
 
-Earlier: no player-feedback pass yet — this HANDOFF.md was created as
+Earlier: added admin-configurable difficulty knobs (see above) as part of
+the site-wide numeric-knob config rollout — no player feedback prompted
+this, just extending an existing pattern to a game that already had a
+suitable `C` object.
+
+Earlier still: no player-feedback pass yet — this HANDOFF.md was created as
 part of a documentation sweep (see the root HANDOFF.md's "Per-game
 HANDOFF.md rollout" note). Everything under "What's here" reflects the
 game as originally built.

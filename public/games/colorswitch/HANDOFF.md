@@ -28,12 +28,24 @@ rings, but only through the arc segment matching your current color.
 
 ## Most recent pass
 
-Added admin-configurable difficulty knobs (see above) as part of the
-site-wide numeric-knob config rollout — no player feedback prompted this,
-just extending an existing pattern to a game that already had a suitable
-`C` object.
+**Bug fix (found in a code-review pass, not player-reported): passing a
+ring checked the wrong color segment.** `gateColorIndex()` decided
+pass/fail by finding which segment index contained the ring's raw
+rotation value (`r.rot`) — not a meaningful query. What matters is which
+quarter-arc is actually drawn at the top of the ring (world angle
+`-PI/2`), since that's the point the ball's vertical flight path
+crosses. The old formula drifted in the opposite rotational direction
+from the true top segment, disagreeing with what's on screen roughly
+half the time — the game could kill you for a color that visually looked
+correct, or pass you through on one that didn't. Fixed by solving for
+the segment containing world angle `-PI/2` relative to `r.rot`.
 
-Earlier: no player-feedback pass yet — this HANDOFF.md was created as
+Earlier: added admin-configurable difficulty knobs (see above) as part of
+the site-wide numeric-knob config rollout — no player feedback prompted
+this, just extending an existing pattern to a game that already had a
+suitable `C` object.
+
+Earlier still: no player-feedback pass yet — this HANDOFF.md was created as
 part of a documentation sweep (see the root HANDOFF.md's "Per-game
 HANDOFF.md rollout" note). Everything under "What's here" reflects the
 game as originally built.
