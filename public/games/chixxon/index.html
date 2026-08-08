@@ -56,6 +56,14 @@
     HP:3, LIVES:3, INV_FRAMES:80, DEAD_FRAMES:120,
     BOSS_HP:12,
   };
+  // Admin-tunable difficulty knobs — see /admin/games/?game=chixxon.
+  // Same pattern as kaboom (see its HANDOFF.md): explicit allowlist, only
+  // numeric values, safe no-op with no localStorage (headless tests).
+  (function(){ try{
+    const allow=["LIVES","HP","SCROLL_BASE","SPAWN_GAP_BASE","BOSS_HP"];
+    const o=JSON.parse(localStorage.getItem("chixxon_config")||"{}");
+    for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
+  }catch(_){} })();
   function screenY(alt){ return C.GROUND_Y - alt*(C.GROUND_Y-C.SKY_Y); }
 
   // Splashes are plain data — shaped exactly like Arcade.splash's objects so the

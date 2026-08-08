@@ -771,6 +771,13 @@
       { key:"BUMP_BOOST", label:"Bumper bounce strength", min:1, max:6, def:2.6 },
       { key:"FLIP_IMPULSE", label:"Flipper strength", min:2, max:12, def:5.5 },
     ]},
+    chixxon:{ storageKey:"chixxon_config", sub:"Difficulty knobs — takes effect next time the game is opened.", fields:[
+      { key:"LIVES", label:"Starting lives", min:1, max:9, def:3 },
+      { key:"HP", label:"Hits before a life is lost", min:1, max:9, def:3 },
+      { key:"SCROLL_BASE", label:"Scroll speed", min:0.5, max:8, def:2.6 },
+      { key:"SPAWN_GAP_BASE", label:"Obstacle spawn gap (lower is denser)", min:40, max:400, def:130 },
+      { key:"BOSS_HP", label:"Boss hit points", min:1, max:50, def:12 },
+    ]},
   };
   let numericInitSlug=null;
   function initNumericEditor(slug){
