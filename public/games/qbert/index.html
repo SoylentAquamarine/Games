@@ -125,6 +125,15 @@
     }
 
     s.q=t;
+    // Check for a hunter on the landing cube BEFORE coating it — getting
+    // caught shouldn't still coat the cube. Coating it first (the old order)
+    // let the board become secretly "done" underneath a collision death: the
+    // early return here skipped the done(s) check for this hop, but the
+    // cube stayed coated, so the very next unrelated hop would silently
+    // re-trigger done(s)==true and award a bogus level-complete bonus.
+    for(const e of s.enemies){
+      if(e.row===t.row && e.col===t.col) return loseChicken(s);
+    }
     const cur=s.cube[t.row][t.col];
     if(p.toggle){
       s.cube[t.row][t.col] = cur>0 ? 0 : 1;      // land again and the coat comes off
@@ -133,10 +142,6 @@
       s.cube[t.row][t.col]=cur+1; s.score+=25;
     }
     // a cube already at its final coat is left exactly as it is
-
-    for(const e of s.enemies){
-      if(e.row===t.row && e.col===t.col) return loseChicken(s);
-    }
     awardExtras(s);
     if(done(s)){ s.score+=100*p.level; s.level++; resetBoard(s); awardExtras(s); }
     return s;
