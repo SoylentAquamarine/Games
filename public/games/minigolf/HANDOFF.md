@@ -28,14 +28,28 @@ full course designer on the admin Game Admin page.
 - Traps (sand/water) are irregular blobs (`blobPoints`/`inBlob`), not
   rectangles — the outline is deterministic from the trap's own position
   so the drawn shape and the physics hit-test are always identical.
+- **Renders at a bigger, standard-size screen.** `W`/`H` (`C.W`/`C.H`,
+  320x420) stay the LOGICAL/gameplay coordinate system — every draw call
+  and `pos()`'s click-mapping keep working unchanged. `LOGICAL_W`/
+  `LOGICAL_H` capture that size before the canvas backing store is scaled
+  up (`RENDER_SCALE=480/LOGICAL_W`) and further scaled for
+  `devicePixelRatio`, via a single `ctx.scale()` at setup — the same
+  pattern used for missilecommand and chickenjhong.
 
 ## Most recent pass
 
-**Player feedback: "I don't like the striped green background, make it
-a solid color, the lighter of the two greens is nice."** The fairway
-used to be a mowed-lawn stripe pattern (`#1a5a2a` base with `#176a2c`
-stripes every 24px); now a single flat `fillRect` in the lighter shade.
-Traps, walls, the hole, and everything else are unchanged.
+**Player feedback: "screen should be standard video game size."** The
+bigger-screen change described above — CSS display cap raised from
+420px to 480px (the viewport-height budget term from the earlier
+"fit the whole green on screen" pass is untouched), backing store
+scaled to match plus devicePixelRatio.
+
+Earlier: **player feedback: "I don't like the striped green background,
+make it a solid color, the lighter of the two greens is nice."** The
+fairway used to be a mowed-lawn stripe pattern (`#1a5a2a` base with
+`#176a2c` stripes every 24px); now a single flat `fillRect` in the
+lighter shade. Traps, walls, the hole, and everything else are
+unchanged.
 
 ## Earlier pass — three rounds of player feedback
 
