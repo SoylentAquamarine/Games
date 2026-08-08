@@ -58,8 +58,7 @@
       // scramble with many random legal slides -> always solvable
       let last=-1;for(let k=0;k<N*N*80;k++){const opts=neighborsOfBlank().filter(i=>i!==last);const pick=opts[Math.floor(Math.random()*opts.length)];
         last=blank;board[blank]=board[pick];board[pick]=0;blank=pick;}
-      if(isSolved()){board[0]=board[1];board[1]=0;} // avoid starting solved (swap keeps solvable? re-shuffle safer)
-      if(isSolved())return shuffle();
+      if(isSolved())return shuffle(); // avoid starting solved -- just re-shuffle, don't hand-edit the board (that left two blank tiles and destroyed a numbered tile)
       moves=0;over=false;secs=0;started=false;clearInterval(timer);timeEl.textContent="0:00";movesEl.textContent=0;statusEl.textContent="Slide tiles into order.";render();}
     function isSolved(){for(let i=0;i<N*N-1;i++)if(board[i]!==i+1)return false;return board[N*N-1]===0;}
     function build(){gridEl.style.gridTemplateColumns=`repeat(${N},1fr)`;gridEl.innerHTML="";cells=[];

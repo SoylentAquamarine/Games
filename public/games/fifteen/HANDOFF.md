@@ -24,10 +24,21 @@ single blank space, with selectable 3x3/4x4/5x5 board sizes.
 
 ## Most recent pass
 
-No player-feedback pass yet — this HANDOFF.md was created as part of a
-documentation sweep (see the root HANDOFF.md's "Per-game HANDOFF.md
-rollout" note). Everything under "What's here" reflects the game as
-originally built.
+Bug-hunt pass: `shuffle()`'s "avoid starting solved" safeguard used to
+hand-patch the board (`board[0]=board[1];board[1]=0;`) without updating
+the `blank` index when the random-slide shuffle happened to land back on
+the solved state. That left two blank tiles on the board and permanently
+destroyed a numbered tile, making the puzzle unsolvable for that session
+— rare (needs the shuffle to randomly return to solved), confirmed via a
+200k-trial repro at N=3 (1 corruption in 200k). Fixed by just recursing
+into `shuffle()` again instead of hand-editing the board; the existing
+`if(isSolved())return shuffle();` fallback line already did this
+correctly, so the buggy line was simply redundant and wrong.
+
+Earlier: no player-feedback pass yet — this HANDOFF.md was created as
+part of a documentation sweep (see the root HANDOFF.md's "Per-game
+HANDOFF.md rollout" note). Everything under "What's here" reflects the
+game as originally built.
 
 ## Open / deferred
 
