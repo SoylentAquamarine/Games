@@ -21,7 +21,7 @@
   .hud{width:100%;display:flex;justify-content:space-between;gap:8px;font-size:.82rem;color:var(--muted)}
   .hud b{color:var(--text)}
   .carry{min-height:1.2em;color:#f5d020;font-weight:700}
-  canvas#game{width:min(68vw,380px);height:min(68vw,380px);border-radius:10px;border:2px solid #2a2f55;background:#000;touch-action:none}
+  canvas#game{width:min(68vw,440px);height:min(68vw,440px);border-radius:10px;border:2px solid #2a2f55;background:#000;touch-action:none}
   canvas#map{width:120px;height:140px;border-radius:8px;border:1px solid rgba(255,255,255,.14);background:#0b0c1a}
   .maplabel{font-size:.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
   .msg{min-height:1.3em;font-weight:700;text-align:center;color:#fde68a}
@@ -448,6 +448,19 @@
   function boot(){
     const cv=document.getElementById("game"); if(!cv) return;
     const ctx=cv.getContext("2d");
+    // Player feedback: "screen needs to be a lot bigger, all arcade games
+    // should be the same size screen." 380px CSS display cap was smaller
+    // than the site's common size. There's no click/touch coordinate
+    // mapping in this game (movement is D-pad/keyboard only), so the
+    // room-grid coordinate system (SIZE-based) stays untouched — only the
+    // backing store is scaled up (CSS cap raised to 440px above -- capped
+    // there, not the usual 480/560, so the map canvas beside it still
+    // fits inside the .wrap's 580px budget without wrapping below) and
+    // further scaled for devicePixelRatio, via a single ctx.scale() at
+    // setup, same pattern used for missilecommand/minigolf.
+    const LOGICAL_W=cv.width, LOGICAL_H=cv.height;
+    const DPR=Math.max(1, window.devicePixelRatio||1);
+    if(DPR>1){ cv.width=Math.round(LOGICAL_W*DPR); cv.height=Math.round(LOGICAL_H*DPR); ctx.scale(DPR,DPR); }
   // Hold the loop until the player asks for it (comment: Press Spacebar To Begin)
   const GATE = Arcade.startGate(cv, "Chicken Adventure");
     let state=newGame(), dir=null, deathT=0, start=Date.now(), best=null;
