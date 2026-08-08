@@ -12,11 +12,21 @@ obstacles, staged bosses.
   shadow sprite (`mkSplash`) showing where you'd land — the core Zaxxon
   mechanic of judging height against obstacles by watching the shadow,
   not the sprite itself.
+- **Admin-configurable** at `/admin/games/?game=chixxon`: `LIVES`, `HP`
+  (hits before a life is lost), `SCROLL_BASE`, `SPAWN_GAP_BASE`, `BOSS_HP`.
+  Uses the site's generic numeric-knob config pattern (see kaboom's
+  HANDOFF.md) — saved to `localStorage["chixxon_config"]`, merged into `C`
+  at boot via an explicit allowlist.
 
 ## Most recent pass
 
-Original implementation — added as a new game (Zaxxon clone with
-altitude/shadow flying). No follow-up passes yet.
+Added admin-configurable difficulty knobs (see above) as part of the
+site-wide numeric-knob config rollout — no player feedback prompted this,
+just extending an existing pattern to a game that already had a suitable
+`C` object.
+
+Earlier: original implementation — added as a new game (Zaxxon clone with
+altitude/shadow flying).
 
 ## Open / deferred
 
