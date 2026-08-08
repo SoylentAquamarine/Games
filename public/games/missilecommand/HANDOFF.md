@@ -36,12 +36,33 @@ they land, keep your cities standing.
 
 ## Most recent pass
 
-**Player feedback: "screen needs to be bigger, need standard arcade
+**Player feedback: "at the beginning there are 2 conflicting texts
+showing, and one of them is too big for the screen. Remove the coop
+command one."** Two fixes, one game-specific and one shared:
+
+1. `Arcade.startGate` was given the title `"Coop Command"` — redundant
+   with `draw()`'s own "INCOMING MISSILES / ALL CHICKENS REPORT" opening
+   call-to-arms, which already shows the entire time the gate is closed
+   (`opening=170`, only decremented once the gate opens). Removed the
+   title (`Arcade.startGate(cv, null)`) so only one opening announcement
+   shows.
+2. The "too big" half was a real bug in the shared `arcade.js` itself,
+   not just this game: `startGate.paint()` read `canvas.width`/`height`
+   directly, ignoring the active `ctx.scale()` transform this game's own
+   screen-size pass applies (see below) — so the title rendered at the
+   raw, much-bigger backing-store size, then got scaled up AGAIN by the
+   already-active transform. Fixed at the source in `arcade.js` (divides
+   by the transform's own scale factor) — see the root `HANDOFF.md`'s
+   `arcade.js` entry. Every other game using the same backing-store-scale
+   pattern (minigolf, chixxon, adventure, chickenjhong) had this exact
+   same latent bug and is now fixed too, automatically.
+
+Earlier: **player feedback: "screen needs to be bigger, need standard arcade
 screen size."** The bigger-screen change described above — CSS display
 cap raised from 420px to the site's common 560px, backing store scaled
 to match plus devicePixelRatio.
 
-Earlier: **player feedback: "difficulty curve too difficult, the bonus chicken
+Earlier still: **player feedback: "difficulty curve too difficult, the bonus chicken
 round is 10x as difficult as it should be, space them out and make them
 not shoot, the rounds get EXTREMELY difficult too quickly."** Three
 changes:
