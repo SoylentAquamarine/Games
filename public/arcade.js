@@ -193,7 +193,19 @@
     const ctx = canvas.getContext("2d");
 
     gate.paint = function () {
-      const W = canvas.width, H = canvas.height, u = Math.min(W, H);
+      // Several games render at a bigger backing-store resolution than their
+      // logical coordinate space (canvas.width/height scaled up for a crisper
+      // display + devicePixelRatio, with a single ctx.scale() applied once at
+      // setup so their own draw calls stay in logical units). This function
+      // used to read canvas.width/height directly, ignoring that active
+      // transform -- on those games the gate's title/press-text rendered at
+      // the RAW backing-store size, then got scaled up AGAIN by the already-
+      // active transform, coming out enormous and badly mispositioned.
+      // Dividing by the transform's own scale factor recovers the logical
+      // size those games actually draw in; on every other game (no transform
+      // applied, scale 1) this is a no-op and behaves exactly as before.
+      const t = ctx.getTransform();
+      const W = canvas.width / (t.a || 1), H = canvas.height / (t.d || 1), u = Math.min(W, H);
       ctx.save();
       ctx.fillStyle = "rgba(0,0,0,.62)";
       ctx.fillRect(0, 0, W, H);
