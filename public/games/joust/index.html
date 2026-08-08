@@ -47,12 +47,14 @@
   const BASE={ W:752, H:564, LAVA:549, PW:25, PH:23, TOL:10, LAND_BAND:16 };
   const SCREEN=1.5, BOARD=1.25;
   const SPRITE=2.0;      // hero + enemies 100% larger than the board scale
-  const GRAV_MUL=0.9;    // 10% less gravity — a floatier flap
+  // 10% less gravity from an earlier pass, then a further "reduce gravity
+  // by 25%" player request on top of that (0.9 * 0.75 = 0.675 total).
+  const GRAV_MUL=0.9*0.75;
   const C={ W:Math.round(BASE.W*SCREEN), H:Math.round(BASE.H*SCREEN),
             GRAV:0.401*BOARD*GRAV_MUL, FLAP:-6.77*BOARD, MOVE:0.564*BOARD, MAXVX:4.51*BOARD,
             PW:Math.round(BASE.PW*BOARD*SPRITE), PH:Math.round(BASE.PH*BOARD*SPRITE), TOL:BASE.TOL*BOARD,
             LAND_BAND:BASE.LAND_BAND*BOARD, LAVA:Math.round(BASE.H*SCREEN-(BASE.H-BASE.LAVA)*BOARD),
-            NEST:0, SPAWN_FRAMES:48, INVULN_FRAMES:96, FLIP_CHANCE:0.004 };   // NEST = which platform is the respawn nest
+            SPAWN_FRAMES:48, INVULN_FRAMES:96, FLIP_CHANCE:0.004, SPAWN_GAP:45, EGG_CHANCE:0.25 };
   // Admin-tunable difficulty knobs — see /admin/games/?game=joust. Same
   // pattern as kaboom (see its HANDOFF.md): explicit allowlist, only
   // numeric values, safe no-op with no localStorage (headless tests).
@@ -71,6 +73,11 @@
   function joustResult(ay, by){ if(ay < by-C.TOL) return "aWins"; if(by < ay-C.TOL) return "bWins"; return "bounce"; }
   const PLATS_BASE=[{x:0,y:470,w:150,h:13},{x:602,y:470,w:150,h:13},{x:313,y:376,w:125,h:13},{x:75,y:263,w:113,h:13},{x:564,y:263,w:113,h:13},{x:320,y:175,w:113,h:13}];
   const PLATS=PLATS_BASE.map(p=>({x:sx(p.x), y:sy(p.y), w:p.w*BOARD, h:p.h*BOARD}));
+  // Player feedback: "we need several respawn nests." The two ground-level
+  // side platforms (both wide, both at the same low elevation) are the
+  // natural candidates — spawnOnNest() below picks one at random each time
+  // instead of always using the same fixed platform.
+  const NESTS=[0,1];
   function land(o){ o.onGround=false;
     for(const p of PLATS){
       if(!(o.x+C.PW>p.x && o.x<p.x+p.w)) continue;
@@ -90,16 +97,29 @@
     land(o);
     return o;
   }
-  function makeWave(s){ s.wave++; s.enemies=[]; const n=2+s.wave; for(let i=0;i<n;i++){ const d=(Math.random()<.5?-1:1); s.enemies.push({x:40+Math.random()*(C.W-80),y:40+Math.random()*170,vx:d*1.5,vy:0,facing:d,dir:d,alive:true,flapT:Math.random()*30}); } }
-  // Drop the player onto the nest and start the hatch: a short animation while she
-  // climbs out, then a longer safe window where nothing can hit her.
+  // Player feedback: "the enemies have to spawn one at a time at the
+  // beginning of a level." Enemies used to all appear at once, already
+  // airborne. They're now queued (s.enemyQueue) and released into
+  // s.enemies one every SPAWN_GAP frames — see drainSpawnQueue(), called
+  // from both the normal and hatching branches of step().
+  function makeWave(s){ s.wave++; const n=2+s.wave; s.enemyQueue=[];
+    for(let i=0;i<n;i++){ const d=(Math.random()<.5?-1:1); s.enemyQueue.push({x:40+Math.random()*(C.W-80),y:40+Math.random()*170,vx:d*1.5,vy:0,facing:d,dir:d,alive:true,flapT:Math.random()*30}); }
+    s.enemies=[]; s.spawnQueueT=0;
+  }
+  function drainSpawnQueue(s){
+    if(!s.enemyQueue || !s.enemyQueue.length) return;
+    if(--s.spawnQueueT<=0){ s.enemies.push(s.enemyQueue.shift()); s.spawnQueueT=C.SPAWN_GAP; }
+  }
+  function waveClear(s){ return s.enemies.length===0 && (!s.enemyQueue || s.enemyQueue.length===0); }
+  // Drop the player onto a random nest and start the hatch: a short animation
+  // while she climbs out, then a longer safe window where nothing can hit her.
   function spawnOnNest(s){
-    const nest=PLATS[C.NEST], p=s.player;
+    const nest=PLATS[NESTS[Math.floor(Math.random()*NESTS.length)]], p=s.player;
     p.x=nest.x+nest.w/2-C.PW/2; p.y=nest.y-C.PH;
     p.vx=0; p.vy=0; p.facing=1; p.onGround=true;
     p.spawning=C.SPAWN_FRAMES; p.invuln=C.SPAWN_FRAMES+C.INVULN_FRAMES;
   }
-  function newState(){ const s={ player:{x:60,y:355,vx:0,vy:0,facing:1,onGround:false,spawning:0,invuln:0}, enemies:[], score:0, wave:0, lives:3, over:false }; makeWave(s); spawnOnNest(s); return s; }
+  function newState(){ const s={ player:{x:60,y:355,vx:0,vy:0,facing:1,onGround:false,spawning:0,invuln:0}, enemies:[], eggs:[], score:0, wave:0, lives:3, over:false }; makeWave(s); spawnOnNest(s); return s; }
   // Enemies cruise left-to-right or right-to-left and flap to stay aloft, flipping
   // now and then — they no longer home in on the player.
   function moveEnemy(s, e){
@@ -119,28 +139,41 @@
     // Hatching: she sits in the nest, immune, while the world keeps moving.
     if(p.spawning>0){
       p.spawning--;
+      drainSpawnQueue(s);
       for(const e of s.enemies){ if(e.alive) moveEnemy(s,e); }
       s.enemies=s.enemies.filter(e=>e.alive);
-      if(s.enemies.length===0) makeWave(s);
+      if(waveClear(s)) makeWave(s);
       return s;
     }
     physics(p, input);
     if(p.y+C.PH>=C.LAVA){ die(s); return s; }
     const vulnerable = p.invuln<=0;          // the safe window ignores all jousts
+    drainSpawnQueue(s);
     for(const e of s.enemies){ if(!e.alive) continue;
       moveEnemy(s,e);
       if(!e.alive) continue;
       if(vulnerable && rov(rect(p),rect(e))){ const r=joustResult(p.y, e.y);
-        if(r==="aWins"){ e.alive=false; s.score+=500; p.vy=C.FLAP*0.6; }
+        if(r==="aWins"){ e.alive=false; s.score+=500; p.vy=C.FLAP*0.6;
+          // Player feedback: "when an enemy is killed, 25% chance it will
+          // drop an egg." A dropped egg just falls (gravity, same as any
+          // other object) — collect it by flying into it for a bonus, or
+          // lose it to the lava like anything else that falls in.
+          if(Math.random()<C.EGG_CHANCE) s.eggs.push({x:e.x,y:e.y,vy:0}); }
         else if(r==="bWins"){ die(s); return s; }
         else { p.vx=-p.vx; e.vx=-e.vx; p.x-=p.facing*4; } }
     }
     s.enemies=s.enemies.filter(e=>e.alive);
-    if(s.enemies.length===0) makeWave(s);
+    for(const eg of s.eggs){ eg.vy+=C.GRAV*0.5; eg.y+=eg.vy; }
+    s.eggs=s.eggs.filter(eg=>{
+      if(eg.y>=C.LAVA) return false;
+      if(vulnerable && rov({x:eg.x-6,y:eg.y-8,w:12,h:16},rect(p))){ s.score+=200; if(typeof Arcade!=="undefined")Arcade.sfx.coin(); return false; }
+      return true;
+    });
+    if(waveClear(s)) makeWave(s);
     return s;
   }
   function die(s){ s.lives--; if(s.lives<=0){ s.over=true; } else { spawnOnNest(s); } }
-  window.__joust={ newState, step, physics, joustResult, makeWave, moveEnemy, spawnOnNest, die, PLATS, C };
+  window.__joust={ newState, step, physics, joustResult, makeWave, moveEnemy, spawnOnNest, die, drainSpawnQueue, waveClear, PLATS, NESTS, C };
 
   if(typeof document==="undefined") return;
   const $=(id)=>document.getElementById(id);
@@ -185,8 +218,14 @@
   function draw(){
     ctx.clearRect(0,0,W,H); ctx.fillStyle="#08040f"; ctx.fillRect(0,0,W,H);
     ctx.fillStyle="#8a1e1e"; ctx.fillRect(0,C.LAVA,W,H-C.LAVA); ctx.fillStyle="#f0616e"; for(let x=0;x<W;x+=16) ctx.fillRect(x,C.LAVA+(Math.sin(Date.now()/200+x)*2),8,3);
+    // Player feedback: "we need ground covering the lava" — a purely visual
+    // dirt layer covering most of the lava strip (the death line itself,
+    // C.LAVA, is unchanged); lava still peeks through in patches every
+    // third segment so it still reads as a hazard, not solid floor.
+    ctx.fillStyle="#4a3320";
+    for(let x=0;x<W;x+=54){ if((Math.floor(x/54))%3!==2) ctx.fillRect(x,C.LAVA,50,H-C.LAVA); }
     for(let i=0;i<PLATS.length;i++){ const p=PLATS[i];
-      if(i===C.NEST){ // the respawn nest: a woven twig platform with a couple of eggs
+      if(NESTS.includes(i)){ // a respawn nest: a woven twig platform with a couple of eggs
         ctx.fillStyle="#6b4a2a"; ctx.fillRect(p.x,p.y,p.w,p.h);
         ctx.strokeStyle="#8a6238"; ctx.lineWidth=2;
         for(let x=p.x+4;x<p.x+p.w-2;x+=9){ ctx.beginPath(); ctx.moveTo(x,p.y+p.h); ctx.lineTo(x+6,p.y+1); ctx.stroke(); }
@@ -195,6 +234,9 @@
         for(const dx of [-9,3]){ ctx.beginPath(); ctx.ellipse(ex+dx,p.y-3,4,6,0,0,7); ctx.fill(); }
       } else { ctx.fillStyle="#5a4a6a"; ctx.fillRect(p.x,p.y,p.w,p.h); ctx.fillStyle="#7a6a8a"; ctx.fillRect(p.x,p.y,p.w,3); } }
     for(const e of s.enemies) if(e.alive) bird(e,"#f0616e");
+    // eggs dropped by defeated enemies, falling and collectible for a bonus
+    for(const eg of s.eggs){ ctx.fillStyle="#f3ead7"; ctx.beginPath(); ctx.ellipse(eg.x,eg.y,6,8,0,0,7); ctx.fill();
+      ctx.strokeStyle="#c9bda3"; ctx.lineWidth=1; ctx.stroke(); }
     // the player: hatch animation while spawning, a blink through the safe window
     const pl=s.player;
     if(pl.spawning>0){ drawHatch(pl); }
