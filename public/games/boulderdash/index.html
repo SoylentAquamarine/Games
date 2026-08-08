@@ -96,8 +96,8 @@
       else if(below==="boulder"||below==="gem"||below==="wall"){
         // roll off a rounded object to the side if both the side and the cell below the side are empty
         if(below!=="wall"){
-          if(s.grid[r][c-1]==="empty"&&s.grid[r+1][c-1]==="empty"){ s.grid[r][c-1]=cell; s.grid[r][c]="empty"; }
-          else if(s.grid[r][c+1]==="empty"&&s.grid[r+1][c+1]==="empty"){ s.grid[r][c+1]=cell; s.grid[r][c]="empty"; }
+          if(s.grid[r][c-1]==="empty"&&s.grid[r+1][c-1]==="empty"){ s.grid[r][c-1]=cell; s.grid[r][c]="empty"; if(s.player.c===c-1&&s.player.r===r) s.crushed=true; }
+          else if(s.grid[r][c+1]==="empty"&&s.grid[r+1][c+1]==="empty"){ s.grid[r][c+1]=cell; s.grid[r][c]="empty"; if(s.player.c===c+1&&s.player.r===r) s.crushed=true; }
         }
       }
     }
