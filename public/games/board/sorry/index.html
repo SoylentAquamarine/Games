@@ -104,7 +104,14 @@
       if(typeof pp==="object"&&pp.lane==="main"&&pp.idx===idx)pawns[q][j]="start";}}
     function resolveLanding(p,i){let pos=pawns[p][i];if(typeof pos!=="object"||pos.lane!=="main")return;let idx=pos.idx;
       const sl=SLIDES.find(s=>s.start===idx&&s.color!==p);
-      if(sl){for(let s2=sl.start+1;s2<=sl.end;s2++)bumpAt(s2%60,null);idx=sl.end%60;pawns[p][i]={lane:"main",idx};}
+      if(sl){
+        // Landing on the slide's own first square is a normal landing before the
+        // slide carries you onward — anyone resting there (only the slide's own
+        // colour is immune to triggering it) must be bumped too, not just the
+        // squares further along the ride.
+        for(let s2=sl.start;s2<=sl.end;s2++)bumpAt(s2%60,{p,i});
+        idx=sl.end%60;pawns[p][i]={lane:"main",idx};return;
+      }
       bumpAt(idx,{p,i});}
     function applyMove(p,mv){
       if(mv.kind==="out"){pawns[p][mv.pawn]={lane:"main",idx:ENTRY[p]};resolveLanding(p,mv.pawn);}
