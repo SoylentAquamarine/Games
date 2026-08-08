@@ -308,7 +308,7 @@
       if(potted.includes(9)){
         if(legal && !scratched){ s.over=true; s.winner=solo?0:s.turn;
           s.msg = solo ? ("Cleared to the 9 in "+s.shots+" shots!") : ("Player "+(s.turn+1)+" sinks the 9 — game!"); }
-        else if(solo){ respotNine(s); s.msg="Illegal 9 — respotted, keep going."; keepTurn=true; }
+        else if(solo){ respotNine(s); if(scratched) respotCue(s); s.msg="Illegal 9 — respotted, keep going."; keepTurn=true; }
         else { s.over=true; s.winner=1-s.turn; s.msg="Illegal 9 — Player "+(2-s.turn)+" wins."; }
       } else if(scratched){ respotCue(s); s.msg=solo?"Scratch — cue respotted.":"Scratch — turn passes."; if(solo) keepTurn=true; }
       else if(!legal){ s.msg="Foul: you must hit the "+s.lowBefore+" first."; if(solo) keepTurn=true; }
