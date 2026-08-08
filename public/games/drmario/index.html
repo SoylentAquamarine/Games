@@ -46,7 +46,6 @@
     <canvas id="game" width="240" height="540"></canvas>
     <div class="side">
       <div class="panel"><div class="plabel">Level</div><div class="pval" id="level">1</div></div>
-      <div class="panel"><div class="plabel">Chickens</div><div class="pval" id="chickens">🐔🐔🐔</div></div>
       <div class="panel"><div class="plabel">Score</div><div class="pval" id="score">0</div></div>
       <div class="panel"><div class="plabel">Viruses</div><div class="pval" id="viruses">0</div></div>
       <div class="panel"><div class="plabel">Best</div><div class="pval" id="best">0</div></div>
@@ -114,20 +113,16 @@
       else if(br.y>=C.rows-0.5) br.dead=true; }
     b.bricks=b.bricks.filter(x=>!x.dead);
     if(b.dropped>=b.max && b.bricks.length===0) advanceLevel(st); }
-  // Jamming the neck costs a chicken; the loose pills up top are cleared so play
-  // can continue. Out of chickens ends the game.
-  function loseChicken(st){ if(typeof Arcade!=="undefined")Arcade.sfx.death(); st.chickens--; if(st.chickens<=0){ st.over=true; if(typeof Arcade!=="undefined")Arcade.sfx.lose(); return; }
-    // Clear more of the board (9 rows, not 6) so one unjam gives real breathing
-    // room — clearing too little meant the next piece jammed again almost at
-    // once, burning through all three chickens in a few seconds ("one-shot").
-    for(let r=0;r<9;r++) for(let c=0;c<C.cols;c++){ if(st.grid[r][c]&&!st.grid[r][c].virus) st.grid[r][c]=null; }
-    settle(st.grid);
-    st.pill=newPill(); st.next=st.next||newPill();
-    if(!canPlace(st.grid, cellsOf(st.pill))){ for(let r=0;r<C.rows;r++) for(let c=0;c<C.cols;c++){ if(st.grid[r][c]&&!st.grid[r][c].virus) st.grid[r][c]=null; } }
-    st.banner={text:"CHICKEN DOWN", t:100}; }
+  // Player feedback: "this should not have lives, it should end when the
+  // blocks reach the top." Jamming the neck (a new pill can't be placed
+  // because the stack reached the spawn point) used to cost a "chicken"
+  // (3 lives) and clear part of the board so play continued -- a deviation
+  // from the original Dr. Mario rule, where reaching the top ends the run
+  // outright, no retries. Now it just ends the game.
+  function jamOver(st){ st.over=true; if(typeof Arcade!=="undefined"){ Arcade.sfx.death(); Arcade.sfx.lose(); } }
   function newState(){ const level=1, grid=emptyGrid(); placeViruses(grid, virusesFor(level));
-    return { grid, pill:newPill(), next:newPill(), score:0, level, chickens:3, mode:"play", bonus:null, over:false, won:false, banner:null }; }
-  window.__drmario={ newState, emptyGrid, clearMatches, settle, resolve, countViruses, cellsOf, canPlace, newPill, virusesFor, dropSpeed, winLevel, advanceLevel, startBonus, bonusStep, bonusDrop, bonusMove, loseChicken, C };
+    return { grid, pill:newPill(), next:newPill(), score:0, level, mode:"play", bonus:null, over:false, won:false, banner:null }; }
+  window.__drmario={ newState, emptyGrid, clearMatches, settle, resolve, countViruses, cellsOf, canPlace, newPill, virusesFor, dropSpeed, winLevel, advanceLevel, startBonus, bonusStep, bonusDrop, bonusMove, jamOver, C };
 
   if(typeof document==="undefined") return;
   const $=(id)=>document.getElementById(id);
@@ -142,7 +137,7 @@
     // promote the previewed pill, then queue a fresh one
     s.pill=s.next||newPill(); s.pill.r=1; s.pill.c=Math.floor(C.cols/2)-1; s.pill.o=0;
     s.next=newPill();
-    if(!canPlace(s.grid, cellsOf(s.pill))){ loseChicken(s); } }
+    if(!canPlace(s.grid, cellsOf(s.pill))){ jamOver(s); } }
   function tryMove(np){ const test={...s.pill,...np}; if(canPlace(s.grid, cellsOf(test))){ s.pill=test; return true; } return false; }
   function rotate(){ const test={...s.pill, o:(s.pill.o+1)%4};
     for(const dc of [0,-1,1]){ const t={...test,c:test.c+dc}; if(canPlace(s.grid,cellsOf(t))){ s.pill=t; return; } } }
@@ -197,12 +192,12 @@
       if(typeof Arcade!=="undefined")Arcade.stats.record("drmario",s.score); }
     if(s.over && s.score>best){ best=s.score; try{localStorage.setItem("drmario_best",String(best));}catch(e){} }
     if(s.banner){ if(--s.banner.t<=0) s.banner=null; }
-    $("msg").textContent = s.over ? ("Out of chickens! Score "+s.score)
+    $("msg").textContent = s.over ? ("Blocks reached the top! Score "+s.score)
       : s.banner ? s.banner.text
       : s.mode==="bonus" ? "Drop bricks on the space chicken! (←/→ then ↓)"
       : "Clear the viruses — level "+s.level+"!";
     $("score").textContent=s.score; $("viruses").textContent=countViruses(s.grid); $("best").textContent=best;
-    $("level").textContent=s.level; $("chickens").textContent="🐔".repeat(Math.max(0,s.chickens));
+    $("level").textContent=s.level;
     draw(); drawNext(); drawDoc(); requestAnimationFrame(frame); }
 
   // Dr Chicken herself, watching the bottle from the side panel. Player
