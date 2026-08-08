@@ -90,7 +90,12 @@
       cpu.dir=cpuChoose();
       const [yd,cd]=[DIRS[you.dir],DIRS[cpu.dir]];
       const ny={x:you.x+yd[0],y:you.y+yd[1]},nc={x:cpu.x+cd[0],y:cpu.y+cd[1]};
-      const yDead=!free(ny.x,ny.y),cDead=!free(nc.x,nc.y)||(ny.x===nc.x&&ny.y===nc.y);
+      // A true head-on crash -- both riders steering into the same still-empty
+      // cell -- has to kill both of you (a draw), not just the CPU. Checking
+      // free() alone only catches it from the CPU's side, since that cell is
+      // still marked empty in `occ` when yDead is computed.
+      const headOn=ny.x===nc.x&&ny.y===nc.y;
+      const yDead=!free(ny.x,ny.y)||headOn,cDead=!free(nc.x,nc.y)||headOn;
       if(yDead||cDead){return end(yDead,cDead);}
       you.x=ny.x;you.y=ny.y;occ[you.y][you.x]=1;
       cpu.x=nc.x;cpu.y=nc.y;occ[cpu.y][cpu.x]=2;
