@@ -171,7 +171,7 @@
 
         <!-- ADVENTURE -->
         <div id="cfgAdv" class="hidden">
-          <p class="sub">Drag a room to a new cell to move it — doorways form automatically between neighbours. Click a room to recolour it.</p>
+          <p class="sub">Drag a room to a new cell to move it — doorways form automatically between neighbours. Click a room to select it and recolour it, then draw its interior walls on the right.</p>
           <div class="row2">
             <canvas id="a-canvas" width="420" height="420"></canvas>
             <div>
@@ -180,6 +180,12 @@
               <label class="sub">Colour <input type="color" id="a-color" value="#3a7d3a"></label>
             </div>
           </div>
+          <div class="sub" style="margin-top:10px">Interior walls — select a room above, then drag on the room below to draw a wall (or erase one).</div>
+          <div class="row">
+            <button class="btn small on" data-abrush="wall">Wall</button>
+            <button class="btn small" data-abrush="erase">Erase</button>
+          </div>
+          <canvas id="a-room" width="200" height="200"></canvas>
           <div class="row" style="margin-top:8px">
             <button class="btn" id="a-save">Save map</button>
             <button class="btn ghost" id="a-reset">Reset to default</button>
@@ -504,16 +510,28 @@
   // =========================================================================
   // ADVENTURE map editor — drag rooms on a grid, recolour them
   // =========================================================================
+  // `inner` mirrors the same interior-wall rectangles the live game ships
+  // with (public/games/adventure/index.html's ROOMS table) — the editor's
+  // data model needs its own copy since it never reads the game file directly.
   const ADV_DEFAULT={
-    commons:{gx:2,gy:3,color:"#3a7d3a"}, north:{gx:2,gy:2,color:"#2b52a0"}, south:{gx:2,gy:4,color:"#6a2d8a"},
-    east:{gx:3,gy:3,color:"#1f8a76"}, blackgate:{gx:4,gy:3,color:"#2a2a2a"}, west:{gx:1,gy:2,color:"#3a6a2a"},
-    grotto:{gx:1,gy:1,color:"#1f5a6a"}, maze1:{gx:0,gy:2,color:"#6a5a2a"}, maze2:{gx:0,gy:1,color:"#5a3a6a"},
-    belfry:{gx:2,gy:1,color:"#2b4a8a"}, catacomb:{gx:2,gy:5,color:"#3a2a3a"}, crypt:{gx:3,gy:4,color:"#242438"},
-    orchard:{gx:1,gy:4,color:"#2f6b34"}, henhouse:{gx:0,gy:4,color:"#7a5a2a"}, ravine:{gx:1,gy:3,color:"#2a4a5a"},
-    roost:{gx:0,gy:3,color:"#5a4a7a"}, granary:{gx:2,gy:0,color:"#6a5a3a"}, aviary:{gx:3,gy:0,color:"#3a5a6a"},
+    commons:{gx:2,gy:3,color:"#3a7d3a",inner:[]}, north:{gx:2,gy:2,color:"#2b52a0",inner:[]},
+    south:{gx:2,gy:4,color:"#6a2d8a",inner:[{x:40,y:96,w:52,h:12},{x:108,y:96,w:52,h:12}]},
+    east:{gx:3,gy:3,color:"#1f8a76",inner:[]},
+    blackgate:{gx:4,gy:3,color:"#2a2a2a",inner:[{x:36,y:112,w:128,h:12}]},
+    west:{gx:1,gy:2,color:"#3a6a2a",inner:[]}, grotto:{gx:1,gy:1,color:"#1f5a6a",inner:[]},
+    maze1:{gx:0,gy:2,color:"#6a5a2a",inner:[{x:40,y:60,w:12,h:120},{x:120,y:20,w:12,h:120}]},
+    maze2:{gx:0,gy:1,color:"#5a3a6a",inner:[{x:60,y:0,w:12,h:130},{x:132,y:70,w:12,h:130}]},
+    belfry:{gx:2,gy:1,color:"#2b4a8a",inner:[]},
+    catacomb:{gx:2,gy:5,color:"#3a2a3a",inner:[{x:90,y:40,w:12,h:100}]},
+    crypt:{gx:3,gy:4,color:"#242438",inner:[]}, orchard:{gx:1,gy:4,color:"#2f6b34",inner:[]},
+    henhouse:{gx:0,gy:4,color:"#7a5a2a",inner:[{x:60,y:70,w:80,h:12}]},
+    ravine:{gx:1,gy:3,color:"#2a4a5a",inner:[{x:30,y:110,w:60,h:12},{x:110,y:60,w:60,h:12}]},
+    roost:{gx:0,gy:3,color:"#5a4a7a",inner:[]},
+    granary:{gx:2,gy:0,color:"#6a5a3a",inner:[{x:70,y:40,w:12,h:90}]},
+    aviary:{gx:3,gy:0,color:"#3a5a6a",inner:[]},
   };
-  const AGX=5, AGY=6;
-  let advInit=false, aData, aSel=null;
+  const AGX=5, AGY=6, AROOM_SIZE=200;   // AROOM_SIZE matches the game's SIZE constant (room-local pixel space `inner` rects live in)
+  let advInit=false, aData, aSel=null, aBrush="wall", aDown=null;
   function mergeAdv(saved){ const d=JSON.parse(JSON.stringify(ADV_DEFAULT)); if(saved) for(const id in saved){ if(d[id]) Object.assign(d[id],saved[id]); } return d; }
   function initAdvEditor(){
     if(advInit) return; advInit=true;
@@ -534,14 +552,54 @@
       return { gx:Math.floor(((e.clientX-r.left)/r.width)*AGX), gy:Math.floor(((e.clientY-r.top)/r.height)*AGY) }; }
     function roomAt(gx,gy){ for(const id in aData) if(aData[id].gx===gx&&aData[id].gy===gy) return id; return null; }
     let aDrag=null;
-    acv.addEventListener("mousedown",e=>{ const c=cellAt(e); const id=roomAt(c.gx,c.gy); if(id){ aSel=id; aDrag=id; $("a-sel").textContent=id; $("a-color").value=aData[id].color; drawAdv(); } });
+    acv.addEventListener("mousedown",e=>{ const c=cellAt(e); const id=roomAt(c.gx,c.gy);
+      if(id){ aSel=id; aDrag=id; $("a-sel").textContent=id; $("a-color").value=aData[id].color; drawAdv(); drawRoom(); } });
     acv.addEventListener("mousemove",e=>{ if(!aDrag) return; const c=cellAt(e);
       if(c.gx>=0&&c.gx<AGX&&c.gy>=0&&c.gy<AGY && !roomAt(c.gx,c.gy)){ aData[aDrag].gx=c.gx; aData[aDrag].gy=c.gy; drawAdv(); } });
     addEventListener("mouseup",()=>aDrag=null);
     $("a-color").addEventListener("input",e=>{ if(aSel){ aData[aSel].color=e.target.value; drawAdv(); } });
     $("a-save").onclick=()=>{ store("adventure_rooms",aData); $("a-ok").textContent="Saved — reopen Adventure to explore it."; };
-    $("a-reset").onclick=()=>{ clear("adventure_rooms"); aData=mergeAdv(null); aSel=null; $("a-sel").textContent="—"; drawAdv(); $("a-ok").textContent="Reset to the built-in map."; };
-    drawAdv();
+    $("a-reset").onclick=()=>{ clear("adventure_rooms"); aData=mergeAdv(null); aSel=null; $("a-sel").textContent="—"; drawAdv(); drawRoom(); $("a-ok").textContent="Reset to the built-in map."; };
+
+    // ---- per-room interior wall editor (the `inner` rects) ----
+    // Player feedback: "on adventure I need an individual board editor not
+    // just how to organize the boards." The map above only ever handled
+    // gx/gy position and colour; the live game separately supports custom
+    // interior walls per room (ROOMS[id].inner, an array of {x,y,w,h}
+    // rectangles in a 200x200 room-local space) but nothing here ever
+    // exposed a way to draw them. Same drag-a-rectangle pattern as the
+    // mini golf course editor's wall tool.
+    const rcv=$("a-room"), rx=rcv.getContext("2d");
+    function drawRoom(){
+      rx.fillStyle="#1c3320"; rx.fillRect(0,0,AROOM_SIZE,AROOM_SIZE);
+      if(!aSel){ rx.fillStyle="#9a9ab5"; rx.font="12px system-ui"; rx.textAlign="center";
+        rx.fillText("Select a room above",AROOM_SIZE/2,AROOM_SIZE/2); return; }
+      rx.strokeStyle="rgba(0,0,0,.5)"; rx.lineWidth=8; rx.strokeRect(0,0,AROOM_SIZE,AROOM_SIZE);   // border walls, for reference only (not editable/saved here)
+      rx.fillStyle="#5b4a32"; for(const w of aData[aSel].inner) rx.fillRect(w.x,w.y,w.w,w.h);
+    }
+    function roomPt(e){ const r=rcv.getBoundingClientRect(); const t=e.touches?e.touches[0]:e;
+      return { x:Math.round((t.clientX-r.left)*(AROOM_SIZE/r.width)), y:Math.round((t.clientY-r.top)*(AROOM_SIZE/r.height)) }; }
+    rcv.addEventListener("mousedown",e=>{
+      if(!aSel) return; const p=roomPt(e);
+      if(aBrush==="erase"){ aData[aSel].inner=aData[aSel].inner.filter(w=>!(p.x>=w.x&&p.x<=w.x+w.w&&p.y>=w.y&&p.y<=w.y+w.h)); drawRoom(); return; }
+      aDown=p;
+    });
+    rcv.addEventListener("mousemove",e=>{
+      if(!aDown||!aSel) return; const p=roomPt(e);
+      const rect={x:Math.min(aDown.x,p.x),y:Math.min(aDown.y,p.y),w:Math.abs(p.x-aDown.x),h:Math.abs(p.y-aDown.y)};
+      drawRoom(); rx.fillStyle="rgba(91,74,50,.6)"; rx.fillRect(rect.x,rect.y,rect.w,rect.h);
+    });
+    addEventListener("mouseup",e=>{
+      if(!aDown||!aSel){ aDown=null; return; }
+      const p=roomPt(e);
+      const rect={x:Math.min(aDown.x,p.x),y:Math.min(aDown.y,p.y),w:Math.abs(p.x-aDown.x),h:Math.abs(p.y-aDown.y)};
+      if(rect.w>4 && rect.h>4) aData[aSel].inner.push(rect);
+      aDown=null; drawRoom();
+    });
+    $("cfgAdv").querySelectorAll("[data-abrush]").forEach(b=>b.addEventListener("click",()=>{
+      $("cfgAdv").querySelectorAll("[data-abrush]").forEach(x=>x.classList.remove("on")); b.classList.add("on"); aBrush=b.dataset.abrush; }));
+
+    drawAdv(); drawRoom();
   }
 
   // =========================================================================
