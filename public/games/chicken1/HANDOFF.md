@@ -24,7 +24,18 @@ Top-down F1-style racer: a curving road, forward scroll, traffic culling.
 
 ## Most recent pass
 
-**Player feedback: "ok we have one race, we need more races with
+**Bug fix (found in a code-review pass, not player-reported): best time
+was shared across races with different finish distances.** The five
+races have different finish distances (9000/11000/16000), so completion
+times aren't comparable across them, but "Best" was tracked with one
+shared `localStorage["chicken1_best"]` key for all of them — a
+legitimately fast run on a longer race could never register as a new
+best since it was compared against an unrelated, shorter race's time.
+Fixed by keying best times per race id (`chicken1_best_<raceId>`) and
+reloading the active race's best whenever the race changes (init, New
+Race, and the prev/next race pickers).
+
+Earlier: **player feedback: "ok we have one race, we need more races with
 different options, and every 5 races we need to see the space chicken."**
 Added the five-race system and the every-5th-race cameo described above.
 `roadCenterX(worldY, curve)` and `newState(raceIdx)` both gained an
