@@ -53,7 +53,7 @@
     if(s.over) return [];
     const hit=[];
     for(const f of s.fruits){ if(segHitsFruit(f,x1,y1,x2,y2)){ f.sliced=true; f.st=0; hit.push(f);
-      if(f.bomb){ s.over=true; } else s.score++; } }
+      if(f.bomb){ s.over=true; break; } else s.score++; } }
     return hit;
   }
   function step(s){
