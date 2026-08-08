@@ -808,6 +808,18 @@
       { key:"BOUNCE", label:"Bounce strength", min:3, max:20, def:9.5 },
       { key:"ROT_STEP", label:"Rotation speed per input", min:0.04, max:0.4, def:0.16 },
     ]},
+    knifehit:{ storageKey:"knifehit_config", sub:"Difficulty knobs — takes effect next time the game is opened.", fields:[
+      { key:"TOL", label:"Collision tolerance (lower = harder)", min:0.05, max:0.6, def:0.26 },
+      { key:"KNIVES_PER", label:"Knives per level", min:2, max:15, def:6 },
+    ]},
+    chickenposition:{ storageKey:"chickenposition_config", sub:"Difficulty knobs — takes effect next time the game is opened. Steering/render constants aren't editable here since they're carefully coupled to each other.", fields:[
+      { key:"MAXSPD", label:"Max speed", min:4, max:25, def:12 },
+      { key:"ACCEL", label:"Acceleration", min:0.02, max:0.3, def:0.08 },
+      { key:"BRAKE", label:"Braking power", min:0.1, max:0.8, def:0.32 },
+      { key:"DRAG", label:"Coasting drag", min:0.01, max:0.2, def:0.05 },
+      { key:"TIME_START", label:"Starting time", min:20, max:200, def:80 },
+      { key:"TIME_RATE", label:"Time drain per frame", min:0.01, max:0.1, def:0.028 },
+    ]},
   };
   let numericInitSlug=null;
   function initNumericEditor(slug){

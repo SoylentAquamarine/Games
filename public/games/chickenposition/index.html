@@ -59,6 +59,18 @@
     STEER_SHIFT:0.9, RENDER_CLAMP:1.2,
     CHECK_DIST:6500, CHECK_BONUS:42, TIME_START:80, TIME_RATE:0.028,
     FINISH_DIST:26000 };   // default (RACES[0]) finish distance — see RACES below
+  // Admin-tunable difficulty knobs — see /admin/games/?game=chickenposition.
+  // Same pattern as kaboom (see its HANDOFF.md): explicit allowlist, only
+  // numeric values, safe no-op with no localStorage (headless tests).
+  // Deliberately limited to speed/timer knobs that apply the same way
+  // across every race (see RACES below) — steering/render constants are
+  // left out since they're carefully coupled (see the comments above) and
+  // an untested combination could reintroduce an already-fixed bug.
+  (function(){ try{
+    const allow=["MAXSPD","ACCEL","BRAKE","DRAG","TIME_START","TIME_RATE"];
+    const o=JSON.parse(localStorage.getItem("chickenposition_config")||"{}");
+    for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
+  }catch(_){} })();
   const clamp=(v,a,b)=>v<a?a:v>b?b:v;
   const RIVAL_COLORS=["#f43f5e","#22d3ee","#a3e635","#c084fc","#fb923c"];
 

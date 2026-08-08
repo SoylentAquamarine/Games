@@ -35,6 +35,14 @@
 <script>
 (function(){
   const C={ TOL:0.26, KNIVES_PER:6 };
+  // Admin-tunable difficulty knobs — see /admin/games/?game=knifehit.
+  // Same pattern as kaboom (see its HANDOFF.md): explicit allowlist, only
+  // numeric values, safe no-op with no localStorage (headless tests).
+  (function(){ try{
+    const allow=["TOL","KNIVES_PER"];
+    const o=JSON.parse(localStorage.getItem("knifehit_config")||"{}");
+    for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
+  }catch(_){} })();
   const TAU=Math.PI*2;
   const norm=(a)=>((a%TAU)+TAU)%TAU;
   const angDist=(a,b)=>{ let d=Math.abs(norm(a)-norm(b))%TAU; return d>Math.PI?TAU-d:d; };
