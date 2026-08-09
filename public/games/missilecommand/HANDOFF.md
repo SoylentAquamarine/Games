@@ -36,7 +36,11 @@ they land, keep your cities standing.
 
 ## Most recent pass
 
-**Player feedback: "at the beginning there are 2 conflicting texts
+**Player feedback: "can't have more than 25 incoming per round."** The
+per-wave missile count (`3+wave*0.9`) grew unbounded — already past 25 by
+wave 25, and climbing forever past that. Wrapped in `Math.min(25, ...)`.
+
+Earlier: **player feedback: "at the beginning there are 2 conflicting texts
 showing, and one of them is too big for the screen. Remove the coop
 command one."** Two fixes, one game-specific and one shared:
 
@@ -57,7 +61,7 @@ command one."** Two fixes, one game-specific and one shared:
    pattern (minigolf, chixxon, adventure, chickenjhong) had this exact
    same latent bug and is now fixed too, automatically.
 
-Earlier: **player feedback: "screen needs to be bigger, need standard arcade
+Earlier still: **player feedback: "screen needs to be bigger, need standard arcade
 screen size."** The bigger-screen change described above — CSS display
 cap raised from 420px to the site's common 560px, backing store scaled
 to match plus devicePixelRatio.
