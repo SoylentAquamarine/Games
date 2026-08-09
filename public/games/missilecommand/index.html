@@ -65,7 +65,10 @@
   // raised (closes more slowly AND never gets as tight), and the speed
   // ramp both gentler and capped lower.
   function startWave(s){ s.wave++;
-    s.waveLeftToSpawn=Math.round(3+s.wave*0.9);
+    // Player feedback: "can't have more than 25 incoming per round." The
+    // count used to grow unbounded with wave number (3+wave*0.9 -- already
+    // past 25 by wave 25, and climbing forever past that).
+    s.waveLeftToSpawn=Math.min(25, Math.round(3+s.wave*0.9));
     s.spawnEvery=Math.max(38,92-s.wave*3.5);
     s.spawnTimer=25;
     s.enemySpeed=Math.min(1.05, C.ENEMY_SPEED+s.wave*0.045);
