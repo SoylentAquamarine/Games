@@ -74,8 +74,17 @@
       alive:true, falling:false, spin:Math.random()*6 }; }
   // A purely decorative spacesuit chicken flyby, every FLYBY_EVERY rounds —
   // can't be shot, doesn't shoot back, just a cameo crossing the sky.
-  function spawnFlyby(){ const goRight=Math.random()<0.5;
-    return { x: goRight?-C.FLY_W:C.W+C.FLY_W, y: 46+Math.random()*44, vx:(goRight?1:-1)*1.8 }; }
+  // Player feedback: "the white chicken needs to fly past sometimes too,
+  // instead of the yellow chicken the white chicken needs to fly past and
+  // we have to let him fly for 10 seconds then fly off." A coin-flip picks
+  // white or the original yellow each time; white is a slower, longer
+  // crossing (~half speed, ~10s at 60fps vs. the original ~5s) so there's
+  // real time to notice him before he's gone. The round-title hold in
+  // step() below already keeps the screen paused for exactly as long as
+  // whichever flyby is actually in flight, so no separate change was
+  // needed there for the longer white crossing.
+  function spawnFlyby(){ const goRight=Math.random()<0.5, white=Math.random()<0.5;
+    return { x: goRight?-C.FLY_W:C.W+C.FLY_W, y: 46+Math.random()*44, vx:(goRight?1:-1)*(white?0.9:1.8), white }; }
   function newState(){ const board=0;
     return { board, round:1, roundPos:0, roundTitleT:0, flyby:null,
              duck:board===0?spawnDuck(1):null, egg:board===1?spawnEgg(1):null,
@@ -270,7 +279,7 @@
     // rounds. Drawn from the shared /mascots.js library so this sprite
     // stays in sync with every other game that uses the same cameo.
     const fb=s.flyby;
-    if(fb) Mascots.spacesuitChicken(ctx, fb.x, fb.y, C.FLY_H*0.42, fb.vx);
+    if(fb) Mascots.spacesuitChicken(ctx, fb.x, fb.y, C.FLY_H*0.42, fb.vx, fb.white?"#f4f2ea":null);
 
     // Rooster Reg, strutting along the grass. Do not shoot him. Drawn from
     // the shared /mascots.js library (Mascots.rooster) — this was the

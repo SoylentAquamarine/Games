@@ -24,7 +24,11 @@
 (function (global) {
   "use strict";
 
-  function spacesuitChicken(ctx, x, y, r, facing) {
+  // suitColor is optional -- duckhunt's "white chicken" flyby variant
+  // (player feedback: "the white chicken needs to fly past sometimes too,
+  // instead of the yellow chicken") is the only caller that passes one;
+  // every existing caller keeps the original orange suit untouched.
+  function spacesuitChicken(ctx, x, y, r, facing, suitColor) {
     ctx.save();
     ctx.translate(x, y);
     if ((facing || 1) < 0) ctx.scale(-1, 1);
@@ -32,7 +36,7 @@
     ctx.fillStyle = "rgba(251,146,60,.4)";
     ctx.beginPath(); ctx.ellipse(0, r * 1.1, r * 0.4, r * 0.55, 0, 0, 7); ctx.fill();
     // suit body
-    ctx.fillStyle = "#f0902a";
+    ctx.fillStyle = suitColor || "#f0902a";
     ctx.beginPath(); ctx.arc(0, 0, r, 0, 7); ctx.fill();
     // comb
     ctx.fillStyle = "#dc2626";
