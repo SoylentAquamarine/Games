@@ -23,10 +23,28 @@ as a friend you shouldn't shoot.
   comments. This is the exact character the original mascot-library
   player comment named ("the rooster, like in duck hunt clone"); other
   games can now reuse him as a "friend, don't shoot him" cameo.
+- **The flyby cameo (every `FLYBY_EVERY` rounds) is sometimes white,
+  sometimes the original yellow** (`spawnFlyby()`'s `white` coin-flip) —
+  white flies noticeably slower (~10s crossing vs. yellow's ~5s). Both
+  variants stay purely decorative and unshootable, same as always.
 
 ## Most recent pass
 
-Two player comments:
+**Player feedback: "the white chicken needs to fly past sometimes too,
+instead of the yellow chicken the white chicken needs to fly past and we
+have to let him fly for 10 seconds then fly off"** (plus a related
+comment describing the existing, intentional "can't shoot during the
+flyby" behavior). `spawnFlyby()` now coin-flips between the original
+yellow crossing (~5s at 1.8px/frame) and a new, slower white one (~10s at
+half speed, 0.9px/frame). `Mascots.spacesuitChicken` gained an optional
+trailing `suitColor` parameter (default the original orange) so every
+other caller across the site is unaffected — see mascots.js's own
+comments. The existing round-title hold (from the earlier pass below,
+which keeps the screen paused for exactly as long as a flyby is actually
+in flight) already scales to the longer white crossing automatically, no
+separate change needed there.
+
+Earlier: two player comments:
 
 1. **"gravity is too much on the skeet round, kill gravity by 33%"** —
    `EGG_GRAVITY` 0.22 → 0.147.
