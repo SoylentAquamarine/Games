@@ -9,10 +9,16 @@ beam can capture your ship (rescuable for a dual-ship power-up).
   headless testing.
 - Animated tractor beam that must actually be flown into to trigger a
   capture (not just proximity) — capturing and then rescuing your ship
-  grants a dual-ship. A capture spends a life and continues play on a
-  fresh, recentred single fighter, with a brief non-blocking
+  grants a dual-ship. A capture spends a life; the new ship doesn't
+  actually spawn (and can't be hit) until the old one finishes climbing
+  the beam (`s.respawning`, see "Most recent pass"), then continues play
+  on a fresh, recentred single fighter, with a brief non-blocking
   `s.captureFlash` "SHIP CAPTURED!" beat so the loss is visible, matching
   the life-loss convention used elsewhere on the site.
+- Dive frequency ramps in gently via `diveTimerFor(wave)` — wave 1 starts
+  sparse (mostly formation, one diver at a time) and gets steadily more
+  frequent, reaching its floor (fastest possible dive cadence) around
+  wave 12.
 - Enemies are drawn as real chickens (`drawEnemy`): wings, body, comb,
   beak, eyes — comb/beak stay their normal fixed colours regardless of
   row, only the body/wings take the row's own tint (boss red, mid
@@ -27,7 +33,50 @@ beam can capture your ship (rescuable for a dual-ship power-up).
 
 ## Most recent pass
 
-**Bug fix (found in a code-review pass, not player-reported): overlapping
+**Three player comments, addressed together:**
+
+1. **"no when the chickens swoop in at the beginning it needs to take
+   4x as long for them to swoop in and the path they take needs to
+   cover a LOT more of the screen, they need to sweep down to almost
+   even with the hero, every time you fix the swoop it is almost
+   exactly the same you have to really fix the swoop."** Duration
+   110 → 440 frames (exactly 4x). The depth needed real math this
+   time, not another parameter nudge: this is a quadratic bezier, and
+   since BOTH the start point and the formation-row end point sit
+   near the top of the screen, the curve's actual visual peak lands
+   at roughly `0.25*start + 0.5*mid + 0.25*end` — nowhere near the
+   `mid` control point itself. The prior pass's own caveat about this
+   (see further down) was documented but not actually solved for —
+   setting `midY` to the naive "almost even with the hero" value
+   (~500) only produced a peak around y=276, barely past the previous
+   pass's 280, which is very likely why it kept reading as
+   unchanged. `midY=990` (off-canvas, as a bezier CONTROL point
+   rather than a point the enemy visits) is what's actually needed to
+   pull the visible peak to ~520, genuinely close to the player's row
+   (`C.PLY=558`).
+2. **"the chickens breaking off and diving, the first level is where
+   the 10th level should be at. At first most chickens should stay
+   in formation with a single chicken divebombing at a time. As
+   difficulty increases they should dive more and more."** New
+   `diveTimerFor(wave)` replaces the old `90-wave*8` (floor 30 by
+   wave 8) with `350-(wave-1)*30` (floor 30 by wave ~12) — wave 1 now
+   starts as sparse as the old formula's wave 1 used to be, shifted
+   about 10 waves later.
+3. **"when the chicken comes down and starts the capture ray, the
+   animation for the capture ray should be slower, and once captured
+   the screen should not have a hero until the captured hero is at
+   the top and a new hero can start with the same animation as if
+   the hero died."** `BEAM_RAMP` (cone open/shut speed) roughly
+   doubled (26→50) and the boss's descent into beam position slowed
+   to half speed (new `BOSS_DESCENT` factor). The new ship no longer
+   spawns at the instant of capture — `s.respawning` defers `px`'s
+   recentre and `captureFlash` until `s.pull` (the old ship's climb
+   up the beam) actually finishes, and `draw()` hides the ship
+   entirely while respawning so the old and new ships are never both
+   visible at once. Collision checks against diving enemies and
+   bomber bombs are also gated on `!respawning`.
+
+Earlier: **bug fix (found in a code-review pass, not player-reported): overlapping
 divers could cost two lives for one collision.** A new dive can launch
 every ~30 frames while a dive takes far longer than that to cross the
 screen, so multiple divers are routinely in flight together — it's
