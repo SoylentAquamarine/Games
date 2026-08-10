@@ -38,7 +38,26 @@ dragons that chase, castles, a 100%-completion secret ending.
 
 ## Most recent pass
 
-**Player feedback: "there needs to be a restart button beside the new
+**Player feedback: "insteaad of triggering the secret tecxt across the
+screen with the gold castle on it, the secret is the guy enters the
+gold castle and then the secret text is vertical like the warren
+robinette text is in the original game."** Two changes in `castle()`
+and `draw()`:
+
+- Walking the chalice up to the gold gate used to win the game right
+  at the gate, without the hero ever visibly stepping inside. Now every
+  gate walk-in (winning or not) goes through the same "enter the
+  interior room" transition first — the win/secret check runs the
+  instant that transition happens, from inside the castle, not instead
+  of it. Idempotent for free: once `s.room` is the interior, that
+  room's `ROOMS` entry has no `.castle`, so `castle()` short-circuits
+  on the next frame.
+- The credit text (`"ADAPTED BY STEPHEN PLEASANTS"`) now renders one
+  letter per line, spaces stripped, matching how the original 1979
+  Atari Adventure's hidden "CREATED BY WARREN ROBINETT" room actually
+  displayed it — replacing the old two-line horizontal banner.
+
+Earlier: **player feedback: "there needs to be a restart button beside the new
 game, so you can restart the same level if you die without resetting
 the dead dragons to alive and everything in the game will continue."**
 `respawn()` already preserved exactly that — dead dragons stay dead,
@@ -132,7 +151,7 @@ and title cleanup.
 
 ## Open / deferred
 
-Three items, all from an earlier round of player feedback:
+Two items, both from an earlier round of player feedback:
 
 1. **"We need the black castle to have a lot of rooms inside it and to
    be a maze, and we need to have to use the bridge to cross a barrier
@@ -145,13 +164,9 @@ Three items, all from an earlier round of player feedback:
    more recognizably bridge-shaped sprite (planks/rails). Small on its
    own, but makes most sense done alongside #1 once there's an actual
    barrier for it to visually span.
-3. **"instead of triggering the secret text across the screen with the
-   gold castle on it, the secret is the guy enters the gold castle and
-   then the secret text is vertical like the warren robinette text is
-   in the original game."** Currently the secret-ending text flashes as
-   a horizontal overlay on the main play screen the instant you win with
-   full completion (see `state.secretWin` in `draw()`). Wants it
-   triggered specifically by walking into the Gold Castle, with the
-   credit text rendered vertically (one letter per line or rotated),
-   matching how the original 1979 Atari Adventure's hidden easter egg
-   room actually displayed it.
+
+The same comment bundle's other two asks — "dragons appear where they
+left off" and "90% chase chance following between rooms" — were already
+resolved in an earlier pass (see further up); this comment stays open
+as a whole only for the maze/bridge parts above, per the "don't archive
+a partially-addressed comment" convention.
