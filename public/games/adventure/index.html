@@ -318,6 +318,17 @@
     const which  = isGold ? "gold" : "black";
     const key    = isGold ? "goldkey" : "blackkey";
     if(s.gates[which]){
+      // Player feedback: "insteaad of triggering the secret text across the
+      // screen with the gold castle on it, the secret is the guy enters the
+      // gold castle and then the secret text is vertical like the warren
+      // robinette text is in the original game." Walking the chalice up to
+      // the gate used to win the game right there, without ever actually
+      // stepping inside — now every gate walk-in (winning or not) goes
+      // through the SAME "enter the interior" transition, and the win check
+      // only runs the instant that transition happens (idempotent: once
+      // s.room is the interior, ROOMS[s.room].castle is undefined, so this
+      // whole function short-circuits on the very next frame).
+      s.room=c.interior; s.hero.x=96; s.hero.y=SIZE-BW-HS-4;
       if(isGold && s.carry==="chalice"){
         s.won=true;
         // The full-completion secret ending: every item ever collected AND every
@@ -327,9 +338,8 @@
         const allDragonsDead = s.dragons.every(d=>!d.alive);
         if(allItems && allDragonsDead){ s.secretWin=true; s.msg="ADAPTED BY STEPHEN PLEASANTS"; }
         else s.msg="You returned the Chalice home. You win!";
-        return;
       }
-      s.room=c.interior; s.hero.x=96; s.hero.y=SIZE-BW-HS-4; return;
+      return;
     }
     if(s.carry===key){ s.gates[which]=true; s.msg="The "+c.name+" Castle gate creaks open!"; return; }
     s.msg="The "+c.name+" Castle is locked. Find the "+LABEL[key]+".";
@@ -638,13 +648,16 @@
         const oy={up:hy-9,down:hy+9,left:hy,right:hy}[state.hero.dir]||hy; drawObject(state.carry,ox,oy,state.hero.dir); }
       if(state.secretWin){
         // The hidden 100%-completion ending: flashing colours, like the original
-        // Atari Adventure's secret room.
+        // Atari Adventure's secret room. Player feedback: the credit text should
+        // run VERTICAL, one letter per line, the way "CREATED BY WARREN ROBINETT"
+        // actually appears in the original 1979 game's hidden room — not a
+        // horizontal banner.
         const flash=["#ffd94a","#f43f5e","#22d3ee","#4ade80","#c084fc"][Math.floor(Date.now()/90)%5];
         ctx.fillStyle="rgba(0,0,0,.55)"; ctx.fillRect(0,0,SIZE,SIZE);
-        ctx.fillStyle=flash; ctx.font="bold 13px system-ui"; ctx.textAlign="center";
-        ctx.fillText("ADAPTED BY",100,88);
-        ctx.font="bold 15px system-ui";
-        ctx.fillText("STEPHEN PLEASANTS",100,106);
+        ctx.fillStyle=flash; ctx.font="bold 11px monospace"; ctx.textAlign="center";
+        const letters=[..."ADAPTED BY STEPHEN PLEASANTS"].filter(ch=>ch!==" ");
+        const lineH=SIZE/(letters.length+1);
+        letters.forEach((ch,i)=>ctx.fillText(ch,100,lineH*(i+1)));
       } else if(state.won){ ctx.fillStyle="rgba(0,0,0,.55)"; ctx.fillRect(0,0,SIZE,SIZE); ctx.fillStyle="#ffd94a"; ctx.font="bold 16px system-ui"; ctx.textAlign="center"; ctx.fillText("YOU WIN!",100,100); }
       else if(state.dead){ ctx.fillStyle="rgba(120,0,0,.4)"; ctx.fillRect(0,0,SIZE,SIZE); }
     }
