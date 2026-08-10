@@ -1086,6 +1086,15 @@
       { key:"DROP_STEP", label:"Drop speed increase per level", min:0, max:6, def:2 },
       { key:"DROP_MIN", label:"Fastest drop speed (frames — the floor)", min:4, max:30, def:14 },
     ]},
+    chicken1:{ storageKey:"chicken1_config", sub:"Car handling — takes effect next time the game is opened. Per-race traffic spacing/finish distance aren't editable here since each of the 5 races sets its own (see RACES in the game file) — these knobs are the shared car physics under every race.", fields:[
+      { key:"MAXSPD", label:"Top speed", min:4, max:16, def:9.2 },
+      { key:"ACCEL", label:"Acceleration", min:0.02, max:0.2, def:0.075 },
+      { key:"BRAKE", label:"Braking power", min:0.05, max:0.6, def:0.26 },
+      { key:"DRAG", label:"Coasting drag", min:0.01, max:0.15, def:0.045 },
+      { key:"IDLE", label:"Idle/minimum speed", min:0, max:3, def:1.1 },
+      { key:"OFFSPD", label:"Off-road speed cap", min:1, max:6, def:3.2 },
+      { key:"STEER", label:"Steering speed", min:1, max:8, def:3.3 },
+    ]},
   };
   let numericInitSlug=null;
   function initNumericEditor(slug){

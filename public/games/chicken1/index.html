@@ -43,6 +43,18 @@
   const C={ W:480, H:360, ROADW:264, CARW:26, CARH:40, PLAYER_Y:292,
     MAXSPD:9.2, ACCEL:0.075, BRAKE:0.26, DRAG:0.045, IDLE:1.1, OFFSPD:3.2, STEER:3.3,
     SPAWN_GAP:56, FINISH_DIST:9000 };   // defaults — mirror RACES[0] (Circuit Sprint) below
+  // Admin-configurable at /admin/games/?game=chicken1 (site's generic
+  // numeric-knob pattern — see kaboom's HANDOFF.md). Only the car-physics
+  // knobs are exposed, deliberately excluding C.SPAWN_GAP/C.FINISH_DIST:
+  // once a race starts, actual traffic spacing/finish distance come from
+  // the selected RACES[i].spawnGap/.finish (see newState()), not C — those
+  // two C fields are unused fallback defaults, so overriding them would
+  // silently do nothing.
+  (function(){ try{
+    const allow=["MAXSPD","ACCEL","BRAKE","DRAG","IDLE","OFFSPD","STEER"];
+    const o=JSON.parse(localStorage.getItem("chicken1_config")||"{}");
+    for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
+  }catch(_){} })();
   const clamp=(v,a,b)=>v<a?a:v>b?b:v;
   const rov=(ax,ay,aw,ah,bx,by,bw,bh)=> ax<bx+bw&&ax+aw>bx&&ay<by+bh&&ay+ah>by;
   const RIVAL_COLORS=["#f43f5e","#22d3ee","#a3e635","#c084fc","#fb923c"];
