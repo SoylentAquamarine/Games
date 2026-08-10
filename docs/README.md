@@ -26,11 +26,11 @@ or AI) touches that game next:
 - What's still open / deferred, so the next pass doesn't have to
   rediscover it from a comment thread.
 
-This is **not** meant to be exhaustive coverage of all 87+ games on day
-one — it's built up incrementally, a few games per pass, prioritizing
-whichever game was just worked on. If a game doesn't have a HANDOFF.md yet,
-its `index.html` is still the source of truth; add one the next time you
-touch that game.
+Every game in `public/games/` (102 as of this writing, including the
+`cards/`/`board/` sub-games) now has one — see the root HANDOFF.md's
+"Per-game HANDOFF.md rollout" note. If a new game folder ever appears
+without one, add it the next time you touch that game; its `index.html`
+is the source of truth in the meantime.
 
 ## Code comments
 
