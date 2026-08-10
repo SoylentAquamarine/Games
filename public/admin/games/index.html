@@ -249,6 +249,25 @@
           </div>
         </div>
 
+        <div id="cfgPac" class="hidden">
+          <p class="sub">Design the maze: click a brush, then click or drag to paint. One Player Start is expected; place a Ghost Start for each ghost you want (colors cycle if you place more than 4).</p>
+          <div class="row">
+            <button class="btn small on" data-pbrush="#">Wall</button>
+            <button class="btn small" data-pbrush=".">Dot</button>
+            <button class="btn small" data-pbrush="O">⚪ Power pellet</button>
+            <button class="btn small" data-pbrush=" ">Empty floor</button>
+            <button class="btn small" data-pbrush="P">🐔 Player start</button>
+            <button class="btn small" data-pbrush="G">👻 Ghost start</button>
+          </div>
+          <canvas id="p-canvas" width="342" height="378"></canvas>
+          <div class="row" style="margin-top:8px">
+            <button class="btn" id="p-save">Save maze</button>
+            <button class="btn ghost" id="p-test">▶ Test this maze</button>
+            <button class="btn ghost" id="p-reset">Reset to default</button>
+            <span class="msg" id="p-ok"></span>
+          </div>
+        </div>
+
         <!-- GENERIC NUMERIC-KNOB PANE — driven by NUMERIC_CONFIGS below.
              Any game with plain tunable difficulty constants (as opposed
              to an editable board/level shape) gets one entry in that
@@ -394,7 +413,7 @@
   }
 
   // ---- configuration: dispatch to the right editor pane ----
-  const CFG_PANES=["cfgGeneric","cfgQuest","cfgMania","cfgAdv","cfgGolf","cfgSoko","cfgNumeric"];
+  const CFG_PANES=["cfgGeneric","cfgQuest","cfgMania","cfgAdv","cfgGolf","cfgSoko","cfgPac","cfgNumeric"];
   function showConfig(slug){
     CFG_PANES.forEach(id=>$(id).classList.add("hidden"));
     if(slug==="quest"){ $("cfgQuest").classList.remove("hidden"); initQuestEditor(); }
@@ -402,6 +421,7 @@
     else if(slug==="adventure"){ $("cfgAdv").classList.remove("hidden"); initAdvEditor(); }
     else if(slug==="minigolf"){ $("cfgGolf").classList.remove("hidden"); initGolfEditor(); }
     else if(slug==="sokoban"){ $("cfgSoko").classList.remove("hidden"); initSokoEditor(); }
+    else if(slug==="pacman"){ $("cfgPac").classList.remove("hidden"); initPacEditor(); }
     else if(NUMERIC_CONFIGS[slug]){ $("cfgNumeric").classList.remove("hidden"); initNumericEditor(slug); }
     else { $("cfgGeneric").classList.remove("hidden"); initGenericConfig(slug); }
   }
@@ -840,6 +860,76 @@
       $("s-ok").textContent="Reset to the built-in 4 levels.";
     };
     drawSokoPicker(); drawSoko();
+  }
+
+  // =========================================================================
+  // PACMAN maze editor
+  // =========================================================================
+  // A single fixed maze (no multi-level concept, unlike quest/sokoban) — the
+  // grid size matches the live game's own default exactly, PCELL sized so
+  // the whole thing fits the same canvas budget as the other editors.
+  const PAC_DEFAULT=[
+    "###################",
+    "#........#........#",
+    "#O##.###.#.###.##O#",
+    "#.................#",
+    "#.##.#.#####.#.##.#",
+    "#....#...#...#....#",
+    "####.###.#.###.####",
+    "#....#.......#....#",
+    "#.##.#.#G#G#.#.##.#",
+    "#.....G....G......#",
+    "#.##.#.#####.#.##.#",
+    "#....#...#...#....#",
+    "####.###.#.###.####",
+    "#........#........#",
+    "#O##.###.#.###.##O#",
+    "#..#.....P.....#..#",
+    "##.#.#.#####.#.#.##",
+    "#....#...#...#....#",
+    "#.######.#.######.#",
+    "#.................#",
+    "###################",
+  ];
+  const PROWS=PAC_DEFAULT.length, PCOLS=PAC_DEFAULT[0].length, PCELL=18;
+  let pacInit=false, pData, pBrush="#";
+  function pacColor(ch){ return ch==="#"?"#1c2a6b":"#05060f"; }
+  function initPacEditor(){
+    if(pacInit){ drawPac(); return; } pacInit=true;
+    pData = load("pacman_map") || JSON.parse(JSON.stringify(PAC_DEFAULT));
+    const pcv=$("p-canvas"), px=pcv.getContext("2d");
+    function drawPac(){
+      for(let y=0;y<PROWS;y++) for(let x=0;x<PCOLS;x++){
+        const ch=pData[y][x];
+        px.fillStyle=pacColor(ch); px.fillRect(x*PCELL,y*PCELL,PCELL-1,PCELL-1);
+        if(ch===".") { px.fillStyle="#f5d76e"; px.beginPath(); px.arc(x*PCELL+PCELL/2,y*PCELL+PCELL/2,2,0,7); px.fill(); }
+        else if(ch==="O"){ px.fillStyle="#fff"; px.beginPath(); px.arc(x*PCELL+PCELL/2,y*PCELL+PCELL/2,5,0,7); px.fill(); }
+        else if(ch==="P"){ px.fillStyle="#facc15"; px.beginPath(); px.arc(x*PCELL+PCELL/2,y*PCELL+PCELL/2,PCELL/2.5,0,7); px.fill(); }
+        else if(ch==="G"){ px.fillStyle="#ff8888"; px.beginPath(); px.arc(x*PCELL+PCELL/2,y*PCELL+PCELL/2,PCELL/2.5,0,7); px.fill(); }
+      }
+    }
+    function paintAt(e){
+      const r=pcv.getBoundingClientRect();
+      const cx=Math.floor(((e.touches?e.touches[0].clientX:e.clientX)-r.left)/r.width*PCOLS);
+      const cy=Math.floor(((e.touches?e.touches[0].clientY:e.clientY)-r.top)/r.height*PROWS);
+      if(cx<0||cx>=PCOLS||cy<0||cy>=PROWS) return;
+      pData[cy]=pData[cy].slice(0,cx)+pBrush+pData[cy].slice(cx+1); drawPac();
+    }
+    let pDown=false;
+    pcv.addEventListener("mousedown",e=>{pDown=true;paintAt(e);});
+    pcv.addEventListener("mousemove",e=>{if(pDown)paintAt(e);});
+    addEventListener("mouseup",()=>pDown=false);
+    pcv.addEventListener("touchstart",e=>{e.preventDefault();paintAt(e);},{passive:false});
+    pcv.addEventListener("touchmove",e=>{e.preventDefault();paintAt(e);},{passive:false});
+    $("cfgPac").querySelectorAll("[data-pbrush]").forEach(b=>b.addEventListener("click",()=>{
+      $("cfgPac").querySelectorAll("[data-pbrush]").forEach(x=>x.classList.remove("on")); b.classList.add("on"); pBrush=b.dataset.pbrush; }));
+    $("p-save").onclick=()=>{ store("pacman_map",pData); $("p-ok").textContent="Saved — reopen Chicken-Man to play it."; };
+    $("p-test").onclick=()=>{ store("pacman_map",pData); window.open("/games/pacman/","_blank"); };
+    $("p-reset").onclick=()=>{
+      clear("pacman_map"); pData=JSON.parse(JSON.stringify(PAC_DEFAULT)); drawPac();
+      $("p-ok").textContent="Reset to the built-in maze.";
+    };
+    drawPac();
   }
 
   // =========================================================================

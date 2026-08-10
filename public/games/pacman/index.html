@@ -54,7 +54,7 @@
   <script src="/arcade.js"></script>
   <script>
   (function(){
-    const MAP=[
+    const DEFAULT_MAP=[
       "###################",
       "#........#........#",
       "#O##.###.#.###.##O#",
@@ -77,6 +77,15 @@
       "#.................#",
       "###################",
     ];
+    // Admin-designed maze (/admin/games/?game=pacman, "Configuration" panel)
+    // overrides the built-in one — same convention as quest/chickenmania/
+    // adventure/minigolf/sokoban. Falls back to DEFAULT_MAP on anything
+    // malformed, including ragged rows (every row must share one width, or
+    // `MAP[r][c]` for a too-short row silently reads as open floor past its
+    // end instead of a wall, punching a hole in the boundary).
+    function isValidMap(o){ return Array.isArray(o)&&o.length>0&&o.every(row=>typeof row==="string"&&row.length===o[0].length); }
+    let MAP=DEFAULT_MAP;
+    try{ const j=localStorage.getItem("pacman_map"); if(j){ const o=JSON.parse(j); if(isValidMap(o)) MAP=o; } }catch(e){}
     const ROWS=MAP.length, COLS=MAP[0].length;
     const cv=document.getElementById("c"),ctx=cv.getContext("2d");
     const T=cv.width/COLS;
@@ -349,6 +358,7 @@
     let ts=null;cv.addEventListener("touchstart",e=>ts={x:e.touches[0].clientX,y:e.touches[0].clientY},{passive:true});
     cv.addEventListener("touchend",e=>{if(!ts||!pac)return;const dx=e.changedTouches[0].clientX-ts.x,dy=e.changedTouches[0].clientY-ts.y;if(Math.abs(dx)<18&&Math.abs(dy)<18)return;if(Math.abs(dx)>Math.abs(dy))setDir(dx>0?"right":"left");else setDir(dy>0?"down":"up");ts=null;},{passive:true});
     startBtn.addEventListener("click",start);
+    window.__pacman={MAP,DEFAULT_MAP,isValidMap,ROWS,COLS,getPacStart:()=>pacStart,getGhostStarts:()=>ghostStarts,getDots:()=>dots};
     reset(true);draw();
   })();
   </script>
