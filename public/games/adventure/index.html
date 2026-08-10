@@ -41,7 +41,7 @@
 </head>
 <body>
 <div class="wrap">
-  <div class="topbar"><a class="home" href="/">← Home</a><h1>🐔 Chicken Adventure</h1><button class="btn" id="new">New Game</button></div>
+  <div class="topbar"><a class="home" href="/">← Home</a><h1>🐔 Chicken Adventure</h1><button class="btn" id="restart" title="Respawn at the start, keeping dead dragons dead and progress intact">Restart</button><button class="btn" id="new">New Game</button></div>
   <div class="hud"><span>Room: <b id="room">—</b></span><span>Health: <b id="hp">100%</b></span><span>Time: <b id="time">0:00</b></span><span>Best: <b id="best">—</b></span></div>
   <div class="carry" id="carry">Carrying: nothing</div>
   <div class="playarea">
@@ -670,6 +670,16 @@
       b.addEventListener("touchstart",on,{passive:false}); b.addEventListener("touchend",off); b.addEventListener("mousedown",on); b.addEventListener("mouseup",off); b.addEventListener("mouseleave",off); });
     $("dropbtn").addEventListener("click",()=>drop(state));
     $("new").addEventListener("click",()=>{ state=newGame(); dir=null; deathT=0; start=Date.now(); });
+    // Player feedback: "there needs to be a restart button beside the new
+    // game, so you can restart the same level if you die without
+    // resetting the dead dragons to alive and everything in the game
+    // will continue." respawn() already preserves exactly that (dead
+    // dragons stay dead, collected/dropped items stay in the world) —
+    // it previously only fired automatically ~1.2s after death. This
+    // button just triggers the same respawn immediately, and only while
+    // actually dead (a no-op mid-play, so it can't yank the hero back to
+    // the start room/drop their held item during normal play).
+    $("restart").addEventListener("click",()=>{ if(state.dead){ respawn(state); deathT=0; } });
 
     requestAnimationFrame(frame);
   }
