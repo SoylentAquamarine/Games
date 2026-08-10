@@ -243,6 +243,7 @@
       if (!running) return;
       paused = !paused;
       if (paused) {
+        clearTimeout(timer);   // cancel the already-scheduled step so one more tick can't sneak in while paused
         overlayTitle.textContent = "Paused";
         overlayMsg.textContent = "Take a breath.";
         startBtn.textContent = "Resume";

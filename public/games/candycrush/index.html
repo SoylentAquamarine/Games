@@ -76,6 +76,20 @@
       return m;}
     function collapse(b){for(let c=0;c<SIZE;c++){const col=[];for(let r=SIZE-1;r>=0;r--)if(b[r][c]>=0)col.push(b[r][c]);
       while(col.length<SIZE)col.push(rnd(NCOL));for(let r=SIZE-1,i=0;r>=0;r--,i++)b[r][c]=col[i];}}
+    function swapAt(b,r1,c1,r2,c2){const t=b[r1][c1];b[r1][c1]=b[r2][c2];b[r2][c2]=t;}
+    // Is there at least one adjacent swap that would produce a match? Boards from
+    // gen() only avoid *pre-existing* matches - nothing guarantees a legal move
+    // still exists after several rounds of collapse() refilling with fresh random
+    // colors, so the board can organically go "dead" (no swap clears anything) well
+    // before moves run out, freezing the game since failed swaps don't cost a move.
+    function hasValidMove(b){
+      for(let r=0;r<SIZE;r++)for(let c=0;c<SIZE;c++){
+        if(c+1<SIZE){swapAt(b,r,c,r,c+1);const ok=findMatches(b).size>0;swapAt(b,r,c,r,c+1);if(ok)return true;}
+        if(r+1<SIZE){swapAt(b,r,c,r+1,c);const ok=findMatches(b).size>0;swapAt(b,r,c,r+1,c);if(ok)return true;}
+      }
+      return false;
+    }
+    function freshBoard(){let b;do{b=gen();}while(!hasValidMove(b));return b;}
 
     function build(){boardEl.style.gridTemplateColumns=`repeat(${SIZE},1fr)`;boardEl.innerHTML="";cells=[];
       for(let r=0;r<SIZE;r++){cells[r]=[];for(let c=0;c<SIZE;c++){const d=document.createElement("div");d.className="cell";
@@ -83,7 +97,7 @@
     function render(){for(let r=0;r<SIZE;r++)for(let c=0;c<SIZE;c++){const v=board[r][c];const el=cells[r][c];
       el.innerHTML=v>=0?chickenSVG(v):"";el.classList.toggle("sel",!!(sel&&sel[0]===r&&sel[1]===c));}}
 
-    function newGame(){board=gen();sel=null;score=0;moves=MOVES;over=false;busy=false;
+    function newGame(){board=freshBoard();sel=null;score=0;moves=MOVES;over=false;busy=false;
       scoreEl.textContent=0;movesEl.textContent=MOVES;targetEl.textContent=TARGET;statusEl.textContent="Swap two neighbors to match 3+.";render();}
     function click(r,c){
       if(busy||over)return;
@@ -102,6 +116,7 @@
       busy=false;
       if(score>=TARGET){over=true;statusEl.textContent="🎉 Target reached! You win! Score "+score;}
       else if(moves<=0){over=true;statusEl.textContent="Out of moves. Final score "+score+".";}
+      else if(!hasValidMove(board)){board=freshBoard();render();statusEl.textContent="No moves left — board reshuffled.";}
     }
     function swap(r1,c1,r2,c2){const t=board[r1][c1];board[r1][c1]=board[r2][c2];board[r2][c2]=t;}
     async function resolve(){
@@ -119,7 +134,7 @@
     }
     document.getElementById("new").addEventListener("click",newGame);
     // expose for tests
-    window.__cc={gen,findMatches,collapse,SIZE,NCOL};
+    window.__cc={gen,findMatches,collapse,SIZE,NCOL,hasValidMove};
     build();newGame();
   })();
   </script>
