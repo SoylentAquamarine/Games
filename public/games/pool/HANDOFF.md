@@ -15,10 +15,26 @@ with real cue-ball placement and rail physics.
   not get out of cue-ball placement into the break` / `fix(chickencircus):
   game no longer halts`) — both were "stuck in a setup state and can't
   progress" bugs, worth checking together if either regresses.
+- **Admin-configurable** at `/admin/games/?game=pool`: `FRICTION`
+  (roll friction), `MAX_POWER` (max shot power), `CUSHION` (rail
+  bounce energy retained). Uses the site's generic numeric-knob config
+  pattern (see kaboom's HANDOFF.md) — saved to
+  `localStorage["pool_config"]`, merged into `C` at boot via an
+  explicit allowlist. Table dimensions (`TABLES[mode].w/h`) are
+  deliberately NOT exposed here — they're mode-shape (8-ball/9-ball/
+  carom/mini), not a difficulty knob, and editing them would need to
+  interact with the per-mode rack layout too.
 
 ## Most recent pass
 
-**Bug fix (found in a code-review pass, not player-reported): scratching
+**Numeric-config rollout: pool was a flagged candidate** (root
+`HANDOFF.md` — the physics constants are global, not tied to any one
+table mode, so unlike the mode-shape dimensions they were safe to wire
+up without needing a mode-aware editor). Added the standard three-line
+boot-time merge and a `NUMERIC_CONFIGS` entry for `FRICTION`,
+`MAX_POWER`, `CUSHION`.
+
+Earlier: **bug fix (found in a code-review pass, not player-reported): scratching
 while sinking the 9 in Mini mode softlocked the game.** In solo Mini Pool
 (9-ball on the small 4-pocket table), potting the 9-ball on the same shot
 the cue ball also scratches fell into the "illegal 9, respot and keep
