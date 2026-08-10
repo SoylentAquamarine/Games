@@ -1073,6 +1073,11 @@
       { key:"TIME_START", label:"Starting time", min:20, max:200, def:80 },
       { key:"TIME_RATE", label:"Time drain per frame", min:0.01, max:0.1, def:0.028 },
     ]},
+    pool:{ storageKey:"pool_config", sub:"Table physics — takes effect next time the game is opened. Table dimensions aren't editable here since they're mode-shape (8-ball/9-ball/carom/mini), not difficulty.", fields:[
+      { key:"FRICTION", label:"Roll friction (higher = balls roll longer)", min:0.95, max:0.995, def:0.988 },
+      { key:"MAX_POWER", label:"Max shot power", min:5, max:30, def:15 },
+      { key:"CUSHION", label:"Cushion bounce (energy kept)", min:0.4, max:0.95, def:0.72 },
+    ]},
   };
   let numericInitSlug=null;
   function initNumericEditor(slug){

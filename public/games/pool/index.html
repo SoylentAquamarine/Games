@@ -91,6 +91,17 @@
     CUSHION:0.72,               // energy kept on a cushion bounce
     POCKET_R:16,
   };
+  // Admin-configurable at /admin/games/?game=pool (site's generic numeric-
+  // knob pattern — see kaboom's HANDOFF.md). Only FRICTION/MAX_POWER/CUSHION
+  // are exposed: they're global physics constants, not tied to any one
+  // TABLES mode, so a saved value applies the same way whichever mode is
+  // opened next — unlike table dimensions (TABLES[mode].w/h), which are
+  // mode-shape, not difficulty, and stay out of this rollout on purpose.
+  (function(){ try{
+    const allow=["FRICTION","MAX_POWER","CUSHION"];
+    const o=JSON.parse(localStorage.getItem("pool_config")||"{}");
+    for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
+  }catch(_){} })();
   // Playing surfaces per mode, centred in the canvas.
   const TABLES = {
     eight: { w:520, h:270, pockets:true },
