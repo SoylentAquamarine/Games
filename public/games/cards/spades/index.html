@@ -103,10 +103,16 @@
     let hands,bids,tricks,trick,current,spadesBroken,tricksDone,phase,over;
     let scores=[0,0],bagTotal=[{v:0},{v:0}];
     const delay=(ms)=>new Promise(r=>setTimeout(r,ms));
+    // Bumped every time a hand is (re)dealt. proceed()/resolveTrick() capture
+    // it on entry and re-check after every await so a stale chain from a hand
+    // that got abandoned mid-delay (e.g. "New Game" clicked while an AI was
+    // "thinking") can't resume and play a card into the new hand.
+    let gen=0;
     function sortHand(h){const order={C:0,D:1,H:2,S:3};h.sort((a,b)=>order[a.suit]-order[b.suit]||a.rank-b.rank);}
 
     function newGame(){scores=[0,0];bagTotal=[{v:0},{v:0}];over=false;startHand();}
     function startHand(){
+      gen++;
       const d=Cards.shuffle(Cards.makeDeck());
       hands=[d.slice(0,13),d.slice(13,26),d.slice(26,39),d.slice(39,52)];hands.forEach(sortHand);
       bids=[null,null,null,null];tricks=[0,0,0,0];trick=[];spadesBroken=false;tricksDone=0;phase="bid";
@@ -120,10 +126,12 @@
       document.getElementById("bidbtns").innerHTML="";phase="play";current=0;trick=[];
       document.getElementById("status").textContent="You bid "+(b===0?"Nil":b)+". Your lead.";render();proceed();}
     async function proceed(){
+      const myGen=gen;
       render();
-      if(trick.length===4){await delay(700);return resolveTrick();}
+      if(trick.length===4){await delay(700);if(myGen!==gen)return;return resolveTrick();}
       if(current===0){document.getElementById("status").textContent="Your turn.";render();return;}
       await delay(600);
+      if(myGen!==gen)return; // hand was reset while the CPU was "thinking" -- abandon this stale turn
       const ctx={leading:trick.length===0,spadesBroken,ledSuit:trick.length?trick[0].card.suit:null,me:current};
       playCard(current,aiChoose(hands[current],trick,ctx));
     }
@@ -132,9 +140,9 @@
       if(!legalPlays(hands[0],ctx).includes(card))return;playCard(0,card);}
     function playCard(p,card){const i=hands[p].indexOf(card);if(i<0)return;hands[p].splice(i,1);
       trick.push({player:p,card});if(card.suit==="S")spadesBroken=true;current=(current+1)%4;proceed();}
-    async function resolveTrick(){const w=bestOfTrick(trick).player;tricks[w]++;tricksDone++;
+    async function resolveTrick(){const myGen=gen;const w=bestOfTrick(trick).player;tricks[w]++;tricksDone++;
       document.getElementById("status").textContent=NAMES[w]+" wins the trick.";trick=[];current=w;render();
-      await delay(650);if(tricksDone===13)return endHand();proceed();}
+      await delay(650);if(myGen!==gen)return;if(tricksDone===13)return endHand();proceed();}
     function endHand(){
       const a=scoreTeam(0,2,bids,tricks,bagTotal[0]);const b=scoreTeam(1,3,bids,tricks,bagTotal[1]);
       scores[0]+=a.score;scores[1]+=b.score;phase="over";render();

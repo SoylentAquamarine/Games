@@ -67,7 +67,7 @@
     try{ const j=localStorage.getItem("sokoban_levels"); if(j){ const o=JSON.parse(j); if(isValidLevels(o)) LEVELS=o; } }catch(e){}
     const boardEl=document.getElementById("board"),statusEl=document.getElementById("status"),movesEl=document.getElementById("moves"),lvlEl=document.getElementById("lvl");
     document.getElementById("lvltot").textContent=LEVELS.length;
-    let walls,targets,boxes,player,rows,cols,moves,undoStack,level=0,solved;
+    let walls,targets,boxes,player,rows,cols,moves,undoStack,level=0,solved,advanceTimer=null;
 
     function parse(map){walls=new Set();targets=new Set();boxes=new Set();rows=map.length;cols=Math.max(...map.map(r=>r.length));
       for(let r=0;r<rows;r++)for(let c=0;c<map[r].length;c++){const ch=map[r][c];const k=r+","+c;
@@ -75,7 +75,15 @@
         if(ch==="."||ch==="*"||ch==="+")targets.add(k);
         if(ch==="$"||ch==="*")boxes.add(k);
         if(ch==="@"||ch==="+")player={r,c};}}
-    function load(i){level=i;parse(LEVELS[i]);moves=0;solved=false;undoStack=[];movesEl.textContent=0;lvlEl.textContent=i+1;statusEl.textContent="Push every box onto a target.";render();}
+    function load(i){
+      // Cancel any pending "level solved, auto-advancing…" timer from a
+      // previous solve — otherwise Restart (or the admin editor's Test
+      // button) right after solving a level gets silently overridden a
+      // moment later when that stale timer fires and jumps to the next
+      // level regardless of what the player is doing on the reloaded one.
+      if(advanceTimer){clearTimeout(advanceTimer);advanceTimer=null;}
+      level=i;parse(LEVELS[i]);moves=0;solved=false;undoStack=[];movesEl.textContent=0;lvlEl.textContent=i+1;statusEl.textContent="Push every box onto a target.";render();
+    }
     function key(r,c){return r+","+c;}
     function snapshot(){return{p:{...player},b:new Set(boxes),m:moves};}
     function move(dr,dc){
@@ -90,7 +98,7 @@
     function undo(){if(!undoStack.length||solved)return;const s=undoStack.pop();player=s.p;boxes=s.b;moves=s.m;movesEl.textContent=moves;render();}
     function checkWin(){for(const t of targets)if(!boxes.has(t))return;solved=true;
       statusEl.textContent=level+1<LEVELS.length?"🎉 Level solved! Loading next…":"🏆 All levels complete!";
-      if(level+1<LEVELS.length)setTimeout(()=>load(level+1),1100);}
+      if(level+1<LEVELS.length)advanceTimer=setTimeout(()=>{advanceTimer=null;load(level+1);},1100);}
     function render(){boardEl.style.gridTemplateColumns=`repeat(${cols},32px)`;boardEl.innerHTML="";
       for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){const k=key(r,c),d=document.createElement("div");
         const isWall=walls.has(k),isTarget=targets.has(k);

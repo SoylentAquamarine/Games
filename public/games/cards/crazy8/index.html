@@ -123,7 +123,14 @@
     });
     function endYouTurn(){drewThisTurn=false;passes++;turn="cpu";render();if(passes>=2)return stalemate();setTimeout(cpuTurn,700);}
     function cpuTurn(){
-      if(over)return;
+      // Guards against a stale timer: cpuTurn() is scheduled with a bare
+      // setTimeout (no cancellation) from afterYou()/endYouTurn(). If "New
+      // Game" is clicked while that timer is still pending, over/turn get
+      // reset by newGame() but the timer itself keeps running — without this
+      // turn check it would fire cpuTurn() against the brand-new game (CPU
+      // silently playing/drawing a card, sometimes even winning instantly)
+      // before the player has done anything.
+      if(over||turn!=="cpu")return;
       // draw until playable or stock empty
       let card=chooseCpu();
       while(!card&&stock.length>0){cpu.push(stock.shift());card=chooseCpu();}

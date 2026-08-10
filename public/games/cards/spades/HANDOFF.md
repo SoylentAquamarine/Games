@@ -12,10 +12,25 @@ are always trump, make your contract.
 
 ## Most recent pass
 
-No player-feedback pass yet — this HANDOFF.md was created as part of a
-documentation sweep (see the root HANDOFF.md's "Per-game HANDOFF.md
+**Bug fix: stale AI turn could leak into a new hand mid-bid.** Same class of
+bug as hearts' HANDOFF: `proceed()`/`resolveTrick()` are `async` and `await
+delay(...)` between plays with no check that the hand they belong to was
+still current. Clicking **New Game** while an AI's `delay(600)` was pending
+left that chain alive; when it woke up it read the live (now freshly-dealt)
+`hands`/`trick`/`current` and could `playCard()` into the *new* hand's trick
+— while that hand was still sitting in the bidding UI (phase never left
+`"bid"`), before the player had even placed a bid. Confirmed headlessly:
+bid, lead a card (schedules West's AI delay), click New Game before it
+fires, then fire the orphaned timer and see a card land in a trick slot
+while the bid buttons were still showing. Fix: added a `gen` counter bumped
+in `startHand()`; `proceed()` and `resolveTrick()` capture it on entry and
+bail out after each `await` if it no longer matches (same pattern as the
+hearts fix).
+
+Earlier: no player-feedback pass yet — this HANDOFF.md was created as part
+of a documentation sweep (see the root HANDOFF.md's "Per-game HANDOFF.md
 rollout" note, which had missed the individual `cards/` sub-games).
-Everything under "What's here" reflects the game as originally built.
+Everything else under "What's here" reflects the game as originally built.
 
 ## Open / deferred
 

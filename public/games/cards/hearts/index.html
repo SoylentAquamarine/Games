@@ -103,10 +103,16 @@
     const PASS_SEQ=[1,3,2,0]; // left, right, across, none (offset; 0 = no pass)
     let passIndex=0;
     const delay=(ms)=>new Promise(r=>setTimeout(r,ms));
+    // Bumped every time a hand is (re)dealt. proceed()/resolveTrick() capture
+    // it on entry and re-check after every await so a stale chain from a hand
+    // that got abandoned mid-delay (e.g. "New Game" clicked while the CPU was
+    // "thinking") can't resume and play a card into the new hand's trick.
+    let gen=0;
 
     function sortHand(h){const order={C:0,D:1,S:2,H:3};h.sort((a,b)=>order[a.suit]-order[b.suit]||a.rank-b.rank);}
     function newGame(){scores=[0,0,0,0];passIndex=0;over=false;startHand();}
     function startHand(){
+      gen++;
       const d=Cards.shuffle(Cards.makeDeck());
       hands=[d.slice(0,13),d.slice(13,26),d.slice(26,39),d.slice(39,52)];hands.forEach(sortHand);
       handPts=[0,0,0,0];trick=[];heartsBroken=false;tricksDone=0;firstTrick=true;picked=[];
@@ -131,10 +137,12 @@
     }
     function beginPlay(){current=hands.findIndex(has2C);firstTrick=true;trick=[];document.getElementById("status").textContent="";proceed();}
     async function proceed(){
+      const myGen=gen;
       render();
-      if(trick.length===4){await delay(700);return resolveTrick();}
+      if(trick.length===4){await delay(700);if(myGen!==gen)return;return resolveTrick();}
       if(current===0){document.getElementById("status").textContent="Your turn.";render();return;} // wait for click
       await delay(600);
+      if(myGen!==gen)return; // hand was reset while the CPU was "thinking" -- abandon this stale turn
       const ctx={leading:trick.length===0,heartsBroken,firstTrick,ledSuit:trick.length?trick[0].card.suit:null};
       const card=aiChoose(hands[current],trick,ctx);
       playCard(current,card);
@@ -151,11 +159,13 @@
       current=(current+1)%4;proceed();
     }
     async function resolveTrick(){
+      const myGen=gen;
       const w=trickWinner(trick);const pts=trick.reduce((a,t)=>a+pointsOf(t.card),0);
       handPts[w]+=pts;tricksDone++;
       document.getElementById("status").textContent=NAMES[w]+" takes the trick"+(pts?` (+${pts})`:"");
       trick=[];firstTrick=false;current=w;render();
       await delay(650);
+      if(myGen!==gen)return; // hand was reset during the "takes the trick" pause
       if(tricksDone===13)return endHand();
       proceed();
     }

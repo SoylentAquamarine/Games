@@ -30,7 +30,23 @@ hand-authored levels, with undo and per-move history.
 
 ## Most recent pass
 
-**Board/level editor rollout: sokoban was the next candidate** (flagged
+**Bug fix: Restart right after solving a level could get silently
+overridden by the stale auto-advance timer.** `checkWin()` schedules
+`setTimeout(()=>load(level+1),1100)` when a level is solved, but nothing
+cancelled it. The Restart button called `load(level)` unconditionally (no
+guard on `solved`), so a player who clicked Restart to replay the level they
+just solved would start replaying it — then, up to ~1100ms later, the
+original stale timer still fired and force-advanced them to the next level
+regardless of what they were doing on the reloaded one. Confirmed headlessly
+via `window.__soko.loadTest`/`moveTest`: solve level 1 in one push, click
+Restart (level display correctly goes back to 1), then fire the still-queued
+timer and watch it jump to level 2 anyway. Fix: `load()` now tracks the
+pending timer in `advanceTimer` and calls `clearTimeout` on it before doing
+anything else, so any `load()` call (Restart, the admin editor's Test
+button, or a normal auto-advance) invalidates a previous solve's pending
+advance (`public/games/sokoban/index.html`, `load()`/`checkWin()`).
+
+Earlier: **Board/level editor rollout: sokoban was the next candidate** (flagged
 in root `HANDOFF.md` as the cheapest — already had a fixed `LEVELS`
 array, the same shape quest/minigolf's editors expect). Added a
 paint-tool canvas in the admin panel (7 brushes: wall/floor/target/box/
