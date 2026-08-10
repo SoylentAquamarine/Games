@@ -21,10 +21,27 @@ Top-down F1-style racer: a curving road, forward scroll, traffic culling.
   (`localStorage["chicken1_racenum"]`) shows a decorative
   `Mascots.spacesuitChicken` flyby once per race, on every 5th race
   started. Purely cosmetic — no collision, no scoring effect.
+- **Admin-configurable** at `/admin/games/?game=chicken1`: car handling
+  — `MAXSPD`/`ACCEL`/`BRAKE`/`DRAG`/`IDLE`/`OFFSPD`/`STEER`. Uses the
+  site's generic numeric-knob config pattern (see kaboom's HANDOFF.md)
+  — saved to `localStorage["chicken1_config"]`, merged into `C` at
+  boot via an explicit allowlist. **`C.SPAWN_GAP`/`C.FINISH_DIST` are
+  deliberately NOT exposed** — once a race starts, actual traffic
+  spacing/finish distance come from the selected `RACES[i]`'s own
+  `spawnGap`/`finish` (see `newState()`), not `C`; those two `C`
+  fields are unused fallback defaults only, so a config knob on them
+  would visibly do nothing.
 
 ## Most recent pass
 
-**Bug fix (found in a code-review pass, not player-reported): best time
+**Numeric-config rollout: chicken1 was a flagged candidate**, needing
+the same care as `chickenposition` — its `C` mixes genuinely
+independent, uniform car-physics constants with two fields
+(`SPAWN_GAP`, `FINISH_DIST`) that are shadowed by the active race's
+own values during real play. Wired up only the 7 physics knobs that
+actually apply.
+
+Earlier: **bug fix (found in a code-review pass, not player-reported): best time
 was shared across races with different finish distances.** The five
 races have different finish distances (9000/11000/16000), so completion
 times aren't comparable across them, but "Best" was tracked with one
