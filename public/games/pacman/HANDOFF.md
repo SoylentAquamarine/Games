@@ -5,16 +5,39 @@ tables temporarily.
 
 ## What's here
 
-- `index.html` — everything. No `window.__` pure-sim export; not yet set
-  up for headless testing the way most other games are.
+- `index.html` — everything. `window.__pacman` exposes `MAP`,
+  `DEFAULT_MAP`, `isValidMap`, `ROWS`/`COLS`, `getPacStart`/
+  `getGhostStarts`/`getDots` for headless testing — a minimal export
+  added alongside the board editor below, not a full pure-sim
+  extraction (the step/render loop itself is still untested).
 - Arcade ghost AI (each ghost has its own classic-style targeting
   behavior, not just "chase the player" for all four).
 - Smooth (non-grid-snapped) player movement and a death animation.
 - `Arcade.sfx` wired up for sound (shared pass with lander, galaga).
+- **Admin-configurable** at `/admin/games/?game=pacman`: a real maze
+  board editor, part of the site's board/level-editor rollout (see
+  kaboom's/quest's HANDOFF.md for the general pattern). `MAP` is
+  overridable via `localStorage["pacman_map"]` (`isValidMap` requires
+  every row to be the same width — a ragged row would silently punch a
+  hole in the boundary wall instead of erroring — safe fallback to
+  `DEFAULT_MAP` otherwise).
 
 ## Most recent pass
 
-**Bug fix (found in a code-review pass, not player-reported): a ghost
+**Board/level editor rollout: pacman was the next candidate** (root
+`HANDOFF.md` — a single fixed `MAP`, closer to adventure's "one
+editable layout" shape than quest/sokoban's "N levels" shape). Added a
+single-grid paint-tool canvas in the admin panel (6 brushes: wall/dot/
+power pellet/empty floor/player start/ghost start), sized to the
+maze's own 21×19 default — no level picker needed, since there's only
+one maze to edit. `MAP` was renamed `DEFAULT_MAP` with the usual
+override/fallback wiring; a pre-existing scratchpad regression test
+(`pacman-swap-collision-test.js`) that detected this game's script by
+looking for the literal `const MAP=` needed updating to look for
+`const DEFAULT_MAP=` instead — a legitimate, deliberate rename, not a
+regression.
+
+Earlier: **bug fix (found in a code-review pass, not player-reported): a ghost
 could pass straight through the player.** `checkCollisions()` only caught
 pac and a ghost landing on the SAME cell after both moved. In a 1-wide
 corridor, a head-on approach lets them swap cells within one tick — pac
@@ -47,5 +70,4 @@ ghost AI all together.
 
 ## Open / deferred
 
-- **No `window.__pacman` test export** — worth adding if this game gets a
-  future gameplay pass.
+Nothing currently open for this game.
