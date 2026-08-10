@@ -30,7 +30,39 @@ own URL, and each is listed as its own entry in `public/games/INDEX.md`.
 
 ## Most recent pass
 
-**Bug fixes (found in a code-review pass, not player-reported) in two
+**Bug fixes (found in a bug-hunt pass, not player-reported) in four of
+the five sub-games — the same bug class in each:**
+
+`newGame()` reset a game's state but never cancelled any `setTimeout`
+still in flight from the PREVIOUS game's turn sequence (card-read
+delays, CPU-turn auto-advance/auto-spin/auto-draw, hop animations).
+Since every deferred callback was only guarded by `if(!over)` — and
+`newGame()` resets `over` back to `false` — a stale timer from before a
+restart could fire on the freshly reset game: silently moving a pawn,
+auto-spinning/auto-drawing on the human player's behalf, or otherwise
+acting with no click. Fixed identically in `candyland`, `gameofchicken`,
+`sorry`, and `trouble`: a `gen` generation counter, bumped once at the
+top of `newGame()`, snapshotted (`const g=gen`) before each `setTimeout`
+is scheduled, and checked (`g===gen`) inside the callback before it
+acts. `sorry` and `trouble` each had 4 separate `setTimeout` call sites
+needing the guard; `candyland` and `gameofchicken` had 2 each.
+
+`board/chickenopoly` has the same latent bug (`startNewGame()` doesn't
+cancel in-flight timers either) — **confirmed but deliberately left
+unfixed** in this pass, along with a second, unrelated confirmed bug
+found in the same review: utility rent is always charged a flat $28
+regardless of the dice roll on a normal turn (`movePlayerBy()` never
+passes the roll's total through to `landOn()`'s rent calculation, which
+falls back to a hardcoded `7`), and `doRoll()`'s attempt to correct this
+afterward charges the *correct* amount again on top rather than
+replacing the wrong one — so a normal roll onto an owned utility
+double-charges the player. Both are tracked in
+`public/games/board/chickenopoly/HANDOFF.md`'s "Open / deferred"
+rather than fixed here, since that game already has a separate,
+explicitly-deferred player request (multiplayer networking) and a
+larger, more careful pass made sense to do together.
+
+Earlier: **bug fixes (found in a code-review pass, not player-reported) in two
 sub-games:**
 
 - **`sorry`** — a slide could carry a pawn past another pawn resting on

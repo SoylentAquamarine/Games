@@ -99,3 +99,28 @@ this into the site's turn-based `MP_GAMES` engine (see root `HANDOFF.md`
 co-op, plus a `redact()` hook so each player's hand of property/cash info
 stays appropriately visible/hidden. Needs design input on which transport
 fits a 4-player board game with variable-length turns before starting.
+
+**Two bugs confirmed (not player-reported) in a bug-hunt pass across the
+`board/` sub-games, both deliberately left unfixed here** — a larger,
+more careful pass made more sense than a quick patch given this game
+already has the multiplayer item above outstanding:
+
+1. **Utility rent is always a flat $28**, regardless of the actual dice
+   roll, on a normal turn. `landOn()` computes `rent=(diceTotal||7)*4`,
+   but `movePlayerBy()` — the path every ordinary roll takes — never
+   passes `diceTotal` through, so `landOn()` always falls back to the
+   hardcoded `7`. `doRoll()` tries to "correct" this afterward by
+   charging `roll.total*4` again, but that's a SECOND charge on top of
+   the first flat $28, not a replacement — so a normal roll onto an
+   opponent's utility double-charges the player (and double-pays the
+   owner). Jail-escape utility landings, which skip `doRoll()`'s
+   correction entirely, only get the wrong flat $28 with no second
+   charge.
+2. **The same "New Game doesn't cancel in-flight timers" bug fixed in
+   `candyland`/`gameofchicken`/`sorry`/`trouble` this pass** (see the
+   shared `board/HANDOFF.md`) is also present here — `startNewGame()`
+   reassigns state to a fresh object but never cancels any `setTimeout`
+   still pending from `endTurn`/`afterLanding`/a buy-or-pass prompt.
+
+Repro scripts for both (not committed, not part of the regression
+suite): scratchpad's `chickenopoly-utility-rent-test.js`.
