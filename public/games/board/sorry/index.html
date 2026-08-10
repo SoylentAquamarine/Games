@@ -52,7 +52,7 @@
     const SLIDES=[];for(let s=0;s<4;s++){SLIDES.push({start:s*15+1,end:s*15+4,color:s});SLIDES.push({start:s*15+9,end:s*15+13,color:s});}
     const BS=344,M=18,span=BS-2*M,step=span/15;
     const boardEl=document.getElementById("board"),statusEl=document.getElementById("status"),cardEl=document.getElementById("card"),drawBtn=document.getElementById("draw"),optsEl=document.getElementById("opts"),playersEl=document.getElementById("players");
-    let pawns,deck,discard,turn,phase,over,curCard;
+    let pawns,deck,discard,turn,phase,over,curCard,gen=0;
 
     // ---- geometry ----
     function mainXY(idx){const side=Math.floor(idx/15),f=idx%15;
@@ -143,17 +143,20 @@
     function aiPick(p,moves){let best=moves[0],bs=-1e9;for(const m of moves){const sc=scoreMove(p,m)+Math.random()*0.5;if(sc>bs){bs=sc;best=m;}}return best;}
 
     // ---- flow ----
-    function newGame(){pawns=Array.from({length:NP},()=>["start","start","start","start"]);deck=buildDeck();discard=[];turn=0;phase="draw";over=false;
+    function newGame(){gen++;pawns=Array.from({length:NP},()=>["start","start","start","start"]);deck=buildDeck();discard=[];turn=0;phase="draw";over=false;
       cardEl.textContent="?";statusEl.textContent="Your turn — Draw!";optsEl.innerHTML="";render();drawBtn.disabled=false;}
     function cardText(c){return c==="Sorry"?"S!":c;}
     function draw(){
       if(over||phase!=="draw")return;
+      const g=gen;   // snapshot — New Game bumps this, invalidating any of this
+                      // turn's timers still in flight so a restart mid-turn can't
+                      // let a stale one act on the fresh game
       curCard=drawCard();cardEl.textContent=cardText(curCard);
       const moves=genMoves(turn,curCard);
       if(!moves.length){statusEl.textContent=PNAME[turn]+" drew "+cardText(curCard)+" — no move.";return finishTurn();}
       if(turn===0){phase="move";optsEl.innerHTML="";statusEl.textContent="Drew "+cardText(curCard)+" — pick a highlighted pawn.";render(moves);
-        const singlePawn=[...new Set(moves.map(m=>m.pawn))];if(singlePawn.length===1&&moves.length===1)setTimeout(()=>choosePawn(moves[0].pawn,moves),300);}
-      else{const m=aiPick(turn,moves);setTimeout(()=>{applyMove(turn,m);afterMove();},550);}
+        const singlePawn=[...new Set(moves.map(m=>m.pawn))];if(singlePawn.length===1&&moves.length===1)setTimeout(()=>{ if(g===gen) choosePawn(moves[0].pawn,moves); },300);}
+      else{const m=aiPick(turn,moves);setTimeout(()=>{ if(g===gen){applyMove(turn,m);afterMove();} },550);}
     }
     function choosePawn(i,moves){
       const opts=moves.filter(m=>m.pawn===i);
@@ -171,11 +174,12 @@
       finishTurn();
     }
     function finishTurn(){
+      const g=gen;
       const again=(curCard===2);
-      if(again){phase="draw";if(turn===0){drawBtn.disabled=false;statusEl.textContent+=" Drew a 2 — draw again!";}else setTimeout(draw,500);return;}
+      if(again){phase="draw";if(turn===0){drawBtn.disabled=false;statusEl.textContent+=" Drew a 2 — draw again!";}else setTimeout(()=>{ if(g===gen) draw(); },500);return;}
       turn=(turn+1)%NP;phase="draw";render();
       if(turn===0){drawBtn.disabled=false;statusEl.textContent="Your turn — Draw!";}
-      else{drawBtn.disabled=true;statusEl.textContent=PNAME[turn]+" is drawing…";setTimeout(draw,700);}
+      else{drawBtn.disabled=true;statusEl.textContent=PNAME[turn]+" is drawing…";setTimeout(()=>{ if(g===gen) draw(); },700);}
     }
     function render(moves){
       boardEl.innerHTML="";

@@ -21,10 +21,26 @@ seconds, watch for golden bonus chickens and avoid bombs.
 
 ## Most recent pass
 
-No player-feedback pass yet — this HANDOFF.md was created as part of a
-documentation sweep (see the root HANDOFF.md's "Per-game HANDOFF.md
-rollout" note). Everything under "What's here" reflects the game as
-originally built.
+Bug-hunt pass (headless repro + fix): each hole's pop-expiry `setTimeout`
+(`pop()`, `h.timer=setTimeout(...)`) was never cancelled when the hole's
+state changed elsewhere — not on a successful `whack()`, and not in
+`end()` (which only cleared `popTimer`/`tickTimer`, then reset every
+hole's `type` to `null` directly). The expiry callback's only guard was
+`if(h.type===type)`, comparing against the type it closed over. If the
+same hole got reused with the *same* type before that old timer fired —
+very plausible either immediately after a whack (hole goes free right
+away and can be re-popped within its own leftover life window) or across
+an end-of-round replay (a mole popped near the round's last second can
+still have up to ~1.2s of life left when `end()` fires) — the stale timer
+would fire later and wrongly wipe the brand-new, unwhacked mole
+(`classList.remove("up")`, `type=null`) well before its own life elapsed
+or the player got a fair shot at it.
+
+Fixed by tracking the timer id on the hole itself (`h.timer`) and
+explicitly `clearTimeout`ing it in `whack()` and in `end()`'s per-hole
+reset loop, so a hole's expiry timer never outlives the state it was
+scheduled for. Repro + fix verified headless (scratchpad
+`whack-stale-timer-test.js`, not part of this repo).
 
 ## Open / deferred
 

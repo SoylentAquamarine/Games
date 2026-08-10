@@ -52,7 +52,7 @@
     const HOLES=9;let holes=[],score,time,running,popTimer,tickTimer,best=Number(localStorage.getItem("whack_best")||0);
     bestEl.textContent=best;
     for(let i=0;i<HOLES;i++){const h=document.createElement("div");h.className="hole";h.innerHTML='<div class="mole"></div>';
-      h.addEventListener("click",()=>whack(i));grid.appendChild(h);holes.push({el:h,mole:h.querySelector(".mole"),type:null});}
+      h.addEventListener("click",()=>whack(i));grid.appendChild(h);holes.push({el:h,mole:h.querySelector(".mole"),type:null,timer:null});}
     function start(){score=0;time=30;running=true;scoreEl.textContent=0;timeEl.textContent=30;statusEl.textContent="Go!";startBtn.disabled=true;
       pop();tickTimer=setInterval(()=>{time--;timeEl.textContent=time;if(time<=0)end();},1000);}
     function pop(){if(!running)return;
@@ -61,11 +61,12 @@
         const r=Math.random();const type=r<.15?"bomb":r<.3?"gold":"mole";
         h.type=type;h.mole.textContent=type==="bomb"?"💣":type==="gold"?"🌟":"🐔";h.el.classList.add("up");
         const life=Math.max(600,1200-(30-time)*20);
-        setTimeout(()=>{if(h.type===type){h.el.classList.remove("up");h.type=null;}},life);
+        h.timer=setTimeout(()=>{h.el.classList.remove("up");h.type=null;h.timer=null;},life);
       }
       popTimer=setTimeout(pop,Math.max(350,750-(30-time)*12));
     }
     function whack(i){if(!running)return;const h=holes[i];if(!h.type)return;
+      if(h.timer){clearTimeout(h.timer);h.timer=null;}
       if(h.type==="bomb"){score=Math.max(0,score-2);statusEl.textContent="💥 Bomb! −2";}
       else if(h.type==="gold"){score+=3;statusEl.textContent="🌟 +3!";}
       else{score+=1;statusEl.textContent="🐔 +1";}
@@ -73,7 +74,7 @@
       const t=h.type;h.type=null;setTimeout(()=>{h.el.classList.remove("up","bonk");},120);
     }
     function end(){running=false;clearTimeout(popTimer);clearInterval(tickTimer);startBtn.disabled=false;startBtn.textContent="Play again";
-      holes.forEach(h=>{h.el.classList.remove("up");h.type=null;});
+      holes.forEach(h=>{if(h.timer){clearTimeout(h.timer);h.timer=null;}h.el.classList.remove("up");h.type=null;});
       let msg=`⏱ Time! Final score ${score}.`;if(typeof Arcade!=="undefined")Arcade.stats.record("whack",score); if(score>best){best=score;bestEl.textContent=best;localStorage.setItem("whack_best",best);msg+=" 🏆 New best!";}
       statusEl.textContent=msg;
     }

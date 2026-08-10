@@ -96,7 +96,7 @@
     const W=cv.width, H=cv.height;
     const playersEl=document.getElementById("players"), statusEl=document.getElementById("status"),
           spinEl=document.getElementById("spin"), spinBtn=document.getElementById("spinBtn");
-    let players, turn, over;
+    let players, turn, over, gen=0;
 
     // ---- the lane: a single winding path, snaking across the yard ----
     function laneCurve(){
@@ -245,6 +245,9 @@
     function announceTurn(){ if(!over) statusEl.textContent = turnLabel() + (turn===0 ? " — SPIN!" : "…"); }
 
     function newGame(){
+      gen++;   // invalidate any CPU-turn timers still in flight from a previous
+                // game — otherwise a stale setTimeout can fire after New Game
+                // and silently auto-spin/advance on the freshly reset players
       players=Array.from({length:NP},()=>newPlayer(rnd(CAREERS.length)));
       turn=0; over=false; anim=null; confetti=[]; winners=[];
       spinEl.textContent="🎡"; renderPlayers(); announceTurn(); spinBtn.disabled=false;
@@ -252,6 +255,7 @@
 
     function doSpin(){
       if(over||anim) return;
+      const g=gen;
       const roll=spin(); spinEl.textContent=roll;
       const p=players[turn], from=p.pos;
       const { to, result } = movePlayer(p, roll);
@@ -272,7 +276,7 @@
           spinBtn.disabled=true; renderPlayers();
           return;
         }
-        setTimeout(()=>{ if(!over) advance(); }, 650);
+        setTimeout(()=>{ if(g===gen && !over) advance(); }, 650);
       }};
     }
     function advance(){
@@ -280,7 +284,7 @@
       for(let k=0;k<NP;k++){ next=(next+1)%NP; if(!players[next].retired) break; }
       turn=next; renderPlayers(); announceTurn();
       if(turn===0){ spinBtn.disabled=false; }
-      else { spinBtn.disabled=true; setTimeout(()=>{ if(!over) doSpin(); }, 900); }
+      else { spinBtn.disabled=true; const g=gen; setTimeout(()=>{ if(g===gen && !over) doSpin(); }, 900); }
     }
 
     spinBtn.addEventListener("click",()=>{ if(turn===0&&!over&&!anim) doSpin(); });

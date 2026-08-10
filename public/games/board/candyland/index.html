@@ -55,7 +55,7 @@
     const N=54;
     const TOKENS=["🐔","🐤","🐣"];
     const PNAMES=["You","CPU 1","CPU 2"];
-    let spaces,mud,deck,pos,skip,turn,over;
+    let spaces,mud,deck,pos,skip,turn,over,gen=0;
 
     function buildSpaces(){spaces=[];for(let i=0;i<N;i++)spaces.push(i%6);mud=new Set([12,31]);}
     function buildDeck(){const d=[];for(let ci=0;ci<6;ci++){for(let k=0;k<7;k++)d.push({c:ci,double:false});for(let k=0;k<3;k++)d.push({c:ci,double:true});}return shuffle(d);}
@@ -307,7 +307,7 @@
     function turnLabel(){ return turn===0 ? "YOUR TURN" : PNAMES[turn].toUpperCase()+"'S TURN"; }
     function announceTurn(){ if(!over){ statusEl.textContent = turnLabel() + (turn===0 ? " — draw a card!" : "…"); } }
 
-    function newGame(){buildSpaces();deck=buildDeck();pos=[-1,-1,-1];skip=[false,false,false];turn=0;over=false;
+    function newGame(){gen++;buildSpaces();deck=buildDeck();pos=[-1,-1,-1];skip=[false,false,false];turn=0;over=false;
       anim=null;confetti=[];winner=-1;
       cardEl.innerHTML="";renderPlayers();announceTurn();drawBtn.disabled=false;}
 
@@ -322,8 +322,11 @@
       statusEl.textContent=msg;
       drawBtn.disabled=true;
       // a beat to read the card, then the move
+      const g=gen;   // snapshot this game's generation — New Game bumps it, which
+                      // invalidates every timer still in flight from this turn so a
+                      // restart mid-turn can't have a stale timeout act on the fresh game
       setTimeout(()=>{
-        if(over)return;
+        if(g!==gen||over)return;
         const path=[]; for(let i=from+1;i<=dest;i++) path.push(i);
         if(!path.length) path.push(dest);
         pos[turn]=dest;
@@ -336,7 +339,7 @@
           let endMsg=msg;
           if(mud.has(dest)){ skip[turn]=true; endMsg+=" — stuck in the mud! lose a turn."; }
           statusEl.textContent=endMsg;
-          setTimeout(()=>{ if(!over) advance(); }, 600);   // a beat before the next player
+          setTimeout(()=>{ if(g===gen && !over) advance(); }, 600);   // a beat before the next player
         }};
       }, 700);
     }
@@ -353,7 +356,7 @@
       for(let k=0;k<4;k++){next=(next+1)%3;if(skip[next]){skip[next]=false;continue;}break;}
       turn=next;renderPlayers();announceTurn();
       if(turn===0){ drawBtn.disabled=false; }
-      else { drawBtn.disabled=true; setTimeout(()=>{ if(!over) draw(); }, 1000); }   // CPU thinks, then draws
+      else { drawBtn.disabled=true; const g=gen; setTimeout(()=>{ if(g===gen && !over) draw(); }, 1000); }   // CPU thinks, then draws
     }
     drawBtn.addEventListener("click",()=>{if(turn===0&&!over&&!anim)draw();});
     document.getElementById("new").addEventListener("click",newGame);

@@ -50,7 +50,7 @@
     const NP=4, TRACK=28, PCOL=["#ef4444","#3b82f6","#22c55e","#eab308"],PNAME=["You","CPU 1","CPU 2","CPU 3"];
     const S=340,C=S/2,R=S*0.40;
     const boardEl=document.getElementById("board"),statusEl=document.getElementById("status"),popBtn=document.getElementById("pop"),dieEl=document.getElementById("die"),playersEl=document.getElementById("players");
-    let pawns,turn,roll,phase,over;   // pawns[p][i] = 'start' | 0..31 (28..31 = home)
+    let pawns,turn,roll,phase,over,gen=0;   // pawns[p][i] = 'start' | 0..31 (28..31 = home)
     const entry=(p)=>p*7;
     function trackXY(a){const ang=a/TRACK*2*Math.PI-Math.PI/2;return [C+Math.cos(ang)*R,C+Math.sin(ang)*R];}
     function coordOf(p,pos,idx){
@@ -76,7 +76,7 @@
     window.__trouble={legalMoves:(p,r,st)=>{if(st)pawns=st;return legalMoves(p,r);},applyMove:(p,mv,st)=>{if(st)pawns=st;applyMove(p,mv);return pawns;},won:(p,st)=>{if(st)pawns=st;return won(p);},entry};
 
     // ---- game ----
-    function newGame(){pawns=Array.from({length:NP},()=>["start","start","start","start"]);turn=0;phase="roll";over=false;
+    function newGame(){gen++;pawns=Array.from({length:NP},()=>["start","start","start","start"]);turn=0;phase="roll";over=false;
       dieEl.textContent="🎲";statusEl.textContent="Your turn — POP the die!";render();popBtn.disabled=false;}
     function render(){
       boardEl.innerHTML="";
@@ -95,12 +95,15 @@
     }
     function pop(){
       if(over||phase!=="roll")return;
+      const g=gen;   // snapshot — New Game bumps this, invalidating any timer
+                      // still in flight from this turn so a restart can't let a
+                      // stale one act on the fresh game
       roll=1+Math.floor(Math.random()*6);dieEl.textContent="⚀⚁⚂⚃⚄⚅"[roll-1];
       const mv=legalMoves(turn,roll);
       if(!mv.length){statusEl.textContent=PNAME[turn]+" rolled "+roll+" — no moves.";return endTurn(roll===6);}
       if(turn===0){phase="move";statusEl.textContent="Rolled "+roll+" — pick a green-ringed pawn.";render();
-        if(mv.length===1)setTimeout(()=>doMove(0,mv[0]),350);}
-      else{const best=cpuPick(turn,mv);setTimeout(()=>doMove(turn,best),500);}
+        if(mv.length===1)setTimeout(()=>{ if(g===gen) doMove(0,mv[0]); },350);}
+      else{const best=cpuPick(turn,mv);setTimeout(()=>{ if(g===gen) doMove(turn,best); },500);}
     }
     function cpuPick(p,mv){
       // prefer a bump, then advancing furthest, then leaving start
@@ -121,10 +124,11 @@
     }
     function endTurn(again){
       if(over)return;
-      if(again){phase="roll";if(turn===0){popBtn.disabled=false;statusEl.textContent+=" Rolled a 6 — POP again!";}else setTimeout(pop,600);return;}
+      const g=gen;
+      if(again){phase="roll";if(turn===0){popBtn.disabled=false;statusEl.textContent+=" Rolled a 6 — POP again!";}else setTimeout(()=>{ if(g===gen) pop(); },600);return;}
       turn=(turn+1)%NP;phase="roll";render();
       if(turn===0){popBtn.disabled=false;statusEl.textContent="Your turn — POP!";}
-      else{popBtn.disabled=true;statusEl.textContent=PNAME[turn]+" is rolling…";setTimeout(pop,700);}
+      else{popBtn.disabled=true;statusEl.textContent=PNAME[turn]+" is rolling…";setTimeout(()=>{ if(g===gen) pop(); },700);}
     }
     popBtn.addEventListener("click",()=>{if(turn===0)pop();});
     document.getElementById("new").addEventListener("click",newGame);
