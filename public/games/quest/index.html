@@ -57,6 +57,7 @@
   (function(){
     const TILE=32, COLS=15, ROWS=11, W=COLS*TILE, H=ROWS*TILE, RX=3, RY=3;
     const ESIZE=24;   // weasels are the same size as the hero (player.size)
+    const EHIT_PAD=5; // forgiveness margin added to the sword-vs-weasel hit-test only
     const cv=document.getElementById("c"),ctx=cv.getContext("2d");
     const heartsEl=document.getElementById("hearts"),lootEl=document.getElementById("loot"),coinsEl=document.getElementById("coins"),exitBtn=document.getElementById("exitDungeon"),newGameBtn=document.getElementById("newGameBtn");
     const ov=document.getElementById("ov"),ot=document.getElementById("ot"),om=document.getElementById("om"),startBtn=document.getElementById("start");
@@ -183,11 +184,50 @@
       // items
       const items=[];
       // the goal room (0,0) holds this dungeon's boss, which drops the gem egg
-      if(rx===KEYROOM[0]&&ry===KEYROOM[1])items.push({x:7*TILE+8,y:3*TILE+8,type:"key"});
+      // Player feedback: "the dungeons need to be randomized a bit, keep
+      // the boss in the same place but the location of the key needs to
+      // be random." The boss room (TRI) stays fixed; the key's exact
+      // tile within KEYROOM is now picked from that room's own built
+      // floor tiles instead of the old hardcoded (7,3) — different each
+      // dungeon/game (deterministic per-dungeon for custom rooms, via
+      // the same seeded `rand` used for enemies above, so a hand-built
+      // layout doesn't shuffle the key on every visit).
+      if(rx===KEYROOM[0]&&ry===KEYROOM[1]){
+        let kx=7,ky=3;
+        const spots=[];
+        for(let y=1;y<ROWS-1;y++)for(let x=1;x<COLS-1;x++) if(map[y][x]===".") spots.push([x,y]);
+        if(spots.length){ const p=spots[rand(spots.length)]; kx=p[0]; ky=p[1]; }
+        items.push({x:kx*TILE+8,y:ky*TILE+8,type:"key"});
+      }
       // coins/hearts no longer sit scattered in the room — they drop from weasels you kill
       return {map,enemies,items,visited:false};
     }
     function genWorld(){rooms=[];for(let y=0;y<RY;y++){const r=[];for(let x=0;x<RX;x++)r.push(genRoom(x,y));rooms.push(r);}}
+    // Player feedback: "dungeon weasels need to respawn." Previously a
+    // room's weasels stayed dead for the whole dungeon visit once
+    // killed — only re-entering the dungeon from the overworld rerolled
+    // them. Called from tryTransition() whenever the player walks INTO a
+    // room whose weasels are all dead (never a room with survivors still
+    // up, and never the start/boss rooms, which never had any) — walking
+    // out a door and back brings fresh ones. Reuses genRoom's own
+    // seeded-for-custom-rooms RNG pattern so a hand-built layout's
+    // respawns stay deterministic per dungeon rather than re-randomizing
+    // on every single re-entry.
+    function respawnRoomEnemies(rx,ry){
+      const custom=OVERRIDE && OVERRIDE[ry] && OVERRIDE[ry][rx];
+      const start=(rx===1&&ry===1), isBoss=(rx===TRI[0]&&ry===TRI[1]);
+      if(start||isBoss) return;
+      const Rm=rooms[ry][rx];
+      Rm.respawnGen=(Rm.respawnGen||0)+1;
+      let seedN=0; const seedBase=curDungeon*10000+ry*100+rx+Rm.respawnGen*777;
+      const srand=()=>seeded(seedBase+(seedN++)*97.13);
+      const srnd=(n)=>Math.floor(srand()*n);
+      const rand=custom?srnd:rnd;
+      const eN=2+rand(2), enemies=[];
+      for(let k=0;k<eN;k++){let x,y,tries=0;do{x=2+rand(COLS-4);y=2+rand(ROWS-4);tries++;}while((Rm.map[y][x]!=="."||(x===7&&y===5))&&tries<40);
+        enemies.push({x:x*TILE+8,y:y*TILE+8,dir:rand(4),timer:rand(40),alive:true,hp:1,hurt:0});}
+      Rm.enemies=enemies;
+    }
 
     // ===== farmhouses: a small no-enemy interior behind each screen's barn door.
     // Board 7's is a general store instead — walk onto an item to buy it. =====
@@ -317,6 +357,10 @@
           flash("🔒 The boss door is locked — find the key!");return;}}
       }
       room=[nx,ny]; rooms[ny][nx].visited=true;
+      if(mode==="dungeon"){
+        const Rm=rooms[ny][nx];
+        if(Rm.enemies.length && Rm.enemies.every(e=>!e.alive)) respawnRoomEnemies(nx,ny);
+      }
       if(dir==="W")player.x=W-TILE-player.size-2;else if(dir==="E")player.x=TILE+2;
       else if(dir==="N")player.y=H-TILE-player.size-2;else if(dir==="S")player.y=TILE+2;
     }
@@ -386,7 +430,14 @@
         if(!boxHitsSolid(nx,e.y,ESIZE))e.x=nx;else e.dir=rnd(4);
         if(!boxHitsSolid(e.x,ny,ESIZE))e.y=ny;else e.dir=rnd(4);
         // sword hit — drops a coin or heart instead of items just sitting in the room
-        if(sword&&rectHit(sword,{x:e.x,y:e.y,w:ESIZE,h:ESIZE})){
+        // Player feedback: "the weasels are too hard to hit, they never
+        // line up with me." Weasels wander and change direction on their
+        // own timer, so pixel-perfect alignment with the sword's narrow
+        // swing arc is unreliable even on a "should've landed" swing.
+        // Give the SWORD hit-test (not the player's own hurtbox below,
+        // which stays exact) a few pixels of forgiveness on each side.
+        const eHit={x:e.x-EHIT_PAD,y:e.y-EHIT_PAD,w:ESIZE+EHIT_PAD*2,h:ESIZE+EHIT_PAD*2};
+        if(sword&&rectHit(sword,eHit)){
           e.alive=false;
           // Player feedback: "the dungeon weasels seem to drop mostly coins,
           // we need slightly more % chance of hearts." Was 30% heart / 70%
@@ -776,7 +827,7 @@
     window.__quest={genWorld:()=>{genWorld();return rooms;},doorOpen,genOverworld,OW_RX,OW_RY,RX,RY,
       GEMS,BOSSES,newEggs,collectEgg,cartonCount,cartonFull,makeBoss,bossTakeHit,makeFinalBoss,genHouseRoom,
       genHouseLoot,FURNITURE_KINDS,
-      genRoom,solidTile,TRI,
+      genRoom,solidTile,TRI,KEYROOM,respawnRoomEnemies,
       newGame,enterDungeon,enterOverworld,enterHouse,tryTransition,update,
       getMode:()=>mode,getRoom:()=>room,getRooms:()=>rooms,getOwRooms:()=>owRooms,
       getPlayer:()=>player,getBoss:()=>boss,getFinalBoss:()=>finalBoss,
