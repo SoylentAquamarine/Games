@@ -39,16 +39,31 @@
 <script src="/arcade.js"></script>
 <script>
 (function(){
-  const C={ COLS:9, VIEW:9 };
+  const C={ COLS:9, VIEW:9,
+    ROAD_PROB:0.42,        // chance a new row rolls as a road
+    WATER_PROB:0.30,       // additional slice of the roll (after road) that becomes water instead of grass
+    CAR_SPEED_MIN:0.018, CAR_SPEED_MAX:0.045,
+    LOG_SPEED_MIN:0.012, LOG_SPEED_MAX:0.03,
+    LOG_GAP_MIN:1.5, LOG_GAP_MAX:2.6 };
+  // Admin-configurable at /admin/games/?game=crossyroad (site's generic
+  // numeric-knob pattern — see kaboom's HANDOFF.md). These difficulty
+  // constants used to be inline Math.random() literals inside genRow(),
+  // not named fields on C — extracted here (defaults unchanged) so
+  // there's something for the config pane to actually read/write.
+  (function(){ try{
+    const allow=["ROAD_PROB","WATER_PROB","CAR_SPEED_MIN","CAR_SPEED_MAX","LOG_SPEED_MIN","LOG_SPEED_MAX","LOG_GAP_MIN","LOG_GAP_MAX"];
+    const o=JSON.parse(localStorage.getItem("crossyroad_config")||"{}");
+    for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
+  }catch(_){} })();
   function rnd(a,b){ return a+Math.random()*(b-a); }
   function genRow(i){
     if(i<3) return { type:"grass", ent:[] };
-    const t=Math.random(); let type = t<0.42?"road" : t<0.72?"water":"grass";
+    const t=Math.random(); let type = t<C.ROAD_PROB?"road" : t<C.ROAD_PROB+C.WATER_PROB?"water":"grass";
     const ent=[];
-    if(type==="road"){ const n=2+Math.floor(Math.random()*2), dir=Math.random()<.5?1:-1, sp=rnd(0.018,0.045);
+    if(type==="road"){ const n=2+Math.floor(Math.random()*2), dir=Math.random()<.5?1:-1, sp=rnd(C.CAR_SPEED_MIN,C.CAR_SPEED_MAX);
       for(let k=0;k<n;k++) ent.push({x:(k*(C.COLS/n))+rnd(0,1), len:1, speed:sp, dir}); }
-    else if(type==="water"){ const dir=Math.random()<.5?1:-1, sp=rnd(0.012,0.03), len=2+Math.floor(Math.random()*2);
-      let x=rnd(0,2); while(x<C.COLS){ ent.push({x, len, speed:sp, dir}); x+=len+rnd(1.5,2.6); } }
+    else if(type==="water"){ const dir=Math.random()<.5?1:-1, sp=rnd(C.LOG_SPEED_MIN,C.LOG_SPEED_MAX), len=2+Math.floor(Math.random()*2);
+      let x=rnd(0,2); while(x<C.COLS){ ent.push({x, len, speed:sp, dir}); x+=len+rnd(C.LOG_GAP_MIN,C.LOG_GAP_MAX); } }
     return { type, ent };
   }
   // `pcx` is the player's CENTRE in cell units (= player.x + 0.5), matching how the

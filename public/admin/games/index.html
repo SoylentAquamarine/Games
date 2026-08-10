@@ -1095,6 +1095,16 @@
       { key:"OFFSPD", label:"Off-road speed cap", min:1, max:6, def:3.2 },
       { key:"STEER", label:"Steering speed", min:1, max:8, def:3.3 },
     ]},
+    crossyroad:{ storageKey:"crossyroad_config", sub:"Road/river generation — takes effect next time the game is opened.", fields:[
+      { key:"ROAD_PROB", label:"Chance a new row is a road", min:0.1, max:0.7, def:0.42 },
+      { key:"WATER_PROB", label:"Chance a new row is water (after road)", min:0.05, max:0.6, def:0.30 },
+      { key:"CAR_SPEED_MIN", label:"Slowest car speed", min:0.005, max:0.06, def:0.018 },
+      { key:"CAR_SPEED_MAX", label:"Fastest car speed", min:0.02, max:0.09, def:0.045 },
+      { key:"LOG_SPEED_MIN", label:"Slowest log speed", min:0.005, max:0.04, def:0.012 },
+      { key:"LOG_SPEED_MAX", label:"Fastest log speed", min:0.015, max:0.06, def:0.03 },
+      { key:"LOG_GAP_MIN", label:"Smallest gap between logs", min:0.5, max:3, def:1.5 },
+      { key:"LOG_GAP_MAX", label:"Largest gap between logs", min:1.5, max:5, def:2.6 },
+    ]},
   };
   let numericInitSlug=null;
   function initNumericEditor(slug){
