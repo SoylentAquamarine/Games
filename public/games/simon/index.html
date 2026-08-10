@@ -59,12 +59,12 @@
     const FREQ=[329.63,261.63,392,523.25];
     let seq,step,playing,acceptInput,best=Number(localStorage.getItem("simon_best")||0);
     bestEl.textContent=best;
-    let actx;
+    let actx,playTimer=null;
     function tone(i,dur){try{actx=actx||new(window.AudioContext||window.webkitAudioContext)();const o=actx.createOscillator(),g=actx.createGain();o.frequency.value=FREQ[i];o.type="sine";o.connect(g);g.connect(actx.destination);g.gain.setValueAtTime(.0001,actx.currentTime);g.gain.exponentialRampToValueAtTime(.3,actx.currentTime+.02);g.gain.exponentialRampToValueAtTime(.0001,actx.currentTime+dur/1000);o.start();o.stop(actx.currentTime+dur/1000);}catch(e){}}
     function light(i,dur){pads[i].classList.add("lit");tone(i,dur);setTimeout(()=>pads[i].classList.remove("lit"),dur*.8);}
-    function start(){seq=[];acceptInput=false;statusEl.textContent="";next();}
+    function start(){if(playTimer){clearInterval(playTimer);playTimer=null;}seq=[];acceptInput=false;statusEl.textContent="";next();}
     function next(){step=0;seq.push(Math.floor(Math.random()*4));roundEl.textContent=seq.length;acceptInput=false;statusEl.textContent="Watch…";playback();}
-    function playback(){let i=0;const speed=Math.max(300,650-seq.length*20);const t=setInterval(()=>{if(i>=seq.length){clearInterval(t);acceptInput=true;statusEl.textContent="Your turn";return;}light(seq[i],speed*.7);i++;},speed);}
+    function playback(){if(playTimer){clearInterval(playTimer);playTimer=null;}let i=0;const speed=Math.max(300,650-seq.length*20);playTimer=setInterval(()=>{if(i>=seq.length){clearInterval(playTimer);playTimer=null;acceptInput=true;statusEl.textContent="Your turn";return;}light(seq[i],speed*.7);i++;},speed);}
     function click(i){if(!acceptInput)return;light(i,220);
       if(seq[step]===i){step++;if(step===seq.length){acceptInput=false;if(typeof Arcade!=="undefined")Arcade.stats.record("simon",seq.length); if(seq.length>best){best=seq.length;bestEl.textContent=best;localStorage.setItem("simon_best",best);}statusEl.textContent="✓ Nice!";setTimeout(next,700);}}
       else{acceptInput=false;statusEl.textContent=`✗ Wrong! You reached round ${seq.length-1}.`;centerEl.textContent="▶";pads.forEach(p=>{p.style.opacity=".2";setTimeout(()=>p.style.opacity="",600);});}

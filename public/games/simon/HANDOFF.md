@@ -20,8 +20,24 @@ repeat it back by tapping the 4 quadrant pads.
 
 ## Most recent pass
 
-No player-feedback pass yet — this HANDOFF.md was created as part of a
-documentation sweep (see the root HANDOFF.md's "Per-game HANDOFF.md
+**Bug fix (found in a targeted bug-hunt pass, not player-reported): restarting
+mid-playback left a stale `setInterval` running.** `playback()`'s interval id
+`t` was a variable local to that single call, never stored anywhere `start()`
+or the next `playback()` call could reach. Since `centerEl` (the ▶ in the
+middle of the pads) and the Start button both call `start()` unconditionally
+— even while the "Watch…" sequence is still animating — tapping either one
+mid-playback left the old interval alive alongside the new one. Both then ran
+concurrently against the same shared outer-scope `seq` array/length, so the
+stale interval's `seq[i]` read the *new* round's (mutated) sequence, causing
+wrong pads to flash/sound and letting the stale interval outlive the round it
+belonged to. Confirmed with a headless repro (fake `setInterval`/
+`clearInterval` counting active timers) that showed 2 concurrent intervals
+after a second `start()` call before the first one had exited. Fixed by
+tracking the timer id in an outer-scope `playTimer` var and clearing it at
+the top of both `start()` and `playback()` before registering a new one.
+
+Earlier: no player-feedback pass yet — this HANDOFF.md was created as part
+of a documentation sweep (see the root HANDOFF.md's "Per-game HANDOFF.md
 rollout" note). Everything under "What's here" reflects the game as
 originally built.
 
