@@ -25,10 +25,26 @@ levels.
 - **No lives** — jamming the neck (a new pill can't be placed because the
   stack reached the spawn point) ends the game immediately (`jamOver()`),
   matching the original Dr. Mario rule. No chickens/lives HUD panel.
+- **Admin-configurable** at `/admin/games/?game=drmario`: the virus/drop
+  difficulty curve — `VIRUS_BASE`/`VIRUS_STEP`/`VIRUS_MAX` (feeds
+  `virusesFor(level)`) and `DROP_BASE`/`DROP_STEP`/`DROP_MIN` (feeds
+  `dropSpeed(level)`). Uses the site's generic numeric-knob config
+  pattern (see kaboom's HANDOFF.md) — saved to
+  `localStorage["drmario_config"]`, merged into `C` at boot via an
+  explicit allowlist. `rows`/`cols`/`colors` stay unexposed — they're
+  board-shape, not difficulty.
 
 ## Most recent pass
 
-**Player feedback: "this should not have lives, it should end when the
+**Numeric-config rollout: drmario was a flagged candidate**, previously
+skipped because `C` only held board-shape constants. `virusesFor`/
+`dropSpeed` already had a real, once-player-tuned difficulty curve —
+just as inline formula literals (`Math.min(4+(level-1)*3, 40)` /
+`Math.max(14, 34-(level-1)*2)`) rather than named, editable constants.
+Extracted the 6 coefficients into `C` and rewired both formulas to
+read them, then added the standard config pane.
+
+Earlier: **player feedback: "this should not have lives, it should end when the
 blocks reach the top."** Removed the "chickens as lives" system entirely
 — it used to cost one of 3 lives on a jam and clear 9 rows so play
 continued, a deviation from the original game's rule that reaching the
