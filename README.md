@@ -45,6 +45,29 @@ It will be served at `/games/<game-name>/`. Then link it from the landing page.
 
 ## Changelog
 
+### 2026-08-10 — Full bug-hunt sweep, board/config rollouts completed
+
+- **Site-wide bug-hunt pass**: every game reviewed at least once; 12 real
+  bugs found and fixed, most in one recurring class — a restart
+  ("New Game"/"Restart") not cancelling a still-in-flight `setTimeout`
+  or `async`/`await` chain, letting stale state act on the freshly reset
+  game (Simon, Snake, Whack, 4 board games, Crazy Eights, Hearts,
+  Spades, Sokoban). Also fixed a genuine deadlock bug in Candy Crush
+  (no reshuffle when a board runs out of legal moves).
+- **Numeric-knob admin config rollout completed** — every game with a
+  `const C={...}` block and independent difficulty constants now has a
+  config pane at `/admin/games/`, 27 games total.
+- **Board/level editor rollout** grew from 4 to 6 games (added Sokoban,
+  Pac-Man); remaining candidates are purely procedural and need
+  groundwork before an editor makes sense.
+- **Per-game `HANDOFF.md` coverage completed** for every game, including
+  the individual `cards/` sub-games that an earlier pass had missed.
+- New shared libraries: `fullscreen.js` (site-wide fullscreen toggle
+  with play-area scaling) and `mascots.js` grew a Space Chicken card
+  theme in the shared `cards.js` engine.
+- Ongoing player-comment processing across Quest, Adventure, and others
+  — see each game's own `HANDOFF.md` for specifics.
+
 ### 2026-07-12 — More multiplayer + Atari-style Adventure
 
 - **Online Checkers** added to multiplayer (`MP_GAMES`): 8×8 American draughts with
