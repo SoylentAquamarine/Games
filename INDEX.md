@@ -1,6 +1,6 @@
 # Repository Index — Chicken Arcade
 
-A chicken-themed browser-games arcade (98 games), deployed on **Cloudflare Workers**. Live at **https://games.square-bar-75ce.workers.dev**. This file is a map of the repo for quick navigation (e.g. by an AI reading the GitHub).
+A chicken-themed browser-games arcade (102 games), deployed on **Cloudflare Workers**. Live at **https://games.square-bar-75ce.workers.dev**. This file is a map of the repo for quick navigation (e.g. by an AI reading the GitHub).
 
 ## Stack
 
@@ -17,7 +17,9 @@ A chicken-themed browser-games arcade (98 games), deployed on **Cloudflare Worke
 | [`public/games/INDEX.md`](public/games/INDEX.md) | **Full games listing** — slug → name → description table (98 games). |
 | [`public/arcade.js`](public/arcade.js) | Shared game engine: `Arcade.SCREEN` (4:3 screen tiers), `Arcade.sfx`, `Arcade.splash` (wave/death cards), `Arcade.startGate` (spacebar start), `Arcade.stats` (per-game play tracking). |
 | [`public/comments.js`](public/comments.js) | The per-page comment box (players leave feedback; the maintainer implements it). |
-| [`public/games/cards/cards.js`](public/games/cards/cards.js) | Shared card-deck library (`window.Cards`): deck model, shuffle/deal, CSS card renderer, and a 5-theme deck selector (`Cards.THEMES`/`getTheme`/`setTheme`) used by every card game. |
+| [`public/games/cards/cards.js`](public/games/cards/cards.js) | Shared card-deck library (`window.Cards`): deck model, shuffle/deal, CSS card renderer, and a 6-theme deck selector (`Cards.THEMES`/`getTheme`/`setTheme`) used by every card game. |
+| [`public/mascots.js`](public/mascots.js) | Shared chicken-character library (`window.Mascots`): spacesuit chicken, rooster, hero chicken — reusable sprites drawn by multiple games instead of each rolling its own. |
+| [`public/fullscreen.js`](public/fullscreen.js) | Self-injecting fullscreen toggle, on every game page — adds a corner button and scales the play area up to fill the screen while fullscreen is active. |
 | [`public/editor/`](public/editor/) | **Level Editor** (admin) — design tools for Quest dungeons, Chickenmania waves, and the Adventure map. Saves to localStorage; games load the override on next open. |
 | [`public/admin/`](public/admin/) | Admin pages (comment moderation, etc.). |
 | [`public/account/`](public/account/), [`public/account.js`](public/account.js) | Player accounts (KV-backed). |
