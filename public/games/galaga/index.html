@@ -39,9 +39,15 @@
 <script src="/arcade.js"></script>
 <script>
 (function(){
+  // Player feedback: "when the chicken comes down and starts the capture
+  // ray, the animation for the capture ray should be slower." BEAM_RAMP
+  // (how long the cone takes to widen open / shut again) roughly doubled,
+  // and the boss's own descent into beam position (see BOSS_DESCENT below)
+  // slowed to about half normal enemy speed -- the whole "coming down and
+  // starting the ray" sequence now reads as a deliberate, slower event.
   const C={ W:480,H:600, PW:22,PH:14, EW:20,EH:16, PLY:558, BSPEED:7, ESPEED:2.4,
             BEAM_Y:210, BEAM_W:56, BEAM_OPEN:80, BEAM_HOLD:150,
-            BEAM_RAMP:26, BEAM_ARM:0.6, PULL_T:46 };
+            BEAM_RAMP:50, BEAM_ARM:0.6, PULL_T:46, BOSS_DESCENT:0.5 };
   // Admin-tunable difficulty knobs — see /admin/games/?game=galaga.
   // Same pattern as kaboom (see its HANDOFF.md): explicit allowlist, only
   // numeric values, safe no-op with no localStorage (headless tests).
@@ -67,24 +73,51 @@
         enterT:0, enterDelay:8+order*7+r*3, fromLeft,
         t:Math.random()*6, boss:r===0, hasShip:false,
         color:r===0?"#f0616e":r===1?"#ffcf5a":"#22d3ee" }); }
-    s.diveTimer=120; s.beamTimer=180;
+    // Player feedback: "the first level is where the 10th level should be
+    // at. At first most chickens should stay in formation with a single
+    // chicken divebombing at a time. As difficulty increases they should
+    // dive more and more." Reuses the same diveTimer() ramp step() refills
+    // with after every dive, so wave 1 now starts as sparse as the OLD
+    // formula's wave ~1 used to be shifted ~10 waves later, easing down to
+    // the same eventual floor (one diver launching every 30 frames) by
+    // around wave 12 instead of wave 8.
+    s.diveTimer=diveTimerFor(s.wave); s.beamTimer=180;
     // every fifth wave a bomber chicken sweeps over dropping bombs
     if(s.wave%5===0){ const fromLeft=Math.random()<0.5;
       s.flyby={ x: fromLeft?-24:C.W+24, y:44, vx:(fromLeft?1:-1)*1.6, dropT:36 }; }
   }
+  // Frames between one diver launching and the next becoming eligible.
+  // 350 at wave 1 (a diver roughly every 5.8s -- mostly formation, one
+  // chicken breaking off at a time) easing down 30 frames/wave to the same
+  // 30-frame floor the old formula eventually reached, just later.
+  function diveTimerFor(wave){ return Math.max(30, 350-(wave-1)*30); }
   // Swooping entrance: in low from the side, arc up and over, ease into the slot.
-  // Player feedback: "the swooping entrance should be a bigger slower loop
-  // that goes past more of the screen" — eased once already (46->72 frames,
-  // midpoint 0.75->0.90/150->210) — then a follow-up round asked again for
-  // "large slow sweeping swoops," so eased further still: duration up to
-  // 110 frames (~53% slower again) and the midpoint pushed even further
-  // across (0.90 -> 0.96 of the width) and deeper down (210 -> 280).
+  // Player feedback, three rounds now: "bigger slower loop that goes past
+  // more of the screen" (eased 46->72 frames, mid 0.75->0.90/150->210) ->
+  // "large slow sweeping swoops" (eased again, 72->110 frames, mid
+  // 0.90->0.96/210->280) -> "every time you fix the swoop it is almost
+  // exactly the same, you have to really fix the swoop... it needs to take
+  // 4x as long... they need to sweep down to almost even with the hero."
+  // Small parameter nudges clearly weren't landing as a visibly different
+  // motion, so this pass makes the two changes explicitly asked for, at
+  // the exact scale requested: duration 110 -> 440 frames (exactly 4x).
+  // For the depth: this is a quadratic bezier (De Casteljau lerp-of-lerps
+  // below), and since BOTH the start point (y=20, off the top edge) and
+  // the end point (fy, the formation row, also near the top) sit near the
+  // top of the screen, the curve's actual visual peak lands at roughly
+  // 0.25*start + 0.5*mid + 0.25*end -- nowhere near midY itself. Setting
+  // midY to the naive "almost even with the hero" value (~500) only
+  // produced a peak around y=276, barely past the old 280 -- explaining
+  // why past passes felt like nothing had changed. midY=990 (off-canvas,
+  // as a bezier CONTROL point rather than a point the enemy visits) is
+  // what's actually needed to pull the visible peak to ~520, genuinely
+  // close to the player's row (C.PLY=558).
   function enterStep(e){
     e.enterT++;
     if(e.enterT < e.enterDelay) return;             // still queued off-screen
-    const u = Math.min(1,(e.enterT-e.enterDelay)/110);
+    const u = Math.min(1,(e.enterT-e.enterDelay)/440);
     const startX = e.fromLeft ? -20 : C.W+20, startY = 20;
-    const midX = e.fromLeft ? C.W*0.96 : C.W*0.04,  midY = 280;
+    const midX = e.fromLeft ? C.W*0.96 : C.W*0.04,  midY = 990;
     const ax = startX+(midX-startX)*u, ay = startY+(midY-startY)*u;
     const bx = midX+(e.fx-midX)*u,     by = midY+(e.fy-midY)*u;
     e.x = ax+(bx-ax)*u;
@@ -92,7 +125,7 @@
     if(u>=1){ e.x=e.fx; e.y=e.fy; e.state="form"; }
   }
   function newState(){ const s={ px:C.W/2, bullets:[], enemies:[], score:0, wave:0, lives:3, over:false, sway:0,
-    diveTimer:90, beamTimer:150, dual:false, rescue:null, captured:false, pull:null, flyby:null, bombs:[], captureFlash:0 }; makeWave(s); return s; }
+    diveTimer:90, beamTimer:150, dual:false, rescue:null, captured:false, pull:null, flyby:null, bombs:[], captureFlash:0, respawning:false }; makeWave(s); return s; }
   // Width of the beam cone at a given depth below the boss.
   function beamHalfWidth(e, y){ const d=Math.max(0,y-e.y);
     const open = e.beamOpen==null ? 1 : e.beamOpen;
@@ -107,7 +140,10 @@
     e.x=e.diveX + Math.sin(e.t*4)*46; }
   function step(s, input){
     if(s.over) return s;
-    if(input){ if(input.left) s.px=Math.max(C.PW/2,s.px-5); if(input.right) s.px=Math.min(C.W-C.PW/2,s.px+5); if(input.x!=null) s.px=Math.max(C.PW/2,Math.min(C.W-C.PW/2,input.x)); }
+    // No ship to steer while a fresh one is waiting to respawn (see the
+    // capture branch below) -- freeze input instead of moving an invisible
+    // ship and having it jump to wherever px drifted once it reappears.
+    if(input && !s.respawning){ if(input.left) s.px=Math.max(C.PW/2,s.px-5); if(input.right) s.px=Math.min(C.W-C.PW/2,s.px+5); if(input.x!=null) s.px=Math.max(C.PW/2,Math.min(C.W-C.PW/2,input.x)); }
     if(s.captureFlash>0) s.captureFlash--;
     s.sway+=0.03;
     for(const b of s.bullets) b.y-=C.BSPEED;
@@ -124,7 +160,7 @@
       else if(e.state==="form"){ e.x=e.fx+Math.sin(s.sway)*10; e.y=e.fy; }
       else if(e.state==="beam"){
         // descend to beam height, hold there with the beam open, then climb home
-        if(e.y<C.BEAM_Y && e.beamT<=0 && !e.returning){ e.y+=C.ESPEED; if(e.y>=C.BEAM_Y) e.beamT=C.BEAM_HOLD; }
+        if(e.y<C.BEAM_Y && e.beamT<=0 && !e.returning){ e.y+=C.ESPEED*C.BOSS_DESCENT; if(e.y>=C.BEAM_Y) e.beamT=C.BEAM_HOLD; }
         else if(e.beamT>0){
           e.beamT--;
           // widen on the way in, shut again over the last frames
@@ -138,15 +174,17 @@
             s.pull={ x:s.px, y:C.PLY, tx:e.x, ty:e.y+C.EH, t:C.PULL_T };
             if(typeof Arcade!=="undefined")Arcade.sfx.death();
             if(!hitThisFrame){ hitThisFrame=true; s.lives--; if(s.lives<=0){ s.over=true; return s; } }
-            s.px=C.W/2;
-            // Player feedback: "when the enemy captures the hero, it needs
-            // to trigger a second ship like if the life was lost." A life
-            // IS already spent and play already continues with a fresh
-            // single fighter (recentred above) — captureFlash is the
-            // missing visible "you just lost a ship" beat every other
-            // life-loss on the site gets, so it reads the same way instead
-            // of silently ticking the lives counter down.
-            s.captureFlash=60;
+            // Player feedback: "once captured the screen should not have a
+            // hero until the captured hero is at the top and a new hero
+            // can start with the same animation as if the hero died." Used
+            // to recentre px (spawning the new ship) in this same instant,
+            // so the fresh ship and the old one spiralling up the beam
+            // (s.pull's own animation) were both visible together. Now the
+            // new ship simply doesn't exist (respawning=true keeps draw()
+            // from rendering one) until s.pull finishes -- see that block
+            // below, which recentres px and fires captureFlash once the
+            // old ship has genuinely reached the top.
+            s.respawning=true;
           }
           if(e.beamT<=0 && !e.returning) e.returning=true;
         }
@@ -154,15 +192,31 @@
       }
       else { e.t+=0.05; e.y+=C.ESPEED+s.wave*0.15; e.x=e.diveX+Math.sin(e.t*4)*46;
         if(e.y>C.H+20){ e.y=-10; e.state="form"; } // looped back to formation
-        if(rov(enemyRect(e),{x:s.px-C.PW/2,y:C.PLY-C.PH/2,w:C.PW,h:C.PH})){ e.alive=false; if(typeof Arcade!=="undefined")Arcade.sfx.death(); if(!hitThisFrame){ hitThisFrame=true; s.lives--; if(s.lives<=0) s.over=true; } }
+        if(!s.respawning && rov(enemyRect(e),{x:s.px-C.PW/2,y:C.PLY-C.PH/2,w:C.PW,h:C.PH})){ e.alive=false; if(typeof Arcade!=="undefined")Arcade.sfx.death(); if(!hitThisFrame){ hitThisFrame=true; s.lives--; if(s.lives<=0) s.over=true; } }
       }
     }
     const entering = s.enemies.some(e=>e.alive&&e.state==="enter");
     // launch a diver (never while the flock is still flying in)
-    if(!entering && --s.diveTimer<=0){ const forms=s.enemies.filter(e=>e.alive&&e.state==="form"&&!e.boss); if(forms.length){ const e=forms[Math.floor(Math.random()*forms.length)]; e.state="dive"; e.diveX=e.x; e.t=0; } s.diveTimer=Math.max(30,90-s.wave*8); }
+    if(!entering && --s.diveTimer<=0){ const forms=s.enemies.filter(e=>e.alive&&e.state==="form"&&!e.boss); if(forms.length){ const e=forms[Math.floor(Math.random()*forms.length)]; e.state="dive"; e.diveX=e.x; e.t=0; } s.diveTimer=diveTimerFor(s.wave); }
     // the captured ship being drawn up the beam
     if(s.pull){ s.pull.t--;
-      if(s.pull.t<=0) s.pull=null;
+      if(s.pull.t<=0){
+        s.pull=null;
+        // The old ship has genuinely reached the top now -- only here does
+        // a new one actually spawn (see the capture branch above for why).
+        if(s.respawning){
+          s.respawning=false; s.px=C.W/2;
+          // Player feedback: "when the enemy captures the hero, it needs to
+          // trigger a second ship like if the life was lost." A life IS
+          // already spent and play already continues with a fresh single
+          // fighter (recentred above) — captureFlash is the missing
+          // visible "you just lost a ship" beat every other life-loss on
+          // the site gets, so it reads the same way instead of silently
+          // ticking the lives counter down. Now fires at the moment the
+          // new ship actually appears, not the moment of capture.
+          s.captureFlash=60;
+        }
+      }
       else { const u=1-(s.pull.t/C.PULL_T);
         s.pull.cx=s.pull.x+(s.pull.tx-s.pull.x)*u;
         s.pull.cy=s.pull.y+(s.pull.ty-s.pull.y)*u; } }
@@ -208,12 +262,12 @@
     for(const bm of s.bombs){
       bm.y+=bm.vy;
       if(bm.y>C.H+10){ bm.dead=true; continue; }
-      if(Math.abs(bm.x-s.px)<C.PW/2 && Math.abs(bm.y-C.PLY)<C.PH/2){ bm.dead=true; if(typeof Arcade!=="undefined")Arcade.sfx.death(); s.lives--; if(s.lives<=0) s.over=true; }
+      if(!s.respawning && Math.abs(bm.x-s.px)<C.PW/2 && Math.abs(bm.y-C.PLY)<C.PH/2){ bm.dead=true; if(typeof Arcade!=="undefined")Arcade.sfx.death(); s.lives--; if(s.lives<=0) s.over=true; }
       for(const b of s.bullets){ if(!bm.dead && Math.abs(b.x-bm.x)<9 && Math.abs(b.y-bm.y)<9){ bm.dead=true; b.y=-99; s.score+=100; } }
     }
     s.bombs=s.bombs.filter(b=>!b.dead);
   }
-  window.__galaga={ newState, step, fire, makeWave, enterStep, stepFlyby, bulletHitsEnemy, inBeam, beamHalfWidth, C };
+  window.__galaga={ newState, step, fire, makeWave, enterStep, stepFlyby, bulletHitsEnemy, inBeam, beamHalfWidth, diveTimerFor, C };
 
   if(typeof document==="undefined") return;
   const $=(id)=>document.getElementById(id);
@@ -291,11 +345,18 @@
     }
     // a freed ship on its way back down
     if(s.rescue){ ctx.fillStyle="#7de8ff"; ctx.fillRect(s.rescue.x-C.PW/2,s.rescue.y-C.PH/2,C.PW,C.PH); }
-    ctx.fillStyle="#22d3ee";
-    if(s.dual){   // twin fighters
-      ctx.fillRect(s.px-C.PW/2-14,C.PLY-C.PH/2,C.PW,C.PH); ctx.fillRect(s.px-2-14,C.PLY-C.PH/2-6,4,6);
-      ctx.fillRect(s.px-C.PW/2+14,C.PLY-C.PH/2,C.PW,C.PH); ctx.fillRect(s.px-2+14,C.PLY-C.PH/2-6,4,6);
-    } else { ctx.fillRect(s.px-C.PW/2,C.PLY-C.PH/2,C.PW,C.PH); ctx.fillRect(s.px-2,C.PLY-C.PH/2-6,4,6); }
+    // No hero on screen while a fresh ship is waiting for the captured one
+    // to finish its climb up the beam (see step()'s respawning branch) —
+    // otherwise both were visible at once, which is exactly what the
+    // "screen should not have a hero until the captured hero is at the
+    // top" feedback called out.
+    if(!s.respawning){
+      ctx.fillStyle="#22d3ee";
+      if(s.dual){   // twin fighters
+        ctx.fillRect(s.px-C.PW/2-14,C.PLY-C.PH/2,C.PW,C.PH); ctx.fillRect(s.px-2-14,C.PLY-C.PH/2-6,4,6);
+        ctx.fillRect(s.px-C.PW/2+14,C.PLY-C.PH/2,C.PW,C.PH); ctx.fillRect(s.px-2+14,C.PLY-C.PH/2-6,4,6);
+      } else { ctx.fillRect(s.px-C.PW/2,C.PLY-C.PH/2,C.PW,C.PH); ctx.fillRect(s.px-2,C.PLY-C.PH/2-6,4,6); }
+    }
     // a brief non-blocking "you lost a ship" beat right after a capture —
     // play continues on the fresh, recentred single fighter underneath
     if(s.captureFlash>0 && Math.floor(s.captureFlash/6)%2===0){
