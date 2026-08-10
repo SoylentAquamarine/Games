@@ -61,7 +61,19 @@
 <script src="/mascots.js"></script>
 <script>
 (function(){
-  const C={ rows:18, cols:8, colors:["R","B","Y"] };
+  const C={ rows:18, cols:8, colors:["R","B","Y"],
+    VIRUS_BASE:4, VIRUS_STEP:3, VIRUS_MAX:40,       // virusesFor(level) coefficients
+    DROP_BASE:34, DROP_STEP:2, DROP_MIN:14 };       // dropSpeed(level) coefficients — frames per drop, lower is faster
+  // Admin-configurable at /admin/games/?game=drmario (site's generic
+  // numeric-knob pattern — see kaboom's HANDOFF.md). rows/cols/colors stay
+  // out on purpose — those are board-shape, not difficulty; the virus/drop
+  // curve coefficients below ARE real difficulty knobs (already tuned once
+  // in response to player feedback — see virusesFor/dropSpeed comments).
+  (function(){ try{
+    const allow=["VIRUS_BASE","VIRUS_STEP","VIRUS_MAX","DROP_BASE","DROP_STEP","DROP_MIN"];
+    const o=JSON.parse(localStorage.getItem("drmario_config")||"{}");
+    for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
+  }catch(_){} })();
   const COLHEX={R:"#f43f5e",B:"#22d3ee",Y:"#ffcf5a"};
   function emptyGrid(){ const g=[]; for(let r=0;r<C.rows;r++) g.push(new Array(C.cols).fill(null)); return g; }
   function clearMatches(grid){ const rows=grid.length, cols=grid[0].length; const toClear=new Set();
@@ -86,9 +98,9 @@
   function canPlace(grid, cells){ for(const cell of cells){ if(cell.c<0||cell.c>=C.cols||cell.r<0||cell.r>=C.rows) return false; if(grid[cell.r][cell.c]) return false; } return true; }
   // Eased per comment ("screen way too full, difficulty curve too steep"): half
   // the starting density and a lower, later-reached cap.
-  function virusesFor(level){ return Math.min(4+(level-1)*3, 40); }
+  function virusesFor(level){ return Math.min(C.VIRUS_BASE+(level-1)*C.VIRUS_STEP, C.VIRUS_MAX); }
   // The drop speed ramp, also eased: a gentler descent and a higher (slower) floor.
-  function dropSpeed(level){ return Math.max(14, 34-(level-1)*2); }
+  function dropSpeed(level){ return Math.max(C.DROP_MIN, C.DROP_BASE-(level-1)*C.DROP_STEP); }
   // Clearing every virus advances a level: a fresh, denser bottle, score kept.
   function advanceLevel(st){ st.level++; st.grid=emptyGrid(); placeViruses(st.grid, virusesFor(st.level));
     st.pill=newPill(); st.next=newPill(); st.mode="play"; st.bonus=null; st.banner={text:"LEVEL "+st.level, t:100};

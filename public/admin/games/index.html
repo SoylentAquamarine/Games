@@ -1078,6 +1078,14 @@
       { key:"MAX_POWER", label:"Max shot power", min:5, max:30, def:15 },
       { key:"CUSHION", label:"Cushion bounce (energy kept)", min:0.4, max:0.95, def:0.72 },
     ]},
+    drmario:{ storageKey:"drmario_config", sub:"Virus/drop difficulty curve — takes effect next time the game is opened. Board size (rows/cols/colors) isn't editable here since it's board-shape, not difficulty.", fields:[
+      { key:"VIRUS_BASE", label:"Starting virus count", min:1, max:20, def:4 },
+      { key:"VIRUS_STEP", label:"Viruses added per level", min:0, max:10, def:3 },
+      { key:"VIRUS_MAX", label:"Max virus count", min:4, max:80, def:40 },
+      { key:"DROP_BASE", label:"Starting drop speed (frames — higher is slower)", min:10, max:80, def:34 },
+      { key:"DROP_STEP", label:"Drop speed increase per level", min:0, max:6, def:2 },
+      { key:"DROP_MIN", label:"Fastest drop speed (frames — the floor)", min:4, max:30, def:14 },
+    ]},
   };
   let numericInitSlug=null;
   function initNumericEditor(slug){
