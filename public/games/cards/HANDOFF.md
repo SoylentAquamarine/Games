@@ -9,13 +9,15 @@ Hearts, Klondike, Pyramid, Spades, Video Poker and War. One file, one
 
 - `cards.js` — standard deck model (`makeDeck`, `shuffle`, `deal`,
   `split`), a CSS card-face renderer (`cardEl`, styles injected on load),
-  and 5 deck themes (`THEMES`, `setTheme`, `getTheme`, persisted to
+  and 6 deck themes (`THEMES`, `setTheme`, `getTheme`, persisted to
   `localStorage["cards_theme"]`). Suits are always `S/H/D/C` internally —
   no game's logic depends on the active theme.
 - Card faces: numeric cards (2-10, Ace) show a suit pip; Jack/Queen/King
   show a hand-drawn chicken portrait (`faceArt`) — a cockerel jack, hen
-  queen, rooster king. The body uses `currentColor` so it always takes the
-  card's red/black suit colour.
+  queen, rooster king for the five "earthbound" themes, and a fully
+  distinct helmet/visor/jetpack portrait (`spaceArt`) for the Space
+  Chicken theme. The earthbound body uses `currentColor` so it always
+  takes the card's red/black suit colour.
 - **Suit glyphs AND suit colour on the card itself are always the
   classic ♠♥♦♣ in classic red/black** — see `Cards.SUIT_SYMBOL`,
   `Cards.SUIT_RED`, `Cards.SUIT_BLACK`. Deck themes never override
@@ -24,7 +26,24 @@ Hearts, Klondike, Pyramid, Spades, Video Poker and War. One file, one
 
 ## Most recent pass
 
-**Player feedback: "the suit colors should be standard red and black for
+**Player feedback: "when i said the KQJ should be different for each set
+I meant the actual image of the chicken should be different, not just to
+add the design from the back of the card. We also need a space chicken
+set."** Two changes:
+
+1. `accessoryArt(kind, hx, hy, hr)` rebuilt: the previous small corner
+   badge is now real head-mounted headwear — a straw hat with brim
+   (Barnyard), a straw-nest wreath ring (Coop), sunglasses with rays
+   (Sunny Side), a fan of leaves (Orchard) — sized and positioned from
+   each rank's actual head coordinates so it reads as part of the
+   portrait, not an accent.
+2. New 6th theme, `"space"` (Space Chicken): its `face.space` flag routes
+   `faceArt()` to a new `spaceArt(rank)` function instead of the shared
+   earthbound body — a round helmet, visor rim/fill, suit body, jetpack
+   glow, and a rank-specific visor badge (crown/tiara/star for K/Q/J) —
+   a genuinely different silhouette, not a recolour.
+
+Earlier: **player feedback: "the suit colors should be standard red and black for
 all card sets."** Suit colour used to be per-theme too (Barnyard's suits
 were orange/dark-brown, Sunny Side's amber/navy) — every theme now
 applies the same fixed `SUIT_RED`/`SUIT_BLACK` via the `--card-red`/

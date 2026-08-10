@@ -26,7 +26,15 @@ Crazy Eights, Hearts, Spades, Blackjack, Video Poker).
 
 ## Most recent pass
 
-No player-feedback pass yet — this HANDOFF.md was created as part of a
+**Player feedback (left on this page): "when i said the KQJ should be
+different for each set I meant the actual image of the chicken should be
+different, not just to add the design from the back of the card. We also
+need a space chicken set."** The actual fix lives in the shared
+`cards.js` engine (see its own HANDOFF.md) — this page picked up the new
+6th "Space Chicken" theme automatically since its theme selector just
+iterates `Cards.THEMES`.
+
+Earlier: no player-feedback pass — this HANDOFF.md was created as part of a
 documentation sweep (see the root HANDOFF.md's "Per-game HANDOFF.md
 rollout" note). Everything under "What's here" reflects the page as
 originally built.
