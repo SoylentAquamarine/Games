@@ -38,7 +38,19 @@ dragons that chase, castles, a 100%-completion secret ending.
 
 ## Most recent pass
 
-**User request: "we need board editors on everything, and on adventure I
+**Player feedback: "there needs to be a restart button beside the new
+game, so you can restart the same level if you die without resetting
+the dead dragons to alive and everything in the game will continue."**
+`respawn()` already preserved exactly that — dead dragons stay dead,
+collected/dropped items stay in the world, only the hero's position and
+`state.dead` reset. It just previously only ever fired automatically,
+~1.2s after death (`deathT>1200` in the render loop). Added a `#restart`
+button beside `#new` that calls the same `respawn()` immediately,
+gated on `state.dead` so it's a no-op mid-play — clicking it can't yank
+the hero back to the start room or drop their held item outside of an
+actual death.
+
+Earlier: **user request: "we need board editors on everything, and on adventure I
 need an individual board editor not just how to organize the boards."**
 The admin editor's position grid (drag rooms, recolour them) previously
 had no way to edit a room's actual interior layout — added a per-room
@@ -119,20 +131,6 @@ color from other pickups, castle recoloring, a rotating sword sprite,
 and title cleanup.
 
 ## Open / deferred
-
-Four items:
-
-1. **"There needs to be a restart button beside New Game, so you can
-   restart the same level if you die without resetting the dead dragons
-   to alive and everything in the game will continue."** Distinct from
-   the existing "New Game" button, which starts an entirely fresh run.
-   Wants a second button that restarts the CURRENT room/level layout
-   specifically — re-placing the hero at the start but keeping which
-   dragons are already dead, which items are already collected, etc.
-   Needs a design decision on exactly what "restart the same level"
-   preserves vs. resets before implementing (e.g. does it reset the
-   hero's position within the room, or the whole room layout back to
-   how it was at the start of that dragon-fight attempt?). Not started.
 
 Three items, all from an earlier round of player feedback:
 
