@@ -226,6 +226,29 @@
           </div>
         </div>
 
+        <div id="cfgSoko" class="hidden">
+          <p class="sub">Design any level: click a brush, then click or drag on the grid to paint it. A level needs exactly one player and should have as many boxes as targets to stay solvable.</p>
+          <div class="row"><span class="sub">Level:</span><div class="holepick" id="s-levels"></div>
+            <button class="btn small" id="s-newlevel">+ Add level</button>
+            <button class="btn small ghost" id="s-dellevel">Delete level</button></div>
+          <div class="row">
+            <button class="btn small on" data-sbrush="#">Wall</button>
+            <button class="btn small" data-sbrush=" ">Floor</button>
+            <button class="btn small" data-sbrush=".">⭐ Target</button>
+            <button class="btn small" data-sbrush="$">📦 Box</button>
+            <button class="btn small" data-sbrush="*">✅ Box+Target</button>
+            <button class="btn small" data-sbrush="@">🧑 Player</button>
+            <button class="btn small" data-sbrush="+">🧑 Player+Target</button>
+          </div>
+          <canvas id="s-canvas" width="300" height="240"></canvas>
+          <div class="row" style="margin-top:8px">
+            <button class="btn" id="s-save">Save levels</button>
+            <button class="btn ghost" id="s-test">▶ Test this level</button>
+            <button class="btn ghost" id="s-reset">Reset to default</button>
+            <span class="msg" id="s-ok"></span>
+          </div>
+        </div>
+
         <!-- GENERIC NUMERIC-KNOB PANE — driven by NUMERIC_CONFIGS below.
              Any game with plain tunable difficulty constants (as opposed
              to an editable board/level shape) gets one entry in that
@@ -371,13 +394,14 @@
   }
 
   // ---- configuration: dispatch to the right editor pane ----
-  const CFG_PANES=["cfgGeneric","cfgQuest","cfgMania","cfgAdv","cfgGolf","cfgNumeric"];
+  const CFG_PANES=["cfgGeneric","cfgQuest","cfgMania","cfgAdv","cfgGolf","cfgSoko","cfgNumeric"];
   function showConfig(slug){
     CFG_PANES.forEach(id=>$(id).classList.add("hidden"));
     if(slug==="quest"){ $("cfgQuest").classList.remove("hidden"); initQuestEditor(); }
     else if(slug==="chickenmania"){ $("cfgMania").classList.remove("hidden"); initManiaEditor(); }
     else if(slug==="adventure"){ $("cfgAdv").classList.remove("hidden"); initAdvEditor(); }
     else if(slug==="minigolf"){ $("cfgGolf").classList.remove("hidden"); initGolfEditor(); }
+    else if(slug==="sokoban"){ $("cfgSoko").classList.remove("hidden"); initSokoEditor(); }
     else if(NUMERIC_CONFIGS[slug]){ $("cfgNumeric").classList.remove("hidden"); initNumericEditor(slug); }
     else { $("cfgGeneric").classList.remove("hidden"); initGenericConfig(slug); }
   }
@@ -735,6 +759,87 @@
     };
     $("g-par").value=gData[gHole].par;
     drawCoursePicker(); drawHolePicker(); drawGolf();
+  }
+
+  // =========================================================================
+  // SOKOBAN level editor
+  // =========================================================================
+  // A fixed SROWS x SCOLS edit grid, generous enough for every level design.
+  // Existing/default levels are padded out to this size by EXTENDING their
+  // wall border (appending "#" — never blank floor) rather than resizing
+  // the playable area, so a default level's actual layout is unchanged,
+  // just surrounded by a bit more wall than the compact source strings show.
+  const SROWS=8, SCOLS=10, SCELL=30;
+  function padSokoLevel(lvl){
+    const rows=lvl.map(r=>r.length<SCOLS?r+"#".repeat(SCOLS-r.length):r.slice(0,SCOLS));
+    while(rows.length<SROWS) rows.push("#".repeat(SCOLS));
+    return rows.slice(0,SROWS);
+  }
+  const SOKO_DEFAULT=[
+    ["######","#    #","# .$@#","#    #","######"],
+    ["#######","#  .  #","#  $  #","#  @  #","#######"],
+    ["######","#@$ .#","#  $.#","######"],
+    ["#######","# . . #","# $ $ #","#  @  #","#######"],
+  ].map(padSokoLevel);
+  let sokoInit=false, sData, sLevel=0, sBrush="#";
+  function sokoColor(ch){ return ch==="#"?"#3a3550":ch==="."?"#4a3a1a":"#171a30"; }
+  function initSokoEditor(){
+    if(sokoInit){ drawSokoPicker(); drawSoko(); return; } sokoInit=true;
+    sData = load("sokoban_levels") || JSON.parse(JSON.stringify(SOKO_DEFAULT));
+    const scv=$("s-canvas"), sx=scv.getContext("2d");
+    function drawSokoPicker(){
+      $("s-levels").innerHTML = sData.map((_,i)=>`<button data-l="${i}" class="${i===sLevel?"on":""}">${i+1}</button>`).join("");
+      $("s-levels").querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>{ sLevel=+b.dataset.l; drawSokoPicker(); drawSoko(); }));
+    }
+    function drawSoko(){
+      const lvl=sData[sLevel];
+      for(let y=0;y<SROWS;y++) for(let x=0;x<SCOLS;x++){
+        const ch=lvl[y][x];
+        sx.fillStyle=sokoColor(ch); sx.fillRect(x*SCELL,y*SCELL,SCELL-1,SCELL-1);
+        if(ch==="$"||ch==="*"){ sx.fillStyle=ch==="*"?"#4ade80":"#b98a4a"; sx.fillRect(x*SCELL+6,y*SCELL+6,SCELL-13,SCELL-13); }
+        if(ch==="@"||ch==="+"){ sx.fillStyle="#22d3ee"; sx.beginPath(); sx.arc(x*SCELL+SCELL/2,y*SCELL+SCELL/2,SCELL/3,0,7); sx.fill(); }
+      }
+    }
+    function paintAt(e){
+      const r=scv.getBoundingClientRect();
+      const cx=Math.floor(((e.touches?e.touches[0].clientX:e.clientX)-r.left)/r.width*SCOLS);
+      const cy=Math.floor(((e.touches?e.touches[0].clientY:e.clientY)-r.top)/r.height*SROWS);
+      if(cx<0||cx>=SCOLS||cy<0||cy>=SROWS) return;
+      const lvl=sData[sLevel]; lvl[cy]=lvl[cy].slice(0,cx)+sBrush+lvl[cy].slice(cx+1); drawSoko();
+    }
+    let sDown=false;
+    scv.addEventListener("mousedown",e=>{sDown=true;paintAt(e);});
+    scv.addEventListener("mousemove",e=>{if(sDown)paintAt(e);});
+    addEventListener("mouseup",()=>sDown=false);
+    scv.addEventListener("touchstart",e=>{e.preventDefault();paintAt(e);},{passive:false});
+    scv.addEventListener("touchmove",e=>{e.preventDefault();paintAt(e);},{passive:false});
+    $("cfgSoko").querySelectorAll("[data-sbrush]").forEach(b=>b.addEventListener("click",()=>{
+      $("cfgSoko").querySelectorAll("[data-sbrush]").forEach(x=>x.classList.remove("on")); b.classList.add("on"); sBrush=b.dataset.sbrush; }));
+    $("s-newlevel").onclick=()=>{
+      const blank=["#".repeat(SCOLS)]; for(let y=1;y<SROWS-1;y++) blank.push("#"+" ".repeat(SCOLS-2)+"#"); blank.push("#".repeat(SCOLS));
+      sData.push(blank); sLevel=sData.length-1; drawSokoPicker(); drawSoko();
+      $("s-ok").textContent="Added a blank level — place a player and some boxes/targets.";
+    };
+    $("s-dellevel").onclick=()=>{
+      if(sData.length<=1){ $("s-ok").textContent="Can't delete the last level."; return; }
+      if(!confirm("Delete level "+(sLevel+1)+"? This can't be undone.")) return;
+      sData.splice(sLevel,1); sLevel=Math.max(0,sLevel-1); drawSokoPicker(); drawSoko();
+      $("s-ok").textContent="Deleted.";
+    };
+    $("s-save").onclick=()=>{
+      store("sokoban_levels",sData);
+      $("s-ok").textContent="Saved "+sData.length+" level(s) — reopen Sokoban to play them.";
+    };
+    // Saves first so the test always reflects the exact levels being edited,
+    // then jumps straight to this level (?level=N) instead of always
+    // starting the game over from level 1.
+    $("s-test").onclick=()=>{ store("sokoban_levels",sData); window.open("/games/sokoban/?level="+(sLevel+1),"_blank"); };
+    $("s-reset").onclick=()=>{
+      clear("sokoban_levels"); sData=JSON.parse(JSON.stringify(SOKO_DEFAULT)); sLevel=0;
+      drawSokoPicker(); drawSoko();
+      $("s-ok").textContent="Reset to the built-in 4 levels.";
+    };
+    drawSokoPicker(); drawSoko();
   }
 
   // =========================================================================

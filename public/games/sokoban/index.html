@@ -53,12 +53,18 @@
   </div>
   <script>
   (function(){
-    const LEVELS=[
+    const DEFAULT_LEVELS=[
       ["######","#    #","# .$@#","#    #","######"],
       ["#######","#  .  #","#  $  #","#  @  #","#######"],
       ["######","#@$ .#","#  $.#","######"],
       ["#######","# . . #","# $ $ #","#  @  #","#######"],
     ];
+    // Admin-designed levels (/admin/games/?game=sokoban, "Configuration" panel)
+    // override the built-in set — same convention as quest/chickenmania/
+    // adventure/minigolf. Falls back to DEFAULT_LEVELS on anything malformed.
+    function isValidLevels(o){ return Array.isArray(o)&&o.length>0&&o.every(lvl=>Array.isArray(lvl)&&lvl.length>0&&lvl.every(row=>typeof row==="string")); }
+    let LEVELS=DEFAULT_LEVELS;
+    try{ const j=localStorage.getItem("sokoban_levels"); if(j){ const o=JSON.parse(j); if(isValidLevels(o)) LEVELS=o; } }catch(e){}
     const boardEl=document.getElementById("board"),statusEl=document.getElementById("status"),movesEl=document.getElementById("moves"),lvlEl=document.getElementById("lvl");
     document.getElementById("lvltot").textContent=LEVELS.length;
     let walls,targets,boxes,player,rows,cols,moves,undoStack,level=0,solved;
@@ -97,8 +103,12 @@
     document.querySelectorAll(".dpad button").forEach(b=>b.addEventListener("click",()=>{const m={up:[-1,0],down:[1,0],left:[0,-1],right:[0,1]}[b.dataset.d];move(m[0],m[1]);}));
     document.getElementById("undo").addEventListener("click",undo);
     document.getElementById("restart").addEventListener("click",()=>load(level));
-    window.__soko={LEVELS,loadTest:(i)=>{load(i);return{boxes:[...boxes],targets:[...targets],player};},moveTest:(dr,dc)=>{move(dr,dc);return{boxes:[...boxes],player,moves,solved};}};
-    load(0);
+    window.__soko={LEVELS,DEFAULT_LEVELS,isValidLevels,loadTest:(i)=>{load(i);return{boxes:[...boxes],targets:[...targets],player};},moveTest:(dr,dc)=>{move(dr,dc);return{boxes:[...boxes],player,moves,solved};}};
+    // The admin level editor's "Test this level" button passes ?level=<n>
+    // (1-based) so testing always jumps straight to the exact level being
+    // edited, skipping levels 1..n-1.
+    const urlLevel=parseInt(new URLSearchParams(location.search).get("level"))||0;
+    load((urlLevel>=1&&urlLevel<=LEVELS.length)?urlLevel-1:0);
   })();
   </script>
   <script src="/comments.js" defer></script>
