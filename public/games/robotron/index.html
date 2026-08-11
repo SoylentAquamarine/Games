@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Chicken Robotron — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🐔</text></svg>" />
+  <style>
+    :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#34d399;--accent-2:#f43f5e;}
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+      background:radial-gradient(1000px 500px at 70% -10%,rgba(52,211,153,.2),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(244,63,94,.14),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;}
+    .wrap{max-width:560px;margin:0 auto;padding:16px 16px 30px;display:flex;flex-direction:column;align-items:center;gap:12px}
+    .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
+    .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+    .home:hover{color:var(--text);border-color:rgba(52,211,153,.6)}
+    h1{margin:0;font-size:1.5rem;background:linear-gradient(120deg,var(--accent),var(--accent-2));-webkit-background-clip:text;background-clip:text;color:transparent}
+    .scores{display:flex;gap:12px;width:100%}
+    .stat{flex:1;background:var(--panel);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:8px;text-align:center}
+    .stat .label{font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+    .stat .value{font-size:1.3rem;font-weight:700}
+    .board-wrap{position:relative;width:100%}
+    canvas{width:100%;height:auto;display:block;background:#05060f;border:1px solid rgba(255,255,255,.08);border-radius:14px;touch-action:none}
+    .overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:rgba(15,16,32,.85);border-radius:14px;text-align:center;padding:10px}
+    .overlay.hidden{display:none}
+    .overlay h2{margin:0}.overlay p{margin:0;color:var(--muted)}
+    .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:12px 28px;border-radius:999px;cursor:pointer}
+    .sticks{display:flex;gap:18px;width:100%;justify-content:center}
+    .stick{display:grid;grid-template-columns:repeat(3,42px);grid-template-rows:repeat(3,42px);gap:4px}
+    .stick button{background:var(--panel);border:1px solid rgba(255,255,255,.14);color:var(--text);border-radius:8px;cursor:pointer;user-select:none;touch-action:none;font-size:.9rem}
+    .stick .lbl{grid-column:1/4;text-align:center;font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-top:-2px}
+    .hint{color:var(--muted);font-size:.82rem;text-align:center}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar"><a class="home" href="/">← Home</a><h1>🐔 Chicken Robotron</h1><span style="width:64px"></span></div>
+    <div class="scores">
+      <div class="stat"><div class="label">Score</div><div class="value" id="score">0</div></div>
+      <div class="stat"><div class="label">Lives</div><div class="value" id="lives">3</div></div>
+      <div class="stat"><div class="label">Best</div><div class="value" id="best">0</div></div>
+    </div>
+    <div class="board-wrap">
+      <canvas id="c" width="560" height="400"></canvas>
+      <div class="overlay" id="ov"><h2 id="ot">Chicken Robotron</h2><p id="om">Save the chicks from the rogue coop machines. Move and fire independently, in any of 8 directions.</p><button class="btn" id="start">Play</button></div>
+    </div>
+    <div class="sticks">
+      <div class="stick" id="moveStick">
+        <button data-k="m-7">↖</button><button data-k="m-8">↑</button><button data-k="m-9">↗</button>
+        <button data-k="m-4">←</button><button data-k="m-5">•</button><button data-k="m-6">→</button>
+        <button data-k="m-1">↙</button><button data-k="m-2">↓</button><button data-k="m-3">↘</button>
+        <div class="lbl">Move</div>
+      </div>
+      <div class="stick" id="fireStick">
+        <button data-k="f-7">↖</button><button data-k="f-8">↑</button><button data-k="f-9">↗</button>
+        <button data-k="f-4">←</button><button data-k="f-5">•</button><button data-k="f-6">→</button>
+        <button data-k="f-1">↙</button><button data-k="f-2">↓</button><button data-k="f-3">↘</button>
+        <div class="lbl">Fire</div>
+      </div>
+    </div>
+    <p class="hint">Arrows/WASD to move · IJKL (or numpad) to fire in any of 8 directions, independent of movement · rescue every chick you touch</p>
+  </div>
+  <script src="/arcade.js"></script>
+  <script>
+  (function(){
+    // Canvas's static attributes as plain numbers — no DOM dependency for the sim.
+    const W=560, H=400;
+    let best=+localStorage.getItem("robotron_best")||0;
+
+    // ------------------------------------------------------------ pure sim
+    const PLAYER_R=10, PLAYER_SPEED=2.6;
+    const BULLET_SPEED=7, BULLET_LIFE=45, FIRE_COOLDOWN=8;
+    const GRUNT_SPEED=0.7, PROG_SPEED=1.1, BRAIN_SPEED=0.8, HULK_SPEED=1.0;
+    const HULK_HP=5, HUMAN_WALK=0.4;
+    const RESCUE_SCORE=200, GRUNT_SCORE=100, BRAIN_SCORE=300, PROG_SCORE=150, HULK_SCORE=500;
+    const HUMANS_PER_WAVE=5, HUMAN_CAP=6;
+    const SPAWN_GAP=45;
+    const EXTRA_LIFE_AT=15000;
+    const HIT_R=14;
+    const DIR8={1:[-1,1],2:[0,1],3:[1,1],4:[-1,0],6:[1,0],7:[-1,-1],8:[0,-1],9:[1,-1]};
+
+    function norm(dx,dy){ const m=Math.hypot(dx,dy); return m===0?[0,0]:[dx/m,dy/m]; }
+    function clampArena(p,r){ p.x=Math.max(r,Math.min(W-r,p.x)); p.y=Math.max(r,Math.min(H-r,p.y)); }
+    function grantCountFor(wave){ return Math.min(16, 5+wave*2); }
+    function hulkCountFor(wave){ return Math.min(4, 1+Math.floor(wave/2)); }
+    function brainCountFor(wave){ return Math.min(4, Math.floor(wave/2)); }
+
+    function newHuman(){ return { x:20+Math.random()*(W-40), y:20+Math.random()*(H-40), walkDir:Math.random()*Math.PI*2 }; }
+    function newGame(){
+      return { wave:1, player:{x:W/2,y:H/2}, moveDir:[0,0], fireDir:[0,0], fireT:0,
+        bullets:[], grunts:[], hulks:[], brains:[], progs:[], humans:Array.from({length:HUMANS_PER_WAVE},newHuman),
+        grantQueue:grantCountFor(1), hulkQueue:hulkCountFor(1), brainQueue:brainCountFor(1), spawnT:SPAWN_GAP,
+        score:0, lives:3, inv:60, over:false, nextExtraLife:EXTRA_LIFE_AT };
+    }
+    function nextWave(s){
+      s.wave++; s.bullets=[]; s.grunts=[]; s.hulks=[]; s.brains=[]; s.progs=[];
+      s.grantQueue=grantCountFor(s.wave); s.hulkQueue=hulkCountFor(s.wave); s.brainQueue=brainCountFor(s.wave);
+      s.spawnT=SPAWN_GAP; s.inv=60;
+      while(s.humans.length<Math.min(HUMAN_CAP,HUMANS_PER_WAVE)) s.humans.push(newHuman());
+    }
+    function edgeSpawnPoint(){
+      const side=Math.floor(Math.random()*4);
+      if(side===0) return {x:Math.random()*W,y:0};
+      if(side===1) return {x:Math.random()*W,y:H};
+      if(side===2) return {x:0,y:Math.random()*H};
+      return {x:W,y:Math.random()*H};
+    }
+    function spawnWave(s){
+      if(--s.spawnT>0) return;
+      s.spawnT=SPAWN_GAP;
+      if(s.grantQueue>0){ s.grantQueue--; s.grunts.push({...edgeSpawnPoint()}); return; }
+      if(s.hulkQueue>0){ s.hulkQueue--; const p=edgeSpawnPoint(); s.hulks.push({...p,hp:HULK_HP,dir:norm(Math.random()-0.5,Math.random()-0.5)}); return; }
+      if(s.brainQueue>0){ s.brainQueue--; s.brains.push({...edgeSpawnPoint()}); return; }
+    }
+
+    function setMove(s,dirCode){ s.moveDir = dirCode===5 ? [0,0] : norm(...(DIR8[dirCode]||[0,0])); }
+    function setFire(s,dirCode){ s.fireDir = dirCode===5 ? [0,0] : norm(...(DIR8[dirCode]||[0,0])); }
+    function stepPlayer(s){
+      s.player.x+=s.moveDir[0]*PLAYER_SPEED; s.player.y+=s.moveDir[1]*PLAYER_SPEED;
+      clampArena(s.player,PLAYER_R);
+      if(s.inv>0) s.inv--;
+    }
+    function fire(s){
+      if(s.fireDir[0]===0 && s.fireDir[1]===0) return;
+      if(s.fireT>0) return;
+      s.fireT=FIRE_COOLDOWN;
+      s.bullets.push({x:s.player.x,y:s.player.y,vx:s.fireDir[0]*BULLET_SPEED,vy:s.fireDir[1]*BULLET_SPEED,life:BULLET_LIFE});
+    }
+    function stepBullets(s){
+      if(s.fireT>0) s.fireT--;
+      s.bullets.forEach(b=>{b.x+=b.vx;b.y+=b.vy;b.life--;});
+      s.bullets=s.bullets.filter(b=>b.life>0 && b.x>-4 && b.x<W+4 && b.y>-4 && b.y<H+4);
+    }
+    function homeToward(e,target,speed){
+      const [dx,dy]=norm(target.x-e.x,target.y-e.y);
+      e.x+=dx*speed; e.y+=dy*speed;
+    }
+    // Returns true if any enemy made contact with the player (and inv<=0).
+    function stepEnemies(s){
+      let hit=false;
+      for(const g of s.grunts){ homeToward(g,s.player,GRUNT_SPEED); }
+      for(const p of s.progs){ homeToward(p,s.player,PROG_SPEED); }
+      for(const h of s.hulks){
+        h.x+=h.dir[0]*HULK_SPEED; h.y+=h.dir[1]*HULK_SPEED;
+        // Bounce at the same radius clampArena clamps to (10) — comparing
+        // against the raw 0/W bounds instead let clampArena silently pin the
+        // hulk at the wall every frame without ever flipping its direction,
+        // so it would slide along the edge forever instead of bouncing off.
+        if(h.x<10||h.x>W-10) h.dir[0]*=-1; if(h.y<10||h.y>H-10) h.dir[1]*=-1;
+        clampArena(h,10);
+      }
+      for(const b of s.brains){
+        let target=null,best=Infinity;
+        for(const hu of s.humans){ const d=Math.hypot(hu.x-b.x,hu.y-b.y); if(d<best){best=d;target=hu;} }
+        if(target){ homeToward(b,target,BRAIN_SPEED); if(best<HIT_R){ s.humans=s.humans.filter(x=>x!==target); s.progs.push({x:b.x,y:b.y}); } }
+      }
+      const all=[...s.grunts,...s.progs,...s.hulks,...s.brains];
+      if(s.inv<=0){ for(const e of all){ if(Math.hypot(e.x-s.player.x,e.y-s.player.y)<HIT_R) { hit=true; break; } } }
+      return hit;
+    }
+    function stepHumans(s){
+      for(const h of s.humans){
+        h.x+=Math.cos(h.walkDir)*HUMAN_WALK; h.y+=Math.sin(h.walkDir)*HUMAN_WALK;
+        if(h.x<10||h.x>W-10||h.y<10||h.y>H-10||Math.random()<0.01) h.walkDir=Math.random()*Math.PI*2;
+        clampArena(h,10);
+      }
+    }
+    // Rescuing is automatic on contact — touch a human, they're saved.
+    function resolveRescues(s){
+      let gained=0;
+      s.humans=s.humans.filter(h=>{
+        if(Math.hypot(h.x-s.player.x,h.y-s.player.y)<HIT_R+4){ gained+=RESCUE_SCORE; return false; }
+        return true;
+      });
+      s.score+=gained;
+      return gained;
+    }
+    function resolveHits(s){
+      let gained=0;
+      const killList=[
+        [s.grunts,GRUNT_SCORE,()=>{}],
+        [s.progs,PROG_SCORE,()=>{}],
+        [s.brains,BRAIN_SCORE,()=>{}],
+      ];
+      for(const [arr,pts] of killList){
+        for(let i=arr.length-1;i>=0;i--){
+          const e=arr[i];
+          for(let j=s.bullets.length-1;j>=0;j--){
+            const b=s.bullets[j];
+            if(Math.hypot(b.x-e.x,b.y-e.y)<HIT_R){ s.bullets.splice(j,1); arr.splice(i,1); gained+=pts; break; }
+          }
+        }
+      }
+      for(let i=s.hulks.length-1;i>=0;i--){
+        const hk=s.hulks[i];
+        for(let j=s.bullets.length-1;j>=0;j--){
+          const b=s.bullets[j];
+          if(Math.hypot(b.x-hk.x,b.y-hk.y)<HIT_R){
+            s.bullets.splice(j,1); hk.hp--;
+            if(hk.hp<=0){ s.hulks.splice(i,1); gained+=HULK_SCORE; }
+            break;
+          }
+        }
+      }
+      s.score+=gained;
+      // score only ever increases via `gained` above, so this can only newly
+      // become true in the same call that earned the points that crossed it.
+      if(gained>0 && s.score>=s.nextExtraLife){ s.lives++; s.nextExtraLife+=EXTRA_LIFE_AT; }
+      return gained;
+    }
+    function waveClear(s){ return s.grantQueue<=0 && s.hulkQueue<=0 && s.brainQueue<=0 &&
+      s.grunts.length===0 && s.hulks.length===0 && s.brains.length===0 && s.progs.length===0; }
+    function die(s){
+      s.lives--; s.inv=90; s.grunts=[]; s.progs=[]; s.brains=[]; s.hulks=[]; s.bullets=[];
+      s.player.x=W/2; s.player.y=H/2;
+      if(s.lives<=0) s.over=true;
+    }
+
+    window.__robotron={ W, H, PLAYER_R, PLAYER_SPEED, BULLET_SPEED, FIRE_COOLDOWN, GRUNT_SPEED, PROG_SPEED,
+      BRAIN_SPEED, HULK_SPEED, HULK_HP, HUMANS_PER_WAVE, HUMAN_CAP, RESCUE_SCORE, GRUNT_SCORE, HULK_SCORE,
+      EXTRA_LIFE_AT, DIR8, norm, clampArena, grantCountFor, hulkCountFor, brainCountFor, newHuman, newGame,
+      nextWave, spawnWave, setMove, setFire, stepPlayer, fire, stepBullets, stepEnemies, stepHumans,
+      resolveRescues, resolveHits, waveClear, die };
+    if(typeof document==="undefined") return;
+
+    // -------------------------------------------------------------- DOM layer
+    const cv=document.getElementById("c"),ctx=cv.getContext("2d");
+    const scoreEl=document.getElementById("score"),livesEl=document.getElementById("lives"),bestEl=document.getElementById("best");
+    const ov=document.getElementById("ov"),ot=document.getElementById("ot"),om=document.getElementById("om"),startBtn=document.getElementById("start");
+    bestEl.textContent=best;
+    let s=newGame(), running=false, raf;
+    function updateHud(){ scoreEl.textContent=s.score; livesEl.textContent=s.lives; }
+    function start(){ s=newGame(); updateHud(); ov.classList.add("hidden"); running=true; loop(); }
+    function loop(){ if(!running) return; update(); render(); raf=requestAnimationFrame(loop); }
+    function update(){
+      if(s.over) return;
+      stepPlayer(s);
+      fire(s);
+      stepBullets(s);
+      spawnWave(s);
+      const hit=stepEnemies(s);
+      stepHumans(s);
+      const rg=resolveRescues(s);
+      const gained=resolveHits(s);
+      if(rg||gained){ updateHud(); if(typeof Arcade!=="undefined") Arcade.sfx.explode(); }
+      if(hit){ die(s); updateHud();
+        if(s.over){ running=false; cancelAnimationFrame(raf);
+          if(typeof Arcade!=="undefined") Arcade.stats.record("robotron",s.score);
+          if(s.score>best){ best=s.score; localStorage.setItem("robotron_best",best); bestEl.textContent=best; }
+          ot.textContent="Game Over"; om.textContent="Score "+s.score+" · wave "+s.wave; startBtn.textContent="Play again"; ov.classList.remove("hidden");
+          return;
+        }
+      }
+      if(waveClear(s)) nextWave(s);
+    }
+    function render(){
+      ctx.clearRect(0,0,W,H);
+      ctx.strokeStyle="rgba(124,92,255,.25)"; ctx.lineWidth=2; ctx.strokeRect(1,1,W-2,H-2);
+      // humans
+      ctx.fillStyle="#facc15";
+      for(const h of s.humans){ ctx.beginPath(); ctx.arc(h.x,h.y,6,0,7); ctx.fill(); }
+      // grunts
+      ctx.fillStyle="#fb923c";
+      for(const g of s.grunts){ ctx.beginPath(); ctx.arc(g.x,g.y,8,0,7); ctx.fill(); }
+      // progs (converted humans — hostile now)
+      ctx.fillStyle="#a855f7";
+      for(const p of s.progs){ ctx.beginPath(); ctx.arc(p.x,p.y,8,0,7); ctx.fill(); }
+      // brains
+      ctx.fillStyle="#38bdf8";
+      for(const b of s.brains){ ctx.beginPath(); ctx.arc(b.x,b.y,9,0,7); ctx.fill(); }
+      // hulks
+      for(const hk of s.hulks){
+        ctx.fillStyle="#94a3b8"; ctx.fillRect(hk.x-10,hk.y-10,20,20);
+        ctx.fillStyle="rgba(0,0,0,.5)"; ctx.font="9px system-ui"; ctx.textAlign="center"; ctx.fillText(String(hk.hp),hk.x,hk.y+3);
+      }
+      // bullets
+      ctx.fillStyle="#34d399";
+      for(const b of s.bullets){ ctx.beginPath(); ctx.arc(b.x,b.y,3,0,7); ctx.fill(); }
+      // player, blinking while invulnerable
+      if(s.inv<=0 || Math.floor(s.inv/4)%2===0){
+        ctx.fillStyle="#22d3ee"; ctx.beginPath(); ctx.arc(s.player.x,s.player.y,PLAYER_R,0,7); ctx.fill();
+        if(s.fireDir[0]||s.fireDir[1]){
+          ctx.strokeStyle="#34d399"; ctx.lineWidth=2; ctx.beginPath();
+          ctx.moveTo(s.player.x,s.player.y); ctx.lineTo(s.player.x+s.fireDir[0]*18,s.player.y+s.fireDir[1]*18); ctx.stroke();
+        }
+      }
+      ctx.fillStyle="rgba(230,230,240,.7)"; ctx.font="12px system-ui"; ctx.textAlign="left";
+      ctx.fillText("Wave "+s.wave+" · Chicks "+s.humans.length,10,H-8);
+    }
+    const keyDirs={ArrowUp:8,ArrowDown:2,ArrowLeft:4,ArrowRight:6,w:8,s:2,a:4,d:6};
+    const fireDirs={i:8,k:2,j:4,l:6,7:7,9:9,1:1,3:3};
+    let moveHeld=new Set(), fireHeld=new Set();
+    function recomputeMove(){
+      let dx=0,dy=0;
+      if(moveHeld.has(4))dx-=1; if(moveHeld.has(6))dx+=1; if(moveHeld.has(8))dy-=1; if(moveHeld.has(2))dy+=1;
+      s.moveDir=norm(dx,dy);
+    }
+    function recomputeFire(){
+      let dx=0,dy=0;
+      if(fireHeld.has(4))dx-=1; if(fireHeld.has(6))dx+=1; if(fireHeld.has(8))dy-=1; if(fireHeld.has(2))dy+=1;
+      if(fireHeld.has(7)){dx=-1;dy=-1;} if(fireHeld.has(9)){dx=1;dy=-1;} if(fireHeld.has(1)){dx=-1;dy=1;} if(fireHeld.has(3)){dx=1;dy=1;}
+      s.fireDir=norm(dx,dy);
+    }
+    document.addEventListener("keydown",e=>{
+      if(keyDirs[e.key]!==undefined){ e.preventDefault(); moveHeld.add(keyDirs[e.key]); recomputeMove(); }
+      else if(fireDirs[e.key]!==undefined){ e.preventDefault(); fireHeld.add(fireDirs[e.key]); recomputeFire(); }
+    });
+    document.addEventListener("keyup",e=>{
+      if(keyDirs[e.key]!==undefined){ moveHeld.delete(keyDirs[e.key]); recomputeMove(); }
+      else if(fireDirs[e.key]!==undefined){ fireHeld.delete(fireDirs[e.key]); recomputeFire(); }
+    });
+    // The virtual sticks are one-button-at-a-time (no diagonal chording like
+    // the keyboard's held-key combos) — pressing a button sets that direction,
+    // releasing it (or leaving the button) returns to neutral (5, center).
+    document.querySelectorAll("#moveStick button[data-k]").forEach(b=>{
+      const dir=+b.dataset.k.split("-")[1];
+      const on=(e)=>{e.preventDefault();setMove(s,dir);}, off=(e)=>{e.preventDefault();setMove(s,5);};
+      b.addEventListener("touchstart",on,{passive:false}); b.addEventListener("touchend",off,{passive:false});
+      b.addEventListener("mousedown",on); b.addEventListener("mouseup",off); b.addEventListener("mouseleave",off);
+    });
+    document.querySelectorAll("#fireStick button[data-k]").forEach(b=>{
+      const dir=+b.dataset.k.split("-")[1];
+      const on=(e)=>{e.preventDefault();setFire(s,dir);}, off=(e)=>{e.preventDefault();setFire(s,5);};
+      b.addEventListener("touchstart",on,{passive:false}); b.addEventListener("touchend",off,{passive:false});
+      b.addEventListener("mousedown",on); b.addEventListener("mouseup",off); b.addEventListener("mouseleave",off);
+    });
+    startBtn.addEventListener("click",start);
+    render();
+  })();
+  </script>
+  <script src="/startgate.js" defer></script>
+  <script src="/comments.js" defer></script>
+  <script src="/fullscreen.js" defer></script>
+</body>
+</html>
