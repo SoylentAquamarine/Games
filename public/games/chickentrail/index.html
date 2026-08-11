@@ -75,7 +75,14 @@
     // the 2 pure-text games). Unlike those two, this one pairs the text
     // log/stat panel with a real <canvas> strip showing the wagon's
     // progress along the trail and the current weather.
-    const TOTAL_DISTANCE=1000, START_FEED=100, START_CHICKENS=20, FEED_PER_CHICKEN=1;
+    // START_FEED/FEED_PER_CHICKEN/predator odds below were rebalanced after a
+    // beatability simulation found the original numbers made the journey
+    // essentially unwinnable (see HANDOFF.md "Most recent pass" for the
+    // full analysis) — a 20-chicken flock needed ~20 feed/day while
+    // traveling, but only started with 100, and cumulative predator-attack
+    // losses over the ~60+ travel days a 1000-mile journey needs averaged
+    // MORE than the entire starting flock on their own, independent of feed.
+    const TOTAL_DISTANCE=1000, START_FEED=130, START_CHICKENS=20, FEED_PER_CHICKEN=0.6;
     const WEATHER_MULT={ clear:1.0, rain:0.8, storm:0.5, snow:0.6 };
     const WEATHER_ICON={ clear:"☀️ Clear", rain:"🌧️ Rain", storm:"⛈️ Storm", snow:"❄️ Snow" };
     const WEARY_TRAVEL_GAIN=15, WEARY_REST_LOSS=25, WEARY_ACCIDENT_AT=70;
@@ -128,10 +135,10 @@
       // One random event per travel day, weighted; an accident is only in
       // the pool at all once weariness is high enough — that's what makes
       // Rest a real choice instead of pure downtime.
-      const pool={ nothing:5, predator:2, spoilage:2, luckyfind:2 };
+      const pool={ nothing:5, predator:0.8, spoilage:2, luckyfind:2 };
       if(s.weary>=WEARY_ACCIDENT_AT) pool.accident=3;
       const roll=pick(pool);
-      if(roll==="predator" && s.chickens>0){ const lost=Math.min(s.chickens, rnd(1,3)); s.chickens-=lost; msgs.push({t:"bad", text:"A fox got into the flock overnight — lost "+lost+" chicken(s)."}); }
+      if(roll==="predator" && s.chickens>0){ const lost=Math.min(s.chickens, rnd(1,2)); s.chickens-=lost; msgs.push({t:"bad", text:"A fox got into the flock overnight — lost "+lost+" chicken(s)."}); }
       else if(roll==="spoilage" && s.feed>0){ const lost=Math.min(s.feed, rnd(10,25)); s.feed-=lost; msgs.push({t:"bad", text:"Rain got into the feed sacks — "+lost+" feed spoiled."}); }
       else if(roll==="luckyfind"){ const gain=rnd(10,20); s.feed+=gain; msgs.push({t:"good", text:"Found a stand of wild grain — +"+gain+" feed."}); }
       else if(roll==="accident" && s.chickens>0){ s.chickens--; msgs.push({t:"bad", text:"Exhausted and careless, the flock scatters near a ravine — lost a chicken. (Rest more often when weariness is high.)"}); }

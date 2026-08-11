@@ -36,7 +36,43 @@ weariness, and random weather/events.
 - Win: reach `TOTAL_DISTANCE` with at least one chicken left. Lose: the
   flock hits zero.
 
-## Most recent pass
+## Most recent pass — beatability rebalance
+
+**Player feedback: "run simulations and see if this game is beatable."**
+It wasn't — a Monte Carlo simulation (thousands of runs driving the real
+`window.__chickentrail` functions under a few different play styles) found
+the original numbers made the 1000-mile journey essentially unwinnable
+even with careful play:
+
+- **Feed**: `FEED_PER_CHICKEN=1` meant a full 20-chicken flock needed
+  ~20 feed/day while traveling, against a `START_FEED=100` starting
+  budget — enough for 5 days. Hunting (75% chance, +10-40 feed) barely
+  broke even against that consumption rate even every single day.
+- **Predators**: independent of feed, the `predator` event (pool weight
+  2, `rnd(1,3)` chickens lost) had an expected cost of ~0.36
+  chickens per travel day. A 1000-mile journey needs ~60+ travel days
+  at the original ~16.5 mi/day average, so cumulative expected predator
+  losses alone (~22 chickens) exceeded the entire 20-chicken starting
+  flock — the flock was expected to be wiped out by foxes alone before
+  ever running out of feed.
+- Simulated win rate with a sensible heuristic (rest before weariness
+  gets dangerous, hunt when feed runs thin, otherwise travel): **0.1%**.
+  An "always travel, never rest" player: **0%** (though that one's
+  actually *intended* — see below).
+
+**Fix**: `START_FEED` 100→130, `FEED_PER_CHICKEN` 1→0.6, the predator
+pool weight 2→0.8, and its loss range `rnd(1,3)`→`rnd(1,2)`. Re-simulated
+against the real (now-patched) file: the same heuristic now wins
+**92.1%** of the time; even a fully random button-masher wins **56.5%**
+(a real but much softer floor); "always travel, never rest" is still
+**~0%**, confirming that's a deliberate design lesson (weariness caps at
+100% and stays there without resting, guaranteeing eventual accidents) —
+not the imbalance that was fixed. A regression check (a fixed heuristic
+must win >70% over 600 simulated runs) is now part of
+`chickentrail-test.js` so a future numbers tweak can't silently
+reintroduce the near-unwinnable state.
+
+## Earlier pass
 
 New game, built in response to the same player feedback as `huntfox` and
 `eggheist`: "we need 4 text based games, make 2 pure text and 2 half
@@ -50,7 +86,7 @@ page's "📖 Text Adventures" category alongside the other two.
   Oregon-Trail-style game shipped as `chickencaravan` (trading/economy
   focus between towns, per the idea noted here previously — deliberately
   NOT a reskin of this survival-focused game).
-- No difficulty-balance feedback yet — worth a player pass once this one
-  has been played a bit (starting feed/chicken counts, weather odds,
-  event weights are all first-draft numbers, not tuned against real
-  playtesting).
+- Difficulty numbers are now simulation-verified for beatability (see
+  above), but still not run past a real human playtester — the specific
+  feel (is 92% too easy, is a ~150-day average run too long) is worth a
+  player pass.
