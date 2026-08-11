@@ -34,7 +34,7 @@
 <body>
   <div class="wrap">
     <div class="topbar"><a class="home" href="/">← Home</a><h1>🐔 Chicken Quest</h1><span style="width:56px"></span></div>
-    <div class="hud"><span id="hearts">❤❤❤</span><span id="loot">🥚 0/12 · 🗝️ 0</span><span id="coins">🪙 0</span><button class="btn" id="exitDungeon" style="display:none;padding:4px 12px;font-size:.8rem">🚪 Leave</button><button class="btn ghost" id="newGameBtn" style="padding:4px 12px;font-size:.8rem">↺ New Game</button></div>
+    <div class="hud"><span id="hearts">❤❤❤</span><span id="loot">🥚 0/12 · 🗝️ 0</span><span id="coins">🪙 0</span><button class="btn ghost" id="newGameBtn" style="padding:4px 12px;font-size:.8rem">↺ New Game</button></div>
     <div class="board-wrap">
       <canvas id="c" width="480" height="352"></canvas>
       <div class="overlay" id="ov">
@@ -50,7 +50,7 @@
       </div>
       <button class="sword" data-k="attack">🗡️</button>
     </div>
-    <p class="hint">Move: arrows / WASD · Attack: Space · Roam the <b>farmyard</b> and find the burrow entrances hidden by barns, trees and haystacks. Walk into a farmhouse to look around (no enemies) — one of them is a general store where coins buy hearts and heart containers. Inside a dungeon, find the key and beat the boss for its gem egg — every direction from any room leads somewhere, and the <b>🚪 Leave</b> button (top right, while inside) takes you back to the farmyard any time.</p>
+    <p class="hint">Move: arrows / WASD · Attack: Space · Roam the <b>farmyard</b> and find the burrow entrances hidden by barns, trees and haystacks. Walk into a farmhouse to look around (no enemies) — one of them is a general store where coins buy hearts and heart containers. Inside a dungeon, find the key and beat the boss for its gem egg — every direction from any room leads somewhere, and the <b>stairway</b> in the entrance room takes you back to the farmyard any time.</p>
   </div>
   <script src="/mascots.js"></script>
   <script>
@@ -59,12 +59,19 @@
     const ESIZE=24;   // weasels are the same size as the hero (player.size)
     const EHIT_PAD=5; // forgiveness margin added to the sword-vs-weasel hit-test only
     const cv=document.getElementById("c"),ctx=cv.getContext("2d");
-    const heartsEl=document.getElementById("hearts"),lootEl=document.getElementById("loot"),coinsEl=document.getElementById("coins"),exitBtn=document.getElementById("exitDungeon"),newGameBtn=document.getElementById("newGameBtn");
+    const heartsEl=document.getElementById("hearts"),lootEl=document.getElementById("loot"),coinsEl=document.getElementById("coins"),newGameBtn=document.getElementById("newGameBtn");
     const ov=document.getElementById("ov"),ot=document.getElementById("ot"),om=document.getElementById("om"),startBtn=document.getElementById("start");
     const TRI=[0,0], KEYROOM=[2,2];
+    // Player feedback: "i do not want a leave button, i want a stairway for
+    // the character to climb out of the dungeon." STAIR sits at the exact
+    // tile the player is placed on when entering a dungeon (see enterDungeon()
+    // below) — walking onto it (from anywhere in the start room) climbs back
+    // out to the farmyard, same edge-triggered pattern as the overworld's
+    // own dungeon-entrance tiles (see entLock).
+    const STAIR=[7,5];
     let rooms,room,player,keys,running,raf,unlocked,over,frame;
     let eggs,boss,finalBoss,curDungeon=1;
-    let mode="overworld", owRooms, owReturn={pos:[1,1],x:7*TILE,y:5*TILE}, entLock=false;
+    let mode="overworld", owRooms, owReturn={pos:[1,1],x:7*TILE,y:5*TILE}, entLock=false, stairLock=false;
     const keyState={up:false,down:false,left:false,right:false};
 
     // ===== 12-egg quest: gemstone eggs, an egg carton, and a boss per dungeon =====
@@ -343,7 +350,7 @@
       // this unconditional special-case hijacked it into an overworld exit
       // first, making that direction behave differently from N/E/W for no
       // reason a player could tell. South is now a normal door; leaving the
-      // dungeon has its own explicit control (the "🚪 Leave" HUD button).
+      // dungeon has its own explicit control (the stairway, see STAIR above).
       // Leave a farmhouse/store by walking south, out the door (unambiguous
       // there — a house has exactly one room, no "deeper" to conflict with).
       if(mode==="house" && dir==="S"){ enterOverworld(); return; }
@@ -371,6 +378,7 @@
       genWorld();                       // build this dungeon into `rooms`
       mode="dungeon"; room=[1,1]; rooms[1][1].visited=true;
       player.x=7*TILE+4; player.y=5*TILE+4;
+      stairLock=true;   // the player spawns standing ON the stairway tile — don't instantly climb back out
       flash((eggs[n-1]?"Dungeon "+n+" (cleared)":"Dungeon "+n+" — "+BOSSES[(n-1)%12].name)); updateHud();
     }
     function enterOverworld(){
@@ -404,6 +412,16 @@
       if(player.atk>0)player.atk--;
       if(flashT>0)flashT--;
       const R=rooms[room[1]][room[0]];
+      // dungeon start room: step onto the stairway to climb back out to the
+      // farmyard. Edge-triggered the same way the overworld entrance is (see
+      // entLock below) — the player is already standing on this exact tile
+      // on arrival (see enterDungeon()), so stairLock starts true and only
+      // arms once they've stepped off it.
+      if(mode==="dungeon" && room[0]===1 && room[1]===1){
+        const onStair=rectHit({x:player.x,y:player.y,w:s,h:s},{x:STAIR[0]*TILE,y:STAIR[1]*TILE,w:TILE,h:TILE});
+        if(!onStair) stairLock=false;
+        else if(!stairLock){ enterOverworld(); return; }
+      }
       // farmyard: step onto a hidden entrance to drop into that dungeon. Edge-
       // triggered so returning to the overworld (on the entrance) doesn't re-enter.
       if(mode==="overworld"){
@@ -661,6 +679,18 @@
           if(t==="O"){ctx.fillStyle="#5b6472";ctx.beginPath();ctx.arc(x*TILE+16,y*TILE+16,11,0,7);ctx.fill();}}
       }
     }
+    // The stairway players climb to leave the dungeon (see STAIR) — a dark
+    // archway (the way up and out) over a few descending stone steps.
+    // Drawn on top of the floor tile at STAIR, only in the start room.
+    function drawStairway(){
+      const px=STAIR[0]*TILE, py=STAIR[1]*TILE;
+      ctx.fillStyle="#241a12"; ctx.beginPath(); ctx.arc(px+16,py+8,10,Math.PI,0); ctx.fill();
+      ctx.fillStyle="#0a0806"; ctx.beginPath(); ctx.arc(px+16,py+9,6,Math.PI,0); ctx.fill();
+      for(let i=0;i<4;i++){
+        ctx.fillStyle = i%2===0?"#8a8a92":"#767680";
+        ctx.fillRect(px+2+i*2.5, py+12+i*5, TILE-4-i*5, 5);
+      }
+    }
     function drawFarmTiles(R){
       for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){const t=R.map[y][x], px=x*TILE, py=y*TILE;
         ctx.fillStyle="#397030"; ctx.fillRect(px,py,TILE,TILE);
@@ -729,6 +759,7 @@
     function render(){
       const R=rooms[room[1]][room[0]];
       if(mode==="overworld") drawFarmTiles(R); else if(mode==="house") drawHouseTiles(R); else drawDungeonTiles(R);
+      if(mode==="dungeon" && room[0]===1 && room[1]===1) drawStairway();
       // items
       for(const it of R.items){if(it.taken)continue;const ic={coin:"🪙",heart:"❤",key:"🗝️",buy_heal:"🍞",buy_heart:"❤️‍🩹"}[it.type];
         ctx.font="18px serif";ctx.textAlign="center";ctx.textBaseline="middle";
@@ -792,8 +823,7 @@
       }
     }
     function attack(){if(player.atk<=0)player.atk=18;}
-    function updateHud(){let h="";for(let i=0;i<player.maxhp;i++)h+=i<player.hp?"❤":"🖤";heartsEl.textContent=h;lootEl.textContent="🥚 "+(eggs?cartonCount(eggs):0)+"/12 · 🗝️ "+keys;coinsEl.textContent="🪙 "+(player?player.coins:0);
-      if(exitBtn) exitBtn.style.display = mode==="dungeon" ? "" : "none"; }
+    function updateHud(){let h="";for(let i=0;i<player.maxhp;i++)h+=i<player.hp?"❤":"🖤";heartsEl.textContent=h;lootEl.textContent="🥚 "+(eggs?cartonCount(eggs):0)+"/12 · 🗝️ "+keys;coinsEl.textContent="🪙 "+(player?player.coins:0); }
     function gameOver(){running=false;cancelAnimationFrame(raf);ot.textContent="💀 You fell";om.textContent="The dungeon claims another hero. Eggs gathered: "+(eggs?cartonCount(eggs):0)+"/12";startBtn.textContent="Try again";ov.classList.remove("hidden");}
     function win(){running=false;cancelAnimationFrame(raf);markFoxKingDefeated();ot.textContent="🏆 The Fox King falls!";om.textContent="All 12 gemstone eggs, and the Fox King defeated in the open farmyard. You're the true Chicken Champion!";startBtn.textContent="Play again";ov.classList.remove("hidden");}
 
@@ -817,7 +847,6 @@
       b.addEventListener("touchstart",on,{passive:false});b.addEventListener("touchend",off,{passive:false});
       b.addEventListener("mousedown",on);b.addEventListener("mouseup",off);b.addEventListener("mouseleave",off);});
     startBtn.addEventListener("click",newGame);
-    if(exitBtn) exitBtn.addEventListener("click",()=>{ if(running&&mode==="dungeon") enterOverworld(); });
     // Always-available reset, not just on the death/win overlay — player
     // feedback: "we need a reset/new game button". Wipes saved egg/boss
     // progress too, for an actually-fresh run (not just a fresh position).
@@ -827,7 +856,7 @@
     window.__quest={genWorld:()=>{genWorld();return rooms;},doorOpen,genOverworld,OW_RX,OW_RY,RX,RY,
       GEMS,BOSSES,newEggs,collectEgg,cartonCount,cartonFull,makeBoss,bossTakeHit,makeFinalBoss,genHouseRoom,
       genHouseLoot,FURNITURE_KINDS,
-      genRoom,solidTile,TRI,KEYROOM,respawnRoomEnemies,
+      genRoom,solidTile,TRI,KEYROOM,respawnRoomEnemies,STAIR,
       newGame,enterDungeon,enterOverworld,enterHouse,tryTransition,update,
       getMode:()=>mode,getRoom:()=>room,getRooms:()=>rooms,getOwRooms:()=>owRooms,
       getPlayer:()=>player,getBoss:()=>boss,getFinalBoss:()=>finalBoss,
