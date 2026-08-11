@@ -47,7 +47,41 @@ level editor (`/admin/games/?game=quest`, "Configuration" panel).
   not just on the death/win overlay — calls `resetProgress()`, which wipes
   both `quest_eggs` and `quest_foxking` before calling `newGame()`.
 
-## Most recent pass
+## Most recent pass — bespoke sprites for all 12 dungeon bosses
+
+**Player feedback (follow-up to the Fox King fix below): "I want
+specific sprites for each of the bosses."** The 12 per-dungeon bosses
+(`BOSSES[]`) used to all share `drawBoss()`'s one generic rooster
+comb+beak silhouette, just recolored per `BOSSES[i].color` — now each
+has its own distinct shape via a new `BOSS_SPRITES` lookup table keyed
+by boss name, dispatched from `drawBoss(b)` (which still fills the
+shared base body circle and calls `drawBossLabel` for the name/hp bar,
+then looks up `BOSS_SPRITES[b.name]` for the boss-specific features):
+
+- **Fire Rooster** — kept the original rooster comb/beak (it's the one
+  boss that actually suits it), comb redrawn as flame-shaped points.
+- **Frost Owl** — ear tufts, big round white eyes, small beak.
+- **Vine Serpent** — an S-curved body stroke instead of a body circle
+  fill, a leaf accent, a forked tongue.
+- **Thunder Hawk** — a lightning-bolt-shaped head/body silhouette, a
+  hooked beak, one visible eye.
+- **Shadow Bat** — angular membrane wings, pointed ears, glowing red
+  eyes.
+- **Prism Peacock** — a 5-color fan of tail feathers arced behind it.
+- **Ice Golem** — a blocky square body instead of round, an angular ice
+  shard on top, a crack line.
+- **Coal Beetle** — an oval shell with a center seam line and antennae.
+- **Tide Crab** — two pincer claws, stalked eyes, bubble accents.
+- **Magma Toad** — a wide squat body, bulging eyes, glowing lava spots.
+- **Stone Tortoise** — a hexagon-plated shell pattern, a small head
+  poking out to one side.
+- **Sap Spider** — 8 stroked legs radiating from a round abdomen, 4
+  small eyes.
+
+The Fox King (final boss) is untouched by this pass — he already had
+his own `drawFoxKing()` from the earlier fix below.
+
+## Earlier pass
 
 **Player feedback: "i do not want a leave button, i want a stairway for
 the character to climb out of the dungeon."** The old "no stairway"
@@ -262,17 +296,6 @@ above).
 
 ## Open / deferred
 
-- **"I want specific sprites for each of the bosses, and the main boss
-  is a fox — it should be a fox with a crown, not a chicken sprite"** —
-  **partially done.** The Fox King (the boss explicitly named in the
-  comment) now has his own `drawFoxKing()` sprite — pointed ears, a white
-  muzzle, a bushy tail, a gold crown with a jewel, no rooster comb/beak —
-  see "Most recent pass". **Still open**: the 12 per-dungeon bosses
-  (`BOSSES[]`) still all share `drawBoss()`'s generic rooster-ish
-  silhouette, just recolored per `BOSSES[i].color`. Giving each of THEM
-  bespoke art is a much larger design/art pass (12 distinct sprites, not
-  a quick tint change) — left for a future comment; don't archive this
-  one until that's done too.
 - The original mascot-library comment is fully resolved — see the root
   `HANDOFF.md`'s mascots.js entry (spacesuit chicken, rooster, hero
   chicken, and Dr Chicken's redesign are all done).

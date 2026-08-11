@@ -607,27 +607,113 @@
       ctx.strokeStyle="rgba(0,0,0,.35)"; ctx.lineWidth=1.4; ctx.stroke();
       ctx.fillStyle="rgba(255,255,255,.5)"; ctx.beginPath(); ctx.ellipse(cx-r*0.28,cy-r*0.35,r*0.24,r*0.34,0.5,0,7); ctx.fill();
     }
-    function drawBoss(b){
-      const cx=b.x+b.size/2, cy=b.y+b.size/2, r=b.size/2, flash=b.hurt>0&&Math.floor(b.hurt/3)%2===0;
-      // body
-      ctx.fillStyle=flash?"#ffffff":b.color; ctx.beginPath(); ctx.arc(cx,cy,r,0,7); ctx.fill();
-      // comb + beak (rooster-ish, tinted by theme)
-      ctx.fillStyle="#dc2626"; ctx.beginPath(); ctx.arc(cx-r*0.3,cy-r*0.9,r*0.2,0,7); ctx.arc(cx,cy-r,r*0.22,0,7); ctx.arc(cx+r*0.3,cy-r*0.9,r*0.2,0,7); ctx.fill();
-      ctx.fillStyle="#fb923c"; ctx.beginPath(); ctx.moveTo(cx+r*0.7,cy); ctx.lineTo(cx+r*1.2,cy+r*0.16); ctx.lineTo(cx+r*0.7,cy+r*0.3); ctx.closePath(); ctx.fill();
-      ctx.fillStyle="#fff"; ctx.beginPath(); ctx.arc(cx+r*0.28,cy-r*0.2,r*0.22,0,7); ctx.fill();
-      ctx.fillStyle="#0b0c1a"; ctx.beginPath(); ctx.arc(cx+r*0.34,cy-r*0.2,r*0.11,0,7); ctx.fill();
-      drawBossLabel(b,cx,cy);
-    }
     // Player feedback: "I want specific sprites for each of the bosses and
     // the main boss is a fox — it should be a fox with a crown, not a
-    // chicken sprite." The Fox King used to render through the shared
-    // drawBoss() above (a generic rooster comb+beak silhouette, just
-    // recolored) like every per-dungeon boss. He's the one explicitly
-    // named in the feedback, so he gets his own real fox shape here:
-    // pointed ears, a white muzzle patch and nose, a bushy white-tipped
-    // tail, and a gold crown with a jewel. The 12 per-dungeon bosses still
-    // share drawBoss()'s silhouette — giving each of THEM a bespoke sprite
-    // too is a much larger art pass, left for its own future comment.
+    // chicken sprite." First pass gave the Fox King (drawFoxKing, below) his
+    // own real fox shape; the 12 per-dungeon bosses still shared one generic
+    // rooster comb+beak silhouette, just recolored per boss. Follow-up:
+    // every boss now gets its own silhouette matching its name, keyed by
+    // BOSS_SPRITES below — a distinct shape, not just a different fill
+    // color, so each dungeon's guardian actually looks like what it's
+    // called. All draw relative to (cx,cy,r,col) with the body circle
+    // already filled by drawBoss() before the lookup runs, so each sprite
+    // function only needs to add its own distinguishing features on top.
+    const BOSS_SPRITES={
+      "Fire Rooster":(cx,cy,r,col)=>{
+        ctx.fillStyle="#dc2626"; ctx.beginPath();
+        ctx.moveTo(cx-r*0.32,cy-r*0.85); ctx.lineTo(cx-r*0.16,cy-r*1.35); ctx.lineTo(cx,cy-r*0.95);
+        ctx.lineTo(cx+r*0.16,cy-r*1.4); ctx.lineTo(cx+r*0.32,cy-r*0.85); ctx.closePath(); ctx.fill();
+        ctx.fillStyle="#fb923c"; ctx.beginPath(); ctx.moveTo(cx+r*0.7,cy); ctx.lineTo(cx+r*1.2,cy+r*0.16); ctx.lineTo(cx+r*0.7,cy+r*0.3); ctx.closePath(); ctx.fill();
+        ctx.fillStyle="#fff"; ctx.beginPath(); ctx.arc(cx+r*0.28,cy-r*0.2,r*0.22,0,7); ctx.fill();
+        ctx.fillStyle="#0b0c1a"; ctx.beginPath(); ctx.arc(cx+r*0.34,cy-r*0.2,r*0.11,0,7); ctx.fill();
+      },
+      "Frost Owl":(cx,cy,r)=>{
+        ctx.fillStyle="#cfe8ff";
+        ctx.beginPath(); ctx.moveTo(cx-r*0.5,cy-r*0.8); ctx.lineTo(cx-r*0.65,cy-r*1.3); ctx.lineTo(cx-r*0.25,cy-r*0.95); ctx.closePath(); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(cx+r*0.5,cy-r*0.8); ctx.lineTo(cx+r*0.65,cy-r*1.3); ctx.lineTo(cx+r*0.25,cy-r*0.95); ctx.closePath(); ctx.fill();
+        ctx.fillStyle="#fff"; ctx.beginPath(); ctx.arc(cx-r*0.3,cy-r*0.02,r*0.32,0,7); ctx.arc(cx+r*0.3,cy-r*0.02,r*0.32,0,7); ctx.fill();
+        ctx.fillStyle="#0b0c1a"; ctx.beginPath(); ctx.arc(cx-r*0.3,cy-r*0.02,r*0.14,0,7); ctx.arc(cx+r*0.3,cy-r*0.02,r*0.14,0,7); ctx.fill();
+        ctx.fillStyle="#fb923c"; ctx.beginPath(); ctx.moveTo(cx-r*0.1,cy+r*0.2); ctx.lineTo(cx+r*0.1,cy+r*0.2); ctx.lineTo(cx,cy+r*0.42); ctx.closePath(); ctx.fill();
+      },
+      "Vine Serpent":(cx,cy,r,col)=>{
+        ctx.strokeStyle=col; ctx.lineWidth=r*0.5; ctx.lineCap="round"; ctx.beginPath();
+        ctx.moveTo(cx-r*1.1,cy+r*0.6); ctx.quadraticCurveTo(cx-r*0.5,cy-r*0.6,cx,cy); ctx.quadraticCurveTo(cx+r*0.5,cy+r*0.6,cx+r*0.85,cy-r*0.15); ctx.stroke();
+        ctx.fillStyle="#4caf50"; ctx.beginPath(); ctx.ellipse(cx-r*0.6,cy+r*0.1,r*0.22,r*0.12,0.6,0,7); ctx.fill();
+        ctx.fillStyle="#dc2626"; ctx.beginPath(); ctx.moveTo(cx+r*1.0,cy-r*0.2); ctx.lineTo(cx+r*1.2,cy-r*0.3); ctx.lineTo(cx+r*1.0,cy-r*0.05); ctx.closePath(); ctx.fill();
+        ctx.fillStyle="#ffef9f"; ctx.beginPath(); ctx.arc(cx+r*0.78,cy-r*0.22,r*0.09,0,7); ctx.fill();
+      },
+      "Thunder Hawk":(cx,cy,r)=>{
+        ctx.fillStyle="#fde047";
+        ctx.beginPath(); ctx.moveTo(cx,cy-r*0.7); ctx.lineTo(cx-r*0.2,cy-r*0.1); ctx.lineTo(cx+r*0.05,cy-r*0.1); ctx.lineTo(cx-r*0.15,cy+r*0.6); ctx.lineTo(cx+r*0.35,cy-r*0.25); ctx.lineTo(cx+r*0.1,cy-r*0.25); ctx.closePath(); ctx.fill();
+        ctx.fillStyle="#4b3a12"; ctx.beginPath(); ctx.moveTo(cx+r*0.65,cy-r*0.15); ctx.lineTo(cx+r*1.15,cy-r*0.02); ctx.lineTo(cx+r*0.65,cy+r*0.12); ctx.closePath(); ctx.fill();
+        ctx.fillStyle="#fff"; ctx.beginPath(); ctx.arc(cx+r*0.3,cy-r*0.3,r*0.16,0,7); ctx.fill();
+        ctx.fillStyle="#0b0c1a"; ctx.beginPath(); ctx.arc(cx+r*0.35,cy-r*0.3,r*0.08,0,7); ctx.fill();
+      },
+      "Shadow Bat":(cx,cy,r,col)=>{
+        ctx.fillStyle=col;
+        ctx.beginPath(); ctx.moveTo(cx-r*0.6,cy-r*0.2); ctx.lineTo(cx-r*1.5,cy-r*0.7); ctx.lineTo(cx-r*1.3,cy+r*0.3); ctx.lineTo(cx-r*0.55,cy+r*0.15); ctx.closePath(); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(cx+r*0.6,cy-r*0.2); ctx.lineTo(cx+r*1.5,cy-r*0.7); ctx.lineTo(cx+r*1.3,cy+r*0.3); ctx.lineTo(cx+r*0.55,cy+r*0.15); ctx.closePath(); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(cx-r*0.4,cy-r*0.8); ctx.lineTo(cx-r*0.55,cy-r*1.25); ctx.lineTo(cx-r*0.12,cy-r*0.9); ctx.closePath(); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(cx+r*0.4,cy-r*0.8); ctx.lineTo(cx+r*0.55,cy-r*1.25); ctx.lineTo(cx+r*0.12,cy-r*0.9); ctx.closePath(); ctx.fill();
+        ctx.fillStyle="#f43f5e"; ctx.beginPath(); ctx.arc(cx-r*0.2,cy-r*0.1,r*0.09,0,7); ctx.arc(cx+r*0.2,cy-r*0.1,r*0.09,0,7); ctx.fill();
+      },
+      "Prism Peacock":(cx,cy,r)=>{
+        const cols=["#f43f5e","#facc15","#4ade80","#22d3ee","#a855f7"];
+        for(let i=0;i<5;i++){ const a=-Math.PI*0.7+i*(Math.PI*0.4/4); ctx.fillStyle=cols[i];
+          ctx.beginPath(); ctx.ellipse(cx+Math.cos(a)*r*1.1,cy+Math.sin(a)*r*1.1,r*0.28,r*0.14,a,0,7); ctx.fill(); }
+        ctx.fillStyle="#0b0c1a"; ctx.beginPath(); ctx.arc(cx+r*0.25,cy-r*0.15,r*0.1,0,7); ctx.fill();
+      },
+      "Ice Golem":(cx,cy,r,col)=>{
+        ctx.fillStyle=col; ctx.fillRect(cx-r*0.75,cy-r*0.75,r*1.5,r*1.5);
+        ctx.fillStyle="#e8f4ff";
+        ctx.beginPath(); ctx.moveTo(cx-r*0.3,cy-r*0.9); ctx.lineTo(cx,cy-r*1.3); ctx.lineTo(cx+r*0.3,cy-r*0.9); ctx.closePath(); ctx.fill();
+        ctx.strokeStyle="rgba(255,255,255,.7)"; ctx.lineWidth=2;
+        ctx.beginPath(); ctx.moveTo(cx-r*0.5,cy-r*0.3); ctx.lineTo(cx+r*0.1,cy+r*0.1); ctx.lineTo(cx-r*0.15,cy+r*0.6); ctx.stroke();
+        ctx.fillStyle="#0b0c1a"; ctx.beginPath(); ctx.arc(cx-r*0.2,cy-r*0.1,r*0.08,0,7); ctx.arc(cx+r*0.2,cy-r*0.1,r*0.08,0,7); ctx.fill();
+      },
+      "Coal Beetle":(cx,cy,r,col)=>{
+        ctx.fillStyle=col; ctx.beginPath(); ctx.ellipse(cx,cy+r*0.1,r*0.9,r*1.05,0,0,7); ctx.fill();
+        ctx.strokeStyle="rgba(0,0,0,.5)"; ctx.lineWidth=1.5; ctx.beginPath(); ctx.moveTo(cx,cy-r*0.9); ctx.lineTo(cx,cy+r*1.1); ctx.stroke();
+        ctx.strokeStyle="#0b0c1a"; ctx.lineWidth=2;
+        ctx.beginPath(); ctx.moveTo(cx-r*0.15,cy-r*0.9); ctx.lineTo(cx-r*0.5,cy-r*1.3); ctx.moveTo(cx+r*0.15,cy-r*0.9); ctx.lineTo(cx+r*0.5,cy-r*1.3); ctx.stroke();
+        ctx.fillStyle="#f43f5e"; ctx.beginPath(); ctx.arc(cx-r*0.22,cy-r*0.5,r*0.09,0,7); ctx.arc(cx+r*0.22,cy-r*0.5,r*0.09,0,7); ctx.fill();
+      },
+      "Tide Crab":(cx,cy,r,col)=>{
+        ctx.fillStyle=col; ctx.beginPath(); ctx.ellipse(cx,cy,r*0.85,r*0.65,0,0,7); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(cx-r*1.15,cy-r*0.1,r*0.32,r*0.22,0.3,0,7); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(cx+r*1.15,cy-r*0.1,r*0.32,r*0.22,-0.3,0,7); ctx.fill();
+        ctx.fillStyle="#0b0c1a"; ctx.beginPath(); ctx.arc(cx-r*1.35,cy-r*0.22,r*0.07,0,7); ctx.arc(cx+r*1.35,cy-r*0.22,r*0.07,0,7); ctx.fill();
+        ctx.fillStyle="#fff"; ctx.beginPath(); ctx.arc(cx-r*0.25,cy+r*0.42,r*0.08,0,7); ctx.beginPath(); ctx.arc(cx,cy+r*0.5,r*0.08,0,7); ctx.arc(cx+r*0.25,cy+r*0.42,r*0.08,0,7); ctx.fill();
+      },
+      "Magma Toad":(cx,cy,r,col)=>{
+        ctx.fillStyle=col; ctx.beginPath(); ctx.ellipse(cx,cy+r*0.15,r*1.05,r*0.85,0,0,7); ctx.fill();
+        ctx.fillStyle="#fde047"; ctx.beginPath(); ctx.arc(cx-r*0.4,cy-r*0.15,r*0.14,0,7); ctx.arc(cx+r*0.15,cy+r*0.35,r*0.1,0,7); ctx.fill();
+        ctx.fillStyle="#fde68a"; ctx.beginPath(); ctx.arc(cx-r*0.35,cy-r*0.7,r*0.28,0,7); ctx.arc(cx+r*0.35,cy-r*0.7,r*0.28,0,7); ctx.fill();
+        ctx.fillStyle="#0b0c1a"; ctx.beginPath(); ctx.arc(cx-r*0.35,cy-r*0.7,r*0.13,0,7); ctx.arc(cx+r*0.35,cy-r*0.7,r*0.13,0,7); ctx.fill();
+      },
+      "Stone Tortoise":(cx,cy,r,col)=>{
+        ctx.fillStyle=col; ctx.beginPath(); ctx.ellipse(cx,cy,r*0.95,r*0.75,0,0,7); ctx.fill();
+        ctx.strokeStyle="rgba(0,0,0,.35)"; ctx.lineWidth=1.4;
+        for(const [dx,dy] of [[0,0],[-0.5,-0.35],[0.5,-0.35],[-0.5,0.35],[0.5,0.35]]){ ctx.beginPath(); ctx.arc(cx+dx*r,cy+dy*r,r*0.32,0,7); ctx.stroke(); }
+        ctx.fillStyle=col; ctx.beginPath(); ctx.arc(cx+r*0.95,cy+r*0.05,r*0.32,0,7); ctx.fill();
+        ctx.fillStyle="#0b0c1a"; ctx.beginPath(); ctx.arc(cx+r*1.1,cy-r*0.02,r*0.07,0,7); ctx.fill();
+      },
+      "Sap Spider":(cx,cy,r,col)=>{
+        ctx.strokeStyle=col; ctx.lineWidth=r*0.12;
+        for(const a of [-1.2,-0.6,0.6,1.2]){ ctx.beginPath(); ctx.moveTo(cx-r*0.3,cy); ctx.lineTo(cx-r*1.3*Math.cos(a*0.5),cy+r*1.1*Math.sin(a)); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(cx+r*0.3,cy); ctx.lineTo(cx+r*1.3*Math.cos(a*0.5),cy+r*1.1*Math.sin(a)); ctx.stroke(); }
+        ctx.fillStyle=col; ctx.beginPath(); ctx.arc(cx,cy+r*0.15,r*0.6,0,7); ctx.fill();
+        ctx.fillStyle="#0b0c1a";
+        for(const [dx,dy] of [[-0.18,-0.1],[0.18,-0.1],[-0.08,-0.22],[0.08,-0.22]]){ ctx.beginPath(); ctx.arc(cx+dx*r,cy+dy*r,r*0.06,0,7); ctx.fill(); }
+      },
+    };
+    function drawBoss(b){
+      const cx=b.x+b.size/2, cy=b.y+b.size/2, r=b.size/2, flash=b.hurt>0&&Math.floor(b.hurt/3)%2===0;
+      ctx.fillStyle=flash?"#ffffff":b.color; ctx.beginPath(); ctx.arc(cx,cy,r,0,7); ctx.fill();
+      const sprite=BOSS_SPRITES[b.name];
+      if(sprite) sprite(cx,cy,r,flash?"#ffffff":b.color);
+      drawBossLabel(b,cx,cy);
+    }
     function drawFoxKing(b){
       const cx=b.x+b.size/2, cy=b.y+b.size/2, r=b.size/2, flash=b.hurt>0&&Math.floor(b.hurt/3)%2===0;
       const col=flash?"#ffffff":b.color;
