@@ -40,7 +40,23 @@ altitude, joust higher than the enemy to win the collision.
   explicit allowlist. Core flight feel (`GRAV`/`FLAP`/`MOVE`/`MAXVX`) is
   deliberately not exposed.
 
-## Most recent pass
+## Most recent pass — farmer rider sprite
+
+**Player feedback: "new sprites with more detail, it should be the
+farmer riding a chicken, fighting other chickens."** `bird(o, col)` used
+to draw the exact same silhouette (comb/beak/wattle/tail feathers) for
+the player AND every enemy, just recolored, with one plain rectangle as
+a "rider" on all of them regardless of who it was. Now `bird(o, col,
+rider)` takes a third argument: when `rider` is true it calls a new
+`drawFarmer()` — a straw hat (brim + crown), a face, and overalls with
+straps, positioned where the old plain rectangle sat — and when false
+(every enemy) it draws nothing extra, so enemies read as plain chickens
+with no rider at all. Call sites: the player (`bird(pl,"#22d3ee",true)`)
+and the hatching/respawning player (`bird(o,"#22d3ee",true)`) both get
+the farmer; every enemy (`bird(e,"#f0616e",false)`) doesn't. The
+underlying chicken silhouette itself is unchanged for both.
+
+## Earlier pass
 
 **Player feedback: "this is a good standard arcade screen size. we need
 ground covering the lava. we need several respawn nests. The enemies
@@ -64,12 +80,4 @@ respawn animation and its safe window.
 
 ## Open / deferred
 
-- **"New sprites with more detail, it should be the farmer riding a
-  chicken, fighting other chickens."** Currently `bird()` draws a single
-  simple pixel-art chicken silhouette (comb/beak/wattle/tail + a small
-  rider blob) for both the hero and every enemy, just recoloured. Wants
-  real, more detailed art: a distinct farmer figure actually riding the
-  chicken (not just a small rectangle on its back), and enemies that
-  read as chickens too (currently mostly generic, since they reuse the
-  same `bird()` silhouette recoloured red). A genuine art/design pass,
-  not a quick tint change.
+Nothing currently open for this game.

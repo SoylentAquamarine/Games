@@ -187,7 +187,25 @@
   // current size, so the comb, beak and rider grow with the body instead of
   // staying tiny on a larger chicken.
   const ART_W=20;
-  function bird(o, col){ const f=o.facing||1, K=C.PW/ART_W;
+  // Player feedback: "new sprites with more detail, it should be the
+  // farmer riding a chicken, fighting other chickens." The player and every
+  // enemy used to render through the same bird() shape with a single plain
+  // rectangle as a "rider" — no distinction between the two beyond tint
+  // color. Now only the player draws an actual farmer (straw hat, overalls,
+  // face) riding the chicken; enemies are drawn as plain chickens with no
+  // rider at all, reading clearly as "other chickens" rather than other
+  // little riders — the visual language the comment asked for.
+  function drawFarmer(){
+    // straw hat: wide brim + domed crown
+    ctx.fillStyle="#d9a441"; ctx.fillRect(-5,-13,10,2);
+    ctx.fillStyle="#e8c468"; ctx.fillRect(-3,-15,6,3);
+    // face
+    ctx.fillStyle="#e8b382"; ctx.fillRect(-2,-10,4,3);
+    // overalls body, with a strap on each side
+    ctx.fillStyle="#3b6ea8"; ctx.fillRect(-3,-7,7,5);
+    ctx.fillStyle="#2a4f7a"; ctx.fillRect(-2,-7,1,3); ctx.fillRect(2,-7,1,3);
+  }
+  function bird(o, col, rider){ const f=o.facing||1, K=C.PW/ART_W;
     ctx.save(); ctx.translate(o.x+C.PW/2,o.y+C.PH/2); ctx.scale(f*K,K);
     const P=ART_W;
     ctx.fillStyle=col; ctx.fillRect(-P/2,-2,P,8); ctx.fillRect(P/2-6,-8,7,8);
@@ -198,7 +216,7 @@
     ctx.fillStyle="#0b0c1a"; ctx.fillRect(P/2-4,-6,2,2);                                  // eye
     ctx.fillStyle=col; ctx.beginPath();                                                    // tail feathers
     ctx.moveTo(-P/2,-2); ctx.lineTo(-P/2-7,-9); ctx.lineTo(-P/2,4); ctx.closePath(); ctx.fill();
-    ctx.fillStyle="#e6e6f0"; ctx.fillRect(-2,-9,7,6);                                      // rider
+    if(rider) drawFarmer();
     ctx.restore(); }
   // The respawn hatch: an egg that cracks open, then the chick rises with a sparkle.
   function drawHatch(o){
@@ -211,8 +229,8 @@
       ctx.fillStyle="#f3ead7"; ctx.beginPath(); ctx.ellipse(cx,cy+2,9,12,0,0,7); ctx.fill();
       ctx.strokeStyle="#c9bda3"; ctx.lineWidth=1.5; ctx.beginPath();
       ctx.moveTo(cx-9,cy); ctx.lineTo(cx-3,cy-2-t*4); ctx.lineTo(cx+2,cy+1); ctx.lineTo(cx+9,cy-1); ctx.stroke();
-    } else { // the chick emerging
-      bird(o,"#22d3ee");
+    } else { // the chick emerging, with the farmer already aboard
+      bird(o,"#22d3ee",true);
     }
   }
   function draw(){
@@ -233,14 +251,14 @@
         ctx.fillStyle="#f3ead7"; const ex=p.x+p.w/2;
         for(const dx of [-9,3]){ ctx.beginPath(); ctx.ellipse(ex+dx,p.y-3,4,6,0,0,7); ctx.fill(); }
       } else { ctx.fillStyle="#5a4a6a"; ctx.fillRect(p.x,p.y,p.w,p.h); ctx.fillStyle="#7a6a8a"; ctx.fillRect(p.x,p.y,p.w,3); } }
-    for(const e of s.enemies) if(e.alive) bird(e,"#f0616e");
+    for(const e of s.enemies) if(e.alive) bird(e,"#f0616e",false);
     // eggs dropped by defeated enemies, falling and collectible for a bonus
     for(const eg of s.eggs){ ctx.fillStyle="#f3ead7"; ctx.beginPath(); ctx.ellipse(eg.x,eg.y,6,8,0,0,7); ctx.fill();
       ctx.strokeStyle="#c9bda3"; ctx.lineWidth=1; ctx.stroke(); }
     // the player: hatch animation while spawning, a blink through the safe window
     const pl=s.player;
     if(pl.spawning>0){ drawHatch(pl); }
-    else if(pl.invuln<=0 || Math.floor(Date.now()/90)%2===0){ bird(pl,"#22d3ee"); }
+    else if(pl.invuln<=0 || Math.floor(Date.now()/90)%2===0){ bird(pl,"#22d3ee",true); }
     if(s.over){ ctx.fillStyle="rgba(0,0,0,.6)"; ctx.fillRect(0,0,W,H); ctx.fillStyle="#f43f5e"; ctx.font="bold 24px system-ui"; ctx.textAlign="center"; ctx.fillText("GAME OVER",W/2,H/2-6); ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Score "+s.score+"  ·  Best "+best,W/2,H/2+16); }
   }
   function frame(){
