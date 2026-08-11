@@ -9,12 +9,25 @@ reach it they hop along adjacent lanes trying to reach the player's lane.
 
 - `index.html` — everything, cleanly split into a pure sim and a thin DOM
   layer. `window.__tempest` exposes the entire sim: `newGame`, `nextWave`,
-  `moveLane`, `fire`, `stepShots`, `spawnEnemies`, `stepEnemies`,
+  `moveLane`, `spinnerStep`, `fire`, `stepShots`, `spawnEnemies`, `stepEnemies`,
   `resolveHits`, `zap`, `waveClear`, `die`, plus the geometry helpers
   (`laneAngle`, `laneRim`, `laneWorldXY`, `laneDist`, `laneStepToward`,
   `waveShape`, `enemyCountFor`, `enemySpeedFor`) and constants
   (`LANES`, `CENTER`, `RIM_R`/`RIM_R_IN`, `MOVE_EVERY`, `SHOT_SPEED`,
-  `HOP_EVERY`, `HIT_EPS`, `SPAWN_GAP`, `SUPERZAPS_PER_WAVE`).
+  `HOP_EVERY`, `HIT_EPS`, `SPAWN_GAP`, `SUPERZAPS_PER_WAVE`, `LANE_ANGLE`).
+- **Spinner control (mouse/touchpad drag)**: player feedback — "we need
+  tempest, and the touch pad to draw in a circle should be the
+  controller, so I guess just mouse based." Dragging the mouse (or a
+  touchscreen finger) in a circle around the tube's hub steps the lane
+  directly, mirroring the arcade original's spinner knob: `spinnerStep(s,
+  deltaAngle)` accumulates the signed angle change since the last sample
+  into `s.spinAccum` and steps one lane per `LANE_ANGLE` (`2π/LANES`) of
+  accumulated rotation — instantly, with no hold-to-accelerate ramp,
+  and a fast spin steps several lanes in one call. The DOM layer tracks
+  the pointer's angle relative to `CENTER` on `mousedown`/`touchstart`
+  and feeds each `mousemove`/`touchmove`'s angle delta into
+  `spinnerStep`. This is **additional** to the existing ← → keys and
+  on-screen buttons, not a replacement — both remain fully functional.
 - **Lane coordinate system**: every lane is parameterized by `t` from 0
   (the hub, center of screen) to 1 (the rim). Shots start near the rim
   (`SHOT_START≈0.94`) and travel inward (`t` decreases); foxes spawn at

@@ -49,7 +49,7 @@
       <button data-k="right">▶</button>
       <button data-k="zap" class="zap">⚡ Zap</button>
     </div>
-    <p class="hint">← → move around the rim · hold Space to fire · Z or ⚡ Zap clears the well (1 per wave)</p>
+    <p class="hint">Drag the mouse or a touchpad in a circle around the well to spin the claw around the rim, like the arcade spinner · ← → also work · hold Space to fire · Z or ⚡ Zap clears the well (1 per wave)</p>
   </div>
   <script src="/arcade.js"></script>
   <script>
@@ -89,7 +89,7 @@
     function enemySpeedFor(wave){ return 0.006+Math.min(0.01,wave*0.0009); }
 
     function newGame(){
-      return { wave:1, shape:waveShape(1), lane:0, moveDir:0, moveT:0, fireHeld:false, fireT:0,
+      return { wave:1, shape:waveShape(1), lane:0, moveDir:0, moveT:0, spinAccum:0, fireHeld:false, fireT:0,
         shots:[], enemies:[], spawnQueue:enemyCountFor(1), spawnT:SPAWN_GAP,
         score:0, lives:3, inv:60, superzaps:SUPERZAPS_PER_WAVE, over:false, flash:0 };
     }
@@ -101,6 +101,19 @@
       if(s.moveDir===0) return;
       s.moveT++;
       if(s.moveT>=MOVE_EVERY){ s.moveT=0; s.lane=(s.lane+s.moveDir+LANES)%LANES; }
+    }
+    // A real Tempest spinner steps a lane per fixed slice of physical
+    // rotation, instantly (no hold-to-accelerate ramp) — spin fast enough and
+    // several lanes step in one call. deltaAngle is the signed angle change
+    // since the last sample (radians); the leftover under one lane's worth of
+    // rotation carries over in s.spinAccum so slow, partial drags aren't lost.
+    const LANE_ANGLE=Math.PI*2/LANES;
+    function spinnerStep(s,deltaAngle){
+      s.spinAccum=(s.spinAccum||0)+deltaAngle;
+      let steps=0;
+      while(s.spinAccum>=LANE_ANGLE){ s.lane=(s.lane+1)%LANES; s.spinAccum-=LANE_ANGLE; steps++; }
+      while(s.spinAccum<=-LANE_ANGLE){ s.lane=(s.lane-1+LANES)%LANES; s.spinAccum+=LANE_ANGLE; steps--; }
+      return steps;
     }
     function fire(s){
       if(s.fireT>0) return;
@@ -168,9 +181,9 @@
     }
 
     window.__tempest={ LANES, CENTER, RIM_R, RIM_R_IN, MOVE_EVERY, SHOT_SPEED, SHOT_START, HOP_EVERY, HIT_EPS,
-      SPAWN_GAP, SUPERZAPS_PER_WAVE, waveShape, laneAngle, laneRimR, laneRim, laneWorldXY, laneDist, laneStepToward,
-      enemyCountFor, enemySpeedFor, newGame, nextWave, moveLane, fire, stepShots, spawnEnemies, stepEnemies,
-      resolveHits, zap, waveClear, die };
+      SPAWN_GAP, SUPERZAPS_PER_WAVE, LANE_ANGLE, waveShape, laneAngle, laneRimR, laneRim, laneWorldXY, laneDist,
+      laneStepToward, enemyCountFor, enemySpeedFor, newGame, nextWave, moveLane, spinnerStep, fire, stepShots,
+      spawnEnemies, stepEnemies, resolveHits, zap, waveClear, die };
     if(typeof document==="undefined") return;
 
     // -------------------------------------------------------------- DOM layer
@@ -266,6 +279,25 @@
       b.addEventListener("touchstart",on,{passive:false}); b.addEventListener("touchend",off,{passive:false});
       b.addEventListener("mousedown",on); b.addEventListener("mouseup",off); b.addEventListener("mouseleave",off);
     });
+    // Circular-drag spinner: player feedback asked for "the touch pad to
+    // draw in a circle" (mouse/trackpad) to be the controller, mirroring the
+    // arcade original's spinner knob — drag around the tube's center and the
+    // claw follows your rotation directly, independent of the d-pad/keyboard
+    // above (both remain fully functional; this is an additional input, not
+    // a replacement).
+    let spinning=false, lastAngle=0;
+    function angleAt(clientX,clientY){
+      const rect=cv.getBoundingClientRect();
+      const x=(clientX-rect.left)*(W/rect.width), y=(clientY-rect.top)*(H/rect.height);
+      return Math.atan2(y-CENTER.y,x-CENTER.x);
+    }
+    function angleDiff(a,b){ let d=b-a; while(d>Math.PI)d-=Math.PI*2; while(d<-Math.PI)d+=Math.PI*2; return d; }
+    cv.addEventListener("mousedown",e=>{ spinning=true; lastAngle=angleAt(e.clientX,e.clientY); });
+    window.addEventListener("mousemove",e=>{ if(!spinning)return; const a=angleAt(e.clientX,e.clientY); spinnerStep(s,angleDiff(lastAngle,a)); lastAngle=a; });
+    window.addEventListener("mouseup",()=>{ spinning=false; });
+    cv.addEventListener("touchstart",e=>{ spinning=true; const t=e.touches[0]; lastAngle=angleAt(t.clientX,t.clientY); e.preventDefault(); },{passive:false});
+    cv.addEventListener("touchmove",e=>{ if(!spinning)return; const t=e.touches[0]; const a=angleAt(t.clientX,t.clientY); spinnerStep(s,angleDiff(lastAngle,a)); lastAngle=a; e.preventDefault(); },{passive:false});
+    cv.addEventListener("touchend",()=>{ spinning=false; },{passive:false});
     startBtn.addEventListener("click",start);
     render();
   })();
