@@ -13,7 +13,16 @@ goods between 4 towns; reach $500 by the last stop to win.
 - `window.__chickencaravan` exposes the pure sim (`START_CASH`,
   `WAGON_CAP`, `WIN_TARGET`, `GOODS`, `GOOD_INFO`, `TOWNS`, `newGame`,
   `wagonUsed`, `rollPrices`, `travel`, `buy`, `sell`, `depart`,
-  `finishRun`).
+  `finishRun`, `plFor`).
+- **P/L column**: `s.costBasis[good]` tracks the total $ still invested
+  in currently-held units of that good as a running weighted average —
+  `buy()` adds the purchase cost to it; `sell()` releases a
+  proportional share (`costBasis * qty/wagon[good]`) rather than
+  clearing it outright, so partially selling a position leaves an
+  accurate basis for what's still held. `plFor(s,good)` returns
+  `wagon[good]*prices[good] - costBasis[good]` (0 if nothing's held) —
+  the market table's P/L column shows this live, green when positive,
+  red when negative, "—" when the good isn't held at all.
 - **Deliberately NOT another survival/feed-management loop like
   `chickentrail`** (see that game's HANDOFF.md for why keeping the two
   distinct mattered) — this one is a buy-low-sell-high economy game.
@@ -30,6 +39,11 @@ goods between 4 towns; reach $500 by the last stop to win.
   final town. Neither is available while still on the road.
 
 ## Most recent pass
+
+**Player feedback: "there needs to be a P/L column on the buy/sell
+screen."** Added — see "P/L column" above.
+
+## Earlier pass
 
 New game, built in response to the same player feedback as the other 3
 text games: "we need 4 text based games, make 2 pure text and 2 half

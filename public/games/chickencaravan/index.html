@@ -92,7 +92,18 @@
 
     function newGame(){
       return { day:1, townsVisited:0, distToNext:TOWNS[0].dist, mode:"travel",
-               cash:START_CASH, wagon:{egg:0,feed:0,wool:0,tool:0}, prices:null, over:false, won:false };
+               cash:START_CASH, wagon:{egg:0,feed:0,wool:0,tool:0},
+               // costBasis[g] is the total $ still invested in currently-held units of
+               // g (a running weighted-average), so the market screen can show a real
+               // unrealized profit/loss per good, not just quantity held.
+               costBasis:{egg:0,feed:0,wool:0,tool:0}, prices:null, over:false, won:false };
+    }
+    // Unrealized P/L for a held good at today's prices: what it'd fetch right
+    // now, minus what's still invested in it. 0 (not null) when nothing is
+    // held, so the market screen can always show a number.
+    function plFor(s, good){
+      if(!s.wagon[good]) return 0;
+      return s.wagon[good]*s.prices[good] - s.costBasis[good];
     }
     function wagonUsed(s){ return GOODS.reduce((sum,g)=>sum+s.wagon[g],0); }
     function rollPrices(s){
@@ -138,7 +149,7 @@
       const cost=qty*s.prices[good];
       if(cost>s.cash) return { ok:false, msgs:[{t:"bad",text:"Not enough cash for that."}] };
       if(wagonUsed(s)+qty>WAGON_CAP) return { ok:false, msgs:[{t:"bad",text:"Not enough room in the wagon."}] };
-      s.cash-=cost; s.wagon[good]+=qty;
+      s.cash-=cost; s.wagon[good]+=qty; s.costBasis[good]+=cost;
       return { ok:true, msgs:[{t:"good", text:"Bought "+qty+" "+GOOD_INFO[good].name+" for $"+cost+"."}] };
     }
     function sell(s, good, qty){
@@ -147,7 +158,10 @@
       if(qty<=0) return { ok:false, msgs:[{t:"bad",text:"Sell how many?"}] };
       if(s.wagon[good]<qty) return { ok:false, msgs:[{t:"bad",text:"You don't have that many "+GOOD_INFO[good].name+"."}] };
       const revenue=qty*s.prices[good];
-      s.cash+=revenue; s.wagon[good]-=qty;
+      // Reduce cost basis by the average-cost share of what's being sold, so
+      // the remaining held units keep an accurate basis for the P/L column.
+      const soldBasis=s.costBasis[good]*(qty/s.wagon[good]);
+      s.cash+=revenue; s.wagon[good]-=qty; s.costBasis[good]-=soldBasis;
       return { ok:true, msgs:[{t:"good", text:"Sold "+qty+" "+GOOD_INFO[good].name+" for $"+revenue+"."}] };
     }
     function depart(s){
@@ -168,7 +182,7 @@
     }
 
     window.__chickencaravan={ START_CASH, WAGON_CAP, WIN_TARGET, GOODS, GOOD_INFO, TOWNS,
-      newGame, wagonUsed, rollPrices, travel, buy, sell, depart, finishRun };
+      newGame, wagonUsed, rollPrices, travel, buy, sell, depart, finishRun, plFor };
     if(typeof document==="undefined") return;
 
     const cv=document.getElementById("trail"), ctx=cv.getContext("2d");
@@ -204,9 +218,13 @@
     function renderMarket(){
       if(s.mode!=="market"){ marketWrap.style.display="none"; travelWrap.style.display="flex"; return; }
       marketWrap.style.display="flex"; travelWrap.style.display="none";
-      const rows=["<tr><th>Good</th><th>Price</th><th>Have</th><th>Qty</th><th></th><th></th></tr>"];
+      const rows=["<tr><th>Good</th><th>Price</th><th>Have</th><th>P/L</th><th>Qty</th><th></th><th></th></tr>"];
       for(const g of window.__chickencaravan.GOODS){
+        const pl=Math.round(window.__chickencaravan.plFor(s,g));
+        const plText=s.wagon[g]>0 ? (pl>=0?"+$"+pl:"-$"+(-pl)) : "—";
+        const plColor=pl>0?"#34d399":pl<0?"#f87171":"#9a9ab5";
         rows.push("<tr><td>"+window.__chickencaravan.GOOD_INFO[g].name+"</td><td>$"+s.prices[g]+"</td><td>"+s.wagon[g]+"</td>"+
+          "<td style=\"color:"+plColor+"\">"+plText+"</td>"+
           "<td><input class=\"qty\" type=\"number\" min=\"0\" value=\"1\" id=\"q-"+g+"\"></td>"+
           "<td><button class=\"btn small\" data-buy=\""+g+"\">Buy</button></td>"+
           "<td><button class=\"btn small ghost\" data-sell=\""+g+"\">Sell</button></td></tr>");
