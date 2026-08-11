@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Chicken Elevator Op — Games</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='70'>🐔</text></svg>" />
+  <style>
+    :root{--bg:#0f1020;--panel:#1e2140;--text:#e6e6f0;--muted:#9a9ab5;--accent:#f43f5e;--accent-2:#facc15;}
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+      background:radial-gradient(1000px 500px at 70% -10%,rgba(244,63,94,.2),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(250,204,21,.12),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;}
+    .wrap{max-width:560px;margin:0 auto;padding:16px 16px 30px;display:flex;flex-direction:column;align-items:center;gap:12px}
+    .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
+    .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
+    .home:hover{color:var(--text);border-color:rgba(244,63,94,.6)}
+    h1{margin:0;font-size:1.5rem;background:linear-gradient(120deg,var(--accent),var(--accent-2));-webkit-background-clip:text;background-clip:text;color:transparent}
+    .scores{display:flex;gap:12px;width:100%}
+    .stat{flex:1;background:var(--panel);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:8px;text-align:center}
+    .stat .label{font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+    .stat .value{font-size:1.3rem;font-weight:700}
+    .board-wrap{position:relative;width:100%}
+    canvas{width:100%;height:auto;display:block;background:#05060f;border:1px solid rgba(255,255,255,.08);border-radius:14px;touch-action:none}
+    .overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:rgba(15,16,32,.85);border-radius:14px;text-align:center;padding:10px}
+    .overlay.hidden{display:none}
+    .overlay h2{margin:0}.overlay p{margin:0;color:var(--muted)}
+    .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:12px 28px;border-radius:999px;cursor:pointer}
+    .pad{display:flex;gap:8px;width:100%;justify-content:center;flex-wrap:wrap}
+    .pad button{background:var(--panel);border:1px solid rgba(255,255,255,.14);color:var(--text);border-radius:10px;padding:12px 16px;font-size:1.1rem;cursor:pointer;min-width:52px;user-select:none;touch-action:none}
+    .hint{color:var(--muted);font-size:.82rem;text-align:center}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar"><a class="home" href="/">← Home</a><h1>🐔 Chicken Elevator Op</h1><span style="width:64px"></span></div>
+    <div class="scores">
+      <div class="stat"><div class="label">Score</div><div class="value" id="score">0</div></div>
+      <div class="stat"><div class="label">Lives</div><div class="value" id="lives">3</div></div>
+      <div class="stat"><div class="label">Best</div><div class="value" id="best">0</div></div>
+    </div>
+    <div class="board-wrap">
+      <canvas id="c" width="560" height="420"></canvas>
+      <div class="overlay" id="ov"><h2 id="ot">Chicken Elevator Op</h2><p id="om">Infiltrate the coop tower — grab every red-door document, ride the elevators down, and reach the getaway car on the ground floor.</p><button class="btn" id="start">Play</button></div>
+    </div>
+    <div class="pad">
+      <button data-k="left">◀</button>
+      <button data-k="up">▲ Lift</button>
+      <button data-k="right">▶</button>
+      <button data-k="down">▼ Lift</button>
+      <button data-k="fire">● Fire</button>
+    </div>
+    <p class="hint">← → walk · stand in a shaft and ↑ ↓ to ride the elevator · hold Space to fire · grab every document, then reach the car on the ground floor</p>
+  </div>
+  <script src="/arcade.js"></script>
+  <script>
+  (function(){
+    // Canvas's static attributes as plain numbers — no DOM dependency for the sim.
+    const W=560, H=420;
+    let best=+localStorage.getItem("elevatoraction_best")||0;
+
+    // ------------------------------------------------------------ pure sim
+    const FLOORS=5;                       // 0 = roof (start), FLOORS-1 = ground (exit)
+    const TOP_Y=40, FLOOR_H=70;           // floor[f]'s walking line is at TOP_Y+f*FLOOR_H
+    const SHAFTS=[130,430];               // x positions of the two elevator shafts
+    const SHAFT_CATCH=18;                 // how close to a shaft x counts as "standing in it"
+    const DOOR_FLOORS=[1,2,3];            // middle floors carry documents; roof/ground don't
+    const DOOR_XS=[70,490];               // door x positions on each of those floors
+    const EXIT_X=500;                     // the getaway car, on the ground floor
+    const PLAYER_SPEED=2.2, ELEVATOR_SPEED=0.045;
+    const BULLET_SPEED=6, BULLET_LIFE=45, FIRE_COOLDOWN=12;
+    const AGENT_SPEED=0.7, AGENT_SHOOT_COOLDOWN=90, AGENT_BULLET_SPEED=4;
+    const SPAWN_GAP=80;
+    const HIT_R=14;
+
+    function totalDocs(){ return DOOR_FLOORS.length*DOOR_XS.length; }
+    function agentCountFor(wave){ return Math.min(10, 3+wave*2); }
+    function agentSpeedFor(wave){ return AGENT_SPEED+Math.min(0.6,wave*0.06); }
+
+    function makeDoors(){
+      const doors=[];
+      for(const f of DOOR_FLOORS) for(const x of DOOR_XS) doors.push({floor:f,x,taken:false});
+      return doors;
+    }
+    function newGame(){
+      return { wave:1, player:{x:SHAFTS[0],floor:0,py:0,riding:false,rideTarget:0,facing:1},
+        bullets:[], agents:[], doors:makeDoors(), docsCollected:0,
+        spawnQueue:agentCountFor(1), spawnT:SPAWN_GAP, score:0, lives:3, inv:60,
+        over:false, won:false, fireT:0, moveDir:0 };
+    }
+    function nextWave(s){
+      s.wave++; s.bullets=[]; s.agents=[]; s.doors=makeDoors(); s.docsCollected=0;
+      s.spawnQueue=agentCountFor(s.wave); s.spawnT=SPAWN_GAP; s.inv=60;
+      s.player={x:SHAFTS[0],floor:0,py:0,riding:false,rideTarget:0,facing:1};
+    }
+
+    function nearestShaft(x){ let best=SHAFTS[0],bd=Infinity; for(const sx of SHAFTS){ const d=Math.abs(sx-x); if(d<bd){bd=d;best=sx;} } return best; }
+    function inShaft(x){ return Math.abs(x-nearestShaft(x))<=SHAFT_CATCH; }
+
+    function move(s,dir){ s.moveDir=dir; if(dir) s.player.facing=dir; }
+    function stepPlayer(s){
+      const p=s.player;
+      if(p.riding){
+        p.py += Math.sign(p.rideTarget-p.py)*ELEVATOR_SPEED;
+        if(Math.abs(p.rideTarget-p.py)<ELEVATOR_SPEED){ p.py=p.rideTarget; p.floor=p.rideTarget; p.riding=false; }
+      }else{
+        p.x=Math.max(10,Math.min(W-10,p.x+s.moveDir*PLAYER_SPEED));
+      }
+      if(s.inv>0) s.inv--;
+    }
+    // Enter/leave a shaft: call with dir=-1 (up, toward the roof) or 1 (down,
+    // toward the ground). Only works while standing in a shaft and not
+    // already riding, and won't ride past the top or bottom floor.
+    function ride(s,dir){
+      const p=s.player;
+      if(p.riding || !inShaft(p.x)) return false;
+      const target=p.floor+dir;
+      if(target<0||target>=FLOORS) return false;
+      p.rideTarget=target; p.riding=true;
+      return true;
+    }
+    function fire(s){
+      if(s.player.riding || s.fireT>0) return;
+      s.fireT=FIRE_COOLDOWN;
+      s.bullets.push({x:s.player.x,floor:s.player.floor,vx:BULLET_SPEED*s.player.facing,life:BULLET_LIFE,owner:"player"});
+    }
+    function stepBullets(s){
+      if(s.fireT>0) s.fireT--;
+      s.bullets.forEach(b=>{b.x+=b.vx;b.life--;});
+      s.bullets=s.bullets.filter(b=>b.life>0 && b.x>-10 && b.x<W+10);
+    }
+    function collectDoors(s){
+      let gained=0;
+      if(s.player.riding) return 0;
+      for(const d of s.doors){
+        if(d.taken || d.floor!==s.player.floor) continue;
+        if(Math.abs(d.x-s.player.x)<HIT_R){ d.taken=true; s.docsCollected++; gained+=300; }
+      }
+      s.score+=gained;
+      return gained;
+    }
+    function spawnAgents(s){
+      if(s.spawnQueue<=0) return;
+      if(--s.spawnT>0) return;
+      s.spawnT=SPAWN_GAP; s.spawnQueue--;
+      const floor=Math.floor(Math.random()*FLOORS);
+      const x=Math.random()<0.5?20:W-20;
+      s.agents.push({x,floor,dir:x<W/2?1:-1,shotT:AGENT_SHOOT_COOLDOWN+Math.random()*60});
+    }
+    // Agents walk their own floor toward the player's x when on the same
+    // floor, and take occasional pot-shots when roughly lined up.
+    function stepAgents(s){
+      const speed=agentSpeedFor(s.wave);
+      let hit=false;
+      for(const a of s.agents){
+        if(a.floor===s.player.floor && !s.player.riding){
+          a.dir=Math.sign(s.player.x-a.x)||a.dir;
+          a.x+=a.dir*speed;
+        }else{
+          a.x+=a.dir*speed*0.5;
+          if(a.x<15||a.x>W-15) a.dir*=-1;
+        }
+        a.x=Math.max(10,Math.min(W-10,a.x));
+        if(a.floor===s.player.floor && --a.shotT<=0){
+          a.shotT=AGENT_SHOOT_COOLDOWN;
+          s.bullets.push({x:a.x,floor:a.floor,vx:Math.sign(s.player.x-a.x)*AGENT_BULLET_SPEED,life:60,owner:"agent"});
+        }
+        if(a.floor===s.player.floor && !s.player.riding && s.inv<=0 && Math.abs(a.x-s.player.x)<HIT_R) hit=true;
+      }
+      if(!s.player.riding && s.inv<=0){
+        for(const b of s.bullets){ if(b.owner==="agent" && b.floor===s.player.floor && Math.abs(b.x-s.player.x)<HIT_R) hit=true; }
+      }
+      return hit;
+    }
+    function resolveHits(s){
+      let gained=0;
+      for(let i=s.agents.length-1;i>=0;i--){
+        const a=s.agents[i];
+        for(let j=s.bullets.length-1;j>=0;j--){
+          const b=s.bullets[j];
+          if(b.owner==="player" && b.floor===a.floor && Math.abs(b.x-a.x)<HIT_R){
+            s.bullets.splice(j,1); s.agents.splice(i,1); gained+=150; break;
+          }
+        }
+      }
+      s.score+=gained;
+      return gained;
+    }
+    function checkExit(s){
+      return !s.player.riding && s.player.floor===FLOORS-1 && s.docsCollected>=totalDocs() && Math.abs(s.player.x-EXIT_X)<HIT_R+6;
+    }
+    function waveClear(s){ return s.spawnQueue<=0 && s.agents.length===0 && checkExit(s); }
+    function die(s){
+      s.lives--; s.inv=90; s.agents=[]; s.bullets=[];
+      s.player={x:SHAFTS[0],floor:0,py:0,riding:false,rideTarget:0,facing:1};
+      if(s.lives<=0) s.over=true;
+    }
+
+    window.__elevatoraction={ W, H, FLOORS, TOP_Y, FLOOR_H, SHAFTS, DOOR_FLOORS, DOOR_XS, EXIT_X,
+      ELEVATOR_SPEED, FIRE_COOLDOWN, SPAWN_GAP, totalDocs, agentCountFor, agentSpeedFor, makeDoors,
+      nearestShaft, inShaft, newGame, nextWave, move, stepPlayer, ride, fire, stepBullets, collectDoors,
+      spawnAgents, stepAgents, resolveHits, checkExit, waveClear, die };
+    if(typeof document==="undefined") return;
+
+    // -------------------------------------------------------------- DOM layer
+    const cv=document.getElementById("c"),ctx=cv.getContext("2d");
+    const scoreEl=document.getElementById("score"),livesEl=document.getElementById("lives"),bestEl=document.getElementById("best");
+    const ov=document.getElementById("ov"),ot=document.getElementById("ot"),om=document.getElementById("om"),startBtn=document.getElementById("start");
+    bestEl.textContent=best;
+    let s=newGame(), running=false, raf;
+    const keys={left:false,right:false,fire:false};
+    function updateHud(){ scoreEl.textContent=s.score; livesEl.textContent=s.lives; }
+    function start(){ s=newGame(); updateHud(); ov.classList.add("hidden"); running=true; loop(); }
+    function loop(){ if(!running) return; update(); render(); raf=requestAnimationFrame(loop); }
+    function floorY(f){ return TOP_Y+f*FLOOR_H; }
+    function playerScreenY(){ return TOP_Y + s.player.py*FLOOR_H; }
+    function update(){
+      if(s.over) return;
+      move(s, (keys.right?1:0)-(keys.left?1:0));
+      stepPlayer(s);
+      if(keys.fire) fire(s);
+      stepBullets(s);
+      spawnAgents(s);
+      const hit=stepAgents(s);
+      const dg=collectDoors(s);
+      const gained=resolveHits(s);
+      if(dg||gained){ updateHud(); if(typeof Arcade!=="undefined") Arcade.sfx.explode(); }
+      if(hit){ die(s); updateHud();
+        if(s.over){ running=false; cancelAnimationFrame(raf);
+          if(typeof Arcade!=="undefined") Arcade.stats.record("elevatoraction",s.score);
+          if(s.score>best){ best=s.score; localStorage.setItem("elevatoraction_best",best); bestEl.textContent=best; }
+          ot.textContent="Game Over"; om.textContent="Score "+s.score+" · wave "+s.wave; startBtn.textContent="Play again"; ov.classList.remove("hidden");
+          return;
+        }
+      }
+      if(waveClear(s)){ s.score+=1000; updateHud(); nextWave(s); }
+    }
+    function render(){
+      ctx.clearRect(0,0,W,H);
+      // floors
+      ctx.strokeStyle="rgba(124,92,255,.3)"; ctx.lineWidth=2;
+      for(let f=0;f<FLOORS;f++){ ctx.beginPath(); ctx.moveTo(0,floorY(f)+16); ctx.lineTo(W,floorY(f)+16); ctx.stroke(); }
+      // shafts
+      ctx.fillStyle="rgba(250,204,21,.08)";
+      for(const sx of SHAFTS) ctx.fillRect(sx-SHAFT_CATCH,TOP_Y-10,SHAFT_CATCH*2,(FLOORS-1)*FLOOR_H+30);
+      // doors
+      for(const d of s.doors){
+        ctx.fillStyle=d.taken?"rgba(148,163,184,.35)":"#f43f5e";
+        ctx.fillRect(d.x-10,floorY(d.floor)-14,20,30);
+      }
+      // exit car (ground floor only)
+      ctx.fillStyle=s.docsCollected>=totalDocs()?"#34d399":"rgba(148,163,184,.4)";
+      ctx.fillRect(EXIT_X-16,floorY(FLOORS-1)-10,32,20);
+      // agents
+      ctx.fillStyle="#fb923c";
+      for(const a of s.agents){ ctx.beginPath(); ctx.arc(a.x,floorY(a.floor),9,0,7); ctx.fill(); }
+      // bullets
+      for(const b of s.bullets){ ctx.fillStyle=b.owner==="player"?"#34d399":"#f43f5e"; ctx.fillRect(b.x-3,floorY(b.floor)-1,6,2); }
+      // player, blinking while invulnerable
+      if(s.inv<=0 || Math.floor(s.inv/4)%2===0){
+        ctx.fillStyle="#22d3ee"; ctx.beginPath(); ctx.arc(s.player.x,playerScreenY(),10,0,7); ctx.fill();
+      }
+      ctx.fillStyle="rgba(230,230,240,.7)"; ctx.font="12px system-ui"; ctx.textAlign="left";
+      ctx.fillText("Wave "+s.wave+" · Docs "+s.docsCollected+"/"+totalDocs(),10,H-8);
+    }
+    document.addEventListener("keydown",e=>{
+      if(e.key==="ArrowLeft"||e.key==="a"){ e.preventDefault(); keys.left=true; }
+      else if(e.key==="ArrowRight"||e.key==="d"){ e.preventDefault(); keys.right=true; }
+      else if(e.key==="ArrowUp"||e.key==="w"){ e.preventDefault(); ride(s,-1); }
+      else if(e.key==="ArrowDown"||e.key==="s"){ e.preventDefault(); ride(s,1); }
+      else if(e.key===" "){ e.preventDefault(); keys.fire=true; }
+    });
+    document.addEventListener("keyup",e=>{
+      if(e.key==="ArrowLeft"||e.key==="a") keys.left=false;
+      else if(e.key==="ArrowRight"||e.key==="d") keys.right=false;
+      else if(e.key===" ") keys.fire=false;
+    });
+    document.querySelectorAll(".pad button").forEach(b=>{
+      const k=b.dataset.k;
+      const on=(e)=>{ e.preventDefault();
+        if(k==="left") keys.left=true; else if(k==="right") keys.right=true; else if(k==="fire") keys.fire=true;
+        else if(k==="up") ride(s,-1); else if(k==="down") ride(s,1);
+      };
+      const off=(e)=>{ e.preventDefault();
+        if(k==="left") keys.left=false; else if(k==="right") keys.right=false; else if(k==="fire") keys.fire=false;
+      };
+      b.addEventListener("touchstart",on,{passive:false}); b.addEventListener("touchend",off,{passive:false});
+      b.addEventListener("mousedown",on); b.addEventListener("mouseup",off); b.addEventListener("mouseleave",off);
+    });
+    startBtn.addEventListener("click",start);
+    render();
+  })();
+  </script>
+  <script src="/startgate.js" defer></script>
+  <script src="/comments.js" defer></script>
+  <script src="/fullscreen.js" defer></script>
+</body>
+</html>
