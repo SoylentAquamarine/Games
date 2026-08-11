@@ -141,7 +141,27 @@
     aviary:{ name:"The Aviary", color:"#3a5a6a", gx:3, gy:0 },
     // Castle interiors sit off the grid — you leave the way you came in.
     goldIn:{ name:"Inside the Gold Castle", color:"#12101c", exits:{S:"commons"}, exitReturn:{x:96,y:96} },
-    blackIn:{ name:"Inside the Black Castle", color:"#12101c", exits:{S:"blackgate"}, exitReturn:{x:96,y:80} },
+    // Player feedback: "we need the black castle to have a lot of rooms
+    // inside it and to be a maze, and we need to have to use the bridge to
+    // cross a barrier to get to the chalice." The interior used to be one
+    // room with the chalice sitting right inside it. Now it's 5: the entry
+    // hall (blackIn, unchanged doorway from blackgate), a fork with a real
+    // dead end (blackIn2b — no reward, just a wrong turn to back out of),
+    // a barrier hall (blackIn3, see its own comment below) you cannot pass
+    // without the bridge, and the vault (blackIn4) where the chalice now
+    // lives. Same off-grid, one-way-in-from-the-gate design as before —
+    // brokenDoors() exempts anything named/leading to blackIn from its
+    // reciprocity check, but every OTHER edge here (blackIn2<->blackIn2b,
+    // blackIn2<->blackIn3, blackIn3<->blackIn4) is a normal two-way door.
+    blackIn:{ name:"Inside the Black Castle", color:"#12101c", exits:{S:"blackgate",N:"blackIn2"}, exitReturn:{x:96,y:80} },
+    blackIn2:{ name:"Black Castle: Forking Hall", color:"#161320", exits:{S:"blackIn",N:"blackIn3",E:"blackIn2b"} },
+    blackIn2b:{ name:"Black Castle: Dead End", color:"#161320", exits:{W:"blackIn2"} },
+    // The barrier: a wall spanning the FULL width of the room (not just the
+    // door-gap span), so there is no way to sidestep around it — only the
+    // bridge's walk-through-walls power gets you from the south door to the
+    // north one.
+    blackIn3:{ name:"Black Castle: The Chasm", color:"#1c1420", exits:{S:"blackIn2",N:"blackIn4"}, inner:[{x:0,y:95,w:200,h:10}] },
+    blackIn4:{ name:"Black Castle: The Vault", color:"#221a12", exits:{S:"blackIn3"} },
   };
   // A saved layout from the Level Editor overrides room grid positions, colours
   // and inner walls (doorways stay derived from the grid adjacency).
@@ -217,9 +237,11 @@
   }
 
   // Rooms an item or dragon may start in: outdoor rooms only, never a castle
-  // interior and never the room you spawn in.
+  // interior (including every room of the black castle's maze) and never
+  // the room you spawn in.
+  const CASTLE_INTERIORS=["goldIn","blackIn","blackIn2","blackIn2b","blackIn3","blackIn4"];
   function spawnRooms(){
-    return Object.keys(ROOMS).filter(id => id!=="commons" && id!=="goldIn" && id!=="blackIn");
+    return Object.keys(ROOMS).filter(id => id!=="commons" && !CASTLE_INTERIORS.includes(id));
   }
   // A spot in a room that is not inside a wall — items used to spawn embedded
   // in the scenery about one time in ten.
@@ -273,7 +295,7 @@
           bridge:{room:spots[1],...freeSpot(spots[1],OBJ),carried:false},
           goldkey:{room:spots[2],...freeSpot(spots[2],OBJ),carried:false},
           blackkey:{room:spots[3],...freeSpot(spots[3],OBJ),carried:false},
-          chalice:{room:"blackIn",x:96,y:56,carried:false},
+          chalice:{room:"blackIn4",x:96,y:100,carried:false},
         };
       })(),
       dragons:(function(){
@@ -524,7 +546,18 @@
         ctx.restore(); }
       else if(k==="goldkey"){ drawKey(x,y,"#f5d020","#241a04","#fff7cc"); }
       else if(k==="blackkey"){ drawKey(x,y,"#1b1b22","#c9c9dd","#ffffff"); }
-      else if(k==="bridge"){ rr(x-2,y,12,10,"#a9743a"); rr(x-2,y+2,12,2,"#5c3a18"); rr(x-2,y+6,12,2,"#5c3a18"); }
+      // Player feedback: "the bridge needs to be more like a bridge." Used
+      // to be 3 flat stacked rectangles with no real span/rail shape. Now a
+      // plank deck with individual plank seams (not just two divider
+      // stripes), rope rails running the length of it, and a post at each
+      // end — reads as a rope-and-plank bridge spanning a gap, not a slab.
+      else if(k==="bridge"){
+        rr(x-3,y+3,14,5,"#a9743a");
+        for(let px=x-2;px<x+9;px+=3) rr(px,y+3,1,5,"#5c3a18");
+        ctx.strokeStyle="#c9a86a"; ctx.lineWidth=1;
+        ctx.beginPath(); ctx.moveTo(x-3,y+2); ctx.lineTo(x+11,y+2); ctx.moveTo(x-3,y+9); ctx.lineTo(x+11,y+9); ctx.stroke();
+        rr(x-3,y,2,11,"#6b4423"); rr(x+9,y,2,11,"#6b4423");
+      }
       else if(k==="chalice"){ ctx.fillStyle="#ffd94a"; ctx.fillRect(x,y,8,2); ctx.fillRect(x+1,y+2,6,3); ctx.fillRect(x+3,y+5,2,4); ctx.fillRect(x+1,y+9,6,2);
         ctx.fillStyle="#fff7cc"; ctx.fillRect(x+2,y+1,1,1); }
     }

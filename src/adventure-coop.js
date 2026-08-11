@@ -34,7 +34,16 @@ export const ROOMS={
   catacomb:{ name:"The Catacomb", color:"#3a2a3a", exits:{N:"south",E:"crypt"}, inner:[{x:90,y:40,w:12,h:100}] },
   crypt:{ name:"The Crypt", color:"#242438", exits:{W:"catacomb"} },
   goldIn:{ name:"Inside the Gold Castle", color:"#12101c", exits:{S:"commons"}, exitReturn:{x:96,y:96} },
-  blackIn:{ name:"Inside the Black Castle", color:"#12101c", exits:{S:"blackgate"}, exitReturn:{x:96,y:80} },
+  // Mirrors the single-player black castle maze (public/games/adventure/
+  // index.html) — see that file's comment for the full player-feedback
+  // context. Same 5-room layout: entry hall, a forking hall with a dead
+  // end, a barrier room only the bridge lets you cross, and the vault
+  // holding the chalice.
+  blackIn:{ name:"Inside the Black Castle", color:"#12101c", exits:{S:"blackgate",N:"blackIn2"}, exitReturn:{x:96,y:80} },
+  blackIn2:{ name:"Black Castle: Forking Hall", color:"#161320", exits:{S:"blackIn",N:"blackIn3",E:"blackIn2b"} },
+  blackIn2b:{ name:"Black Castle: Dead End", color:"#161320", exits:{W:"blackIn2"} },
+  blackIn3:{ name:"Black Castle: The Chasm", color:"#1c1420", exits:{S:"blackIn2",N:"blackIn4"}, inner:[{x:0,y:95,w:200,h:10}] },
+  blackIn4:{ name:"Black Castle: The Vault", color:"#221a12", exits:{S:"blackIn3"} },
 };
 
 export function borderWalls(id){
@@ -55,7 +64,7 @@ export function newWorld(){
       sword:{room:"north",x:100,y:100,carried:false,by:null},
       bridge:{room:"south",x:60,y:150,carried:false,by:null},
       blackkey:{room:"east",x:56,y:60,carried:false,by:null},
-      chalice:{room:"blackIn",x:96,y:56,carried:false,by:null},
+      chalice:{room:"blackIn4",x:96,y:100,carried:false,by:null},
     },
     dragons:[
       {id:"yellow",color:"#d8c020",room:"south",x:100,y:60,hx:100,hy:60,alive:true},

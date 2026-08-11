@@ -36,7 +36,57 @@ dragons that chase, castles, a 100%-completion secret ending.
   matching mini golf's wall brush) — the game's `ROOMS[id].inner` is what
   actually renders as obstacles inside a room.
 
-## Most recent pass
+## Most recent pass — black castle maze + bridge barrier
+
+**Player feedback: "We need the black castle to have a lot of rooms
+inside it and to be a maze, and we need to have to use the bridge to
+cross a barrier to get to the chalice. The bridge needs to be more like
+a bridge."** (This comment's other two asks — dragons appearing where
+they left off, and a 90% chase chance following between rooms — were
+already resolved in an earlier pass; this closes out the rest of it.)
+
+- **The black castle interior is now 5 rooms, not 1**: `blackIn` (the
+  entry hall, unchanged doorway from the gate) → `blackIn2` (a forking
+  hall with 3 exits: back out, deeper in, or `blackIn2b`, a genuine dead
+  end with no reward) → `blackIn3` ("The Chasm", see below) →
+  `blackIn4` ("The Vault", where the chalice now lives — moved out of
+  the old single `blackIn` room). All off-grid like the original
+  `blackIn`/`goldIn` (hand-wired `exits`, not grid-derived), and
+  `spawnRooms()`/`CASTLE_INTERIORS` now excludes all 5 from random
+  item/dragon placement, not just the original 2.
+- **The barrier**: `blackIn3` has an `inner` wall spanning the room's
+  *entire* width (`{x:0,y:95,w:200,h:10}`, not just the door-gap span),
+  so there is no way to sidestep around it — since `collide()` already
+  treats "carrying the bridge" as "ignore all walls" (the pre-existing,
+  documented bridge mechanic), placing a truly impassable wall in the
+  only path to the vault makes the bridge a real requirement to reach
+  the chalice, not just a nice-to-have shortcut. No new collision logic
+  needed — this was a level-design fix, not an engine change.
+- **The bridge looks like a bridge now**: `drawObject()`'s `"bridge"`
+  case used to be 3 flat stacked rectangles. Now a plank deck with
+  individual plank seams (a loop, not 2 fixed divider stripes), stroked
+  rope rails along the span, and a post at each end.
+- Applied to **both** copies of the room map: the single-player sim
+  (`public/games/adventure/index.html`) and the real-time co-op world
+  (`src/adventure-coop.js`, which the file's own header comment says is
+  meant to mirror single-player) — otherwise the two modes would tell a
+  different story about the same castle.
+
+Tested via `adventure-black-castle-maze-test.js` (17 checks: all 5
+rooms exist with reciprocal doors, the dead end and fork are real, the
+chalice moved, castle rooms stay excluded from spawns across 200
+randomized games, the barrier blocks without the bridge and passes
+with it, the direct route is provably unreachable without ever
+carrying the bridge, and the new bridge art draws real plank/rail/post
+shapes) plus `adventure-coop-black-castle-maze-test.js` (8 checks,
+same coverage against the co-op world, including two players in the
+same room with only one holding the bridge). Full existing adventure
+test suite (10 other files) still passes. Verified live: deployed and
+walked the exported test API through the entire hall→fork→chasm→vault
+route, blocked without the bridge and successful with it, zero console
+errors.
+
+## Earlier pass
 
 **Player feedback: "insteaad of triggering the secret tecxt across the
 screen with the gold castle on it, the secret is the guy enters the
@@ -151,22 +201,5 @@ and title cleanup.
 
 ## Open / deferred
 
-Two items, both from an earlier round of player feedback:
-
-1. **"We need the black castle to have a lot of rooms inside it and to
-   be a maze, and we need to have to use the bridge to cross a barrier
-   to get to the chalice."** Currently `blackIn` is a single fixed room
-   (see the `ROOMS` table) — needs a real multi-room maze interior, plus
-   a barrier obstacle inside it that specifically requires carrying the
-   bridge to cross. A genuine level-design pass, not a quick tweak.
-2. **"The bridge needs to be more like a bridge."** Currently drawn as a
-   plain brown rectangle in `drawObject()`'s `"bridge"` case — wants a
-   more recognizably bridge-shaped sprite (planks/rails). Small on its
-   own, but makes most sense done alongside #1 once there's an actual
-   barrier for it to visually span.
-
-The same comment bundle's other two asks — "dragons appear where they
-left off" and "90% chase chance following between rooms" — were already
-resolved in an earlier pass (see further up); this comment stays open
-as a whole only for the maze/bridge parts above, per the "don't archive
-a partially-addressed comment" convention.
+Nothing currently open for this game — see "Most recent pass" for the
+maze/bridge items that used to be listed here.
