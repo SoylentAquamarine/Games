@@ -49,7 +49,23 @@ level editor (`/admin/games/?game=quest`, "Configuration" panel).
 
 ## Most recent pass
 
-**Three player comments, addressed together:**
+**Player feedback: "i do not want a leave button, i want a stairway for
+the character to climb out of the dungeon."** The old "no stairway"
+comment had been left open pending clarification (see the now-removed
+"Open / deferred" note) — this confirmed it wasn't a discoverability
+complaint about the button, it was a request to remove the button
+entirely. Removed the 🚪 Leave HUD button. Added `STAIR` — a fixed tile
+`[7,5]` in the dungeon's start room, the exact spot the player is
+placed on entry — walking onto it (from anywhere else in the room)
+climbs back out to the farmyard via the same `enterOverworld()` path
+the button used to call. Edge-triggered with a `stairLock` flag (armed
+on dungeon entry, since the player spawns standing on the tile) so
+arriving doesn't instantly re-trigger the exit — same pattern already
+used for the overworld's own dungeon-entrance tiles (`entLock`). Drawn
+as a dark archway over a few stone steps (`drawStairway()`), visible
+only in the start room.
+
+Earlier: **three player comments, addressed together:**
 
 1. **"the dungeons need to be randomized a bit, keep the boss in the same
    place but the location of the key needs to be random."** The boss
@@ -179,10 +195,10 @@ beaten yet" part needed its own persisted flag (`quest_foxking` in
 on the next frame. Same round of feedback also asked for a reset button
 ("we need a reset/new game button"), added to the HUD (see "What's here").
 A third comment in the same batch — "there is no stairway to climb out of
-the dungeon" — is left open; the existing "🚪 Leave" HUD button already
-does this (verified working, unrelated to the above bug), so this reads
-as a discoverability/design ask rather than something broken. Needs a
-closer look or player clarification before archiving.
+the dungeon" — was left open at the time (the existing "🚪 Leave" HUD
+button already worked, so it read as ambiguous); a later pass confirmed
+it wasn't ambiguous at all and replaced the button with a real stairway
+— see "Most recent pass" above.
 
 **Player feedback: "when we trigger final boss we have to fight him in
 the overland."** Filling the carton used to immediately end the game with
@@ -232,7 +248,9 @@ pass, just not the actual crash:
   ANY south-edge touch there into an overworld exit before normal
   room-transition logic could run — so "down" could never reach room
   (1,2) like every other direction could. South is now a normal door;
-  leaving the dungeon has its own explicit "🚪 Leave" HUD button instead.
+  leaving the dungeon has its own explicit control (the stairway, see
+  "Most recent pass" — at the time this was written, still the "🚪
+  Leave" HUD button, since replaced).
 
 Earlier pass: fixed a "fighting Thunder Hawk froze up on me" bug report.
 Root cause: an earlier-still pass added a 0.5s hit-pause on bosses
@@ -244,12 +262,6 @@ above).
 
 ## Open / deferred
 
-- **"There is no stairway to climb out of the dungeon"** — left open
-  (not archived). The 🚪 Leave HUD button already does exactly this and
-  is confirmed working; this may be a discoverability complaint (wants a
-  more obvious/thematic in-world exit rather than a small HUD button) or
-  may have been confusion from the vanish bug above rather than a
-  separate real ask. Get more player detail before changing anything.
 - **"I want specific sprites for each of the bosses, and the main boss
   is a fox — it should be a fox with a crown, not a chicken sprite"** —
   **partially done.** The Fox King (the boss explicitly named in the
