@@ -59,6 +59,18 @@ off contact otherwise.
   original's per-wave layout better than a large scrolling world would
   have (that's Defender's shape, not Robotron's).
 
+## Admin config
+
+`/admin/games/?game=robotron` — 5 difficulty knobs registered in
+`NUMERIC_CONFIGS` (`public/admin/games/index.html`): `GRUNT_SPEED`,
+`HULK_HP`, `HUMANS_PER_WAVE`, `SPAWN_GAP`, `EXTRA_LIFE_AT`. Same
+pattern as every other configurable game (e.g. kaboom): pulled into a
+mutable `C` object, an IIFE reads `localStorage.robotron_config` on
+load and overrides any matching numeric key. `window.__robotron`
+exports `C` both nested (`.C`) and spread flat (`...C`), so
+`G.GRUNT_SPEED` and `G.C.GRUNT_SPEED` are both valid — existing tests
+keep working unchanged.
+
 ## Open / deferred
 
 Nothing reported yet — this is a new game, added from the same

@@ -66,15 +66,24 @@
     const DOOR_FLOORS=[1,2,3];            // middle floors carry documents; roof/ground don't
     const DOOR_XS=[70,490];               // door x positions on each of those floors
     const EXIT_X=500;                     // the getaway car, on the ground floor
-    const PLAYER_SPEED=2.2, ELEVATOR_SPEED=0.045;
+    const PLAYER_SPEED=2.2;
     const BULLET_SPEED=6, BULLET_LIFE=45, FIRE_COOLDOWN=12;
-    const AGENT_SPEED=0.7, AGENT_SHOOT_COOLDOWN=90, AGENT_BULLET_SPEED=4;
-    const SPAWN_GAP=80;
+    const AGENT_BULLET_SPEED=4;
     const HIT_R=14;
+    // Admin-tunable difficulty knobs — see /admin/games/?game=elevatoraction.
+    // Same pattern as every other configurable game on the site (e.g.
+    // kaboom): explicit allowlist, only numeric values, safe no-op with no
+    // localStorage (headless tests).
+    const C={ ELEVATOR_SPEED:0.045, AGENT_SPEED:0.7, AGENT_SHOOT_COOLDOWN:90, SPAWN_GAP:80 };
+    (function(){ try{
+      const allow=["ELEVATOR_SPEED","AGENT_SPEED","AGENT_SHOOT_COOLDOWN","SPAWN_GAP"];
+      const o=JSON.parse(localStorage.getItem("elevatoraction_config")||"{}");
+      for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
+    }catch(_){} })();
 
     function totalDocs(){ return DOOR_FLOORS.length*DOOR_XS.length; }
     function agentCountFor(wave){ return Math.min(10, 3+wave*2); }
-    function agentSpeedFor(wave){ return AGENT_SPEED+Math.min(0.6,wave*0.06); }
+    function agentSpeedFor(wave){ return C.AGENT_SPEED+Math.min(0.6,wave*0.06); }
 
     function makeDoors(){
       const doors=[];
@@ -84,12 +93,12 @@
     function newGame(){
       return { wave:1, player:{x:SHAFTS[0],floor:0,py:0,riding:false,rideTarget:0,facing:1},
         bullets:[], agents:[], doors:makeDoors(), docsCollected:0,
-        spawnQueue:agentCountFor(1), spawnT:SPAWN_GAP, score:0, lives:3, inv:60,
+        spawnQueue:agentCountFor(1), spawnT:C.SPAWN_GAP, score:0, lives:3, inv:60,
         over:false, won:false, fireT:0, moveDir:0 };
     }
     function nextWave(s){
       s.wave++; s.bullets=[]; s.agents=[]; s.doors=makeDoors(); s.docsCollected=0;
-      s.spawnQueue=agentCountFor(s.wave); s.spawnT=SPAWN_GAP; s.inv=60;
+      s.spawnQueue=agentCountFor(s.wave); s.spawnT=C.SPAWN_GAP; s.inv=60;
       s.player={x:SHAFTS[0],floor:0,py:0,riding:false,rideTarget:0,facing:1};
     }
 
@@ -100,8 +109,8 @@
     function stepPlayer(s){
       const p=s.player;
       if(p.riding){
-        p.py += Math.sign(p.rideTarget-p.py)*ELEVATOR_SPEED;
-        if(Math.abs(p.rideTarget-p.py)<ELEVATOR_SPEED){ p.py=p.rideTarget; p.floor=p.rideTarget; p.riding=false; }
+        p.py += Math.sign(p.rideTarget-p.py)*C.ELEVATOR_SPEED;
+        if(Math.abs(p.rideTarget-p.py)<C.ELEVATOR_SPEED){ p.py=p.rideTarget; p.floor=p.rideTarget; p.riding=false; }
       }else{
         p.x=Math.max(10,Math.min(W-10,p.x+s.moveDir*PLAYER_SPEED));
       }
@@ -141,10 +150,10 @@
     function spawnAgents(s){
       if(s.spawnQueue<=0) return;
       if(--s.spawnT>0) return;
-      s.spawnT=SPAWN_GAP; s.spawnQueue--;
+      s.spawnT=C.SPAWN_GAP; s.spawnQueue--;
       const floor=Math.floor(Math.random()*FLOORS);
       const x=Math.random()<0.5?20:W-20;
-      s.agents.push({x,floor,dir:x<W/2?1:-1,shotT:AGENT_SHOOT_COOLDOWN+Math.random()*60});
+      s.agents.push({x,floor,dir:x<W/2?1:-1,shotT:C.AGENT_SHOOT_COOLDOWN+Math.random()*60});
     }
     // Agents walk their own floor toward the player's x when on the same
     // floor, and take occasional pot-shots when roughly lined up.
@@ -161,7 +170,7 @@
         }
         a.x=Math.max(10,Math.min(W-10,a.x));
         if(a.floor===s.player.floor && --a.shotT<=0){
-          a.shotT=AGENT_SHOOT_COOLDOWN;
+          a.shotT=C.AGENT_SHOOT_COOLDOWN;
           s.bullets.push({x:a.x,floor:a.floor,vx:Math.sign(s.player.x-a.x)*AGENT_BULLET_SPEED,life:60,owner:"agent"});
         }
         if(a.floor===s.player.floor && !s.player.riding && s.inv<=0 && Math.abs(a.x-s.player.x)<HIT_R) hit=true;
@@ -195,8 +204,12 @@
       if(s.lives<=0) s.over=true;
     }
 
+    // The admin config panel tunes C.ELEVATOR_SPEED/AGENT_SPEED/
+    // AGENT_SHOOT_COOLDOWN/SPAWN_GAP (see /admin/games/?game=elevatoraction);
+    // C is exported both nested (C) and spread flat (...C) so existing tests
+    // referencing e.g. G.ELEVATOR_SPEED keep working unchanged.
     window.__elevatoraction={ W, H, FLOORS, TOP_Y, FLOOR_H, SHAFTS, DOOR_FLOORS, DOOR_XS, EXIT_X,
-      ELEVATOR_SPEED, FIRE_COOLDOWN, SPAWN_GAP, totalDocs, agentCountFor, agentSpeedFor, makeDoors,
+      FIRE_COOLDOWN, C, ...C, totalDocs, agentCountFor, agentSpeedFor, makeDoors,
       nearestShaft, inShaft, newGame, nextWave, move, stepPlayer, ride, fire, stepBullets, collectDoors,
       spawnAgents, stepAgents, resolveHits, checkExit, waveClear, die };
     if(typeof document==="undefined") return;

@@ -943,6 +943,26 @@
   // or JS needed on the admin side.
   // =========================================================================
   const NUMERIC_CONFIGS={
+    robotron:{ storageKey:"robotron_config", sub:"Difficulty knobs — takes effect next time the game is opened.", fields:[
+      { key:"GRUNT_SPEED", label:"Grunt speed", min:0.1, max:5, def:0.7 },
+      { key:"HULK_HP", label:"Hulk hit points", min:1, max:20, def:5 },
+      { key:"HUMANS_PER_WAVE", label:"Chicks added per wave", min:1, max:10, def:5 },
+      { key:"SPAWN_GAP", label:"Enemy spawn interval (frames)", min:5, max:300, def:45 },
+      { key:"EXTRA_LIFE_AT", label:"Extra life every N points", min:1000, max:100000, def:15000 },
+    ]},
+    elevatoraction:{ storageKey:"elevatoraction_config", sub:"Difficulty knobs — takes effect next time the game is opened.", fields:[
+      { key:"ELEVATOR_SPEED", label:"Elevator speed (floors per frame)", min:0.005, max:0.3, def:0.045 },
+      { key:"AGENT_SPEED", label:"Agent base speed", min:0.1, max:5, def:0.7 },
+      { key:"AGENT_SHOOT_COOLDOWN", label:"Agent shot interval (frames)", min:10, max:300, def:90 },
+      { key:"SPAWN_GAP", label:"Agent spawn interval (frames)", min:5, max:300, def:80 },
+    ]},
+    burgertime:{ storageKey:"burgertime_config", sub:"Difficulty knobs — takes effect next time the game is opened.", fields:[
+      { key:"ENEMY_SPEED", label:"Fox base speed", min:0.1, max:5, def:0.6 },
+      { key:"SPAWN_GAP", label:"Fox spawn interval (frames)", min:5, max:300, def:90 },
+      { key:"STUN_TIME", label:"Pepper stun duration (frames)", min:10, max:600, def:150 },
+      { key:"PEPPER_PER_WAVE", label:"Pepper shakes per wave", min:0, max:10, def:3 },
+      { key:"CLIMB_SPEED", label:"Ladder climb speed (rows per frame)", min:0.01, max:0.3, def:0.05 },
+    ]},
     tempest:{ storageKey:"tempest_config", sub:"Difficulty knobs — takes effect next time the game is opened.", fields:[
       { key:"MOVE_EVERY", label:"Lane-move speed (frames per lane step — lower is faster)", min:1, max:20, def:6 },
       { key:"SHOT_SPEED", label:"Shot travel speed (rim to hub, per frame)", min:0.01, max:0.3, def:0.05 },

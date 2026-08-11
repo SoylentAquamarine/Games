@@ -61,6 +61,18 @@ chasing you.
   drop mechanic is purely offensive from the player's side. Could be
   added later for extra risk/reward.
 
+## Admin config
+
+`/admin/games/?game=burgertime` — 5 difficulty knobs registered in
+`NUMERIC_CONFIGS` (`public/admin/games/index.html`): `ENEMY_SPEED`,
+`SPAWN_GAP`, `STUN_TIME`, `PEPPER_PER_WAVE`, `CLIMB_SPEED`. Same
+pattern as every other configurable game (e.g. kaboom): pulled into a
+mutable `C` object, an IIFE reads `localStorage.burgertime_config` on
+load and overrides any matching numeric key. `window.__burgertime`
+exports `C` both nested (`.C`) and spread flat (`...C`), so
+`G.ENEMY_SPEED` and `G.C.ENEMY_SPEED` are both valid — existing tests
+keep working unchanged.
+
 ## Open / deferred
 
 Nothing reported yet — this is a new game, added from the same

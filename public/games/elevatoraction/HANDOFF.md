@@ -66,6 +66,18 @@ floor and shoot back.
   which doors are `taken`, which reads fairer for a browser game than
   losing all progress on death.
 
+## Admin config
+
+`/admin/games/?game=elevatoraction` — 4 difficulty knobs registered in
+`NUMERIC_CONFIGS` (`public/admin/games/index.html`): `ELEVATOR_SPEED`,
+`AGENT_SPEED`, `AGENT_SHOOT_COOLDOWN`, `SPAWN_GAP`. Same pattern as
+every other configurable game (e.g. kaboom): pulled into a mutable `C`
+object, an IIFE reads `localStorage.elevatoraction_config` on load and
+overrides any matching numeric key. `window.__elevatoraction` exports
+`C` both nested (`.C`) and spread flat (`...C`), so `G.AGENT_SPEED`
+and `G.C.AGENT_SPEED` are both valid — existing tests keep working
+unchanged.
+
 ## Open / deferred
 
 Nothing reported yet — this is a new game, added from the same

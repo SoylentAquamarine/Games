@@ -70,13 +70,21 @@
     // ------------------------------------------------------------ pure sim
     const PLAYER_R=10, PLAYER_SPEED=2.6;
     const BULLET_SPEED=7, BULLET_LIFE=45, FIRE_COOLDOWN=8;
-    const GRUNT_SPEED=0.7, PROG_SPEED=1.1, BRAIN_SPEED=0.8, HULK_SPEED=1.0;
-    const HULK_HP=5, HUMAN_WALK=0.4;
+    const PROG_SPEED=1.1, BRAIN_SPEED=0.8, HULK_SPEED=1.0;
+    const HUMAN_WALK=0.4;
     const RESCUE_SCORE=200, GRUNT_SCORE=100, BRAIN_SCORE=300, PROG_SCORE=150, HULK_SCORE=500;
-    const HUMANS_PER_WAVE=5, HUMAN_CAP=6;
-    const SPAWN_GAP=45;
-    const EXTRA_LIFE_AT=15000;
+    const HUMAN_CAP=6;
     const HIT_R=14;
+    // Admin-tunable difficulty knobs — see /admin/games/?game=robotron. Same
+    // pattern as every other configurable game on the site (e.g. kaboom):
+    // explicit allowlist, only numeric values, safe no-op with no
+    // localStorage (headless tests).
+    const C={ GRUNT_SPEED:0.7, HULK_HP:5, HUMANS_PER_WAVE:5, SPAWN_GAP:45, EXTRA_LIFE_AT:15000 };
+    (function(){ try{
+      const allow=["GRUNT_SPEED","HULK_HP","HUMANS_PER_WAVE","SPAWN_GAP","EXTRA_LIFE_AT"];
+      const o=JSON.parse(localStorage.getItem("robotron_config")||"{}");
+      for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
+    }catch(_){} })();
     const DIR8={1:[-1,1],2:[0,1],3:[1,1],4:[-1,0],6:[1,0],7:[-1,-1],8:[0,-1],9:[1,-1]};
 
     function norm(dx,dy){ const m=Math.hypot(dx,dy); return m===0?[0,0]:[dx/m,dy/m]; }
@@ -88,15 +96,15 @@
     function newHuman(){ return { x:20+Math.random()*(W-40), y:20+Math.random()*(H-40), walkDir:Math.random()*Math.PI*2 }; }
     function newGame(){
       return { wave:1, player:{x:W/2,y:H/2}, moveDir:[0,0], fireDir:[0,0], fireT:0,
-        bullets:[], grunts:[], hulks:[], brains:[], progs:[], humans:Array.from({length:HUMANS_PER_WAVE},newHuman),
-        grantQueue:grantCountFor(1), hulkQueue:hulkCountFor(1), brainQueue:brainCountFor(1), spawnT:SPAWN_GAP,
-        score:0, lives:3, inv:60, over:false, nextExtraLife:EXTRA_LIFE_AT };
+        bullets:[], grunts:[], hulks:[], brains:[], progs:[], humans:Array.from({length:C.HUMANS_PER_WAVE},newHuman),
+        grantQueue:grantCountFor(1), hulkQueue:hulkCountFor(1), brainQueue:brainCountFor(1), spawnT:C.SPAWN_GAP,
+        score:0, lives:3, inv:60, over:false, nextExtraLife:C.EXTRA_LIFE_AT };
     }
     function nextWave(s){
       s.wave++; s.bullets=[]; s.grunts=[]; s.hulks=[]; s.brains=[]; s.progs=[];
       s.grantQueue=grantCountFor(s.wave); s.hulkQueue=hulkCountFor(s.wave); s.brainQueue=brainCountFor(s.wave);
-      s.spawnT=SPAWN_GAP; s.inv=60;
-      while(s.humans.length<Math.min(HUMAN_CAP,HUMANS_PER_WAVE)) s.humans.push(newHuman());
+      s.spawnT=C.SPAWN_GAP; s.inv=60;
+      while(s.humans.length<Math.min(HUMAN_CAP,C.HUMANS_PER_WAVE)) s.humans.push(newHuman());
     }
     function edgeSpawnPoint(){
       const side=Math.floor(Math.random()*4);
@@ -107,9 +115,9 @@
     }
     function spawnWave(s){
       if(--s.spawnT>0) return;
-      s.spawnT=SPAWN_GAP;
+      s.spawnT=C.SPAWN_GAP;
       if(s.grantQueue>0){ s.grantQueue--; s.grunts.push({...edgeSpawnPoint()}); return; }
-      if(s.hulkQueue>0){ s.hulkQueue--; const p=edgeSpawnPoint(); s.hulks.push({...p,hp:HULK_HP,dir:norm(Math.random()-0.5,Math.random()-0.5)}); return; }
+      if(s.hulkQueue>0){ s.hulkQueue--; const p=edgeSpawnPoint(); s.hulks.push({...p,hp:C.HULK_HP,dir:norm(Math.random()-0.5,Math.random()-0.5)}); return; }
       if(s.brainQueue>0){ s.brainQueue--; s.brains.push({...edgeSpawnPoint()}); return; }
     }
 
@@ -138,7 +146,7 @@
     // Returns true if any enemy made contact with the player (and inv<=0).
     function stepEnemies(s){
       let hit=false;
-      for(const g of s.grunts){ homeToward(g,s.player,GRUNT_SPEED); }
+      for(const g of s.grunts){ homeToward(g,s.player,C.GRUNT_SPEED); }
       for(const p of s.progs){ homeToward(p,s.player,PROG_SPEED); }
       for(const h of s.hulks){
         h.x+=h.dir[0]*HULK_SPEED; h.y+=h.dir[1]*HULK_SPEED;
@@ -205,7 +213,7 @@
       s.score+=gained;
       // score only ever increases via `gained` above, so this can only newly
       // become true in the same call that earned the points that crossed it.
-      if(gained>0 && s.score>=s.nextExtraLife){ s.lives++; s.nextExtraLife+=EXTRA_LIFE_AT; }
+      if(gained>0 && s.score>=s.nextExtraLife){ s.lives++; s.nextExtraLife+=C.EXTRA_LIFE_AT; }
       return gained;
     }
     function waveClear(s){ return s.grantQueue<=0 && s.hulkQueue<=0 && s.brainQueue<=0 &&
@@ -216,9 +224,13 @@
       if(s.lives<=0) s.over=true;
     }
 
-    window.__robotron={ W, H, PLAYER_R, PLAYER_SPEED, BULLET_SPEED, FIRE_COOLDOWN, GRUNT_SPEED, PROG_SPEED,
-      BRAIN_SPEED, HULK_SPEED, HULK_HP, HUMANS_PER_WAVE, HUMAN_CAP, RESCUE_SCORE, GRUNT_SCORE, HULK_SCORE,
-      EXTRA_LIFE_AT, DIR8, norm, clampArena, grantCountFor, hulkCountFor, brainCountFor, newHuman, newGame,
+    // The admin config panel tunes C.GRUNT_SPEED/HULK_HP/HUMANS_PER_WAVE/
+    // SPAWN_GAP/EXTRA_LIFE_AT (see /admin/games/?game=robotron); C is
+    // exported both nested (C) and spread flat (...C) so existing tests
+    // referencing e.g. G.GRUNT_SPEED keep working unchanged.
+    window.__robotron={ W, H, PLAYER_R, PLAYER_SPEED, BULLET_SPEED, FIRE_COOLDOWN, PROG_SPEED,
+      BRAIN_SPEED, HULK_SPEED, HUMAN_CAP, RESCUE_SCORE, GRUNT_SCORE, HULK_SCORE, C, ...C,
+      DIR8, norm, clampArena, grantCountFor, hulkCountFor, brainCountFor, newHuman, newGame,
       nextWave, spawnWave, setMove, setFire, stepPlayer, fire, stepBullets, stepEnemies, stepHumans,
       resolveRescues, resolveHits, waveClear, die };
     if(typeof document==="undefined") return;

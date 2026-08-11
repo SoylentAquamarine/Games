@@ -64,16 +64,25 @@
     const TOP_Y=40, ROW_H=80;
     const COLS=[110,280,450];              // each column is both a ladder AND a burger lane
     const COL_CATCH=18;
-    const CLIMB_SPEED=0.05, PLAYER_SPEED=2.2;
+    const PLAYER_SPEED=2.2;
     const DROP_REACH=20;
     const PIECES=["bun_top","patty","cheese","bun_bottom"];
-    const STUN_TIME=150, PEPPER_REACH=90, PEPPER_PER_WAVE=3;
+    const PEPPER_REACH=90;
     const SQUASH_SCORE=250, DELIVER_SCORE=100;
-    const ENEMY_SPEED=0.6, SPAWN_GAP=90;
+    // Admin-tunable difficulty knobs — see /admin/games/?game=burgertime.
+    // Same pattern as every other configurable game on the site (e.g.
+    // kaboom): explicit allowlist, only numeric values, safe no-op with no
+    // localStorage (headless tests).
+    const C={ ENEMY_SPEED:0.6, SPAWN_GAP:90, STUN_TIME:150, PEPPER_PER_WAVE:3, CLIMB_SPEED:0.05 };
+    (function(){ try{
+      const allow=["ENEMY_SPEED","SPAWN_GAP","STUN_TIME","PEPPER_PER_WAVE","CLIMB_SPEED"];
+      const o=JSON.parse(localStorage.getItem("burgertime_config")||"{}");
+      for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
+    }catch(_){} })();
     const HIT_R=16;
 
     function enemyCountFor(wave){ return Math.min(8, 2+wave*2); }
-    function enemySpeedFor(wave){ return ENEMY_SPEED+Math.min(0.5,wave*0.05); }
+    function enemySpeedFor(wave){ return C.ENEMY_SPEED+Math.min(0.5,wave*0.05); }
     function nearestCol(x){ let best=COLS[0],bd=Infinity; for(const c of COLS){ const d=Math.abs(c-x); if(d<bd){bd=d;best=c;} } return best; }
     function atCol(x){ return Math.abs(x-nearestCol(x))<=COL_CATCH; }
 
@@ -87,12 +96,12 @@
 
     function newGame(){
       return { wave:1, player:{x:COLS[0],py:0,row:0,climbing:false,facing:1},
-        moveDir:0, climbDir:0, lanes:makeLanes(), enemies:[], spawnQueue:enemyCountFor(1), spawnT:SPAWN_GAP,
-        pepper:PEPPER_PER_WAVE, score:0, lives:3, inv:60, over:false };
+        moveDir:0, climbDir:0, lanes:makeLanes(), enemies:[], spawnQueue:enemyCountFor(1), spawnT:C.SPAWN_GAP,
+        pepper:C.PEPPER_PER_WAVE, score:0, lives:3, inv:60, over:false };
     }
     function nextWave(s){
-      s.wave++; s.lanes=makeLanes(); s.enemies=[]; s.pepper=PEPPER_PER_WAVE;
-      s.spawnQueue=enemyCountFor(s.wave); s.spawnT=SPAWN_GAP; s.inv=60;
+      s.wave++; s.lanes=makeLanes(); s.enemies=[]; s.pepper=C.PEPPER_PER_WAVE;
+      s.spawnQueue=enemyCountFor(s.wave); s.spawnT=C.SPAWN_GAP; s.inv=60;
       s.player={x:COLS[0],py:0,row:0,climbing:false,facing:1};
     }
 
@@ -102,7 +111,7 @@
       const p=s.player;
       if(s.climbDir!==0 && atCol(p.x)){
         p.climbing=true;
-        p.py=Math.max(0,Math.min(ROWS-1,p.py+s.climbDir*CLIMB_SPEED));
+        p.py=Math.max(0,Math.min(ROWS-1,p.py+s.climbDir*C.CLIMB_SPEED));
       }else{
         p.climbing=false;
         p.py=Math.round(p.py);
@@ -141,7 +150,7 @@
     function spawnEnemies(s){
       if(s.spawnQueue<=0) return;
       if(--s.spawnT>0) return;
-      s.spawnT=SPAWN_GAP; s.spawnQueue--;
+      s.spawnT=C.SPAWN_GAP; s.spawnQueue--;
       s.enemies.push({ x:Math.random()<0.5?20:W-20, py:0, row:0, dir:1, climbDir:0, stunT:0 });
     }
     function stepEnemies(s){
@@ -153,7 +162,7 @@
           e.climbDir = e.row<s.player.row ? 1 : -1;
         }
         if(e.climbDir!==0 && atCol(e.x)){
-          e.py=Math.max(0,Math.min(ROWS-1,e.py+e.climbDir*CLIMB_SPEED*0.9));
+          e.py=Math.max(0,Math.min(ROWS-1,e.py+e.climbDir*C.CLIMB_SPEED*0.9));
           if(e.py<=0||e.py>=ROWS-1||Math.round(e.py)===s.player.row) e.climbDir=0;
         }else{
           e.dir = Math.sign(s.player.x-e.x)||e.dir;
@@ -170,7 +179,7 @@
       let stunned=0;
       for(const e of s.enemies){
         if(e.row===s.player.row && !e.stunT && Math.sign(e.x-s.player.x)===s.player.facing && Math.abs(e.x-s.player.x)<PEPPER_REACH){
-          e.stunT=STUN_TIME; stunned++;
+          e.stunT=C.STUN_TIME; stunned++;
         }
       }
       return stunned;
@@ -182,8 +191,12 @@
       if(s.lives<=0) s.over=true;
     }
 
-    window.__burgertime={ W, H, ROWS, TOP_Y, ROW_H, COLS, COL_CATCH, CLIMB_SPEED, DROP_REACH, PIECES,
-      STUN_TIME, PEPPER_REACH, PEPPER_PER_WAVE, SQUASH_SCORE, DELIVER_SCORE, SPAWN_GAP, enemyCountFor,
+    // The admin config panel tunes C.ENEMY_SPEED/SPAWN_GAP/STUN_TIME/
+    // PEPPER_PER_WAVE/CLIMB_SPEED (see /admin/games/?game=burgertime); C is
+    // exported both nested (C) and spread flat (...C) so existing tests
+    // referencing e.g. G.ENEMY_SPEED keep working unchanged.
+    window.__burgertime={ W, H, ROWS, TOP_Y, ROW_H, COLS, COL_CATCH, DROP_REACH, PIECES,
+      PEPPER_REACH, SQUASH_SCORE, DELIVER_SCORE, C, ...C, enemyCountFor,
       enemySpeedFor, nearestCol, atCol, makeLanes, allDelivered, newGame, nextWave, move, climb, stepPlayer,
       stepOnIngredients, spawnEnemies, stepEnemies, shakePepper, waveClear, die };
     if(typeof document==="undefined") return;
