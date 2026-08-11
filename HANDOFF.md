@@ -207,7 +207,7 @@ bug.
 
 ## 6. Game catalog (home page categories)
 
-- **Arcade & Action:** Snake, Pac-Man, Space Invaders, Asteroids, Breakout, Frogger, Flappy, Doodle Jump, Stack, Pong, Tron, Whack-a-Mole, Quest (Zelda-style), Adventure (Atari-2600-style: rooms/dragons/keys/castles/chalice), Bubble Shooter, Tempest (16-lane vector tube shooter — see `games/tempest/HANDOFF.md`)
+- **Arcade & Action:** Snake, Pac-Man, Space Invaders, Asteroids, Breakout, Frogger, Flappy, Doodle Jump, Stack, Pong, Tron, Whack-a-Mole, Quest (Zelda-style), Adventure (Atari-2600-style: rooms/dragons/keys/castles/chalice), Bubble Shooter, Tempest (16-lane vector tube shooter — see `games/tempest/HANDOFF.md`), Defender (wraparound scroller with a radar — see `games/defender/HANDOFF.md`)
 - **Puzzle & Merge:** 2048, Threes, Fibonacci, Drop Merge, 15 Puzzle, Tetris, Candy Match, Minesweeper, Sudoku, Lights Out, Flood It, Memory Match, Tower of Hanoi, Sokoban, Nonogram, Maze
 - **Strategy & Classics:** Tic-Tac-Toe, Ultimate T-T-T, Connect Four, Gomoku, Reversi, Checkers, Dots & Boxes, Battleship, War of the Ring (Stratego/LOTR), Mastermind, Simon, Mancala
 - **Word:** Word Guess (Wordle-like), Hangman, Word Search
