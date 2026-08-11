@@ -117,6 +117,29 @@
     .ubtn:hover{border-color:var(--accent)}
     .uswatch{width:34px;height:34px;border-radius:8px;border:2px solid #fff;cursor:pointer}
     .ulog{font-size:.8rem;color:var(--muted);min-height:1em;text-align:center}
+    /* Chickenopoly: a 9x9 ring of the 28 spaces around a center status panel */
+    .copplayers{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;width:100%;max-width:520px}
+    .copseat{background:var(--panel);border:2px solid rgba(255,255,255,.08);border-radius:10px;padding:6px 4px;text-align:center;font-size:.72rem}
+    .copseat.turn{box-shadow:0 0 0 2px var(--good)}
+    .copseat.bankrupt{opacity:.35;text-decoration:line-through}
+    .copseat .nm{font-weight:800;font-size:.78rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .copseat .cash{color:#a7f3d0;font-weight:700}
+    .copseat .jail{color:#fca5a5}
+    .cop{display:grid;grid-template-columns:repeat(9,minmax(26px,1fr));grid-template-rows:repeat(9,minmax(26px,1fr));gap:2px;width:100%;max-width:520px;aspect-ratio:1;background:#141730;border-radius:12px;padding:4px}
+    .coptile{position:relative;background:#1e2140;border-radius:4px;font-size:.5rem;line-height:1.05;display:flex;flex-direction:column;justify-content:flex-end;padding:2px;overflow:hidden;border-top:4px solid transparent}
+    .coptile.corner{background:#252a4d;font-size:.55rem;justify-content:center;align-items:center;text-align:center;font-weight:800}
+    .coptile .own{position:absolute;top:1px;right:2px;font-size:.55rem}
+    .coptile .houses{position:absolute;top:1px;left:2px;font-size:.5rem;color:#fde68a}
+    .coptokens{position:absolute;bottom:1px;left:1px;display:flex;gap:1px;flex-wrap:wrap}
+    .coptok{width:11px;height:11px;border-radius:50%;font-size:.5rem;display:flex;align-items:center;justify-content:center;font-weight:900;color:#0b0c1a;border:1px solid rgba(0,0,0,.4)}
+    .copcenter{grid-row:2/9;grid-column:2/9;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;text-align:center;padding:6px}
+    .copdice{font-size:1.6rem;font-weight:800}
+    .coperr{color:#fca5a5;font-size:.8rem;min-height:1.1em}
+    .copactions{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+    .coppanel{background:#1a1d38;border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:10px;width:100%;max-width:340px;font-size:.82rem;display:flex;flex-direction:column;gap:8px}
+    .coppanel label{display:flex;align-items:center;gap:6px;font-size:.78rem}
+    .coppanel select,.coppanel input[type=number]{background:#0f1224;color:var(--text);border:1px solid rgba(255,255,255,.14);border-radius:6px;padding:4px 6px;font-size:.8rem}
+    .copprops{display:flex;flex-direction:column;gap:2px;max-height:110px;overflow:auto}
     svg{width:100%;height:auto;display:block}
     .dscore{display:flex;justify-content:space-between;width:100%;max-width:320px;font-weight:700;font-size:.9rem}
     .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:10px 22px;border-radius:999px;cursor:pointer}
@@ -139,6 +162,52 @@
     const id=new URLSearchParams(location.search).get("id");
     const DIRS8=[[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
     let me=null,mySym=null,match=null,ver=-1,timer;
+    let copErr="",copBuildOpen=false,copTradeOpen=false,copTradeTo="";
+
+    // --- Chickenopoly: client-side mirror of the server's board layout ------
+    // (display only — all rules/rent/house math live server-side in
+    // src/index.js's CO_* engine; this just needs names/prices/groups to draw
+    // the board and build move payloads).
+    const COP_SEATS=["A","B","C","D"];
+    const COP_COLORS={A:"#22d3ee",B:"#f43f5e",C:"#facc15",D:"#34d399"};
+    const COP_SPACES=[
+      {type:"corner",name:"GO"},
+      {type:"property",name:"Henhouse Ave",price:60,group:"brown"},
+      {type:"chest",name:"Community Chest"},
+      {type:"property",name:"Coop Court",price:60,group:"brown"},
+      {type:"tax",name:"Income Tax"},
+      {type:"railroad",name:"Yolk Line RR",price:200},
+      {type:"property",name:"Barnyard Blvd",price:100,group:"blue"},
+      {type:"corner",name:"Jail"},
+      {type:"property",name:"Pecking Path",price:100,group:"blue"},
+      {type:"chance",name:"Chance"},
+      {type:"property",name:"Roost Row",price:120,group:"blue"},
+      {type:"property",name:"Feather Ln",price:140,group:"pink"},
+      {type:"utility",name:"Feed Co.",price:150},
+      {type:"property",name:"Cluck St",price:140,group:"pink"},
+      {type:"corner",name:"Free Parking"},
+      {type:"property",name:"Scratch Ave",price:180,group:"orange"},
+      {type:"chest",name:"Community Chest"},
+      {type:"property",name:"Peck Place",price:180,group:"orange"},
+      {type:"railroad",name:"Cluck Central RR",price:200},
+      {type:"property",name:"Comb Court",price:220,group:"red"},
+      {type:"property",name:"Wattle Way",price:220,group:"red"},
+      {type:"corner",name:"Go To Jail"},
+      {type:"property",name:"Egg St",price:260,group:"yellow"},
+      {type:"chance",name:"Chance"},
+      {type:"property",name:"Yolk Yard",price:260,group:"yellow"},
+      {type:"railroad",name:"Rooster Express RR",price:200},
+      {type:"property",name:"Golden Egg Dr",price:300,group:"green"},
+      {type:"property",name:"Nest Egg Ave",price:320,group:"green"},
+    ];
+    const COP_GROUP_COLOR={brown:"#8b5a2b",blue:"#7fb0e0",pink:"#e08ac0",orange:"#f0902a",red:"#e0533e",yellow:"#f4d03f",green:"#4caf50"};
+    // Maps a board index (0-27) to a [row,col] cell in the 9x9 CSS grid ring —
+    // corners at 0/7/14/21, matching CO_SPACES' own "7 spaces/side" layout.
+    function copTileRC(i){
+      if(i===0)return[9,9]; if(i>=1&&i<=6)return[9,9-i]; if(i===7)return[9,1];
+      if(i>=8&&i<=13)return[9-(i-7),1]; if(i===14)return[1,1]; if(i>=15&&i<=20)return[1,i-13];
+      if(i===21)return[1,9]; return[i-20,9]; // 22-27
+    }
     async function jget(u){const r=await fetch(u);return r.json();}
     async function jpost(u,b){const r=await fetch(u,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(b||{})});return r.json();}
     function esc(s){const d=document.createElement("div");d.textContent=s;return d.innerHTML;}
@@ -147,13 +216,15 @@
     async function init(){const meRes=await jget("/api/me");if(!meRes.loggedIn){location.href="/account/";return;}me=meRes.user.username;poll();timer=setInterval(poll,1200);}
     async function poll(){let d;try{d=await jget("/api/mp/match?id="+encodeURIComponent(id));}catch(e){return;}
       if(!d.ok){$("status").textContent="Match not found.";$("back").classList.remove("hidden");clearInterval(timer);return;}
-      match=d.match;mySym=eqi(match.players.X,me)?"X":(eqi(match.players.O,me)?"O":null);
+      match=d.match;mySym=null;for(const seat in match.players)if(eqi(match.players[seat],me))mySym=seat;
       if(match.version!==ver){ver=match.version;render();}}
     async function move(m){const r=await jpost("/api/mp/move",{id,move:m});if(r.ok){match=r.match;ver=match.version;render();}else if(r.error==="not_your_turn")poll();}
 
     function render(){
       $("title").textContent=match.gameName||"Match";
       const over=match.winner||match.draw;const myTurn=!over&&match.turn===mySym;
+      $("c4btns").classList.add("hidden");$("dscore").classList.add("hidden");
+      if(match.game==="chickenopoly"){ renderChickenopolyBar(over); renderChickenopoly(myTurn); return; }
       $("players").innerHTML=
         `<div class="pl x ${!over&&match.turn==="X"?"turn":""}"><div class="sym">✕ ${mySym==="X"?"(you)":""}</div>${esc(match.players.X)}</div>`+
         `<div class="pl o ${!over&&match.turn==="O"?"turn":""}"><div class="sym">◯ ${mySym==="O"?"(you)":""}</div>${esc(match.players.O)}</div>`;
@@ -161,7 +232,6 @@
       else if(match.draw)$("status").textContent="🤝 It's a draw.";
       else $("status").textContent=myTurn?"Your move.":"Waiting for "+esc(match.players[match.turn])+"…";
       $("back").classList.toggle("hidden",!over);
-      $("c4btns").classList.add("hidden");$("dscore").classList.add("hidden");
       ({ttt:renderTTT,c4:renderC4,gomoku:renderGomoku,reversi:renderReversi,uttt:renderUTTT,dots:renderDots,checkers:renderCheckers,wild:renderUno,mancala:renderMancala,ships:renderShips}[match.game]||(()=>{}))(myTurn);
     }
     function renderTTT(myTurn){const b=$("board");b.className="ttt";b.innerHTML="";
@@ -343,6 +413,139 @@
           const n=document.createElement("span");n.style.cssText="color:var(--muted);font-size:.85rem";n.textContent="Play the drawn card or pass";act.appendChild(n);}
       }
       wrap.appendChild(act);b.appendChild(wrap);}
+
+    // -------------------------------------------------------- Chickenopoly
+    async function copMove(m){copErr="";const r=await jpost("/api/mp/move",{id,move:m});
+      if(r.ok){match=r.match;ver=match.version;copBuildOpen=false;copTradeOpen=false;render();}
+      else{copErr=r.error==="illegal"?"That move isn't allowed right now.":r.error==="not_your_turn"?"Not your turn.":"Something went wrong.";renderChickenopoly(!match.winner&&!match.draw&&match.turn===mySym);}}
+    function renderChickenopolyBar(over){
+      const st=match.state;
+      $("players").innerHTML="";$("players").className="copplayers";
+      const wrap=$("players");
+      COP_SEATS.forEach((seat,pi)=>{
+        const nm=match.players[seat];if(nm===undefined)return;
+        const p=st.players[pi];
+        const div=document.createElement("div");
+        div.className="copseat"+(!over&&match.turn===seat?" turn":"")+(p.bankrupt?" bankrupt":"");
+        div.style.borderColor=COP_COLORS[seat];
+        div.innerHTML=`<div class="nm">${seat==="A"?"":""}${esc(nm)}${seat===mySym?" (you)":""}</div><div class="cash">$${p.cash}</div>`+
+          (p.inJail?`<div class="jail">🔒 Jail</div>`:"")+(p.bankrupt?`<div class="jail">Bankrupt</div>`:"");
+        wrap.appendChild(div);
+      });
+      if(match.winner)$("status").textContent=match.winner===mySym?"🏆 You win!":"😔 "+esc(match.players[match.winner])+" wins.";
+      else if(match.draw)$("status").textContent="🤝 It's a draw (turn limit reached, tied net worth).";
+      else if(st.pendingBuy&&st.pendingBuy.pi===COP_SEATS.indexOf(mySym))$("status").textContent="Buy "+COP_SPACES[st.pendingBuy.idx].name+" for $"+COP_SPACES[st.pendingBuy.idx].price+"?";
+      else if(st.pendingBuy)$("status").textContent="Waiting for "+esc(match.players[COP_SEATS[st.pendingBuy.pi]])+" to decide on "+COP_SPACES[st.pendingBuy.idx].name+"…";
+      else $("status").textContent=match.turn===mySym?"Your turn — roll!":"Waiting for "+esc(match.players[match.turn])+"…";
+      $("back").classList.toggle("hidden",!over);
+    }
+    function renderChickenopoly(myTurn){
+      const st=match.state,b=$("board");b.className="cop";b.innerHTML="";
+      const myPi=COP_SEATS.indexOf(mySym);
+      for(let i=0;i<28;i++){
+        const sp=COP_SPACES[i],[row,col]=copTileRC(i);
+        const t=document.createElement("div");
+        t.className="coptile"+(sp.type==="corner"?" corner":"");
+        t.style.gridRow=row;t.style.gridColumn=col;
+        if(sp.group)t.style.borderTopColor=COP_GROUP_COLOR[sp.group];
+        const owner=st.houses?COP_SEATS.map((s,pi)=>st.players[pi].props.includes(i)?pi:-1).find(pi=>pi>=0):undefined;
+        let html=`<div>${esc(sp.name)}</div>`+(sp.price?`<div>$${sp.price}</div>`:"");
+        if(owner!==undefined&&owner>=0)html=`<div class="own">${COP_SEATS[owner]}</div>`+html;
+        if(st.houses&&st.houses[i]>0)html=`<div class="houses">${st.houses[i]===5?"🏨":"🏠".repeat(st.houses[i])}</div>`+html;
+        const here=st.players.map((p,pi)=>p.pos===i&&!p.bankrupt?pi:-1).filter(pi=>pi>=0);
+        if(here.length)html+=`<div class="coptokens">${here.map(pi=>`<span class="coptok" style="background:${COP_COLORS[COP_SEATS[pi]]}">${COP_SEATS[pi]}</span>`).join("")}</div>`;
+        t.innerHTML=html;
+        b.appendChild(t);
+      }
+      const center=document.createElement("div");center.className="copcenter";
+      const lr=st.lastRoll;
+      let diceTxt="🎲";
+      if(lr&&lr.roll)diceTxt=lr.roll.a+" + "+lr.roll.b+" = "+lr.roll.total;
+      center.innerHTML=`<div class="copdice">${diceTxt}</div><div class="coperr">${esc(copErr)}</div>`;
+      const actions=document.createElement("div");actions.className="copactions";
+      const myTurnIdx=COP_SEATS.indexOf(match.turn);
+      if(myTurn&&st.pendingBuy&&st.pendingBuy.pi===myPi){
+        const buy=document.createElement("button");buy.className="btn";buy.textContent="Buy $"+COP_SPACES[st.pendingBuy.idx].price;buy.onclick=()=>copMove({type:"buy"});
+        const pass=document.createElement("button");pass.className="btn ghost";pass.textContent="Pass";pass.onclick=()=>copMove({type:"pass"});
+        actions.appendChild(buy);actions.appendChild(pass);
+      }else if(myTurn&&!st.pendingBuy&&!match.winner&&!match.draw){
+        const roll=document.createElement("button");roll.className="btn";roll.textContent=st.players[myPi].inJail?"Roll (in Jail)":"🎲 Roll";roll.onclick=()=>copMove({type:"roll"});
+        actions.appendChild(roll);
+      }
+      if(!match.winner&&!match.draw&&myPi>=0&&!st.players[myPi].bankrupt){
+        const build=document.createElement("button");build.className="btn ghost";build.textContent="Build";build.onclick=()=>{copBuildOpen=!copBuildOpen;copTradeOpen=false;renderChickenopoly(myTurn);};
+        actions.appendChild(build);
+        if(!st.pendingTrade){
+          const trade=document.createElement("button");trade.className="btn ghost";trade.textContent="Trade";trade.onclick=()=>{copTradeOpen=!copTradeOpen;copBuildOpen=false;renderChickenopoly(myTurn);};
+          actions.appendChild(trade);
+        }
+      }
+      center.appendChild(actions);
+
+      if(st.pendingTrade){
+        const pt=st.pendingTrade,fromNm=esc(match.players[COP_SEATS[pt.from]]),toNm=esc(match.players[COP_SEATS[pt.to]]);
+        const panel=document.createElement("div");panel.className="coppanel";
+        const desc=(pt.offer.giveProps.map(i=>COP_SPACES[i].name).concat(pt.offer.giveCash?["$"+pt.offer.giveCash]:[]).join(", ")||"nothing")+
+          " → for → "+(pt.offer.takeProps.map(i=>COP_SPACES[i].name).concat(pt.offer.takeCash?["$"+pt.offer.takeCash]:[]).join(", ")||"nothing");
+        panel.innerHTML=`<div><b>${fromNm}</b> offers <b>${toNm}</b>:</div><div>${desc}</div>`;
+        if(pt.to===myPi){
+          const acc=document.createElement("button");acc.className="btn";acc.textContent="Accept";acc.onclick=()=>copMove({type:"trade_accept"});
+          const rej=document.createElement("button");rej.className="btn ghost";rej.textContent="Reject";rej.onclick=()=>copMove({type:"trade_reject"});
+          panel.appendChild(acc);panel.appendChild(rej);
+        }else if(pt.from===myPi){
+          const cancel=document.createElement("button");cancel.className="btn ghost";cancel.textContent="Cancel offer";cancel.onclick=()=>copMove({type:"trade_reject"});
+          panel.appendChild(cancel);
+        }
+        center.appendChild(panel);
+      }
+
+      if(copBuildOpen){
+        const panel=document.createElement("div");panel.className="coppanel";
+        const mine=st.players[myPi].props.filter(i=>COP_SPACES[i].type==="property");
+        if(!mine.length)panel.innerHTML="<div>You don't own any properties yet.</div>";
+        else{
+          panel.innerHTML="<div>Build a house (needs the full color set, built evenly):</div>";
+          const list=document.createElement("div");list.className="copprops";
+          mine.forEach(i=>{const row=document.createElement("label");
+            const houses=st.houses[i];
+            row.innerHTML=`<span style="flex:1">${esc(COP_SPACES[i].name)} — ${houses===5?"Hotel":houses+" house"+(houses===1?"":"s")}</span>`;
+            const btn=document.createElement("button");btn.className="btn ghost";btn.textContent="Build";btn.disabled=houses>=5;
+            btn.onclick=()=>copMove({type:"build",idx:i});row.appendChild(btn);list.appendChild(row);});
+          panel.appendChild(list);
+        }
+        center.appendChild(panel);
+      }
+
+      if(copTradeOpen){
+        const panel=document.createElement("div");panel.className="coppanel";
+        const others=COP_SEATS.filter((s,pi)=>pi!==myPi&&match.players[s]!==undefined&&!st.players[pi].bankrupt);
+        if(!copTradeTo||!others.includes(copTradeTo))copTradeTo=others[0]||"";
+        const toPi=COP_SEATS.indexOf(copTradeTo);
+        panel.innerHTML="<div>Propose a trade:</div>";
+        const sel=document.createElement("select");others.forEach(s=>{const o=document.createElement("option");o.value=s;o.textContent=esc(match.players[s]);if(s===copTradeTo)o.selected=true;sel.appendChild(o);});
+        sel.onchange=()=>{copTradeTo=sel.value;renderChickenopoly(myTurn);};
+        panel.appendChild(sel);
+        const giveCash=document.createElement("label");giveCash.innerHTML="You give cash: ";const giveCashIn=document.createElement("input");giveCashIn.type="number";giveCashIn.min="0";giveCashIn.value="0";giveCashIn.style.width="70px";giveCash.appendChild(giveCashIn);panel.appendChild(giveCash);
+        const takeCash=document.createElement("label");takeCash.innerHTML="You get cash: ";const takeCashIn=document.createElement("input");takeCashIn.type="number";takeCashIn.min="0";takeCashIn.value="0";takeCashIn.style.width="70px";takeCash.appendChild(takeCashIn);panel.appendChild(takeCash);
+        const giveWrap=document.createElement("div");giveWrap.innerHTML="<div>Your properties to give:</div>";
+        const giveList=document.createElement("div");giveList.className="copprops";const giveChecks=[];
+        st.players[myPi].props.forEach(i=>{const lbl=document.createElement("label");const cb=document.createElement("input");cb.type="checkbox";cb.value=i;giveChecks.push(cb);lbl.appendChild(cb);lbl.appendChild(document.createTextNode(" "+COP_SPACES[i].name));giveList.appendChild(lbl);});
+        giveWrap.appendChild(giveList);panel.appendChild(giveWrap);
+        const takeWrap=document.createElement("div");takeWrap.innerHTML="<div>Their properties you want:</div>";
+        const takeList=document.createElement("div");takeList.className="copprops";const takeChecks=[];
+        (toPi>=0?st.players[toPi].props:[]).forEach(i=>{const lbl=document.createElement("label");const cb=document.createElement("input");cb.type="checkbox";cb.value=i;takeChecks.push(cb);lbl.appendChild(cb);lbl.appendChild(document.createTextNode(" "+COP_SPACES[i].name));takeList.appendChild(lbl);});
+        takeWrap.appendChild(takeList);panel.appendChild(takeWrap);
+        const send=document.createElement("button");send.className="btn";send.textContent="Send Offer";
+        send.onclick=()=>copMove({type:"trade_offer",to:copTradeTo,offer:{
+          giveProps:giveChecks.filter(c=>c.checked).map(c=>+c.value),giveCash:+giveCashIn.value||0,
+          takeProps:takeChecks.filter(c=>c.checked).map(c=>+c.value),takeCash:+takeCashIn.value||0}});
+        panel.appendChild(send);
+        center.appendChild(panel);
+      }
+
+      b.appendChild(center);
+    }
+
     if(!id)$("status").textContent="No match specified.";else init();
   })();
   </script>

@@ -27,6 +27,11 @@
     .p .st{font-size:.72rem;color:var(--muted)}
     .row{display:flex;gap:6px;align-items:center}
     select{background:#1a1d38;color:var(--text);border:1px solid rgba(255,255,255,.14);border-radius:8px;padding:6px 8px;font-size:.82rem}
+    .gamepick{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+    .gamepick .need{font-size:.78rem;color:var(--muted)}
+    .p input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent);cursor:pointer}
+    .p.pickable{cursor:pointer}
+    .challengebar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px}
     .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:8px 14px;border-radius:999px;cursor:pointer;font-size:.82rem}
     .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,.18);color:var(--text)}
     .btn:disabled{opacity:.4;cursor:default}
@@ -59,8 +64,16 @@
 
       <div class="card">
         <h2>Players online <span class="me" id="meLine"></span></h2>
+        <div class="gamepick">
+          <span class="row"><label for="gameSel" class="muted">Game:</label> <select id="gameSel"></select></span>
+          <span class="need" id="needLine"></span>
+        </div>
         <div class="plist" id="players"><div class="muted">Looking for players…</div></div>
-        <p class="muted" style="margin-top:12px">Open this page on another device (or share it with a friend) and log into a second account to play each other. Challenges appear here in real time.</p>
+        <div class="challengebar hidden" id="challengeBar">
+          <span class="muted" id="pickCount"></span>
+          <button class="btn" id="sendChallenge" disabled>Challenge</button>
+        </div>
+        <p class="muted" style="margin-top:12px">Open this page on another device (or share it with a friend) and log into a second account to play each other. Games with more than 2 seats (like Chickenopoly) need you to pick enough players before challenging. Challenges appear here in real time.</p>
       </div>
     </div>
   </div>
@@ -68,7 +81,7 @@
   <script>
   (function(){
     const $=(id)=>document.getElementById(id);
-    let me=null, games={}, pollTimer, pingTimer;
+    let me=null, games={}, seatCounts={}, lastPlayers=[], picked=new Set(), pollTimer, pingTimer;
     async function jget(u){const r=await fetch(u);return r.json();}
     async function jpost(u,b){const r=await fetch(u,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(b||{})});return r.json();}
 
@@ -76,38 +89,74 @@
       const meRes=await jget("/api/me");
       if(!meRes.loggedIn){$("needlogin").classList.remove("hidden");return;}
       me=meRes.user.username;$("lobby").classList.remove("hidden");$("meLine").textContent="(you are "+me+")";
+      $("gameSel").addEventListener("change",()=>{picked.clear();renderPlayers(lastPlayers);});
+      $("sendChallenge").addEventListener("click",sendChallenge);
       ping();pingTimer=setInterval(ping,4000);
       poll();pollTimer=setInterval(poll,3000);
     }
     async function ping(){try{await jpost("/api/mp/ping");}catch(e){}}
     async function poll(){
       let d;try{d=await jget("/api/mp/lobby");}catch(e){return;}
-      if(!d.ok)return;games=d.games||games;
+      if(!d.ok)return;games=d.games||games;seatCounts=d.seatCounts||seatCounts;
       if(d.myMatch){const base=d.myMatchGame==="advcoop"?"/play/adv/?id=":"/play/match/?id=";location.href=base+encodeURIComponent(d.myMatch);return;}
-      renderPlayers(d.players);renderChallenges(d.challenges);
+      if(!$("gameSel").options.length){$("gameSel").innerHTML=Object.entries(games).map(([k,n])=>`<option value="${k}">${n}</option>`).join("");}
+      lastPlayers=d.players;renderPlayers(d.players);renderChallenges(d.challenges);
     }
-    function gameOptions(){return Object.entries(games).map(([k,n])=>`<option value="${k}">${n}</option>`).join("");}
+    function needed(){return Math.max(1,(seatCounts[$("gameSel").value]||2)-1);}
     function renderPlayers(players){
       const others=players.filter(p=>p.name.toLowerCase()!==me.toLowerCase());
       const el=$("players");
-      if(!others.length){el.innerHTML='<div class="muted">No one else is online right now. Invite a friend!</div>';return;}
-      el.innerHTML=others.map(p=>`<div class="p"><span class="nm"><span class="dot ${p.status==="playing"?"busy":""}"></span>${esc(p.name)}</span>`+
-        (p.status==="playing"?`<span class="st">in a game</span>`:
-        `<span class="row"><select data-for="${esc(p.name)}">${gameOptions()}</select><button class="btn" data-chal="${esc(p.name)}">Challenge</button></span>`)+`</div>`).join("");
-      el.querySelectorAll("[data-chal]").forEach(b=>b.addEventListener("click",()=>{
-        const name=b.getAttribute("data-chal");const sel=el.querySelector(`select[data-for="${CSS.escape(name)}"]`);
-        b.disabled=true;b.textContent="Sent…";jpost("/api/mp/challenge",{to:name,game:sel.value}).then(()=>{setTimeout(()=>{b.disabled=false;b.textContent="Challenge";},2500);});
+      for(const n of [...picked]) if(!others.some(p=>p.name===n&&p.status!=="playing")) picked.delete(n);
+      if(!others.length){el.innerHTML='<div class="muted">No one else is online right now. Invite a friend!</div>';$("challengeBar").classList.add("hidden");return;}
+      const need=needed();
+      el.innerHTML=others.map(p=>{
+        const disabled=p.status==="playing";
+        const checked=picked.has(p.name);
+        return `<div class="p ${disabled?"":"pickable"}" data-name="${esc(p.name)}"><span class="nm">`+
+          (disabled?"":`<input type="checkbox" ${checked?"checked":""}>`)+
+          `<span class="dot ${disabled?"busy":""}"></span>${esc(p.name)}</span>`+
+          (disabled?`<span class="st">in a game</span>`:"")+`</div>`;
+      }).join("");
+      el.querySelectorAll(".p.pickable").forEach(row=>row.addEventListener("click",(e)=>{
+        if(e.target.tagName!=="INPUT") { const cb=row.querySelector("input"); cb.checked=!cb.checked; }
+        const name=row.getAttribute("data-name");
+        if(row.querySelector("input").checked){ if(picked.size>=need) row.querySelector("input").checked=false; else picked.add(name); }
+        else picked.delete(name);
+        renderPlayers(lastPlayers);
       }));
+      $("needLine").textContent=need===1?"Pick 1 opponent":"Pick "+need+" opponents";
+      $("pickCount").textContent=picked.size+" / "+need+" selected";
+      $("challengeBar").classList.remove("hidden");
+      $("sendChallenge").disabled=picked.size!==need;
     }
+    async function sendChallenge(){
+      const btn=$("sendChallenge"), game=$("gameSel").value, to=[...picked];
+      if(!to.length)return;
+      btn.disabled=true;btn.textContent="Sending…";
+      const r=await jpost("/api/mp/challenge",{to:to.length===1?to[0]:to,game});
+      picked.clear();
+      btn.textContent=r.ok?"Sent!":"Try again";
+      setTimeout(()=>{btn.textContent="Challenge";renderPlayers(lastPlayers);},1800);
+    }
+    const responded=new Set(); // challenge ids this session already accepted, while still waiting on others
     function renderChallenges(challenges){
       const card=$("challengesCard");
-      if(!challenges||!challenges.length){card.style.display="none";return;}
+      const visible=(challenges||[]).filter(c=>!responded.has(c.id)||!(c.accepted||[]).some(a=>a.toLowerCase()===me.toLowerCase()));
+      const waiting=(challenges||[]).filter(c=>responded.has(c.id)&&(c.accepted||[]).some(a=>a.toLowerCase()===me.toLowerCase()));
+      if(!visible.length&&!waiting.length){card.style.display="none";return;}
       card.style.display="";
-      $("challenges").innerHTML=challenges.map(c=>`<div class="chal"><span><b>${esc(c.from)}</b> challenges you to <b>${esc(games[c.game]||c.game)}</b></span>`+
-        `<span class="row"><button class="btn" data-acc="${c.id}">Accept</button><button class="btn ghost" data-dec="${c.id}">Decline</button></span></div>`).join("");
+      $("challenges").innerHTML=
+        visible.map(c=>{
+          const need=Array.isArray(c.to)?c.to.length:1;
+          const note=need>1?` (needs all ${need} players to accept)`:"";
+          return `<div class="chal"><span><b>${esc(c.from)}</b> challenges you to <b>${esc(games[c.game]||c.game)}</b>${esc(note)}</span>`+
+            `<span class="row"><button class="btn" data-acc="${c.id}">Accept</button><button class="btn ghost" data-dec="${c.id}">Decline</button></span></div>`;
+        }).join("")+
+        waiting.map(c=>`<div class="chal"><span>Accepted <b>${esc(games[c.game]||c.game)}</b> — waiting for ${(c.accepted||[]).length}/${Array.isArray(c.to)?c.to.length:1} players…</span></div>`).join("");
       $("challenges").querySelectorAll("[data-acc]").forEach(b=>b.addEventListener("click",async()=>{
-        b.disabled=true;const r=await jpost("/api/mp/respond",{id:b.getAttribute("data-acc"),accept:true});
-        if(r.matchId){const base=r.game==="advcoop"?"/play/adv/?id=":"/play/match/?id=";location.href=base+encodeURIComponent(r.matchId);}else poll();}));
+        b.disabled=true;const id=b.getAttribute("data-acc");const r=await jpost("/api/mp/respond",{id,accept:true});
+        if(r.matchId){const base=r.game==="advcoop"?"/play/adv/?id=":"/play/match/?id=";location.href=base+encodeURIComponent(r.matchId);}
+        else { if(r.waiting)responded.add(id); poll(); }}));
       $("challenges").querySelectorAll("[data-dec]").forEach(b=>b.addEventListener("click",async()=>{
         await jpost("/api/mp/respond",{id:b.getAttribute("data-dec"),accept:false});poll();}));
     }

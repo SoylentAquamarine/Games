@@ -447,6 +447,198 @@ function unoReshuffle(s) { if (s.discard.length<=1) return; const top=s.discard.
 function unoDrawN(s, who, n) { for (let k=0;k<n;k++) { if (s.deck.length===0) unoReshuffle(s); if (s.deck.length===0) break; s.hands[who].push(s.deck.pop()); } }
 const unoOther = (p) => (p==="X"?"O":"X");
 
+// --- Chickenopoly (4-seat Monopoly-style board game) -----------------------
+// Ported from the single-player pure sim in
+// public/games/board/chickenopoly/index.html (window.__chickenopoly) — kept
+// in sync by hand, same as Adventure co-op's server-side mirror. Internal
+// state mirrors the original closely (same CO_SPACES/rules, s.turn as a 0-3
+// player index) with one deliberate fix: coMovePlayerBy here threads the
+// dice total through to coLandOn so utility rent is always correct, instead
+// of falling back to a flat "as if rolled a 7" charge that the single-player
+// client then patches over with a second, additive utility-rent charge (a
+// known bug documented in that game's own HANDOFF.md). CPU-only helpers
+// (cpuShouldBuy, cpuMaybeBuild, cpuShouldAcceptTrade) are dropped — every
+// seat is a human here, so buy/build/trade all come from explicit moves.
+const CO_SEATS = ["A", "B", "C", "D"];
+const CO_NP = 4, CO_PNAMES = ["Seat A", "Seat B", "Seat C", "Seat D"];
+const CO_START_CASH = 1500, CO_GO_BONUS = 200, CO_JAIL_FINE = 50, CO_MAX_JAIL_TURNS = 3, CO_MAX_TURNS = 120;
+const CO_SPACES = [
+  { type:"corner", name:"GO", kind:"go" },
+  { type:"property", name:"Henhouse Ave", price:60, rent:2, group:"brown" },
+  { type:"chest", name:"Community Chest" },
+  { type:"property", name:"Coop Court", price:60, rent:4, group:"brown" },
+  { type:"tax", name:"Income Tax", amt:200 },
+  { type:"railroad", name:"Yolk Line RR", price:200 },
+  { type:"property", name:"Barnyard Blvd", price:100, rent:6, group:"blue" },
+  { type:"corner", name:"Jail", kind:"jail" },
+  { type:"property", name:"Pecking Path", price:100, rent:6, group:"blue" },
+  { type:"chance", name:"Chance" },
+  { type:"property", name:"Roost Row", price:120, rent:8, group:"blue" },
+  { type:"property", name:"Feather Ln", price:140, rent:10, group:"pink" },
+  { type:"utility", name:"Feed Co.", price:150 },
+  { type:"property", name:"Cluck St", price:140, rent:10, group:"pink" },
+  { type:"corner", name:"Free Parking", kind:"park" },
+  { type:"property", name:"Scratch Ave", price:180, rent:14, group:"orange" },
+  { type:"chest", name:"Community Chest" },
+  { type:"property", name:"Peck Place", price:180, rent:14, group:"orange" },
+  { type:"railroad", name:"Cluck Central RR", price:200 },
+  { type:"property", name:"Comb Court", price:220, rent:18, group:"red" },
+  { type:"property", name:"Wattle Way", price:220, rent:18, group:"red" },
+  { type:"corner", name:"Go To Jail", kind:"gotojail" },
+  { type:"property", name:"Egg St", price:260, rent:22, group:"yellow" },
+  { type:"chance", name:"Chance" },
+  { type:"property", name:"Yolk Yard", price:260, rent:22, group:"yellow" },
+  { type:"railroad", name:"Rooster Express RR", price:200 },
+  { type:"property", name:"Golden Egg Dr", price:300, rent:26, group:"green" },
+  { type:"property", name:"Nest Egg Ave", price:320, rent:28, group:"green" },
+];
+const CO_TRACK = CO_SPACES.length;
+const CO_BANK_HOUSES = 32, CO_BANK_HOTELS = 12;
+const CO_HOUSE_COST = { brown:50, blue:50, pink:100, orange:100, red:150, yellow:150, green:200 };
+const CO_RENT_TIER_MULT = [1,5,15,45,62,75];
+const CO_CHANCE = [
+  { t:"Advance to GO, collect $200", fx:(s,pi)=>{ coMovePlayerTo(s,pi,0,true); } },
+  { t:"Go directly to Jail", fx:(s,pi)=>{ coSendToJail(s,pi); } },
+  { t:"Bank pays you a dividend of $50", fx:(s,pi)=>{ coPay(s,pi,50); } },
+  { t:"Pay poor tax of $15", fx:(s,pi)=>{ coCharge(s,pi,15); } },
+  { t:"Take a trip to Free Parking", fx:(s,pi)=>{ coMovePlayerTo(s,pi,14,false); } },
+  { t:"Coop maintenance, pay $25", fx:(s,pi)=>{ coCharge(s,pi,25); } },
+];
+const CO_CHEST = [
+  { t:"Bank error in your favor, collect $200", fx:(s,pi)=>{ coPay(s,pi,200); } },
+  { t:"Doctor's fee, pay $50", fx:(s,pi)=>{ coCharge(s,pi,50); } },
+  { t:"Get out of Jail Free — keep this card", fx:(s,pi)=>{ s.players[pi].jailFreeCard=true; } },
+  { t:"It's your birthday, collect $30", fx:(s,pi)=>{ coPay(s,pi,30); } },
+  { t:"School fees, pay $50", fx:(s,pi)=>{ coCharge(s,pi,50); } },
+  { t:"Life insurance matures, collect $100", fx:(s,pi)=>{ coPay(s,pi,100); } },
+];
+function coGroupMembers(group) { return CO_SPACES.map((sp,i)=>({sp,i})).filter(x=>x.sp.type==="property"&&x.sp.group===group).map(x=>x.i); }
+function coOwnerOf(s, idx) { for (let i=0;i<s.players.length;i++) if (!s.players[i].bankrupt && s.players[i].props.includes(idx)) return i; return -1; }
+function coOwnsFullGroup(s, pi, group) { const members=coGroupMembers(group); return members.length>0 && members.every(i=>s.players[pi].props.includes(i)); }
+function coRailroadsOwned(s, pi) { return s.players[pi].props.filter(i=>CO_SPACES[i].type==="railroad").length; }
+function coPropertyRent(s, idx, ownerPi) {
+  const sp=CO_SPACES[idx];
+  if (sp.type==="property") { const h=s.houses[idx]; if (h>0) return sp.rent*CO_RENT_TIER_MULT[h]; return coOwnsFullGroup(s,ownerPi,sp.group) ? sp.rent*2 : sp.rent; }
+  if (sp.type==="railroad") return 25*coRailroadsOwned(s,ownerPi);
+  return 0;
+}
+function coPay(s, pi, amt) { s.players[pi].cash+=amt; }
+function coCharge(s, pi, amt) { s.players[pi].cash-=amt; coCheckBankrupt(s,pi); }
+function coCheckBankrupt(s, pi) {
+  const p=s.players[pi];
+  if (p.cash<0 && !p.bankrupt) {
+    p.bankrupt=true;
+    for (const idx of p.props) { if (s.houses[idx]===5) s.bank.hotels++; else if (s.houses[idx]>0) s.bank.houses+=s.houses[idx]; s.houses[idx]=0; }
+    p.props=[];
+  }
+}
+function coActivePlayers(s) { return s.players.map((p,i)=>i).filter(i=>!s.players[i].bankrupt); }
+function coCheckWin(s) {
+  const alive=coActivePlayers(s);
+  if (alive.length<=1) { s.over=true; s.winner=alive[0]!==undefined?alive[0]:0; return true; }
+  if (s.turns>=CO_MAX_TURNS) { s.over=true; let best=alive[0], bestNet=-Infinity; for (const i of alive) { const net=coNetWorth(s,i); if (net>bestNet) { bestNet=net; best=i; } } s.winner=best; return true; }
+  return false;
+}
+function coNetWorth(s, pi) { const p=s.players[pi]; return p.cash + p.props.reduce((sum,idx)=>sum+CO_SPACES[idx].price,0); }
+function coSendToJail(s, pi) { const p=s.players[pi]; p.pos=7; p.inJail=true; p.jailTurns=0; }
+function coMovePlayerTo(s, pi, idx, collectIfPassed) { const p=s.players[pi]; if (collectIfPassed && idx<=p.pos) coPay(s,pi,CO_GO_BONUS); p.pos=idx; }
+function coMovePlayerBy(s, pi, steps, diceTotal) {
+  const p=s.players[pi];
+  const from=p.pos, to=(from+steps)%CO_TRACK;
+  if (to<from) coPay(s,pi,CO_GO_BONUS);
+  p.pos=to;
+  return coLandOn(s,pi,to,diceTotal);
+}
+function coLandOn(s, pi, idx, diceTotal) {
+  const sp=CO_SPACES[idx];
+  if (sp.type==="corner") {
+    if (sp.kind==="gotojail") { coSendToJail(s,pi); return { text:"Sent to Jail!", idx }; }
+    return { text:"Landed on "+sp.name, idx };
+  }
+  if (sp.type==="tax") { coCharge(s,pi,sp.amt); return { text:"Income Tax: -$"+sp.amt, idx }; }
+  if (sp.type==="chance"||sp.type==="chest") {
+    const deck=sp.type==="chance"?CO_CHANCE:CO_CHEST, card=deck[Math.floor(Math.random()*deck.length)];
+    card.fx(s,pi); coCheckBankrupt(s,pi);
+    return { text:(sp.type==="chance"?"Chance: ":"Community Chest: ")+card.t, idx, cardType:sp.type, cardText:card.t };
+  }
+  if (sp.type==="property"||sp.type==="railroad"||sp.type==="utility") {
+    const owner=coOwnerOf(s,idx);
+    if (owner<0) { s.pendingBuy={ pi, idx }; return { text:sp.name+" is unowned — buy for $"+sp.price+"?", idx, pending:true }; }
+    if (owner===pi) return { text:"You own "+sp.name, idx };
+    let rent;
+    if (sp.type==="utility") rent=(diceTotal||7)*4;
+    else rent=coPropertyRent(s,idx,owner);
+    coCharge(s,pi,rent); if (!s.players[pi].bankrupt) coPay(s,owner,rent);
+    return { text:"Rent to "+CO_PNAMES[owner]+": -$"+rent, idx, rent, owner };
+  }
+  return { text:"", idx };
+}
+function coCanBuild(s, pi, idx) {
+  const sp=CO_SPACES[idx];
+  if (sp.type!=="property") return { ok:false, reason:"Only properties can be improved." };
+  if (coOwnerOf(s,idx)!==pi) return { ok:false, reason:"You don't own this." };
+  if (!coOwnsFullGroup(s,pi,sp.group)) return { ok:false, reason:"You need the whole "+sp.group+" set first." };
+  const cur=s.houses[idx];
+  if (cur>=5) return { ok:false, reason:"Already a hotel." };
+  const members=coGroupMembers(sp.group);
+  const minInGroup=Math.min(...members.map(i=>s.houses[i]));
+  if (cur>minInGroup) return { ok:false, reason:"Build evenly — improve your other "+sp.group+" propert"+(members.length>1?"ies":"y")+" first." };
+  const cost=CO_HOUSE_COST[sp.group];
+  if (s.players[pi].cash<cost) return { ok:false, reason:"Can't afford it ($"+cost+")." };
+  if (cur===4) { if (s.bank.hotels<=0) return { ok:false, reason:"No hotels left in the bank." }; }
+  else { if (s.bank.houses<=0) return { ok:false, reason:"No houses left in the bank." }; }
+  return { ok:true, cost };
+}
+function coBuildHouse(s, pi, idx) {
+  const check=coCanBuild(s,pi,idx);
+  if (!check.ok) return check;
+  s.players[pi].cash-=check.cost;
+  if (s.houses[idx]===4) { s.houses[idx]=5; s.bank.hotels--; s.bank.houses+=4; }
+  else { s.houses[idx]++; s.bank.houses--; }
+  return { ok:true, idx, houses:s.houses[idx] };
+}
+function coResolveBuy(s, buy) {
+  if (!s.pendingBuy) return null;
+  const { pi, idx }=s.pendingBuy, sp=CO_SPACES[idx], p=s.players[pi];
+  s.pendingBuy=null;
+  if (buy && p.cash>=sp.price) { p.cash-=sp.price; p.props.push(idx); return { bought:true, idx }; }
+  return { bought:false, idx };
+}
+function coRollDice() { const a=1+Math.floor(Math.random()*6), b=1+Math.floor(Math.random()*6); return { a, b, total:a+b, isDouble:a===b }; }
+function coTakeJailTurn(s, pi) {
+  const p=s.players[pi];
+  if (p.jailFreeCard) { p.jailFreeCard=false; p.inJail=false; p.jailTurns=0; return { text:"Used a Get Out of Jail Free card!", freed:true }; }
+  const roll=coRollDice();
+  if (roll.isDouble) { p.inJail=false; p.jailTurns=0; const r=coMovePlayerBy(s,pi,roll.total,roll.total); return { text:"Rolled doubles — out of jail! "+r.text, freed:true, roll, result:r }; }
+  p.jailTurns++;
+  if (p.jailTurns>=CO_MAX_JAIL_TURNS) {
+    coCharge(s,pi,CO_JAIL_FINE); p.inJail=false; p.jailTurns=0;
+    if (!p.bankrupt) { const r=coMovePlayerBy(s,pi,roll.total,roll.total); return { text:"Paid the $"+CO_JAIL_FINE+" fine — out! "+r.text, freed:true, roll, result:r }; }
+    return { text:"Couldn't pay the fine…", freed:true, roll };
+  }
+  return { text:"Stuck in Jail ("+p.jailTurns+"/"+CO_MAX_JAIL_TURNS+")", freed:false, roll };
+}
+function coValidateTrade(s, fromPi, toPi, offer) {
+  const from=s.players[fromPi], to=s.players[toPi];
+  if (fromPi===toPi) return { ok:false, reason:"Pick a different player to trade with" };
+  if (from.bankrupt||to.bankrupt) return { ok:false, reason:"That player is out of the game" };
+  if (!offer.giveProps.every(i=>from.props.includes(i))) return { ok:false, reason:"You don't own all of the offered properties" };
+  if (!offer.takeProps.every(i=>to.props.includes(i))) return { ok:false, reason:"They don't own all of the requested properties" };
+  if (offer.giveCash>from.cash) return { ok:false, reason:"You don't have that much cash" };
+  if (offer.takeCash>to.cash) return { ok:false, reason:"They don't have that much cash" };
+  if (offer.giveProps.length===0 && offer.takeProps.length===0 && offer.giveCash===0 && offer.takeCash===0) return { ok:false, reason:"Offer something first" };
+  return { ok:true };
+}
+function coExecuteTrade(s, fromPi, toPi, offer) {
+  const from=s.players[fromPi], to=s.players[toPi];
+  for (const i of offer.giveProps) { from.props=from.props.filter(x=>x!==i); to.props.push(i); }
+  for (const i of offer.takeProps) { to.props=to.props.filter(x=>x!==i); from.props.push(i); }
+  from.cash+=offer.takeCash-offer.giveCash; to.cash+=offer.giveCash-offer.takeCash;
+  coCheckBankrupt(s,fromPi); coCheckBankrupt(s,toPi);
+}
+function coNewPlayer() { return { pos:0, cash:CO_START_CASH, props:[], inJail:false, jailTurns:0, jailFreeCard:false, bankrupt:false }; }
+function coNextTurn(s) { let next=s.turn, guard=0; do { next=(next+1)%CO_NP; guard++; } while (s.players[next].bankrupt && guard<=CO_NP); return next; }
+
 const MP_GAMES = {
   ttt: { name: "Tic-Tac-Toe",
     init: () => Array(9).fill(""),
@@ -680,6 +872,84 @@ const MP_GAMES = {
       };
     },
   },
+
+  chickenopoly: { name: "Chickenopoly", seats: CO_SEATS,
+    // Trading and building are side-actions independent of whose turn it
+    // is (the single-player client's Trade/Build buttons aren't turn-gated
+    // either) — everything else (roll, buy, pass) requires it to be your turn.
+    freeMoveTypes: ["trade_offer", "trade_accept", "trade_reject", "build"],
+    init: () => ({
+      players: Array.from({ length: CO_NP }, coNewPlayer),
+      turn: 0, turns: 0, over: false, winner: -1, pendingBuy: null, pendingTrade: null,
+      houses: new Array(CO_SPACES.length).fill(0), bank: { houses: CO_BANK_HOUSES, hotels: CO_BANK_HOTELS },
+      lastRoll: null,
+    }),
+    move: (state, seat, mv) => {
+      const pi = CO_SEATS.indexOf(seat);
+      if (pi < 0 || !mv || typeof mv.type !== "string" || state.over) return null;
+      const s = JSON.parse(JSON.stringify(state));
+      const p = s.players[pi];
+
+      if (mv.type === "trade_offer") {
+        if (p.bankrupt || s.pendingTrade) return null; // only one pending trade at a time
+        const toPi = CO_SEATS.indexOf(mv.to);
+        if (toPi < 0) return null;
+        const src = mv.offer || {};
+        const offer = {
+          giveProps: Array.isArray(src.giveProps) ? src.giveProps.filter((n) => Number.isInteger(n)) : [],
+          giveCash: Number(src.giveCash) || 0,
+          takeProps: Array.isArray(src.takeProps) ? src.takeProps.filter((n) => Number.isInteger(n)) : [],
+          takeCash: Number(src.takeCash) || 0,
+        };
+        if (!coValidateTrade(s, pi, toPi, offer).ok) return null;
+        s.pendingTrade = { from: pi, to: toPi, offer };
+        return { state: s, next: CO_SEATS[s.turn] };
+      }
+      if (mv.type === "trade_accept") {
+        if (!s.pendingTrade || s.pendingTrade.to !== pi) return null;
+        const { from, to, offer } = s.pendingTrade;
+        if (coValidateTrade(s, from, to, offer).ok) { coExecuteTrade(s, from, to, offer); coCheckWin(s); }
+        s.pendingTrade = null;
+        return { state: s, next: CO_SEATS[s.turn] };
+      }
+      if (mv.type === "trade_reject") {
+        // either side can call it off — the offerer backing out, or the
+        // target declining — same effect either way: clear it.
+        if (!s.pendingTrade || (s.pendingTrade.to !== pi && s.pendingTrade.from !== pi)) return null;
+        s.pendingTrade = null;
+        return { state: s, next: CO_SEATS[s.turn] };
+      }
+      if (mv.type === "build") {
+        if (typeof mv.idx !== "number") return null;
+        if (!coBuildHouse(s, pi, mv.idx).ok) return null;
+        return { state: s, next: CO_SEATS[s.turn] };
+      }
+
+      // roll / buy / pass all require it to be this seat's turn.
+      if (s.turn !== pi) return null;
+
+      if (mv.type === "roll") {
+        if (p.bankrupt || s.pendingBuy) return null;
+        s.turns++;
+        if (p.inJail) {
+          s.lastRoll = coTakeJailTurn(s, pi);
+        } else {
+          const roll = coRollDice();
+          s.lastRoll = { roll, result: coMovePlayerBy(s, pi, roll.total, roll.total) };
+        }
+        if (!coCheckWin(s) && !s.pendingBuy) s.turn = coNextTurn(s);
+        return { state: s, next: CO_SEATS[s.turn] };
+      }
+      if (mv.type === "buy" || mv.type === "pass") {
+        if (!s.pendingBuy || s.pendingBuy.pi !== pi) return null;
+        s.lastRoll = { buyResult: coResolveBuy(s, mv.type === "buy") };
+        if (!coCheckWin(s)) s.turn = coNextTurn(s);
+        return { state: s, next: CO_SEATS[s.turn] };
+      }
+      return null;
+    },
+    result: (s) => s.over ? (s.winner >= 0 ? { winner: CO_SEATS[s.winner] } : { draw: true }) : null,
+  },
 };
 
 // --- Battleship helpers ----------------------------------------------------
@@ -723,6 +993,11 @@ function mpView(match, eng, sym) {
 function rid() { return bytesToB64url(crypto.getRandomValues(new Uint8Array(9))); }
 async function mpUser(request, env) { const p = await getSession(request, env); return p && p.u ? p.u : null; }
 const lc = (s) => s.toLowerCase();
+// Every existing 2-player engine (ttt, c4, ... wild, mancala, ships) omits
+// `seats`, so this defaults them to the original ["X","O"] with no behavior
+// change; only chickenopoly declares its own 4-seat list.
+function seatsOf(eng) { return (eng && eng.seats) || ["X", "O"]; }
+function seatOf(match, u) { for (const seat in match.players) if (lc(match.players[seat]) === lc(u)) return seat; return null; }
 
 async function handleMpPing(request, env) {
   const u = await mpUser(request, env); if (!u) return json({ error: "unauth" }, 401);
@@ -745,8 +1020,9 @@ async function handleMpLobby(request, env) {
   do {
     const r = await env.ACCOUNTS.list({ prefix: "challenge:", cursor });
     for (const k of r.keys) { const raw = await env.ACCOUNTS.get(k.name); if (!raw) continue; const c = JSON.parse(raw);
-      if (now - c.ts > 120000) { await env.ACCOUNTS.delete(k.name); continue; }
-      if (lc(c.to) === lc(u)) challenges.push(c); }
+      if (now - c.ts > 300000) { await env.ACCOUNTS.delete(k.name); continue; }
+      const toList = Array.isArray(c.to) ? c.to : [c.to];
+      if (toList.some((t) => lc(t) === lc(u))) challenges.push(c); }
     cursor = r.list_complete ? undefined : r.cursor;
   } while (cursor);
   const myMatch = await env.ACCOUNTS.get("usermatch:" + lc(u));
@@ -754,17 +1030,24 @@ async function handleMpLobby(request, env) {
   if (myMatch) { const mr = await env.ACCOUNTS.get("match:" + myMatch); if (mr) { try { myMatchGame = JSON.parse(mr).game; } catch {} } }
   const games = Object.fromEntries(Object.entries(MP_GAMES).map(([k, v]) => [k, v.name]));
   games.advcoop = "Adventure (Co-op)";
-  return json({ ok: true, me: u, players, challenges, myMatch: myMatch || null, myMatchGame, games });
+  const seatCounts = Object.fromEntries(Object.entries(MP_GAMES).map(([k, v]) => [k, seatsOf(v).length]));
+  seatCounts.advcoop = 2;
+  return json({ ok: true, me: u, players, challenges, myMatch: myMatch || null, myMatchGame, games, seatCounts });
 }
 
 async function handleMpChallenge(request, env) {
   const u = await mpUser(request, env); if (!u) return json({ error: "unauth" }, 401);
   let body; try { body = await request.json(); } catch { return json({ error: "invalid_body" }, 400); }
-  const to = (body.to || "").toString().trim(); const game = (body.game || "").toString();
+  const game = (body.game || "").toString();
   if (!MP_GAMES[game] && game !== "advcoop") return json({ error: "bad_game" }, 400);
-  if (!to || lc(to) === lc(u)) return json({ error: "bad_target" }, 400);
+  const seatCount = game === "advcoop" ? 2 : seatsOf(MP_GAMES[game]).length;
+  const toList = (Array.isArray(body.to) ? body.to : [body.to]).map((t) => (t || "").toString().trim());
+  const bad = toList.length !== seatCount - 1 || toList.some((t) => !t || lc(t) === lc(u))
+    || new Set(toList.map(lc)).size !== toList.length;
+  if (bad) return json({ error: "bad_target" }, 400);
   const id = rid();
-  await env.ACCOUNTS.put("challenge:" + id, JSON.stringify({ id, from: u, to, game, ts: Date.now() }), { expirationTtl: 180 });
+  const to = seatCount === 2 ? toList[0] : toList; // keep the 2-player shape (a plain string) unchanged
+  await env.ACCOUNTS.put("challenge:" + id, JSON.stringify({ id, from: u, to, accepted: [], game, ts: Date.now() }), { expirationTtl: 300 });
   return json({ ok: true, id });
 }
 
@@ -774,10 +1057,11 @@ async function handleMpRespond(request, env) {
   const raw = await env.ACCOUNTS.get("challenge:" + body.id);
   if (!raw) return json({ error: "gone" }, 404);
   const c = JSON.parse(raw);
-  if (lc(c.to) !== lc(u)) return json({ error: "not_yours" }, 403);
-  await env.ACCOUNTS.delete("challenge:" + body.id);
-  if (!body.accept) return json({ ok: true });
+  const toList = Array.isArray(c.to) ? c.to : [c.to];
+  if (!toList.some((t) => lc(t) === lc(u))) return json({ error: "not_yours" }, 403);
+  if (!body.accept) { await env.ACCOUNTS.delete("challenge:" + body.id); return json({ ok: true }); }
   if (c.game === "advcoop") {
+    await env.ACCOUNTS.delete("challenge:" + body.id);
     const mid = rid();
     const match = { id: mid, game: "advcoop", gameName: "Adventure (Co-op)", players: { X: c.from, O: c.to }, updated: Date.now() };
     await env.ACCOUNTS.put("match:" + mid, JSON.stringify(match));
@@ -785,11 +1069,21 @@ async function handleMpRespond(request, env) {
     await env.ACCOUNTS.put("usermatch:" + lc(c.to), mid);
     return json({ ok: true, matchId: mid, game: "advcoop" });
   }
-  const eng = MP_GAMES[c.game]; const mid = rid();
-  const match = { id: mid, game: c.game, gameName: eng.name, players: { X: c.from, O: c.to }, state: eng.init(), turn: "X", winner: null, draw: false, version: 1, updated: Date.now() };
+  const eng = MP_GAMES[c.game];
+  const seats = seatsOf(eng);
+  const accepted = (Array.isArray(c.accepted) ? c.accepted.slice() : []);
+  if (!accepted.some((a) => lc(a) === lc(u))) accepted.push(u);
+  if (accepted.length < toList.length) {
+    await env.ACCOUNTS.put("challenge:" + body.id, JSON.stringify({ ...c, accepted }), { expirationTtl: 300 });
+    return json({ ok: true, waiting: true, accepted: accepted.length, needed: toList.length });
+  }
+  await env.ACCOUNTS.delete("challenge:" + body.id);
+  const mid = rid();
+  const playerNames = [c.from, ...toList];
+  const players = {}; seats.forEach((seat, i) => { players[seat] = playerNames[i]; });
+  const match = { id: mid, game: c.game, gameName: eng.name, players, state: eng.init(), turn: seats[0], winner: null, draw: false, version: 1, updated: Date.now() };
   await env.ACCOUNTS.put("match:" + mid, JSON.stringify(match));
-  await env.ACCOUNTS.put("usermatch:" + lc(c.from), mid);
-  await env.ACCOUNTS.put("usermatch:" + lc(c.to), mid);
+  for (const name of playerNames) await env.ACCOUNTS.put("usermatch:" + lc(name), mid);
   return json({ ok: true, matchId: mid });
 }
 
@@ -798,8 +1092,8 @@ async function handleMpMatch(request, env, url) {
   const raw = await env.ACCOUNTS.get("match:" + (url.searchParams.get("id") || ""));
   if (!raw) return json({ error: "gone" }, 404);
   const match = JSON.parse(raw);
-  if (![lc(match.players.X), lc(match.players.O)].includes(lc(u))) return json({ error: "forbidden" }, 403);
-  const sym = lc(match.players.X) === lc(u) ? "X" : "O";
+  const sym = seatOf(match, u);
+  if (!sym) return json({ error: "forbidden" }, 403);
   return json({ ok: true, match: mpView(match, MP_GAMES[match.game], sym) });
 }
 
@@ -811,10 +1105,12 @@ async function handleMpMove(request, env) {
   if (!raw) return json({ error: "gone" }, 404);
   const match = JSON.parse(raw);
   if (match.winner || match.draw) return json({ error: "over" }, 400);
-  const sym = lc(match.players.X) === lc(u) ? "X" : (lc(match.players.O) === lc(u) ? "O" : null);
+  const sym = seatOf(match, u);
   if (!sym) return json({ error: "forbidden" }, 403);
-  if (sym !== match.turn) return json({ error: "not_your_turn" }, 400);
   const eng = MP_GAMES[match.game];
+  const freeTypes = eng.freeMoveTypes || [];
+  const isFree = body.move && typeof body.move === "object" && freeTypes.includes(body.move.type);
+  if (!isFree && sym !== match.turn) return json({ error: "not_your_turn" }, 400);
   const out = eng.move(match.state, sym, body.move);
   if (!out) return json({ error: "illegal" }, 400);
   match.state = out.state;
@@ -822,8 +1118,7 @@ async function handleMpMove(request, env) {
   if (res) {
     if (res.winner) match.winner = res.winner;
     if (res.draw) match.draw = true;
-    await env.ACCOUNTS.delete("usermatch:" + lc(match.players.X));
-    await env.ACCOUNTS.delete("usermatch:" + lc(match.players.O));
+    for (const seat in match.players) await env.ACCOUNTS.delete("usermatch:" + lc(match.players[seat]));
   } else { match.turn = out.next; }
   match.version++; match.updated = Date.now();
   await env.ACCOUNTS.put(key, JSON.stringify(match));

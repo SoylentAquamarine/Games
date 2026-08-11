@@ -63,29 +63,58 @@ Everything else falls through to static assets. API routes:
 Each game engine implements:
 ```
 init()               -> state (any JSON)
-move(state, pl, mv)  -> { state, next } | null   // next = "X"|"O" who plays next
+move(state, seat, mv) -> { state, next } | null   // next = which seat plays next
 result(state)        -> { winner } | { draw } | null
 ```
 `move` returning `next` lets games express **extra turns** (Dots & Boxes: same
 player after claiming a box; Checkers: same player mid multi-jump; Wild Cards:
 same player after a Skip/Reverse/Draw-Two/Wild-Draw-Four in heads-up) and
-**skips** (Reversi: passes back if opponent has no move). Players are always
-symbols `"X"` (challenger) and `"O"`.
-**Live online games:** `ttt`, `c4`, `gomoku`, `reversi`, `uttt`, `dots`,
-`checkers`, `wild` (UNO-style "Wild Cards").
-The lobby challenge dropdown auto-lists whatever's in `MP_GAMES`; the match page
-(`public/play/match/index.html`) has a renderer per game key.
+**skips** (Reversi: passes back if opponent has no move).
+
+**Seats, not just X/O:** an engine may declare `seats: [...]` (e.g.
+`["A","B","C","D"]`); if omitted it defaults to `["X","O"]`, so every
+2-player engine written before this existed needs no changes. `seatsOf(eng)`
+and `seatOf(match, u)` (both in `src/index.js`) are the only places that read
+`eng.seats` / resolve a logged-in user to their seat — `handleMpChallenge`
+requires exactly `seats.length - 1` recipients (single string for a 2-seat
+game, an array otherwise, so the on-the-wire shape for existing games is
+unchanged); `handleMpRespond` tracks partial `accepted` lists and only creates
+the match once everyone has accepted, mapping `seats[i]` to `[from, ...to]` in
+order; the match's `turn` field and every seat key are always seat strings,
+never assumed to be `"X"`/`"O"`.
+
+**Turn-independent moves:** an engine may also declare
+`freeMoveTypes: [...]` — move `type`s that bypass the normal
+`sym !== match.turn` gate in `handleMpMove` (checked via
+`body.move.type`, so only object-shaped moves can be free). Used by
+`chickenopoly` for `trade_offer`/`trade_accept`/`trade_reject`/`build`,
+which its own single-player client never turn-gated either. Every other
+engine omits this and keeps the strict turn gate.
+
+**Live online games (2-seat):** `ttt`, `c4`, `gomoku`, `reversi`, `uttt`,
+`dots`, `checkers`, `wild` (UNO-style "Wild Cards"), `mancala`, `ships`
+(Battleship — random fleet placement, no separate placement phase).
+**Live online games (4-seat):** `chickenopoly` — see
+`public/games/board/chickenopoly/HANDOFF.md` for its move-type API
+(`roll`/`buy`/`pass`/`build`/`trade_offer`/`trade_accept`/`trade_reject`).
+The lobby (`public/play/index.html`) fetches `seatCounts` from
+`/api/mp/lobby` to know how many opponents a challenge needs and switches
+from "pick one opponent" to a checkbox multi-picker once a game needs more
+than one. The match page (`public/play/match/index.html`) has a renderer
+per game key; `chickenopoly`'s branches out early in `render()` into its
+own seat-bar/board renderer instead of the shared 2-box X/O layout.
 
 **Hidden-information games** (first one: `wild`): an engine may add an optional
 `redact(state, sym) -> safeState` method. `mpView()` in `src/index.js` applies it
 in **both** `handleMpMatch` and `handleMpMove` so each client only ever receives
 its own hand + opponent/deck *counts* — the full `state` (all hands, deck order)
-stays server-side in KV and is what `move`/`result` operate on. Any future
-hidden-info game (Battleship placement, etc.) should follow this pattern.
+stays server-side in KV and is what `move`/`result` operate on. Chickenopoly has
+no hidden info (all cash/properties are public in Monopoly) so it skips `redact`.
 
 **To add an online game:** add an engine to `MP_GAMES` + a renderer in the match
-page keyed by the same slug (+ a `redact` hook if it has hidden state). Battleship
-(needs a hidden placement phase) is the natural next port.
+page keyed by the same slug (+ a `redact` hook if it has hidden state, `seats`
+if it needs more/fewer than 2 players, `freeMoveTypes` if any move should be
+usable off-turn).
 
 ## 4. Frontend structure
 
@@ -155,8 +184,21 @@ Games are validated by **headless Node** before shipping — extract the inline
 (win detection, generation solvability, conservation, AI takes-win/blocks, etc.).
 Pattern: `fs.readFileSync(...).match(/<script>([\s\S]*?)<\/script>/)[1]` grabs the
 first (attribute-less) inline script; the `comments.js` include has attributes so
-it's ignored. Multiplayer engines are unit-tested by slicing `MP_GAMES` out of
-`src/index.js` and exposing via `globalThis`.
+it's ignored. Simple multiplayer engine logic can be unit-tested by slicing
+`MP_GAMES` out of `src/index.js` and exposing via `globalThis`, but for anything
+that also touches the shared challenge/respond/match/move pipeline (session
+cookies, KV, seat resolution, turn gating) it's more reliable to drive the
+**real** `src/index.js` directly: `src/index.js` is a plain ES module with no
+Miniflare/wrangler-dev dependency, so `await import(pathToFileURL(...).href)`
+from a Node script works as-is. Build a tiny in-memory KV mock
+(`get`/`put`/`delete`/`list` on a `Map`) as `env.ACCOUNTS`, set
+`env.SESSION_SECRET` to any string, call `worker.fetch(new Request(...), env)`
+for real HTTP-shaped requests (register through `/api/account/register` to get
+a real session cookie, then pass it as a `Cookie` header on later requests),
+and read the `Set-Cookie` response header back out. See
+`chickenopoly-mp-test.js` in the scratchpad for the full pattern — it drove a
+4-seat challenge→multi-accept→match→moves flow this way, including a
+deterministic dice roll by temporarily overriding `Math.random`.
 
 **Recurring self-inflicted trap:** several "test failures" during this project
 were *mistyped expected values in the test*, not code bugs (e.g. 8 and 5 ARE
@@ -177,7 +219,7 @@ titles are described by gameplay rather than named (deliberate framing).
 
 ## 7. Open items / suggested next steps
 
-- **More online multiplayer games:** Checkers (multi-jump), Battleship (hidden placement phase), Mancala, Gomoku variants. Add engine to `MP_GAMES` + match-page renderer.
+- **More online multiplayer games:** Checkers, Battleship, Mancala, and the 4-seat Chickenopoly are already live (§3). Next candidates: any other `board/` game with CPU opponents (Sorry-style, Trouble) — same `seats`/`freeMoveTypes` pattern chickenopoly used.
 - **Real-time PvP** (Pong/Tron head-to-head) could reuse the Durable-Object + WebSocket
   transport built for Adventure co-op (below).
 

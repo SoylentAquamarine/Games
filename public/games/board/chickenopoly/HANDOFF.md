@@ -24,7 +24,53 @@ Monopoly-style board game: 28-space square board (7/side), 4 players (you
   property has ≥1 house; at 0 houses it falls back to the pre-existing
   unimproved/full-group-doubled behavior unchanged.
 
-## Most recent pass — board size fix
+## Most recent pass — 4-player online multiplayer
+
+**Player feedback: "Prepare for multiplayer with 4 human players on 4
+computers"**, clarified as "Turn-based (MP_GAMES engine)" and then, once
+that engine turned out to be hard-wired for exactly 2 players, "Extend
+MP_GAMES to support N players." Shipped as a real 4-seat online mode —
+this game's local single-player `index.html` is untouched; the new mode
+lives entirely server-side plus a new client page:
+
+- **`src/index.js`** (site-wide Worker) gained a `chickenopoly` entry in
+  `MP_GAMES` with `seats:["A","B","C","D"]` and its own `CO_*` pure-sim
+  functions — a hand-ported mirror of this game's `window.__chickenopoly`
+  engine (same `SPACES`/houses-and-hotels/jail/trading rules), NOT a
+  shared import, so the two stay decoupled the same way Adventure's
+  real-time co-op mirrors its solo sim in `src/adventure-coop.js`.
+  Move types: `roll`, `buy`, `pass`, `build`, `trade_offer`,
+  `trade_accept`, `trade_reject` — the last four are `freeMoveTypes`
+  (usable off-turn, matching this game's own Trade/Build buttons which
+  were never turn-gated either).
+- The shared multiplayer pipeline (`handleMpChallenge`/`handleMpRespond`/
+  `handleMpMatch`/`handleMpMove`, `handleMpLobby`) was generalized to
+  support any seat count via `eng.seats` (defaults to `["X","O"]`, so
+  all 8 pre-existing 2-player games are byte-for-byte unaffected) and
+  multi-recipient challenges that need every invitee to accept before the
+  match starts. See root `HANDOFF.md` § Multiplayer engine for the full
+  writeup.
+- **Fixed the flat-utility-rent bug during the port** (see "Open /
+  deferred" below for how it still stands in the single-player game):
+  the new `coMovePlayerBy` threads the real dice total through to
+  `coLandOn` from the start, so multiplayer utility rent is always
+  `diceTotal*4`, never the single-player's flat "as if you rolled a 7."
+- New client: `public/play/match/index.html` gained a `chickenopoly`
+  board renderer (a 9x9 CSS grid ring of the 28 spaces, player chips,
+  dice/roll/buy/pass, an inline Build panel, and an inline Trade
+  proposal/accept/reject panel) alongside the existing 2-player game
+  renderers. `public/play/index.html`'s lobby switched from "pick one
+  opponent, challenge them" to a game-aware picker: choosing a 4-seat
+  game asks you to check 3 opponents before the Challenge button enables.
+- Tested via `chickenopoly-mp-test.js` (drives the real
+  `src/index.js` through Node's ESM loader with an in-memory KV mock —
+  register→challenge→multi-accept→match→moves end to end, the utility-
+  rent fix with `Math.random` pinned for a deterministic roll, and a
+  regression pass confirming all 8 existing 2-player `MP_GAMES` engines
+  are unaffected), plus `play-lobby-multiseat-test.js` and
+  `play-match-chickenopoly-test.js` for the two client pages.
+
+## Earlier pass — board size fix
 
 **Player feedback: "the board is way too small and the words for the
 properties are cut off."** The two flanking player columns (118px each,
@@ -91,19 +137,10 @@ checks ownership/cash are real before anything happens; CPUs decide via
 
 ## Open / deferred
 
-**"Prepare for multiplayer with 4 human players on 4 computers"** —
-explicitly NOT attempted this pass. This is a much larger, separate
-undertaking than the local UI work above: it would need either porting
-this into the site's turn-based `MP_GAMES` engine (see root `HANDOFF.md`
-§ Multiplayer engine) or a real-time Durable Object room like Adventure
-co-op, plus a `redact()` hook so each player's hand of property/cash info
-stays appropriately visible/hidden. Needs design input on which transport
-fits a 4-player board game with variable-length turns before starting.
-
 **Two bugs confirmed (not player-reported) in a bug-hunt pass across the
-`board/` sub-games, both deliberately left unfixed here** — a larger,
-more careful pass made more sense than a quick patch given this game
-already has the multiplayer item above outstanding:
+`board/` sub-games, both still present in the SINGLE-PLAYER `index.html`
+only** — the new multiplayer mode above ported the rules fresh and does
+not have either issue:
 
 1. **Utility rent is always a flat $28**, regardless of the actual dice
    roll, on a normal turn. `landOn()` computes `rent=(diceTotal||7)*4`,
@@ -124,3 +161,11 @@ already has the multiplayer item above outstanding:
 
 Repro scripts for both (not committed, not part of the regression
 suite): scratchpad's `chickenopoly-utility-rent-test.js`.
+
+**Multiplayer follow-ups not attempted this pass** (functional as shipped,
+but worth revisiting): the offering side of a pending trade can cancel it
+(`trade_reject`, usable by either `from` or `to`), but there's no
+"counter-offer" flow — a rejected/cancelled trade has to be re-proposed
+from scratch. Bankruptcy currently just returns everything to the bank
+(same simplified rule as single-player) rather than transferring to
+whoever bankrupted them.
