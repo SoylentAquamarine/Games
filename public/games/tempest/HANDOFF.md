@@ -72,6 +72,22 @@ reach it they hop along adjacent lanes trying to reach the player's lane.
   death pause would need extra state; a future pass could add a proper
   death freeze if it reads as too abrupt.
 
+## Admin config
+
+`/admin/games/?game=tempest` — 5 difficulty knobs registered in
+`NUMERIC_CONFIGS` (`public/admin/games/index.html`): `MOVE_EVERY`,
+`SHOT_SPEED`, `HOP_EVERY`, `SPAWN_GAP`, `SUPERZAPS_PER_WAVE`. These 5
+were pulled out of the plain `const` declarations into a mutable `C`
+object (same pattern as every other configurable game, e.g. kaboom);
+an IIFE reads `localStorage.tempest_config` on load and overrides any
+matching numeric key. Purely-structural constants (`LANES`, `CENTER`,
+`RIM_R`/`RIM_R_IN`, `SHOT_START`, `HIT_EPS`) stay plain consts — not
+exposed as knobs, since changing them (e.g. `LANES`) would require
+touching rendering/geometry math throughout the file, not just tuning
+difficulty. `window.__tempest` exports `C` both nested (`.C`) and
+spread flat (`...C`), so `G.MOVE_EVERY` and `G.C.MOVE_EVERY` are both
+valid — existing tests keep working unchanged.
+
 ## Open / deferred
 
 Nothing reported yet — this is a new game, added from the "1978-88 arcade

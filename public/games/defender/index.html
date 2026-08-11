@@ -64,25 +64,33 @@
     let best=+localStorage.getItem("defender_best")||0;
 
     // ------------------------------------------------------------ pure sim
-    const TOTAL_CHICKS=10, CHICKS_PER_WAVE=4;
     const SHIP_ACCEL=0.35, SHIP_DRAG=0.9, SHIP_VY_MAX=3.2, SHIP_VX_MAX=5;
     const BULLET_SPEED=9, BULLET_LIFE=45, FIRE_COOLDOWN=10;
-    const LANDER_SPEED=1.1, LANDER_GRAB_DIST=14, MUTANT_SPEED=1.8;
+    const LANDER_GRAB_DIST=14, MUTANT_SPEED=1.8;
     const CHICK_WALK_SPEED=0.3, CHICK_FALL_G=0.12, CATCH_DIST=26;
-    const SPAWN_GAP=70, SMARTBOMBS_PER_GAME=3;
     const HIT_R_BULLET=16, HIT_R_SHIP=14;
+    // Admin-tunable difficulty knobs — see /admin/games/?game=defender. Same
+    // pattern as every other configurable game on the site (e.g. kaboom):
+    // explicit allowlist, only numeric values, safe no-op with no
+    // localStorage (headless tests).
+    const C={ TOTAL_CHICKS:10, CHICKS_PER_WAVE:4, LANDER_SPEED:1.1, SPAWN_GAP:70, SMARTBOMBS_PER_GAME:3 };
+    (function(){ try{
+      const allow=["TOTAL_CHICKS","CHICKS_PER_WAVE","LANDER_SPEED","SPAWN_GAP","SMARTBOMBS_PER_GAME"];
+      const o=JSON.parse(localStorage.getItem("defender_config")||"{}");
+      for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
+    }catch(_){} })();
 
     function wrapX(x){ return ((x%WORLD_W)+WORLD_W)%WORLD_W; }
     // Shortest signed delta from a to b around the wraparound world (-WORLD_W/2..WORLD_W/2).
     function worldDelta(a,b){ let d=wrapX(b-a); if(d>WORLD_W/2) d-=WORLD_W; return d; }
 
     function enemyCountFor(wave){ return Math.min(12, 3+wave*2); }
-    function landerSpeedFor(wave){ return LANDER_SPEED+Math.min(1.2,wave*0.12); }
+    function landerSpeedFor(wave){ return C.LANDER_SPEED+Math.min(1.2,wave*0.12); }
 
     function newChick(x){ return { x, alive:true, carried:false, falling:false, vy:0, walkDir:Math.random()<0.5?-1:1 }; }
     function totalSpawned(s){ return s.chicks.length + s.chicksLost; }
     function spawnChicks(s,n){
-      const room=TOTAL_CHICKS-totalSpawned(s);
+      const room=C.TOTAL_CHICKS-totalSpawned(s);
       const count=Math.max(0,Math.min(n,room));
       for(let i=0;i<count;i++) s.chicks.push(newChick(wrapX(s.ship.x+(Math.random()-0.5)*WORLD_W*0.6)));
     }
@@ -90,15 +98,15 @@
     function newGame(){
       const ship={x:WORLD_W/2,y:(GROUND_Y+TOP_Y)/2,vx:0,vy:0,facing:1};
       const s={ wave:1, ship, bullets:[], landers:[], mutants:[], chicks:[], chicksLost:0, mutantMode:false,
-        spawnQueue:enemyCountFor(1), spawnT:SPAWN_GAP, score:0, lives:3, inv:60, bombs:SMARTBOMBS_PER_GAME,
+        spawnQueue:enemyCountFor(1), spawnT:C.SPAWN_GAP, score:0, lives:3, inv:60, bombs:C.SMARTBOMBS_PER_GAME,
         over:false, fireT:0 };
-      spawnChicks(s,CHICKS_PER_WAVE);
+      spawnChicks(s,C.CHICKS_PER_WAVE);
       return s;
     }
     function nextWave(s){
       s.wave++; s.landers=[]; s.mutants=[]; s.bullets=[];
-      s.spawnQueue=enemyCountFor(s.wave); s.spawnT=SPAWN_GAP; s.inv=60;
-      if(!s.mutantMode) spawnChicks(s,CHICKS_PER_WAVE);
+      s.spawnQueue=enemyCountFor(s.wave); s.spawnT=C.SPAWN_GAP; s.inv=60;
+      if(!s.mutantMode) spawnChicks(s,C.CHICKS_PER_WAVE);
     }
 
     function thrust(s,dx,dy){
@@ -126,7 +134,7 @@
     function spawnLanders(s){
       if(s.spawnQueue<=0) return;
       if(--s.spawnT>0) return;
-      s.spawnT=SPAWN_GAP; s.spawnQueue--;
+      s.spawnT=C.SPAWN_GAP; s.spawnQueue--;
       const x=wrapX(s.ship.x+(Math.random()<0.5?1:-1)*(120+Math.random()*300));
       if(s.mutantMode) s.mutants.push({x,y:TOP_Y,vx:0,vy:0});
       else s.landers.push({x,y:TOP_Y,carrying:null,speed:landerSpeedFor(s.wave)});
@@ -151,7 +159,7 @@
             s.chicks=s.chicks.filter(c=>c!==l.carrying);
             s.chicksLost++;
             s.mutants.push({x:l.x,y:TOP_Y,vx:0,vy:0});
-            if(s.chicksLost>=TOTAL_CHICKS) s.mutantMode=true;
+            if(s.chicksLost>=C.TOTAL_CHICKS) s.mutantMode=true;
           }
         }
       }
@@ -177,7 +185,7 @@
             const caught=Math.abs(worldDelta(c.x,s.ship.x))<CATCH_DIST && s.ship.y<GROUND_Y-10;
             c.falling=false;
             if(caught){ s.score+=250; c.walkDir=Math.random()<0.5?-1:1; }
-            else { c.alive=false; s.chicksLost++; if(s.chicksLost>=TOTAL_CHICKS) s.mutantMode=true; }
+            else { c.alive=false; s.chicksLost++; if(s.chicksLost>=C.TOTAL_CHICKS) s.mutantMode=true; }
           }
           continue;
         }
@@ -231,8 +239,13 @@
       if(s.lives<=0) s.over=true;
     }
 
-    window.__defender={ VIEW_W, VIEW_H, RADAR_H, WORLD_W, GROUND_Y, TOP_Y, TOTAL_CHICKS, CHICKS_PER_WAVE,
-      SPAWN_GAP, SMARTBOMBS_PER_GAME, FIRE_COOLDOWN, wrapX, worldDelta, enemyCountFor, landerSpeedFor,
+    // The admin config panel tunes C.TOTAL_CHICKS/CHICKS_PER_WAVE/
+    // LANDER_SPEED/SPAWN_GAP/SMARTBOMBS_PER_GAME (see
+    // /admin/games/?game=defender); C is exported both nested (C) and
+    // spread flat (...C) so existing tests referencing e.g. G.TOTAL_CHICKS
+    // keep working unchanged.
+    window.__defender={ VIEW_W, VIEW_H, RADAR_H, WORLD_W, GROUND_Y, TOP_Y, FIRE_COOLDOWN, C, ...C,
+      wrapX, worldDelta, enemyCountFor, landerSpeedFor,
       newGame, nextWave, spawnChicks, totalSpawned, thrust, stepShip, fire, stepBullets, spawnLanders,
       stepLanders, stepMutants, stepChicks, resolveHits, smartBomb, waveClear, die };
     if(typeof document==="undefined") return;

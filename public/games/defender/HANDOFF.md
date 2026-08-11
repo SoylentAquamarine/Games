@@ -64,6 +64,18 @@ the top shows the whole world at once, Defender's signature UI.
   landers and their mutant escalation are the whole enemy roster for
   this pass.
 
+## Admin config
+
+`/admin/games/?game=defender` — 5 difficulty knobs registered in
+`NUMERIC_CONFIGS` (`public/admin/games/index.html`): `TOTAL_CHICKS`,
+`CHICKS_PER_WAVE`, `LANDER_SPEED`, `SPAWN_GAP`, `SMARTBOMBS_PER_GAME`.
+Same pattern as every other configurable game (e.g. kaboom): pulled
+into a mutable `C` object, an IIFE reads `localStorage.defender_config`
+on load and overrides any matching numeric key. `window.__defender`
+exports `C` both nested (`.C`) and spread flat (`...C`), so
+`G.TOTAL_CHICKS` and `G.C.TOTAL_CHICKS` are both valid — existing
+tests keep working unchanged.
+
 ## Open / deferred
 
 Nothing reported yet — this is a new game, added from the same

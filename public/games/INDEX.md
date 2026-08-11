@@ -1,6 +1,6 @@
 # Games Index
 
-102 self-contained browser games. Each lives at `public/games/<slug>/index.html` and is served live at `https://games.square-bar-75ce.workers.dev/games/<slug>/`.
+107 self-contained browser games. Each lives at `public/games/<slug>/index.html` and is served live at `https://games.square-bar-75ce.workers.dev/games/<slug>/`.
 
 Every game is a single HTML file with inline CSS/JS. Pure game logic is exposed on `window.__<name>` for headless testing. Shared helpers come from [`/arcade.js`](../arcade.js) (4:3 screen tiers, sfx, splash screens, start gate, play-stats) and per-page comment boxes from [`/comments.js`](../comments.js).
 
@@ -20,6 +20,7 @@ Every game is a single HTML file with inline CSS/JS. Pure game logic is exposed 
 | [`boulderdash`](boulderdash/) | ChickenDash | Dig for eggs, dodge falling rocks |
 | [`breakout`](breakout/) | Breakout | Bounce a ball to break bricks |
 | [`bubbleshooter`](bubbleshooter/) | Egg Shooter | Lay eggs, match 3+ of a colour to crack them |
+| [`burgertime`](burgertime/) | Chicken Burger Time | Burger Time clone — drop ingredients, dodge the foxes |
 | [`candycrush`](candycrush/) | Chicken Match | Match-3 chicken swapping |
 | [`carddeck`](carddeck/) | Cards | The deck itself — comment on the design |
 | [`cards/crazy8`](cards/crazy8/) | Crazy Eights | Match suit or rank, eights are wild |
@@ -45,6 +46,7 @@ Every game is a single HTML file with inline CSS/JS. Pure game logic is exposed 
 | [`colorswitch`](colorswitch/) | Color Switch | Match the ring color to pass |
 | [`connect4`](connect4/) | Connect Four | Drop discs, four in a row |
 | [`crossyroad`](crossyroad/) | Crossy Road | Hop across roads &amp; rivers |
+| [`defender`](defender/) | Chicken Defender | Defender clone — save the chicks, mind the radar |
 | [`digdug`](digdug/) | Chicken Dug | Dig Dug clone — dig tunnels, pump the monsters |
 | [`dino`](dino/) | Chicken Run | Jump &amp; duck the endless obstacles |
 | [`dk`](dk/) | Chicken Climb | Climb up, dodge rolling eggs |
@@ -54,6 +56,7 @@ Every game is a single HTML file with inline CSS/JS. Pure game logic is exposed 
 | [`dropmerge`](dropmerge/) | Drop Merge | Drop &amp; merge numbers |
 | [`duckhunt`](duckhunt/) | Chicken Hunt | Shoot chickens before they flee |
 | [`eggheist`](eggheist/) | The Great Egg Heist | Pure-text choice-driven mystery — find who's stealing eggs |
+| [`elevatoraction`](elevatoraction/) | Chicken Elevator Op | Elevator Action clone — grab the documents, reach the car |
 | [`fibonacci`](fibonacci/) | Fibonacci | Merge Fibonacci numbers |
 | [`fifteen`](fifteen/) | 15 Puzzle | Slide tiles into order |
 | [`flappy`](flappy/) | Flappy Chicken | Tap to fly through pipes |
@@ -90,6 +93,7 @@ Every game is a single HTML file with inline CSS/JS. Pure game logic is exposed 
 | [`qbert`](qbert/) | ChickenBert | Q*bert clone |
 | [`quest`](quest/) | Chicken Quest | Zelda clone — chicken vs weasels |
 | [`reversi`](reversi/) | Reversi | Flip discs to own the board |
+| [`robotron`](robotron/) | Chicken Robotron | Robotron clone — twin-stick, rescue every chick |
 | [`rps`](rps/) | Rock Paper Scissors | Best of five vs the CPU |
 | [`simon`](simon/) | Simon | Repeat the color sequence |
 | [`snake`](snake/) | Snake | Classic grow-the-snake |
@@ -98,6 +102,7 @@ Every game is a single HTML file with inline CSS/JS. Pure game logic is exposed 
 | [`stack`](stack/) | Stack | Time your drops to stack |
 | [`stratego`](stratego/) | War of the Ring | Hidden-rank army battle |
 | [`sudoku`](sudoku/) | Sudoku | Fill the 9×9 number grid |
+| [`tempest`](tempest/) | Chicken Tempest | Tempest clone — ride the rim, blast foxes climbing the well |
 | [`tetris`](tetris/) | Chickris | Tetris clone — fit falling blocks, clear lines |
 | [`threes`](threes/) | Threes | Slide-merge number puzzle |
 | [`tictactoe`](tictactoe/) | Tic-Tac-Toe | Three in a row |

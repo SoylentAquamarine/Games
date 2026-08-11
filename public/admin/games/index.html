@@ -943,6 +943,20 @@
   // or JS needed on the admin side.
   // =========================================================================
   const NUMERIC_CONFIGS={
+    tempest:{ storageKey:"tempest_config", sub:"Difficulty knobs — takes effect next time the game is opened.", fields:[
+      { key:"MOVE_EVERY", label:"Lane-move speed (frames per lane step — lower is faster)", min:1, max:20, def:6 },
+      { key:"SHOT_SPEED", label:"Shot travel speed (rim to hub, per frame)", min:0.01, max:0.3, def:0.05 },
+      { key:"HOP_EVERY", label:"Fox rim-hop interval (frames — lower is more aggressive)", min:2, max:100, def:26 },
+      { key:"SPAWN_GAP", label:"Fox spawn interval (frames)", min:5, max:300, def:55 },
+      { key:"SUPERZAPS_PER_WAVE", label:"Superzappers per wave", min:0, max:5, def:1 },
+    ]},
+    defender:{ storageKey:"defender_config", sub:"Difficulty knobs — takes effect next time the game is opened.", fields:[
+      { key:"TOTAL_CHICKS", label:"Total chicks for the whole game (lifetime cap)", min:1, max:30, def:10 },
+      { key:"CHICKS_PER_WAVE", label:"Chicks added per wave (until the lifetime cap)", min:1, max:10, def:4 },
+      { key:"LANDER_SPEED", label:"Lander base speed", min:0.2, max:5, def:1.1 },
+      { key:"SPAWN_GAP", label:"Lander spawn interval (frames)", min:5, max:300, def:70 },
+      { key:"SMARTBOMBS_PER_GAME", label:"Smart bombs per game", min:0, max:10, def:3 },
+    ]},
     kaboom:{ storageKey:"kaboom_config", sub:"Difficulty knobs for the egg-catching game — takes effect next time the game is opened.", fields:[
       { key:"ROTTEN_FROM", label:"Rotten eggs start on wave", min:1, max:20, def:2 },
       { key:"CARTON_SIZE", label:"Eggs per carton", min:1, max:99, def:12 },

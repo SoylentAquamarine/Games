@@ -66,13 +66,19 @@
     const LANES=16;
     const CENTER={x:W/2,y:H*0.56};
     const RIM_R=190, RIM_R_IN=128;           // star shape's outer/inner radii; circle uses RIM_R for every lane
-    const MOVE_EVERY=6;                      // frames per lane-step while held
-    const SHOT_SPEED=0.05, SHOT_START=0.94;  // shots travel rim(1) -> center(0)
-    const HOP_EVERY=26;                      // frames between a rim-walking fox's hops
+    const SHOT_START=0.94;                   // shots start near the rim (t: rim=1, center=0)
     const HIT_EPS=0.05;
-    const SPAWN_GAP=55;
-    const SUPERZAPS_PER_WAVE=1;
     const RESPAWN_INV=100;
+    // Admin-tunable difficulty knobs — see /admin/games/?game=tempest. Same
+    // pattern as every other configurable game on the site (e.g. kaboom):
+    // explicit allowlist, only numeric values, safe no-op with no
+    // localStorage (headless tests).
+    const C={ MOVE_EVERY:6, SHOT_SPEED:0.05, HOP_EVERY:26, SPAWN_GAP:55, SUPERZAPS_PER_WAVE:1 };
+    (function(){ try{
+      const allow=["MOVE_EVERY","SHOT_SPEED","HOP_EVERY","SPAWN_GAP","SUPERZAPS_PER_WAVE"];
+      const o=JSON.parse(localStorage.getItem("tempest_config")||"{}");
+      for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
+    }catch(_){} })();
 
     function waveShape(wave){ return wave%2===1?"circle":"star"; }
     function laneAngle(lane){ return (lane/LANES)*Math.PI*2 - Math.PI/2; }
@@ -90,17 +96,17 @@
 
     function newGame(){
       return { wave:1, shape:waveShape(1), lane:0, moveDir:0, moveT:0, spinAccum:0, fireHeld:false, fireT:0,
-        shots:[], enemies:[], spawnQueue:enemyCountFor(1), spawnT:SPAWN_GAP,
-        score:0, lives:3, inv:60, superzaps:SUPERZAPS_PER_WAVE, over:false, flash:0 };
+        shots:[], enemies:[], spawnQueue:enemyCountFor(1), spawnT:C.SPAWN_GAP,
+        score:0, lives:3, inv:60, superzaps:C.SUPERZAPS_PER_WAVE, over:false, flash:0 };
     }
     function nextWave(s){
       s.wave++; s.shape=waveShape(s.wave); s.enemies=[]; s.shots=[];
-      s.spawnQueue=enemyCountFor(s.wave); s.spawnT=SPAWN_GAP; s.superzaps=SUPERZAPS_PER_WAVE; s.inv=RESPAWN_INV;
+      s.spawnQueue=enemyCountFor(s.wave); s.spawnT=C.SPAWN_GAP; s.superzaps=C.SUPERZAPS_PER_WAVE; s.inv=RESPAWN_INV;
     }
     function moveLane(s){
       if(s.moveDir===0) return;
       s.moveT++;
-      if(s.moveT>=MOVE_EVERY){ s.moveT=0; s.lane=(s.lane+s.moveDir+LANES)%LANES; }
+      if(s.moveT>=C.MOVE_EVERY){ s.moveT=0; s.lane=(s.lane+s.moveDir+LANES)%LANES; }
     }
     // A real Tempest spinner steps a lane per fixed slice of physical
     // rotation, instantly (no hold-to-accelerate ramp) — spin fast enough and
@@ -121,15 +127,15 @@
     }
     function stepShots(s){
       if(s.fireT>0) s.fireT--;
-      s.shots.forEach(b=>b.t-=SHOT_SPEED);
+      s.shots.forEach(b=>b.t-=C.SHOT_SPEED);
       s.shots=s.shots.filter(b=>b.t>0);
     }
     function spawnEnemies(s){
       if(s.spawnQueue<=0) return;
       if(--s.spawnT>0) return;
-      s.spawnT=SPAWN_GAP;
+      s.spawnT=C.SPAWN_GAP;
       s.spawnQueue--;
-      s.enemies.push({lane:Math.floor(Math.random()*LANES),t:0,atRim:false,hopT:HOP_EVERY});
+      s.enemies.push({lane:Math.floor(Math.random()*LANES),t:0,atRim:false,hopT:C.HOP_EVERY});
     }
     // Returns true if a fox reached the player's lane at the rim (a hit).
     function stepEnemies(s){
@@ -141,7 +147,7 @@
           if(e.t>=1){ e.t=1; e.atRim=true; }
         }else{
           if(--e.hopT<=0){
-            e.hopT=HOP_EVERY;
+            e.hopT=C.HOP_EVERY;
             const dir=Math.random()<0.8 ? laneStepToward(e.lane,s.lane) : (Math.random()<0.5?1:-1);
             if(dir) e.lane=(e.lane+dir+LANES)%LANES;
           }
@@ -180,8 +186,12 @@
       if(s.lives<=0) s.over=true;
     }
 
-    window.__tempest={ LANES, CENTER, RIM_R, RIM_R_IN, MOVE_EVERY, SHOT_SPEED, SHOT_START, HOP_EVERY, HIT_EPS,
-      SPAWN_GAP, SUPERZAPS_PER_WAVE, LANE_ANGLE, waveShape, laneAngle, laneRimR, laneRim, laneWorldXY, laneDist,
+    // The admin config panel tunes C.MOVE_EVERY/SHOT_SPEED/HOP_EVERY/
+    // SPAWN_GAP/SUPERZAPS_PER_WAVE (see /admin/games/?game=tempest); C is
+    // exported both nested (C) and spread flat (...C) so existing tests
+    // referencing e.g. G.MOVE_EVERY keep working unchanged.
+    window.__tempest={ LANES, CENTER, RIM_R, RIM_R_IN, SHOT_START, HIT_EPS, LANE_ANGLE, C, ...C,
+      waveShape, laneAngle, laneRimR, laneRim, laneWorldXY, laneDist,
       laneStepToward, enemyCountFor, enemySpeedFor, newGame, nextWave, moveLane, spinnerStep, fire, stepShots,
       spawnEnemies, stepEnemies, resolveHits, zap, waveClear, die };
     if(typeof document==="undefined") return;
