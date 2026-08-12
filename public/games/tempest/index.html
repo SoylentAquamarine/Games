@@ -80,6 +80,20 @@
       for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
     }catch(_){} })();
 
+    // Player feedback: "need death animation and starting text, i can't
+    // really tell what is going on it is all jumbled together." Splashes
+    // are plain data — shaped exactly like Arcade.splash's own objects, so
+    // this pure sim stays testable headlessly without a DOM Arcade
+    // reference — the DOM layer hands them straight to Arcade.splash.draw()
+    // (the same shared shake+dim+countdown-bar overlay chixxon/chickenmania/
+    // chickencircus already use for exactly this purpose).
+    function mkSplash(kind,title,sub,frames){ return { kind, title, sub:sub||"", life:frames||120, max:frames||120 }; }
+    function tickSplash(s){
+      if(!s.splash) return false;
+      s.splash.life--;
+      if(s.splash.life<=0) s.splash=null;
+      return true;
+    }
     function waveShape(wave){ return wave%2===1?"circle":"star"; }
     function laneAngle(lane){ return (lane/LANES)*Math.PI*2 - Math.PI/2; }
     function laneRimR(lane,shape){ return shape==="star" ? (lane%2===0?RIM_R:RIM_R_IN) : RIM_R; }
@@ -97,11 +111,13 @@
     function newGame(){
       return { wave:1, shape:waveShape(1), lane:0, moveDir:0, moveT:0, spinAccum:0, fireHeld:false, fireT:0,
         shots:[], enemies:[], spawnQueue:enemyCountFor(1), spawnT:C.SPAWN_GAP,
-        score:0, lives:3, inv:60, superzaps:C.SUPERZAPS_PER_WAVE, over:false, flash:0 };
+        score:0, lives:3, inv:60, superzaps:C.SUPERZAPS_PER_WAVE, over:false, flash:0,
+        splash:mkSplash("wave","WAVE 1","Ride the rim, blast the foxes climbing out",120) };
     }
     function nextWave(s){
       s.wave++; s.shape=waveShape(s.wave); s.enemies=[]; s.shots=[];
       s.spawnQueue=enemyCountFor(s.wave); s.spawnT=C.SPAWN_GAP; s.superzaps=C.SUPERZAPS_PER_WAVE; s.inv=RESPAWN_INV;
+      s.splash=mkSplash("wave","WAVE "+s.wave, s.shape==="star"?"Star well":"Round well",90);
     }
     function moveLane(s){
       if(s.moveDir===0) return;
@@ -184,6 +200,11 @@
     function die(s){
       s.lives--; s.flash=30; s.inv=RESPAWN_INV; s.enemies=[]; s.shots=[];
       if(s.lives<=0) s.over=true;
+      // A brief freeze-frame death splash when a life is lost but the game
+      // continues; game-over itself still uses the existing HTML overlay
+      // (see the DOM layer below) rather than stacking a second splash on
+      // top of it.
+      else s.splash=mkSplash("death","HIT!","Lives left: "+s.lives,60);
     }
 
     // The admin config panel tunes C.MOVE_EVERY/SHOT_SPEED/HOP_EVERY/
@@ -193,7 +214,7 @@
     window.__tempest={ LANES, CENTER, RIM_R, RIM_R_IN, SHOT_START, HIT_EPS, LANE_ANGLE, C, ...C,
       waveShape, laneAngle, laneRimR, laneRim, laneWorldXY, laneDist,
       laneStepToward, enemyCountFor, enemySpeedFor, newGame, nextWave, moveLane, spinnerStep, fire, stepShots,
-      spawnEnemies, stepEnemies, resolveHits, zap, waveClear, die };
+      spawnEnemies, stepEnemies, resolveHits, zap, waveClear, die, mkSplash, tickSplash };
     if(typeof document==="undefined") return;
 
     // -------------------------------------------------------------- DOM layer
@@ -207,6 +228,7 @@
     function loop(){ if(!running) return; update(); render(); raf=requestAnimationFrame(loop); }
     function update(){
       if(s.over) return;
+      if(tickSplash(s)) return;
       if(s.flash>0) s.flash--;
       if(s.inv>0) s.inv--;
       moveLane(s);
@@ -264,6 +286,7 @@
       // hud extras
       ctx.fillStyle="rgba(230,230,240,.7)"; ctx.font="12px system-ui"; ctx.textAlign="left";
       ctx.fillText("Wave "+s.wave+" · Zap x"+s.superzaps,10,H-10);
+      if(s.splash && typeof Arcade!=="undefined" && Arcade.splash) Arcade.splash.draw(ctx,W,H,s.splash);
     }
     // input
     document.addEventListener("keydown",e=>{

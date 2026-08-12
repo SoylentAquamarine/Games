@@ -54,6 +54,33 @@ reach it they hop along adjacent lanes trying to reach the player's lane.
   `/comments.js` + `/fullscreen.js` at the bottom, `tempest_best` in
   localStorage, on-screen d-pad + Zap button for touch.
 
+## Most recent pass — wave-intro and hit splashes
+
+**Player feedback: "need death animation and starting text, i can't
+really tell what is going on it is all jumbled together."** Tempest
+never used the shared `Arcade.splash` module (the same shake+dim+
+countdown-bar overlay chixxon/chickenmania/chickencircus already use)
+despite the site having it available. Added the same
+`mkSplash`/`tickSplash` pattern chixxon uses — plain-data splash
+objects shaped exactly like `Arcade.splash`'s own, so the pure sim
+stays testable headlessly with no DOM `Arcade` reference:
+`newGame()` now queues a "WAVE 1 / Ride the rim, blast the foxes
+climbing out" intro splash, `nextWave()` queues a "WAVE N" splash
+naming the new tube shape, and `die()` queues a "HIT! / Lives left: N"
+splash when a life is lost but the game continues (losing the last
+life still uses the pre-existing HTML game-over overlay unchanged, to
+avoid stacking two overlays on the same moment). `tickSplash(s)`
+freezes normal `update()` for the splash's duration — called at the
+top of the DOM layer's `update()`, right after the `s.over` guard.
+`render()` draws it via `Arcade.splash.draw()`, whose `kind:"death"`
+variant already includes a screen-shake jitter on the title — that's
+the "death animation," reused rather than built from scratch. New
+`tempest-splash-test.js` (10 checks) covers splash queuing on all
+three triggers and the gate/expiry behavior; existing
+`tempest-test.js` (28 checks) still passes unaffected. Live-verified:
+deployed, clicked Play, confirmed the WAVE 1 splash renders with its
+sub-text, zero console errors.
+
 ## Design notes / deliberate scope decisions
 
 - **No mascot flyby cameo** (unlike most other arcade games on the site):

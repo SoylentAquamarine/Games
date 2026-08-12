@@ -49,6 +49,29 @@ the top shows the whole world at once, Defender's signature UI.
   `/comments.js`, `/fullscreen.js`, `defender_best` in localStorage,
   on-screen d-pad + Fire/Bomb buttons for touch.
 
+## Most recent pass — real mid-air catch, gentler gravity
+
+**Player feedback: "when i kill an enemy holding a guy the guy has to
+float down so i can grab him out of the air, the gravity is way way
+too strong for that."** Two problems, both in `stepChicks()`: the docs
+above already described "fly underneath to catch it before it hits the
+ground" as the design, but the actual catch check only ever fired
+once — right as the chick's fall reached `GROUND_Y` — so flying up to
+meet it partway through the fall never did anything, it only mattered
+whether you happened to be under it at the very last instant.
+`CHICK_FALL_G` (uncapped acceleration) also meant a long drop picked up
+real speed by the time it landed. Fixed both: added a genuine mid-air
+check (`midAir`, close both horizontally and at the chick's current
+height) that resolves the catch immediately wherever in the fall it
+happens, and cut `CHICK_FALL_G` from 0.12 to 0.045 plus added a hard
+cap (`CHICK_FALL_VMAX=2.2`) so a long fall never speeds up past a
+catchable float. `CHICK_FALL_G`/`CHICK_FALL_VMAX`/`CATCH_DIST` added to
+the `window.__defender` export for testing. New
+`defender-midair-catch-test.js` (7 checks: gravity bounds, mid-air
+catch success/non-catch, ground-level catch still works unchanged) all
+pass; existing `defender-test.js` unaffected. Live-verified: deployed,
+zero console errors.
+
 ## Design notes / deliberate scope decisions
 
 - **No mascot flyby cameo**, matching the call already made for

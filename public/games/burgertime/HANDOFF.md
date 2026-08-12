@@ -47,6 +47,27 @@ chasing you.
 - Standard site conventions: `/arcade.js`, `/startgate.js`,
   `/comments.js`, `/fullscreen.js`, `burgertime_best` in localStorage.
 
+## Most recent pass — real chicken/fox/ingredient sprites
+
+**Player feedback: "i don't understand what any of this is the
+graphics are too generic."** Fair — the player and enemies were
+plain filled circles, and every ingredient was an identical flat
+colored rectangle regardless of kind. Added `drawChicken(ctx,x,y,
+facing)` (body, tail feathers, comb, beak, legs — same visual family
+as `chickenFace()` in checkers/other games) and `drawFox(ctx,x,y,
+stunned)` (pointed ears, tan body, white snout patch, eyes that
+switch to an X when stunned) as inline canvas-drawing functions, and
+`drawIngredient(ctx,kind,cx,topY)` giving each of the 4 kinds its own
+distinct shape within the same 52×18 footprint: `bun_top` gets a
+rounded top edge with seed dots, `patty` gets diagonal grill-mark
+lines, `cheese` is drawn as a draping parallelogram instead of a flat
+rect, `bun_bottom` gets a rounded bottom edge. Ladders also gained
+horizontal rung ticks instead of just a flat tinted strip. Pure
+rendering change — no game-logic/sim functions touched, so the
+existing `burgertime-test.js` suite passes unchanged. Live-verified:
+deployed, played a few seconds, confirmed distinct ingredient shapes
+and the chicken player render correctly, zero console errors.
+
 ## Design notes / deliberate scope decisions
 
 - **No mascot flyby cameo**, same reasoning as the other new games this

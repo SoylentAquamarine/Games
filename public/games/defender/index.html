@@ -67,7 +67,12 @@
     const SHIP_ACCEL=0.35, SHIP_DRAG=0.9, SHIP_VY_MAX=3.2, SHIP_VX_MAX=5;
     const BULLET_SPEED=9, BULLET_LIFE=45, FIRE_COOLDOWN=10;
     const LANDER_GRAB_DIST=14, MUTANT_SPEED=1.8;
-    const CHICK_WALK_SPEED=0.3, CHICK_FALL_G=0.12, CATCH_DIST=26;
+    // Player feedback: "when i kill an enemy holding a guy the guy has to
+    // float down so i can grab him out of the air, the gravity is way way
+    // too strong for that." G cut to roughly a third of its old value, plus
+    // a capped terminal velocity (CHICK_FALL_VMAX) so a long drop never
+    // speeds up into an unreactable blur.
+    const CHICK_WALK_SPEED=0.3, CHICK_FALL_G=0.045, CHICK_FALL_VMAX=2.2, CATCH_DIST=26;
     const HIT_R_BULLET=16, HIT_R_SHIP=14;
     // Admin-tunable difficulty knobs — see /admin/games/?game=defender. Same
     // pattern as every other configurable game on the site (e.g. kaboom):
@@ -179,10 +184,18 @@
         if(c.carried) continue;
         if(c.falling){
           // horizontal position stays fixed while falling — only y0 (its drop height) moves
-          c.vy+=CHICK_FALL_G;
-          const groundHit=c.y0!==undefined && (c.y0+=c.vy)>=GROUND_Y;
-          if(groundHit){
-            const caught=Math.abs(worldDelta(c.x,s.ship.x))<CATCH_DIST && s.ship.y<GROUND_Y-10;
+          c.vy=Math.min(c.vy+CHICK_FALL_G, CHICK_FALL_VMAX);
+          if(c.y0===undefined) continue;
+          c.y0+=c.vy;
+          // Mid-air catch: the old check only ever fired once, right as the
+          // chick reached ground level, so flying up underneath it while it
+          // was still falling never did anything. Getting close to it (both
+          // horizontally and at its current height) now catches it
+          // immediately, wherever in the fall that happens.
+          const midAir=s.ship.y<GROUND_Y-10 && Math.abs(worldDelta(c.x,s.ship.x))<CATCH_DIST && Math.abs(c.y0-s.ship.y)<CATCH_DIST;
+          const groundHit=c.y0>=GROUND_Y;
+          if(midAir || groundHit){
+            const caught=midAir || (Math.abs(worldDelta(c.x,s.ship.x))<CATCH_DIST && s.ship.y<GROUND_Y-10);
             c.falling=false;
             if(caught){ s.score+=250; c.walkDir=Math.random()<0.5?-1:1; }
             else { c.alive=false; s.chicksLost++; if(s.chicksLost>=C.TOTAL_CHICKS) s.mutantMode=true; }
@@ -244,7 +257,7 @@
     // /admin/games/?game=defender); C is exported both nested (C) and
     // spread flat (...C) so existing tests referencing e.g. G.TOTAL_CHICKS
     // keep working unchanged.
-    window.__defender={ VIEW_W, VIEW_H, RADAR_H, WORLD_W, GROUND_Y, TOP_Y, FIRE_COOLDOWN, C, ...C,
+    window.__defender={ VIEW_W, VIEW_H, RADAR_H, WORLD_W, GROUND_Y, TOP_Y, FIRE_COOLDOWN, CHICK_FALL_G, CHICK_FALL_VMAX, CATCH_DIST, C, ...C,
       wrapX, worldDelta, enemyCountFor, landerSpeedFor,
       newGame, nextWave, spawnChicks, totalSpawned, thrust, stepShip, fire, stepBullets, spawnLanders,
       stepLanders, stepMutants, stepChicks, resolveHits, smartBomb, waveClear, die };

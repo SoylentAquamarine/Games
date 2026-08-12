@@ -118,7 +118,11 @@
       ctx.strokeStyle=dark?"#8f93a8":"#ffd0d0";ctx.lineWidth=3;ctx.stroke();
       ctx.strokeStyle=dark?"rgba(255,255,255,.22)":"rgba(255,255,255,.32)";ctx.lineWidth=1.5;
       ctx.beginPath();ctx.arc(x,cy,r*0.76,0,7);ctx.stroke();
-      chickenFace(x,cy,r,dark);
+      // Player feedback: "no the king checker needs to not have a chicken on
+      // it and just a big crown." A king used to get the same chicken face
+      // as every other piece PLUS a crown drawn across it, muddling the two.
+      // Kings now skip the face entirely — the crown is the only decoration.
+      if(!isKing(v)) chickenFace(x,cy,r,dark);
       if(isKing(v)){
         // A big, unmistakable gold crown sitting across the piece — bold dark
         // outline so it reads at any size, jewels on the band and a shine.
