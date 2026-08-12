@@ -273,6 +273,19 @@
       return ties[Math.floor(Math.random() * ties.length)];
     }
 
+    // Minimax with alpha-beta pruning, capped at C.AI_DEPTH plies (a full
+    // Connect Four game tree is far too large to search to completion).
+    // `alpha` is the best score the maximizing side (AI) can already
+    // guarantee along this path; `beta` is the best the minimizing side
+    // (human) can already guarantee. The moment alpha reaches or passes
+    // beta, the side to move has a strictly better option elsewhere in
+    // the tree that the opponent would never allow reaching this branch
+    // in the first place -- so the remaining sibling moves at this node
+    // are provably irrelevant and can be skipped (`break`) without
+    // changing the final result, not just as an approximation.
+    // 1000000±depth (not a flat 1000000) makes a win found sooner score
+    // higher and a loss found later score less bad, so the AI prefers
+    // the fastest win / slowest loss among otherwise-equal outcomes.
     function minimax(g, depth, alpha, beta, maximizing) {
       if (hasWin(g, YELLOW)) return 1000000 + depth;
       if (hasWin(g, RED)) return -1000000 - depth;

@@ -17,7 +17,18 @@ opponent does. CPU opponent (alpha-beta AI) or 2-player local.
   explicit allowlist, rounded to an integer (a fractional search depth
   doesn't mean anything).
 
-## Most recent pass
+## Most recent pass — heavier code comments
+
+Part of a site-wide comment-density pass (once the comment queue and
+the admin config-page rollout both ran dry — see root `HANDOFF.md`).
+`minimax()` had no comment on its alpha-beta pruning (`if (alpha >=
+beta) break;`) or its depth-adjusted win/loss scoring — added an
+explanation of why the pruning is provably safe (not an approximation)
+and why 1000000±depth beats a flat score. Comment-only — no logic
+touched; existing `connect4-block-test.js` (60 randomized games) still
+passes unchanged. Live-verified: deployed, zero console errors.
+
+## Earlier pass — admin config
 
 Added the admin config pane described above (`AI_DEPTH`) — no gameplay
 change to the default. Verified against the existing

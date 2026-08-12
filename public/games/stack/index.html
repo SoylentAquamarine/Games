@@ -64,6 +64,14 @@
       if(cur.x+cur.w>W){cur.x=W-cur.w;cur.dir=-1;}
       if(cur.x<0){cur.x=0;cur.dir=1;}
     }
+    // The genre-defining Stack mechanic: the block being placed gets
+    // CLIPPED to whatever horizontal range it actually overlaps with the
+    // block below (a classic 1D interval intersection: the later of the
+    // two left edges to the earlier of the two right edges). No overlap
+    // at all means a total miss -- game over. A landed block is narrower
+    // than the one below it exactly by how far off-center the drop was,
+    // which is what makes each successive block harder to land as the
+    // tower's usable width shrinks.
     function drop(){
       if(!running)return;
       const prev=stack[stack.length-1];

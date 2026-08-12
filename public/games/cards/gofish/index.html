@@ -61,6 +61,11 @@
       const s={ you:d.splice(0,7), cpu:d.splice(0,7), pond:d, youBooks:0, cpuBooks:0, turn:"you", over:false, msg:"" };
       return settle(s);
     }
+    // Real Go Fish rule easy to miss in the code: on a miss (no match),
+    // drawing from the pond and having THAT card happen to match the rank
+    // you asked for still earns another turn ("go again"), same as if the
+    // opponent had handed it over directly -- it's not just a consolation
+    // draw, s.turn only passes to the CPU when the drawn card ALSO misses.
     function askRank(s, rank){
       if(s.over||s.turn!=="you") return s;
       if(countOf(s.you,rank)===0){ s.msg="You have to hold a rank to ask for it."; return s; }
@@ -72,6 +77,10 @@
         else s.turn="cpu"; }
       return settle(s);
     }
+    // Simplest possible CPU strategy: no memory of what's been asked
+    // before, no tracking of which ranks the human is likely holding --
+    // just picks a uniformly random rank from its own hand and asks for
+    // it (mirroring how a human player must ask for a rank they hold).
     function cpuMove(s, forcedRank){
       if(s.over||s.turn!=="cpu") return s;
       if(!s.cpu.length){ s.turn="you"; return settle(s); }
