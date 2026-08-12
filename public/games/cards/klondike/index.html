@@ -69,11 +69,21 @@
     const SUITS=Cards.SUITS;
     const sv=(r)=>r===14?1:r;                     // Ace low
     const isRed=(c)=>!!Cards.RED[c.suit];
-    const DEAL=3, VEGAS_PASSES=2;                  // draw-3, 3 passes total (2 recycles)
+    // Admin-tunable difficulty knobs — see /admin/games/?game=cards/klondike.
+    // Same pattern as every other configurable game (e.g. kaboom): explicit
+    // allowlist, only numeric values, safe no-op with no localStorage
+    // (headless tests).
+    const C={ DEAL:3, VEGAS_PASSES:2 };              // draw-3, 3 passes total (2 recycles)
+    (function(){ try{
+      const allow=["DEAL","VEGAS_PASSES"];
+      const o=JSON.parse(localStorage.getItem("cards/klondike_config")||"{}");
+      for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
+    }catch(_){} })();
+    const DEAL=C.DEAL, VEGAS_PASSES=C.VEGAS_PASSES;
     // pure move predicates (also exported for tests)
     function foundationOk(card, suit, pile){ if(card.suit!==suit) return false; const okv=pile.length?sv(pile[pile.length-1].rank)+1:1; return sv(card.rank)===okv; }
     function tableauOk(first, destTop){ if(!destTop) return sv(first.rank)===13; return sv(first.rank)===sv(destTop.rank)-1 && isRed(first)!==isRed(destTop); }
-    window.__klondike={ sv, isRed, foundationOk, tableauOk, DEAL, VEGAS_PASSES };
+    window.__klondike={ sv, isRed, foundationOk, tableauOk, DEAL, VEGAS_PASSES, C };
 
     if(typeof document==="undefined"||!document.getElementById) return;
     const stockEl=document.getElementById("stock"),wasteEl=document.getElementById("waste"),

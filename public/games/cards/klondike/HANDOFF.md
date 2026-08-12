@@ -7,19 +7,26 @@ a Standard and a Vegas rules mode.
 
 - `index.html` — everything. Exposes `window.__klondike` with the pure
   move predicates (`sv`, `isRed`, `foundationOk`, `tableauOk`, `DEAL`,
-  `VEGAS_PASSES`) for headless testing; the rest of the game state
+  `VEGAS_PASSES`, `C`) for headless testing; the rest of the game state
   (`board`/`stock`/`waste`/`found`/`tab`, `newGame`, `drawStock`, `tryTo`,
   etc.) lives in the closure and isn't exported.
-- Standard mode: draw 3 at a time, unlimited redeals (stock recycles from
-  waste via `waste.reverse()`, which correctly reproduces the original
-  draw-3 grouping order on the next pass).
+- Standard mode: draw `C.DEAL` (default 3) at a time, unlimited redeals
+  (stock recycles from waste via `waste.reverse()`, which correctly
+  reproduces the original draw-grouping order on the next pass).
 - Vegas mode: -$52 buy-in, +$5 per card sent to a foundation, -$5 per
-  card pulled back off a foundation to the tableau, 3 total passes
-  through the stock (`VEGAS_PASSES = 2` redeals + the initial pass). A
-  completed or abandoned (New Deal / mode switch) Vegas game always
-  commits its running score into the persistent `bank` (localStorage
-  `klondike_bank`), tracked via a `committed` flag so a game's score is
-  only ever banked once.
+  card pulled back off a foundation to the tableau, `C.VEGAS_PASSES+1`
+  total passes through the stock (`C.VEGAS_PASSES` redeals + the
+  initial pass, default 2 redeals = 3 total). A completed or abandoned
+  (New Deal / mode switch) Vegas game always commits its running score
+  into the persistent `bank` (localStorage `klondike_bank`), tracked
+  via a `committed` flag so a game's score is only ever banked once.
+- **Admin-configurable** at `/admin/games/?game=cards/klondike`:
+  `DEAL`, `VEGAS_PASSES`. Uses the site's generic numeric-knob config
+  pattern (see kaboom's HANDOFF.md) — saved to
+  `localStorage["cards/klondike_config"]`, merged into `C` at boot via
+  an explicit allowlist. `DEAL`/`VEGAS_PASSES` stay as plain identifiers
+  throughout the rest of the file, just sourced from `C` instead of
+  hardcoded, so no other usage sites needed touching.
 - Double-tap a card (detected by click timing, not a `dblclick`
   listener, since the first click's re-render destroys the element a
   `dblclick` would have fired on) sends it to its foundation if legal.
@@ -30,7 +37,11 @@ a Standard and a Vegas rules mode.
 
 ## Most recent pass
 
-**Bug fix:** `resetBank()` force-set `committed = true` whenever the
+Added the admin config pane described above (`DEAL`, `VEGAS_PASSES`)
+— no gameplay change to the defaults. Verified against the existing
+`klondike-resetbank-test.js` (unaffected, still passes).
+
+Earlier: **Bug fix:** `resetBank()` force-set `committed = true` whenever the
 bankroll was reset, which silently suppressed the *next* legitimate
 `commitScore()` call. Concretely: start a Vegas game (score starts at
 -$52, uncommitted), click "Reset bankroll" mid-game, then end that game

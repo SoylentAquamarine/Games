@@ -1105,6 +1105,10 @@
       { key:"SCRAMBLE_MIN", label:"Minimum scramble presses", min:1, max:30, def:6 },
       { key:"SCRAMBLE_RANGE", label:"Extra random scramble presses (0 to this)", min:0, max:30, def:8 },
     ]},
+    "cards/klondike":{ storageKey:"cards/klondike_config", sub:"Difficulty knobs — takes effect next time the game is opened.", fields:[
+      { key:"DEAL", label:"Cards drawn from stock at once", min:1, max:3, def:3 },
+      { key:"VEGAS_PASSES", label:"Vegas mode: total passes through the deck", min:1, max:10, def:2 },
+    ]},
     duckhunt:{ storageKey:"duckhunt_config", sub:"Difficulty knobs — takes effect next time the game is opened.", fields:[
       { key:"AMMO", label:"Shots per duck", min:1, max:10, def:3 },
       { key:"SPEED", label:"Duck speed", min:0.5, max:10, def:2.0 },
