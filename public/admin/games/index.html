@@ -1288,6 +1288,10 @@
     mancala:{ storageKey:"mancala_config", sub:"Starting seeds — takes effect next time the game is opened. The 6-pits-per-side layout isn't editable here since that's the standard board; seeds per pit is the usual variant dial.", fields:[
       { key:"SEEDS_PER_PIT", label:"Starting seeds per pit", min:2, max:8, def:4 },
     ]},
+    bubbleshooter:{ storageKey:"bubbleshooter_config", sub:"Difficulty knobs — takes effect next time the game is opened.", fields:[
+      { key:"SHOT_SPEED", label:"Egg travel speed", min:6, max:30, def:16 },
+      { key:"START_ROWS", label:"Starting filled rows", min:2, max:12, def:5 },
+    ]},
   };
   let numericInitSlug=null;
   function initNumericEditor(slug){

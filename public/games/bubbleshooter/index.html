@@ -40,6 +40,16 @@
     const cv=document.getElementById("c"),ctx=cv.getContext("2d"),W=cv.width,H=cv.height;
     const scoreEl=document.getElementById("score");
     const ov=document.getElementById("ov"),ot=document.getElementById("ot"),om=document.getElementById("om"),startBtn=document.getElementById("start");
+    // Admin-tunable difficulty knobs — see /admin/games/?game=bubbleshooter.
+    // Same pattern as every other configurable game on the site: explicit
+    // allowlist, only numeric values, safe no-op with no localStorage
+    // (headless tests).
+    const C={ SHOT_SPEED:16, START_ROWS:5 };
+    (function(){ try{
+      const allow=["SHOT_SPEED","START_ROWS"];
+      const o=JSON.parse(localStorage.getItem("bubbleshooter_config")||"{}");
+      for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
+    }catch(_){} })();
     const R=18, COLS=9, ROWH=R*1.74, LOSE=H-64;
     const COLORS=["#ef4444","#eab308","#22c55e","#22d3ee","#a855f7"];
     let grid,rows,shooter,cur,nextC,fly,aim,running,raf,score;
@@ -47,7 +57,7 @@
     function colsInRow(r){return r%2?COLS-1:COLS;}
     function cellXY(r,c){return {x:R+ c*2*R + (r%2?R:0), y:R+2 + r*ROWH};}
     function newGame(){rows=14;grid=Array.from({length:rows},(_,r)=>Array(colsInRow(r)).fill(null));
-      for(let r=0;r<5;r++)for(let c=0;c<colsInRow(r);c++)grid[r][c]=COLORS[Math.floor(Math.random()*COLORS.length)];
+      for(let r=0;r<C.START_ROWS;r++)for(let c=0;c<colsInRow(r);c++)grid[r][c]=COLORS[Math.floor(Math.random()*COLORS.length)];
       shooter={x:W/2,y:H-28};cur=randColor();nextC=randColor();fly=null;aim={x:W/2,y:0};score=0;scoreEl.textContent=0;
       ov.classList.add("hidden");running=true;draw();}
     function randColor(){const present=new Set();for(const row of grid)for(const v of row)if(v)present.add(v);
@@ -58,7 +68,7 @@
     // ends the moment the egg settles, so exactly one runs — and 16 is the speed
     // the second shot used to reach, which felt right.
     function shoot(){if(fly||!running)return;const dx=aim.x-shooter.x,dy=aim.y-shooter.y;const len=Math.hypot(dx,dy)||1;
-      if(dy>-4)return;const sp=16;fly={x:shooter.x,y:shooter.y,vx:dx/len*sp,vy:dy/len*sp,color:cur};loop();}
+      if(dy>-4)return;const sp=C.SHOT_SPEED;fly={x:shooter.x,y:shooter.y,vx:dx/len*sp,vy:dy/len*sp,color:cur};loop();}
     function loop(){if(!running||!fly){draw();return;}update();draw();raf=requestAnimationFrame(loop);}
     function update(){
       if(!fly)return;
@@ -157,7 +167,7 @@
     cv.addEventListener("touchmove",e=>{if(running){setAim(e.touches[0].clientX,e.touches[0].clientY);e.preventDefault();draw();}},{passive:false});
     cv.addEventListener("click",e=>{if(running){setAim(e.clientX,e.clientY);shoot();}});
     startBtn.addEventListener("click",newGame);
-    window.__bubble={neighbors,colsInRow,flood:(g,r,c,col)=>{grid=g;rows=g.length;return flood(r,c,col);},COLS};
+    window.__bubble={neighbors,colsInRow,flood:(g,r,c,col)=>{grid=g;rows=g.length;return flood(r,c,col);},COLS,C,...C};
     // static preview
     rows=14;grid=Array.from({length:rows},(_,r)=>Array(colsInRow(r)).fill(null));for(let r=0;r<5;r++)for(let c=0;c<colsInRow(r);c++)grid[r][c]=COLORS[(r+c)%COLORS.length];shooter={x:W/2,y:H-28};cur=COLORS[0];nextC=COLORS[1];aim={x:W/2,y:0};score=0;draw();
   })();
