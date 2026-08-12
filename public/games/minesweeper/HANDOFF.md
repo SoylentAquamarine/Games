@@ -10,7 +10,20 @@ suspected mines, numbers show adjacent mine counts.
 - Original build: added alongside 2048, Breakout, Simon, and
   Whack-a-Mole.
 
-## Most recent pass
+## Most recent pass — heavier code comments
+
+Part of a site-wide comment-density pass (once the comment queue and
+the admin config-page rollout both ran dry — see root `HANDOFF.md`).
+This file had zero inline comments despite two genuinely non-obvious
+bits of logic: `plant()`'s first-click-safety (mines excluded from the
+clicked cell AND its 8 neighbors, so the opening reveal is always safe
+and informative) and `reveal()`'s recursive flood-fill cascade (why a
+0-count cell reveals all its neighbors too). Comment-only — no logic
+touched; existing `minesweeper-flood-test.js` and
+`minesweeper-unflag-reveal-test.js` both still pass unchanged.
+Live-verified: deployed, zero console errors.
+
+## Earlier pass — mobile long-press-unflag bug
 
 Fixed a mobile touch bug: long-pressing a flagged cell to remove the
 flag left a trailing synthetic `click` event (fired by mobile browsers

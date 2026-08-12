@@ -84,11 +84,26 @@
       row++;col=0;
       if(row>=6){over=true;statusEl.textContent="The word was "+answer.toUpperCase()+".";}
     }
+    // The classic two-pass Wordle duplicate-letter algorithm — a naive
+    // single pass over-marks "present" when a letter repeats. E.g.
+    // guessing PAPER against answer ROBOT: only one P exists in the
+    // answer... no P at all actually, better example: guessing SPEED
+    // against ERASE (one E) — a single-pass check would mark BOTH of
+    // SPEED's Es as "present," but only one E exists to account for.
+    // Pass 1 marks every exact position match first and removes that
+    // letter from the available `counts` pool; pass 2 then only marks
+    // "present" for letters that still have count left in the pool,
+    // consuming one each time — so a guess can never claim more
+    // presents+corrects for a letter than the answer actually contains.
     function color(guess,answer){const res=Array(5).fill("absent");const counts={};
       for(const ch of answer)counts[ch]=(counts[ch]||0)+1;
       for(let i=0;i<5;i++)if(guess[i]===answer[i]){res[i]="correct";counts[guess[i]]--;}
       for(let i=0;i<5;i++)if(res[i]!=="correct"&&counts[guess[i]]>0){res[i]="present";counts[guess[i]]--;}
       return res;}
+    // A key's color only ever upgrades (absent -> present -> correct),
+    // never downgrades — once a letter's shown green from one guess, a
+    // later guess placing that same letter elsewhere (present/absent for
+    // THAT position) shouldn't make the keyboard forget it was correct.
     function setKey(ch,state){const rank={absent:0,present:1,correct:2};if((rank[state]||0)<(rank[keyState[ch]]||0))return;keyState[ch]=state;
       const b=kbEl.querySelector('[data-k="'+ch+'"]');if(b){b.classList.remove("absent","present","correct");b.classList.add(state);}}
     let ft;function flash(m){statusEl.textContent=m;clearTimeout(ft);ft=setTimeout(()=>{if(!over)statusEl.textContent="Guess the 5-letter word.";},1400);}

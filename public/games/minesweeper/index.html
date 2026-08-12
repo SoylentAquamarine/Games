@@ -71,6 +71,12 @@
         d.addEventListener("touchend",()=>{if(lp){clearTimeout(lp);}},{passive:true});
         gridEl.appendChild(d);cells.push(d);}
     }
+    // First-click safety: mines aren't planted until the player's first
+    // click (`safe`), and never land on that cell OR any of its 8
+    // neighbors — so the very first reveal is guaranteed to open a small
+    // safe patch (via reveal()'s cascade below) rather than risking an
+    // instant loss, or worse, a 1-mine-away opening that gives no
+    // information at all.
     function plant(safe){const opts=[];for(let i=0;i<N*N;i++)if(i!==safe&&!neighbors(safe).includes(i))opts.push(i);
       while(mines.size<M&&opts.length){const k=Math.floor(Math.random()*opts.length);mines.add(opts[k]);opts.splice(k,1);}}
     function neighbors(i){const r=Math.floor(i/N),c=i%N,out=[];for(let dr=-1;dr<=1;dr++)for(let dc=-1;dc<=1;dc++){if(!dr&&!dc)continue;const nr=r+dr,nc=c+dc;if(nr>=0&&nr<N&&nc>=0&&nc<N)out.push(nr*N+nc);}return out;}
@@ -84,6 +90,11 @@
       if(mines.has(i)){return lose(i);}
       if(revealed.size===N*N-M)return win();
     }
+    // Classic flood-fill cascade: revealing a cell with 0 adjacent mines
+    // is "blank," and recursively reveals all its neighbors too (each of
+    // THOSE stops the cascade the moment it hits a cell with a nonzero
+    // count) — this is what opens up a whole empty region from one click
+    // instead of forcing the player to click every safe cell individually.
     function reveal(i){if(revealed.has(i)||flags.has(i))return;revealed.add(i);const d=cells[i];d.classList.add("open");
       const n=count(i);if(mines.has(i))return;
       if(n>0){d.textContent=n;d.classList.add("c"+n);}

@@ -56,10 +56,27 @@
     function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
     function valid(g,r,c,v){for(let i=0;i<9;i++){if(g[r][i]===v||g[i][c]===v)return false;}
       const br=r-r%3,bc=c-c%3;for(let i=0;i<3;i++)for(let j=0;j<3;j++)if(g[br+i][bc+j]===v)return false;return true;}
+    // Randomized backtracking solver, used here to GENERATE a full valid
+    // grid (not to solve a partial one): finds the first empty cell, tries
+    // its 9 candidate values in shuffled order, recurses, and undoes the
+    // placement (g[r][c]=0) if that recursion couldn't complete the rest
+    // of the grid. Shuffling the candidates each call is what makes every
+    // generated solution different, not just the digging pass below.
     function fill(g){for(let r=0;r<9;r++)for(let c=0;c<9;c++)if(g[r][c]===0){const nums=shuffle([1,2,3,4,5,6,7,8,9]);
       for(const v of nums)if(valid(g,r,c,v)){g[r][c]=v;if(fill(g))return true;g[r][c]=0;}return false;}return true;}
+    // Same backtracking shape as fill(), but counts solutions instead of
+    // just finding one — capped at `limit` since makePuzzle() below only
+    // ever needs to know "is this uniquely solvable" (exactly 1), not the
+    // true total, so it can stop exploring the instant it finds a 2nd.
     function countSol(g,limit){for(let r=0;r<9;r++)for(let c=0;c<9;c++)if(g[r][c]===0){let n=0;
       for(let v=1;v<=9;v++)if(valid(g,r,c,v)){g[r][c]=v;n+=countSol(g,limit-n);g[r][c]=0;if(n>=limit)break;}return n;}return 1;}
+    // "Digs holes" in a complete solution to build the playable puzzle:
+    // tries clearing cells one at a time in random order, up to `remove`
+    // of them, but only KEEPS a cell cleared if the puzzle still has
+    // exactly one solution afterward (countSol with limit=2 — 2+ means
+    // ambiguous, put the digit back). This is the step that guarantees
+    // every generated puzzle has one unique answer, never multiple valid
+    // completions.
     function makePuzzle(sol,remove){const p=sol.map(r=>r.slice());const order=shuffle([...Array(81).keys()]);let removed=0;
       for(const idx of order){if(removed>=remove)break;const r=Math.floor(idx/9),c=idx%9;const bak=p[r][c];if(bak===0)continue;p[r][c]=0;
         if(countSol(p.map(x=>x.slice()),2)!==1){p[r][c]=bak;}else removed++;}
