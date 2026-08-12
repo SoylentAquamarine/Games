@@ -18,9 +18,8 @@ reach the target score before moves run out.
   from the top with new random tiles), and re-checks — each successive
   cascade step multiplies the per-tile score by an increasing `combo`
   counter.
-- Fixed target of 1000 points in 25 moves (`TARGET`, `MOVES`); game ends
-  in a win or "out of moves" state.
-- No admin config pane wired up for this game.
+- Fixed target of 1000 points in 25 moves (`TARGET`, `MOVES`, both in
+  the `C` config object); game ends in a win or "out of moves" state.
 
 ## Most recent pass
 
@@ -42,6 +41,16 @@ status instead of silently locking up. Re-ran the same simulation with
 the reshuffle path active across 2000 games: 27 reshuffles triggered, 0
 games ended up stuck. `hasValidMove` is now also exposed on
 `window.__cc` alongside the existing pure-sim exports.
+
+## Admin config
+
+`/admin/games/?game=candycrush` — 2 difficulty knobs registered in
+`NUMERIC_CONFIGS` (`public/admin/games/index.html`): `TARGET` (score
+needed to win), `MOVES` (moves allowed). Pulled out of a standalone
+`const` into a mutable `C` object; an IIFE reads
+`localStorage.candycrush_config` on load and overrides any matching
+numeric key via an explicit allowlist. `window.__cc` exports `C`
+alongside its existing pure-sim exports.
 
 ## Open / deferred
 

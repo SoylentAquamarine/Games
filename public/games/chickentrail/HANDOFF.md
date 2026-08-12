@@ -13,9 +13,9 @@ weariness, and random weather/events.
   first of the 2 "Oregon Trail" style ones; `huntfox` and `eggheist` are
   the 2 pure-text games, no canvas at all).
 - `window.__chickentrail` exposes the pure sim (`TOTAL_DISTANCE`,
-  `START_FEED`, `START_CHICKENS`, `WEATHER_MULT`, `WEARY_ACCIDENT_AT`,
-  `newGame`, `travel`, `rest`, `hunt`, `applyDailyFeed`, `checkOver`,
-  `rollWeather`).
+  `WEATHER_MULT`, `C` — nested and spread flat, so both
+  `G.START_FEED` and `G.C.START_FEED` work — `newGame`, `travel`,
+  `rest`, `hunt`, `applyDailyFeed`, `checkOver`, `rollWeather`).
 - **Core pressure valve: every day (Travel, Rest, or Hunt — all three)
   the flock eats `chickens × FEED_PER_CHICKEN` feed** (`applyDailyFeed`,
   called first thing inside all three actions). If there isn't enough
@@ -79,6 +79,20 @@ New game, built in response to the same player feedback as `huntfox` and
 text half graphics on the screen like oregon trail." This is the third
 of the 4 (the first "Oregon Trail" style one). Registered on the home
 page's "📖 Text Adventures" category alongside the other two.
+
+## Admin config
+
+`/admin/games/?game=chickentrail` — 4 difficulty knobs registered in
+`NUMERIC_CONFIGS` (`public/admin/games/index.html`): `START_FEED`,
+`START_CHICKENS`, `FEED_PER_CHICKEN`, `WEARY_ACCIDENT_AT` — exactly
+the four values the beatability simulation above tuned. Pulled out of
+plain `const` declarations into a mutable `C` object; an IIFE reads
+`localStorage.chickentrail_config` on load and overrides any matching
+numeric key via an explicit allowlist. `TOTAL_DISTANCE` and the
+weariness gain/loss rates stay plain consts, untouched. The shipped
+defaults are what `chickentrail-test.js`'s 70%-win-rate regression
+check validates — admin overrides only affect that admin's own
+localStorage, never the defaults the regression test guards.
 
 ## Open / deferred
 

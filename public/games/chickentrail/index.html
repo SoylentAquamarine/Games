@@ -82,10 +82,22 @@
     // traveling, but only started with 100, and cumulative predator-attack
     // losses over the ~60+ travel days a 1000-mile journey needs averaged
     // MORE than the entire starting flock on their own, independent of feed.
-    const TOTAL_DISTANCE=1000, START_FEED=130, START_CHICKENS=20, FEED_PER_CHICKEN=0.6;
+    const TOTAL_DISTANCE=1000;
     const WEATHER_MULT={ clear:1.0, rain:0.8, storm:0.5, snow:0.6 };
     const WEATHER_ICON={ clear:"☀️ Clear", rain:"🌧️ Rain", storm:"⛈️ Storm", snow:"❄️ Snow" };
-    const WEARY_TRAVEL_GAIN=15, WEARY_REST_LOSS=25, WEARY_ACCIDENT_AT=70;
+    const WEARY_TRAVEL_GAIN=15, WEARY_REST_LOSS=25;
+    // Admin-tunable difficulty knobs — see /admin/games/?game=chickentrail.
+    // Same pattern as every other configurable game (e.g. kaboom): explicit
+    // allowlist, only numeric values, safe no-op with no localStorage
+    // (headless tests). These four are the exact balance knobs a careful
+    // beatability simulation tuned (see HANDOFF.md) — admin can retune them
+    // per-flock, but the shipped defaults are what the simulation validated.
+    const C={ START_FEED:130, START_CHICKENS:20, FEED_PER_CHICKEN:0.6, WEARY_ACCIDENT_AT:70 };
+    (function(){ try{
+      const allow=["START_FEED","START_CHICKENS","FEED_PER_CHICKEN","WEARY_ACCIDENT_AT"];
+      const o=JSON.parse(localStorage.getItem("chickentrail_config")||"{}");
+      for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
+    }catch(_){} })();
 
     function rnd(min,max){ return min+Math.floor(Math.random()*(max-min+1)); }
     function pick(weights){
@@ -97,14 +109,14 @@
     }
 
     function newGame(){
-      return { day:1, distance:0, feed:START_FEED, chickens:START_CHICKENS, weary:0, weather:"clear", over:false, won:false };
+      return { day:1, distance:0, feed:C.START_FEED, chickens:C.START_CHICKENS, weary:0, weather:"clear", over:false, won:false };
     }
 
     // Shared by every action: chickens eat every day regardless of what
     // you did with it. If there isn't enough feed, a chicken starves —
     // this is the game's real pressure valve, not a specific "bad event".
     function applyDailyFeed(s, mult){
-      const needed=Math.max(1, Math.round(s.chickens*FEED_PER_CHICKEN*mult));
+      const needed=Math.max(1, Math.round(s.chickens*C.FEED_PER_CHICKEN*mult));
       const msgs=[];
       if(s.feed>=needed){ s.feed-=needed; }
       else {
@@ -136,7 +148,7 @@
       // the pool at all once weariness is high enough — that's what makes
       // Rest a real choice instead of pure downtime.
       const pool={ nothing:5, predator:0.8, spoilage:2, luckyfind:2 };
-      if(s.weary>=WEARY_ACCIDENT_AT) pool.accident=3;
+      if(s.weary>=C.WEARY_ACCIDENT_AT) pool.accident=3;
       const roll=pick(pool);
       if(roll==="predator" && s.chickens>0){ const lost=Math.min(s.chickens, rnd(1,2)); s.chickens-=lost; msgs.push({t:"bad", text:"A fox got into the flock overnight — lost "+lost+" chicken(s)."}); }
       else if(roll==="spoilage" && s.feed>0){ const lost=Math.min(s.feed, rnd(10,25)); s.feed-=lost; msgs.push({t:"bad", text:"Rain got into the feed sacks — "+lost+" feed spoiled."}); }
@@ -174,7 +186,7 @@
       return { ok:true, msgs };
     }
 
-    window.__chickentrail={ TOTAL_DISTANCE, START_FEED, START_CHICKENS, WEATHER_MULT, WEARY_ACCIDENT_AT,
+    window.__chickentrail={ TOTAL_DISTANCE, WEATHER_MULT, C, ...C,
       newGame, travel, rest, hunt, applyDailyFeed, checkOver, rollWeather };
     if(typeof document==="undefined") return;
 

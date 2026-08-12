@@ -62,7 +62,16 @@
         + '<path d="M19 12.6 l4.2 1.6 l-4.2 1.6 z" fill="#fb923c"/>'
         + '<path d="M18.6 15.6 q1.2 1.8 -0.4 3.2" stroke="#dc2626" stroke-width="1.5" fill="none"/>'
         + '</svg>'; }
-    const TARGET=1000, MOVES=25;
+    // Admin-tunable difficulty knobs — see /admin/games/?game=candycrush.
+    // Same pattern as every other configurable game (e.g. kaboom): explicit
+    // allowlist, only numeric values, safe no-op with no localStorage
+    // (headless tests).
+    const C={ TARGET:1000, MOVES:25 };
+    (function(){ try{
+      const allow=["TARGET","MOVES"];
+      const o=JSON.parse(localStorage.getItem("candycrush_config")||"{}");
+      for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
+    }catch(_){} })();
     const boardEl=document.getElementById("board"),scoreEl=document.getElementById("score"),movesEl=document.getElementById("moves"),targetEl=document.getElementById("target"),statusEl=document.getElementById("status");
     let board,sel,score,moves,busy,over,cells=[];
     const rnd=(n)=>Math.floor(Math.random()*n);
@@ -97,8 +106,8 @@
     function render(){for(let r=0;r<SIZE;r++)for(let c=0;c<SIZE;c++){const v=board[r][c];const el=cells[r][c];
       el.innerHTML=v>=0?chickenSVG(v):"";el.classList.toggle("sel",!!(sel&&sel[0]===r&&sel[1]===c));}}
 
-    function newGame(){board=freshBoard();sel=null;score=0;moves=MOVES;over=false;busy=false;
-      scoreEl.textContent=0;movesEl.textContent=MOVES;targetEl.textContent=TARGET;statusEl.textContent="Swap two neighbors to match 3+.";render();}
+    function newGame(){board=freshBoard();sel=null;score=0;moves=C.MOVES;over=false;busy=false;
+      scoreEl.textContent=0;movesEl.textContent=C.MOVES;targetEl.textContent=C.TARGET;statusEl.textContent="Swap two neighbors to match 3+.";render();}
     function click(r,c){
       if(busy||over)return;
       if(!sel){sel=[r,c];render();return;}
@@ -114,7 +123,7 @@
       moves--;movesEl.textContent=moves;
       await resolve();
       busy=false;
-      if(score>=TARGET){over=true;statusEl.textContent="🎉 Target reached! You win! Score "+score;}
+      if(score>=C.TARGET){over=true;statusEl.textContent="🎉 Target reached! You win! Score "+score;}
       else if(moves<=0){over=true;statusEl.textContent="Out of moves. Final score "+score+".";}
       else if(!hasValidMove(board)){board=freshBoard();render();statusEl.textContent="No moves left — board reshuffled.";}
     }
@@ -134,7 +143,7 @@
     }
     document.getElementById("new").addEventListener("click",newGame);
     // expose for tests
-    window.__cc={gen,findMatches,collapse,SIZE,NCOL,hasValidMove};
+    window.__cc={gen,findMatches,collapse,SIZE,NCOL,hasValidMove,C};
     build();newGame();
   })();
   </script>
