@@ -1265,6 +1265,14 @@
       { key:"ROWS", label:"Grid rows", min:4, max:12, def:8 },
       { key:"FOUR_CHANCE", label:"Chance a new tile is a 4 (vs a 2)", min:0, max:1, def:0.3 },
     ]},
+    "2048":{ storageKey:"2048_config", sub:"Spawn odds — takes effect next time the game is opened. Grid size isn't editable here since 4x4 is definitional to 2048, not a difficulty dial.", fields:[
+      { key:"TWO_CHANCE", label:"Chance a new tile is a 2 (vs a 4)", min:0, max:1, def:0.9 },
+    ]},
+    tetris:{ storageKey:"tetris_config", sub:"Fall-speed curve — takes effect next time the game is opened. Board size isn't editable here since 10x20 is definitional to Tetris, not a difficulty dial.", fields:[
+      { key:"BASE_INTERVAL", label:"Level 1 fall interval (ms — lower is faster)", min:100, max:1200, def:600 },
+      { key:"LEVEL_SPEEDUP", label:"Speedup per level (ms faster per level)", min:5, max:100, def:45 },
+      { key:"MIN_INTERVAL", label:"Fastest possible fall interval (ms)", min:20, max:300, def:90 },
+    ]},
   };
   let numericInitSlug=null;
   function initNumericEditor(slug){

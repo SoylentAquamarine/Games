@@ -55,6 +55,17 @@
   </div>
   <script>
   (function(){
+    // Admin-tunable difficulty knobs — see /admin/games/?game=tetris.
+    // Same pattern as every other configurable game on the site: explicit
+    // allowlist, only numeric values, safe no-op with no localStorage
+    // (headless tests). COLS/ROWS aren't exposed — 10x20 is definitional
+    // to Tetris, not a difficulty dial (same call made for 2048's SIZE).
+    const C={ BASE_INTERVAL:600, LEVEL_SPEEDUP:45, MIN_INTERVAL:90 };
+    (function(){ try{
+      const allow=["BASE_INTERVAL","LEVEL_SPEEDUP","MIN_INTERVAL"];
+      const o=JSON.parse(localStorage.getItem("tetris_config")||"{}");
+      for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
+    }catch(_){} })();
     const COLS=10,ROWS=20,T=20;
     const cv=document.getElementById("c"),ctx=cv.getContext("2d");
     const nextCv=document.getElementById("next"),nctx=nextCv.getContext("2d");
@@ -87,7 +98,7 @@
 
     function newGame(){board=empty();score=0;lines=0;level=1;over=false;next=null;dropAcc=0;lastT=performance.now();
       scoreEl.textContent=0;linesEl.textContent=0;levelEl.textContent=1;spawn();ov.classList.add("hidden");running=true;raf=requestAnimationFrame(loop);}
-    function loop(t){if(!running)return;const dt=t-lastT;lastT=t;dropAcc+=dt;const interval=Math.max(90,600-(level-1)*45);
+    function loop(t){if(!running)return;const dt=t-lastT;lastT=t;dropAcc+=dt;const interval=Math.max(C.MIN_INTERVAL,C.BASE_INTERVAL-(level-1)*C.LEVEL_SPEEDUP);
       if(dropAcc>interval){dropAcc=0;soft();}render();raf=requestAnimationFrame(loop);}
     function gameOver(){running=false;cancelAnimationFrame(raf);over=true;ot.textContent="Game Over";om.textContent="Score "+score+" · "+lines+" lines";startBtn.textContent="Play again";ov.classList.remove("hidden");}
     function cell(g,x,y,col){g.fillStyle=col;g.fillRect(x*T+1,y*T+1,T-2,T-2);g.fillStyle="rgba(255,255,255,.15)";g.fillRect(x*T+1,y*T+1,T-2,3);}
@@ -104,7 +115,8 @@
       if(k==="left")move(-1);else if(k==="right")move(1);else if(k==="rot")rot();else if(k==="drop")hard();render();}));
     startBtn.addEventListener("click",newGame);
     // expose for tests
-    window.__tetris={empty,rotate,collide:(p,ox,oy,b)=>{board=b;return collide(p,ox,oy);},clearTest:(b)=>{board=b;lines=0;level=1;score=0;clearLines();return{board,lines,score};},SHAPES};
+    window.__tetris={empty,rotate,collide:(p,ox,oy,b)=>{board=b;return collide(p,ox,oy);},clearTest:(b)=>{board=b;lines=0;level=1;score=0;clearLines();return{board,lines,score};},SHAPES,
+      C,...C,intervalFor:(lvl)=>Math.max(C.MIN_INTERVAL,C.BASE_INTERVAL-(lvl-1)*C.LEVEL_SPEEDUP)};
     board=empty();render();
   })();
   </script>

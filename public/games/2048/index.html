@@ -46,6 +46,18 @@
   <script src="/arcade.js"></script>
   <script>
   (function(){
+    // Admin-tunable difficulty knob — see /admin/games/?game=2048. Same
+    // pattern as every other configurable game on the site: explicit
+    // allowlist, only numeric values, safe no-op with no localStorage
+    // (headless tests). SIZE isn't exposed here — 4x4 is definitional to
+    // "2048," not a difficulty dial (same call made for tetris's COLS/ROWS
+    // and 2048's own SIZE, matching battleship's fixed 10x10 grid).
+    const C={ TWO_CHANCE:0.9 };
+    (function(){ try{
+      const allow=["TWO_CHANCE"];
+      const o=JSON.parse(localStorage.getItem("2048_config")||"{}");
+      for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
+    }catch(_){} })();
     const SIZE=4, cellsEl=document.getElementById("cells"), tilesEl=document.getElementById("tiles");
     const scoreEl=document.getElementById("score"), bestEl=document.getElementById("best"), statusEl=document.getElementById("status");
     const COLORS={2:"#3a3f74",4:"#4a5085",8:"#7c5cff",16:"#9333ea",32:"#c026d3",64:"#db2777",128:"#f43f5e",256:"#fb923c",512:"#f59e0b",1024:"#eab308",2048:"#22d3ee"};
@@ -54,7 +66,7 @@
     for(let i=0;i<16;i++){const d=document.createElement("div");d.className="cell";cellsEl.appendChild(d);}
 
     function init(){grid=Array.from({length:SIZE},()=>Array(SIZE).fill(0));score=0;over=false;won=false;statusEl.textContent="";scoreEl.textContent=0;add();add();draw();}
-    function add(){const e=[];for(let r=0;r<SIZE;r++)for(let c=0;c<SIZE;c++)if(!grid[r][c])e.push([r,c]);if(!e.length)return;const[r,c]=e[Math.floor(Math.random()*e.length)];grid[r][c]=Math.random()<.9?2:4;}
+    function add(){const e=[];for(let r=0;r<SIZE;r++)for(let c=0;c<SIZE;c++)if(!grid[r][c])e.push([r,c]);if(!e.length)return;const[r,c]=e[Math.floor(Math.random()*e.length)];grid[r][c]=Math.random()<C.TWO_CHANCE?2:4;}
     function draw(){
       tilesEl.innerHTML="";
       const g=cellsEl.getBoundingClientRect(), gap=10, size=(g.width-gap*3)/4;
