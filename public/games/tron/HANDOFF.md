@@ -33,6 +33,18 @@ the same commit as tron-specific work. Earlier still: renamed to Chicken
 Tron with readable colors and the three-lives/replay-round structure,
 alongside Missile Command's opening sequence and a new board-games hub.
 
+## Admin config
+
+`/admin/games/?game=tron` — 2 difficulty knobs registered in
+`NUMERIC_CONFIGS` (`public/admin/games/index.html`): `LIVES`,
+`TICK_MS` (grid-step interval — lower is faster). Pulled the
+previously-standalone `LIVES` const and the hardcoded `setInterval`
+delay into a new `C` object; an IIFE reads `localStorage.tron_config`
+on load and overrides any matching numeric key via an explicit
+allowlist. `CELL`/`COLS`/`ROWS` stay plain consts — structural, not a
+difficulty knob. `window.__tron` exports `C` alongside its existing
+sim hooks.
+
 ## Open / deferred
 
 Nothing currently open for this game.

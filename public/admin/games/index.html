@@ -965,6 +965,16 @@
       { key:"DEATH_FRAMES", label:"Death freeze duration (frames)", min:10, max:300, def:120 },
       { key:"BALL_SPEED", label:"Ball speed", min:1, max:15, def:4 },
     ]},
+    chickenmania:{ storageKey:"chickenmania_config", sub:"Difficulty knobs — takes effect next time the game is opened.", fields:[
+      { key:"LIVES", label:"Starting lives", min:1, max:9, def:3 },
+      { key:"SHIP_SPEED", label:"Ship move speed", min:0.5, max:10, def:3.2 },
+      { key:"WAVE_BONUS", label:"Points per enemy for clearing a wave (x current wave)", min:10, max:2000, def:150 },
+      { key:"RAMP", label:"Speed/drop-rate multiplier per formation replay", min:1, max:2, def:1.10 },
+    ]},
+    tron:{ storageKey:"tron_config", sub:"Difficulty knobs — takes effect next time the game is opened.", fields:[
+      { key:"LIVES", label:"Starting chickens (lives)", min:1, max:9, def:3 },
+      { key:"TICK_MS", label:"Grid-step interval (ms — lower is faster)", min:20, max:300, def:70 },
+    ]},
     robotron:{ storageKey:"robotron_config", sub:"Difficulty knobs — takes effect next time the game is opened.", fields:[
       { key:"GRUNT_SPEED", label:"Grunt speed", min:0.1, max:5, def:0.7 },
       { key:"HULK_HP", label:"Hulk hit points", min:1, max:20, def:5 },

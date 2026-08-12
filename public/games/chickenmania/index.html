@@ -56,7 +56,19 @@
     E_W:20, E_H:14, COLS:7, ROWS:2,
     WAVE_BONUS:150,
     LIVES:3,
+    RAMP:1.10,
   };
+  // Admin-tunable difficulty knobs — see /admin/games/?game=chickenmania.
+  // Same pattern as every other configurable game (e.g. kaboom): explicit
+  // allowlist, only numeric values, safe no-op with no localStorage
+  // (headless tests). Pure layout/geometry fields (W, H, SHIP_W, E_W, COLS,
+  // ROWS, ...) stay untouched — changing those would break rendering, not
+  // just difficulty.
+  (function(){ try{
+    const allow=["LIVES","SHIP_SPEED","WAVE_BONUS","RAMP"];
+    const o=JSON.parse(localStorage.getItem("chickenmania_config")||"{}");
+    for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
+  }catch(_){} })();
 
   // Eight formations, cycled by wave. Megamania's charm was that each wave moved
   // in its own way — some marched in a tidy block, some were plainly strange, and
@@ -100,11 +112,10 @@
   // compounding so it keeps climbing. The movement pattern is deliberately NOT
   // rotated: each object keeps its signature all game, so feathers always come
   // down chaotically and cartons always zigzag.
-  const RAMP=1.10;
   function waveDef(w){
     const base=WAVES[(w-1)%WAVES.length], n=cycleOf(w);
     if(n===0) return base;
-    const k=Math.pow(RAMP,n);
+    const k=Math.pow(C.RAMP,n);
     return { ...base, speed:base.speed*k, drop:base.drop*k, dropMul:k };
   }
 

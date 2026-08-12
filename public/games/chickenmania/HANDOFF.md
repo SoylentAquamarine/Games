@@ -35,6 +35,22 @@ all the way up the screen, and a ONE SHOT ONE KILL bonus round.
    is gone entirely — any wave cleared with zero missed shots triggers the
    bonus now, `OK.EVERY` no longer exists.
 
+## Admin config
+
+`/admin/games/?game=chickenmania` — 4 difficulty knobs registered in
+`NUMERIC_CONFIGS` (`public/admin/games/index.html`): `LIVES`,
+`SHIP_SPEED`, `WAVE_BONUS`, `RAMP` (the per-formation-replay
+speed/drop-rate multiplier, moved out of a standalone `const` into
+`C` for this). These live in the same `C` object chickenmania already
+used for layout/geometry; an IIFE reads `localStorage.
+chickenmania_config` on load and overrides any matching numeric key
+via an explicit allowlist. Pure layout/geometry fields (`W`, `H`,
+`SHIP_W`, `E_W`, `COLS`, `ROWS`, ...) stay untouched — changing those
+would break rendering, not just difficulty. Separate from
+`localStorage["chickenmania_waves"]` above — one tunes formation
+shapes, the other tunes overall pacing. `window.__chickenmania`
+already exported `C`, so no export change was needed.
+
 ## Open / deferred
 
 Nothing currently open for this game.

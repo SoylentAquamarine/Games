@@ -55,8 +55,18 @@
     let round=1;   // advances each time you win
     // Crashing costs a chicken and replays the same round, rather than throwing
     // away the whole ladder. Run over when all three are gone.
-    const LIVES=3;
-    let lives=LIVES;
+    // Admin-tunable difficulty knobs — see /admin/games/?game=tron. Same
+    // pattern as every other configurable game (e.g. kaboom): explicit
+    // allowlist, only numeric values, safe no-op with no localStorage
+    // (headless tests). CELL/COLS/ROWS stay plain consts — structural,
+    // not a difficulty tuning knob.
+    const C={ LIVES:3, TICK_MS:70 };
+    (function(){ try{
+      const allow=["LIVES","TICK_MS"];
+      const o=JSON.parse(localStorage.getItem("tron_config")||"{}");
+      for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
+    }catch(_){} })();
+    let lives=C.LIVES;
 
     // How the CPU plays at a given round. Round 1 wanders, later rounds commit to
     // straight lines, look further ahead, and eventually hunt you down.
@@ -82,7 +92,7 @@
       you={x:Math.floor(COLS*0.25),y:Math.floor(ROWS/2),dir:"right"};youNext="right";
       cpu={x:Math.floor(COLS*0.75),y:Math.floor(ROWS/2),dir:"left"};
       occ[you.y][you.x]=1;occ[cpu.y][cpu.x]=2;render();}
-    function start(){reset();ov.classList.add("hidden");running=true;clearInterval(timer);timer=setInterval(tick,70);}
+    function start(){reset();ov.classList.add("hidden");running=true;clearInterval(timer);timer=setInterval(tick,C.TICK_MS);}
     function free(x,y){return x>=0&&x<COLS&&y>=0&&y<ROWS&&!occ[y][x];}
     function tick(){
       if(!running)return;
@@ -141,7 +151,7 @@
       if(lives<=0){
         ot.textContent="💥 Out of chickens";
         om.textContent="You reached round "+round+". Three fresh chickens await.";
-        round=1; lives=LIVES; updateRound();
+        round=1; lives=C.LIVES; updateRound();
         startBtn.textContent="Play again"; ov.classList.remove("hidden"); return;
       }
 
@@ -179,7 +189,7 @@
     reset();
     updateRound();                      // show the starting round and chickens
     // test hook
-    window.__tron={ end, updateRound, state:()=>({round,lives}) };
+    window.__tron={ end, updateRound, state:()=>({round,lives}), C };
   })();
   </script>
   <script src="/startgate.js" defer></script>
