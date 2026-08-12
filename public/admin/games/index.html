@@ -1109,6 +1109,11 @@
       { key:"DEAL", label:"Cards drawn from stock at once", min:1, max:3, def:3 },
       { key:"VEGAS_PASSES", label:"Vegas mode: total passes through the deck", min:1, max:10, def:2 },
     ]},
+    blackjack:{ storageKey:"blackjack_config", sub:"Difficulty/rule knobs — takes effect next time the game is opened.", fields:[
+      { key:"DEALER_STAND", label:"Dealer stands on this total or higher", min:15, max:19, def:17 },
+      { key:"BLACKJACK_PAYOUT", label:"Blackjack payout multiplier", min:1, max:3, def:1.5 },
+      { key:"NUM_DECKS", label:"Number of decks in the shoe", min:1, max:8, def:4 },
+    ]},
     duckhunt:{ storageKey:"duckhunt_config", sub:"Difficulty knobs — takes effect next time the game is opened.", fields:[
       { key:"AMMO", label:"Shots per duck", min:1, max:10, def:3 },
       { key:"SPEED", label:"Duck speed", min:0.5, max:10, def:2.0 },
