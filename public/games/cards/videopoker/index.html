@@ -58,6 +58,11 @@
       {name:"Full House",pay:9},{name:"Flush",pay:6},{name:"Straight",pay:4},
       {name:"Three of a Kind",pay:3},{name:"Two Pair",pay:2},{name:"Jacks or Better",pay:1}
     ];
+    // Checks hands strongest-first with early returns (PAYS is ordered
+    // royal flush down to jacks-or-better), so a hand that qualifies for
+    // multiple categories always scores as its best one -- e.g. a flush
+    // that's ALSO a straight hits the flush+straight check below before
+    // ever reaching the plain-flush check further down.
     function evaluate(cards){
       const ranks=cards.map(c=>c.rank).slice().sort((a,b)=>a-b);
       const suits=cards.map(c=>c.suit);
@@ -79,6 +84,10 @@
       if(straight) return PAYS[5];
       if(vals[0]===3) return PAYS[6];
       if(vals[0]===2&&vals[1]===2) return PAYS[7];
+      // "Jacks or better": a single pair only pays out if the pair's rank
+      // is Jack (11) or higher (Q=12, K=13, A=14) -- a pair of 10s or
+      // below falls through to "No Win," matching the standard video
+      // poker paytable this game is named after.
       if(vals[0]===2){ const pr=+Object.keys(counts).find(r=>counts[r]===2); if(pr>=11) return PAYS[8]; }
       return {name:"No Win",pay:0};
     }

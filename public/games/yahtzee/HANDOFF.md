@@ -18,7 +18,18 @@ want to keep, fill in the scorecard across 13 categories.
   proper `window.__yahtzee` export gets added later.
 - No admin config pane wired up for this game.
 
-## Most recent pass
+## Most recent pass — heavier code comments
+
+Part of a site-wide comment-density pass (once the comment queue and
+the admin config-page rollout both ran dry — see root `HANDOFF.md`).
+Added explanations for `fullHouse()`'s 5-of-a-kind edge case,
+`straight()`'s de-dupe-then-longest-run approach (shared by both
+small and large straight, just with a different length threshold),
+and `grandTotal()`'s 63/+35 upper-section bonus rule. Comment-only —
+no logic touched; existing `yahtzee-scoring-test.js` still passes
+unchanged. Live-verified: deployed, zero console errors.
+
+## Earlier pass
 
 No player-feedback pass yet, and a bug-hunt pass this session found no
 real bugs (see "What's here"). This HANDOFF.md was created as part of a

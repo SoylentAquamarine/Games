@@ -72,7 +72,16 @@
     function sum(d){return d.reduce((a,b)=>a+b,0);}
     function sumOf(d,n){return d.filter(v=>v===n).length*n;}
     function maxCount(d){return Math.max(...counts(d).slice(1));}
+    // A 3-and-2 split of two different values is the normal full house;
+    // c.includes(5) also qualifies 5-of-a-kind (all five dice the same
+    // value) as a full house too, matching this implementation's ruling
+    // on that edge case.
     function fullHouse(d){const c=counts(d).slice(1).filter(x=>x);return (c.includes(3)&&c.includes(2))||c.includes(5);}
+    // Longest run of consecutive values in the (de-duplicated, sorted)
+    // roll -- de-duping first means a hand like [2,2,3,4,5] still counts
+    // as a 4-long run despite the repeated 2. Shared by both straight
+    // categories, just called with a different `len` threshold (4 for
+    // small, 5 for large).
     function straight(d,len){const s=[...new Set(d)].sort((a,b)=>a-b);let run=1,best=1;for(let i=1;i<s.length;i++){if(s[i]===s[i-1]+1){run++;best=Math.max(best,run);}else run=1;}return best>=len;}
 
     const diceEl=document.getElementById("dice"),cardEl=document.getElementById("card"),statusEl=document.getElementById("status"),rollBtn=document.getElementById("roll");
@@ -111,6 +120,10 @@
     }
     function row(label,val,cls){const tr=document.createElement("tr");tr.className=cls;tr.innerHTML=`<td>${label}</td><td class="sc">${val}</td>`;cardEl.appendChild(tr);}
     function upperSubtotal(){return CATS.slice(0,6).reduce((a,c)=>a+(c.id in scores?scores[c.id]:0),0);}
+    // Standard Yahtzee upper-section bonus: score at least 63 across the
+    // six number categories (Ones-Sixes -- roughly "three of each," since
+    // 3+6+9+12+15+18=63) and get a flat +35 on top. Same threshold is
+    // duplicated in render()'s "Bonus (63+)" row label/value.
     function grandTotal(){const up=upperSubtotal();const bonus=up>=63?35:0;const low=CATS.slice(6).reduce((a,c)=>a+(c.id in scores?scores[c.id]:0),0);return up+bonus+low;}
     function score(cat){
       if(over||!rolledThisTurn||cat.id in scores)return;

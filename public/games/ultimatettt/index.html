@@ -44,14 +44,29 @@
     const metaEl=document.getElementById("meta"),statusEl=document.getElementById("status");
     let boards,bigWin,active,turn,over,minis=[];
 
+    // bigWin[bi] tracks each of the 9 sub-boards' outcome: 0 = still in
+    // progress, 1/2 = won by X/O, -1 = filled up with no winner (a drawn
+    // sub-board -- distinct from 0 so playable() below correctly excludes
+    // it without needing a separate "is full" check every time).
     function winnerOf(cells){for(const[a,b,c]of LINES)if(cells[a]&&cells[a]===cells[b]&&cells[a]===cells[c])return cells[a];return 0;}
     function full(cells){return cells.every(v=>v);}
     function playable(bi){return bigWin[bi]===0&&!full(boards[bi]);}
+    // The `active` board restriction (-1 means "play anywhere") only ever
+    // narrows legal moves to a single sub-board when one's actually set --
+    // see place()'s comment for how it gets set after each move.
     function legalMoves(){const out=[];const boardsToPlay=(active>=0&&playable(active))?[active]:[...Array(9).keys()].filter(playable);
       for(const bi of boardsToPlay)for(let ci=0;ci<9;ci++)if(!boards[bi][ci])out.push([bi,ci]);return out;}
 
     function newGame(){boards=Array.from({length:9},()=>Array(9).fill(0));bigWin=Array(9).fill(0);active=-1;turn=X;over=false;
       statusEl.textContent="Your move (X). Play anywhere.";render();}
+    // The signature Ultimate Tic-Tac-Toe rule, easy to miss just reading
+    // the code: whichever CELL a player just played in (ci, 0-8) dictates
+    // which SUB-BOARD the opponent must play in next -- e.g. playing the
+    // top-right cell of any sub-board sends the opponent to the top-right
+    // sub-board. If that target sub-board is already won or full,
+    // `playable()` returns false and `active` falls back to -1 (free
+    // choice of any open sub-board) instead of trapping the opponent with
+    // no legal move.
     function place(bi,ci,p){boards[bi][ci]=p;const w=winnerOf(boards[bi]);if(w)bigWin[bi]=w;else if(full(boards[bi]))bigWin[bi]=-1;
       active=playable(ci)?ci:-1;
       const mw=winnerOf(bigWin.map(v=>v>0?v:0));if(mw){over=true;return mw;}

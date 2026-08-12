@@ -119,12 +119,25 @@
       myTurn=false;
       setTimeout(aiTurn,650);
     }
+    // Classic Battleship-solving "hunt/target" AI:
+    //  - TARGET mode: aiQueue holds cells orthogonally adjacent to a
+    //    confirmed hit, queued below the moment a hit lands. Draining
+    //    this first means a hit gets followed up immediately (probing
+    //    around it to find the rest of that ship) before falling back to
+    //    undirected hunting.
+    //  - HUNT mode (aiQueue empty): fires at a random untried cell, but
+    //    restricted to ONE checkerboard parity ((i+j)%2===0). Since every
+    //    ship is at least 2 cells long and adjacent cells always differ
+    //    in parity, a ship can never hide entirely within the other
+    //    parity class -- scanning just one color still guarantees finding
+    //    every ship eventually, while trying roughly half as many cells
+    //    as scanning all of them. Falls back to any untried cell if the
+    //    preferred parity is exhausted.
     function aiTurn(){
       if(over)return;
       let r,c;
-      // target mode
       while(aiQueue.length){const t=aiQueue.shift();if(!aiTried[t.r][t.c]){r=t.r;c=t.c;break;}}
-      if(r===undefined){ // hunt: random parity untried
+      if(r===undefined){
         const opts=[];for(let i=0;i<N;i++)for(let j=0;j<N;j++)if(!aiTried[i][j]&&(i+j)%2===0)opts.push([i,j]);
         const pool=opts.length?opts:allUntried();
         const pick=pool[Math.floor(Math.random()*pool.length)];r=pick[0];c=pick[1];
