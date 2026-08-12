@@ -63,6 +63,12 @@
     const spots=[[11,1],[1,9],[11,9]]; for(const [c,r] of spots){ if(grid[r][c]!=="wall"){ grid[r][c]="empty"; s.enemies.push({c,r,alive:true,dir:"left"}); } }
     return s;
   }
+  // Classic cross-shaped Bomberman blast: extends outward from the bomb
+  // in each of the 4 directions up to `range` cells. A wall blocks the
+  // blast in that direction entirely (nothing past it, not even that
+  // cell); a brick stops the blast too but the brick's own cell still
+  // counts as hit (destroyed) -- the blast just can't punch through it to
+  // reach anything beyond.
   function explodeCells(grid, c, r, range){
     const cells=[{c,r}], bricks=[];
     for(const k in DIRS){ const [dc,dr]=DIRS[k]; for(let i=1;i<=range;i++){ const nc=c+dc*i, nr=r+dr*i;
@@ -78,6 +84,11 @@
     for(const e of s.enemies){ if(e.alive && cells.some(x=>x.c===e.c&&x.r===e.r)){ e.alive=false; s.score+=100; if(typeof Arcade!=="undefined")Arcade.sfx.hit(); } }
     if(cells.some(x=>x.c===s.player.c&&x.r===s.player.r)){ s.player.alive=false; s.over=true; }
     s.bombs.splice(bi,1);
+    // Chain reactions: any OTHER still-ticking bomb caught in this blast
+    // has its timer forced to 0 -- not detonated immediately/recursively
+    // here, just flagged so tick()'s own countdown loop (which is already
+    // mid-iteration over s.bombs) picks it up and detonates it on the very
+    // next tick, cascading outward one tick at a time.
     for(const cell of cells){ const j=s.bombs.findIndex(bb=>bb.c===cell.c&&bb.r===cell.r); if(j>=0) s.bombs[j].timer=0; }
     for(const cell of cells) s.blasts.push({c:cell.c,r:cell.r,life:C.BLAST_LIFE});
     return cells;
@@ -89,6 +100,11 @@
     if(s.bombs.some(b=>b.c===c&&b.r===r)) return false; return true; }
   function movePlayer(s, dir){ if(s.over) return s; const d=DIRS[dir]; if(!d) return s; const nc=s.player.c+d[0], nr=s.player.r+d[1];
     if(canWalk(s,nc,nr)){ s.player.c=nc; s.player.r=nr; if(s.enemies.some(e=>e.alive&&e.c===nc&&e.r===nr)){ s.player.alive=false; s.over=true; } } return s; }
+  // Enemy wander AI: 70% chance to keep going the same direction it's
+  // already moving (if that's still a legal move), otherwise pick a fresh
+  // random open direction. Weighting toward "keep going" instead of a
+  // pure random walk every tick is what makes enemies read as wandering
+  // purposefully through corridors rather than jittering in place.
   function moveEnemies(s){ if(s.over) return s;
     for(const e of s.enemies){ if(!e.alive) continue; const opts=Object.keys(DIRS).filter(k=>{ const [dc,dr]=DIRS[k]; return canWalk(s,e.c+dc,e.r+dr); });
       let move = opts.includes(e.dir)&&Math.random()<0.7 ? e.dir : (opts.length?opts[Math.floor(Math.random()*opts.length)]:null);
