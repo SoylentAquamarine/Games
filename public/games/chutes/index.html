@@ -54,12 +54,22 @@
   const DIE=["","⚀","⚁","⚂","⚃","⚄","⚅"];
   let you=0,cpu=0,turn="you",over=false,busy=false;
 
+  // Classic Chutes & Ladders / Snakes & Ladders "boustrophedon" numbering:
+  // squares 1-100 snake back and forth across a 10x10 grid, bottom row
+  // first, alternating left-to-right then right-to-left each row up --
+  // NOT a simple left-to-right/top-to-bottom reading order. numToXY(n)
+  // converts a square number to its pixel center for drawing tokens and
+  // the jump/slide overlay lines.
   function numToXY(n){ n=Math.max(1,Math.min(100,n)); const rowFromBottom=Math.floor((n-1)/10), idx=(n-1)%10;
     const col=(rowFromBottom%2===0)?idx:9-idx; const displayRow=9-rowFromBottom; return {x:col*10+5,y:displayRow*10+5}; }
 
   function buildBoard(){
     const b=$("board"); const ov=$("ov");
     [...b.querySelectorAll(".cell")].forEach(c=>c.remove());
+    // Inverse of numToXY() above: given a (displayRow, colInRow) grid
+    // position, compute which square number belongs there, so the DOM
+    // cells can be built in simple reading order while still landing on
+    // the correct boustrophedon-numbered square.
     for(let p=0;p<100;p++){ const displayRow=Math.floor(p/10), colInRow=p%10;
       const rowFromBottom=9-displayRow; const n=(rowFromBottom%2===0)?rowFromBottom*10+colInRow+1:rowFromBottom*10+(10-colInRow);
       const c=document.createElement("div"); c.className="cell "+(( displayRow+colInRow)%2?"dark":"light");
