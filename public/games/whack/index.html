@@ -51,19 +51,30 @@
     const grid=document.getElementById("grid"),scoreEl=document.getElementById("score"),timeEl=document.getElementById("time"),bestEl=document.getElementById("best"),statusEl=document.getElementById("status"),startBtn=document.getElementById("start");
     const HOLES=9;let holes=[],score,time,running,popTimer,tickTimer,best=Number(localStorage.getItem("whack_best")||0);
     bestEl.textContent=best;
+    // Admin-tunable difficulty knobs — see /admin/games/?game=whack. Same
+    // pattern as every other configurable game (e.g. kaboom): explicit
+    // allowlist, only numeric values, safe no-op with no localStorage
+    // (headless tests).
+    const C={ GAME_TIME:30, POP_INTERVAL_MIN:350, MOLE_LIFE_MIN:600 };
+    (function(){ try{
+      const allow=["GAME_TIME","POP_INTERVAL_MIN","MOLE_LIFE_MIN"];
+      const o=JSON.parse(localStorage.getItem("whack_config")||"{}");
+      for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
+    }catch(_){} })();
+    window.__whack={ C };
     for(let i=0;i<HOLES;i++){const h=document.createElement("div");h.className="hole";h.innerHTML='<div class="mole"></div>';
       h.addEventListener("click",()=>whack(i));grid.appendChild(h);holes.push({el:h,mole:h.querySelector(".mole"),type:null,timer:null});}
-    function start(){score=0;time=30;running=true;scoreEl.textContent=0;timeEl.textContent=30;statusEl.textContent="Go!";startBtn.disabled=true;
+    function start(){score=0;time=C.GAME_TIME;running=true;scoreEl.textContent=0;timeEl.textContent=C.GAME_TIME;statusEl.textContent="Go!";startBtn.disabled=true;
       pop();tickTimer=setInterval(()=>{time--;timeEl.textContent=time;if(time<=0)end();},1000);}
     function pop(){if(!running)return;
       const free=holes.filter(h=>!h.type);
       if(free.length){const h=free[Math.floor(Math.random()*free.length)];
         const r=Math.random();const type=r<.15?"bomb":r<.3?"gold":"mole";
         h.type=type;h.mole.textContent=type==="bomb"?"💣":type==="gold"?"🌟":"🐔";h.el.classList.add("up");
-        const life=Math.max(600,1200-(30-time)*20);
+        const life=Math.max(C.MOLE_LIFE_MIN,1200-(C.GAME_TIME-time)*20);
         h.timer=setTimeout(()=>{h.el.classList.remove("up");h.type=null;h.timer=null;},life);
       }
-      popTimer=setTimeout(pop,Math.max(350,750-(30-time)*12));
+      popTimer=setTimeout(pop,Math.max(C.POP_INTERVAL_MIN,750-(C.GAME_TIME-time)*12));
     }
     function whack(i){if(!running)return;const h=holes[i];if(!h.type)return;
       if(h.timer){clearTimeout(h.timer);h.timer=null;}

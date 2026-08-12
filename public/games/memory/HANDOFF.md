@@ -5,8 +5,8 @@ in as few moves as possible, timed and tracked against a best score.
 
 ## What's here
 
-- `index.html` — everything. No `window.__` pure-sim export; not yet set
-  up for headless testing the way most other games are.
+- `index.html` — everything. `window.__memory` exposes just `C` (the
+  admin-tunable difficulty knob below) — not a full pure-sim export.
 - Tracks moves, a timer, and a persisted best score.
 
 ## Most recent pass
@@ -26,7 +26,17 @@ on `newGame()`, and making a stale-epoch timer a no-op.
 Earlier: no dedicated feedback pass yet beyond the original build and the
 site-wide comments-widget rollout.
 
+## Admin config
+
+`/admin/games/?game=memory` — 1 difficulty knob registered in
+`NUMERIC_CONFIGS` (`public/admin/games/index.html`): `PAIRS` (number
+of matching pairs, 2-12). Pulled out of a standalone `const` into a
+mutable `C` object; an IIFE reads `localStorage.memory_config` on
+load and overrides the value, clamped to `[2, EMOJIS.length]` since a
+card needs a distinct face. The CSS grid is a fixed 4 columns, so a
+`PAIRS` count that isn't a multiple of 4 just wraps to an uneven last
+row — no breakage.
+
 ## Open / deferred
 
-- **No `window.__memory` test export** — worth adding if this game gets
-  a future gameplay pass.
+Nothing currently open for this game.

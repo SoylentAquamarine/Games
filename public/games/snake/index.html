@@ -127,6 +127,17 @@
     const startBtn = document.getElementById("start-btn");
 
     const BEST_KEY = "snake_best";
+    // Admin-tunable difficulty knobs — see /admin/games/?game=snake. Same
+    // pattern as every other configurable game (e.g. kaboom): explicit
+    // allowlist, only numeric values, safe no-op with no localStorage
+    // (headless tests).
+    const C={ START_SPEED:130, MIN_SPEED:60, SPEED_STEP:3 };
+    (function(){ try{
+      const allow=["START_SPEED","MIN_SPEED","SPEED_STEP"];
+      const o=JSON.parse(localStorage.getItem("snake_config")||"{}");
+      for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
+    }catch(_){} })();
+    window.__snake={ C };
     let best = Number(localStorage.getItem(BEST_KEY) || 0);
     bestEl.textContent = best;
 
@@ -137,7 +148,7 @@
       dir = { x: 1, y: 0 };
       nextDir = { x: 1, y: 0 };
       score = 0;
-      speed = 130;
+      speed = C.START_SPEED;
       scoreEl.textContent = 0;
       placeFood();
     }
@@ -179,7 +190,7 @@
         score++;
         scoreEl.textContent = score;
         if (score > best) { best = score; bestEl.textContent = best; localStorage.setItem(BEST_KEY, best); }
-        if (speed > 60) speed -= 3;        // speed up gradually
+        if (speed > C.MIN_SPEED) speed -= C.SPEED_STEP;        // speed up gradually
         placeFood();
       } else {
         snake.pop();

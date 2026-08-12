@@ -57,6 +57,19 @@
   (function(){
     const cv=document.getElementById("c"),ctx=cv.getContext("2d");
     const COLS=13,ROWS=15,T=cv.width/COLS;   // 30px tiles
+    // Admin-tunable difficulty knobs — see /admin/games/?game=frogger. Same
+    // pattern as every other configurable game (e.g. kaboom): explicit
+    // allowlist, only numeric values, safe no-op with no localStorage
+    // (headless tests). Per-lane speeds/gaps stay in their own config
+    // array untouched — SPEED_MULT scales all of them together instead of
+    // exposing each lane individually.
+    const C={ LIVES:3, SPEED_MULT:1 };
+    (function(){ try{
+      const allow=["LIVES","SPEED_MULT"];
+      const o=JSON.parse(localStorage.getItem("frogger_config")||"{}");
+      for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
+    }catch(_){} })();
+    window.__frogger={ C };
     const scoreEl=document.getElementById("score"),livesEl=document.getElementById("lives"),homesEl=document.getElementById("homes");
     const ov=document.getElementById("ov"),ot=document.getElementById("ot"),om=document.getElementById("om"),startBtn=document.getElementById("start");
     // row types: 0 safe, 1 road(cars), 2 water(logs). rows 0=home,1..13 play,14 start
@@ -88,7 +101,7 @@
       return L;
     }
     function reset(full){
-      if(full){score=0;lives=3;homes=0;filled=[false,false,false];}
+      if(full){score=0;lives=C.LIVES;homes=0;filled=[false,false,false];}
       frog={c:6,r:14,onLog:null};
       lanes=makeLanes();
       scoreEl.textContent=score;livesEl.textContent=lives;homesEl.textContent=homes+"/3";
@@ -99,13 +112,13 @@
     function update(){
       // move lanes
       for(let r=1;r<=13;r++){const ln=lanes[r];if(!ln||ln.type===0)continue;
-        ln.items.forEach(it=>{it.x+=ln.speed*0.036;if(ln.speed>0&&it.x>COLS+1)it.x=-it.len-1;if(ln.speed<0&&it.x<-it.len-1)it.x=COLS+1;});
+        ln.items.forEach(it=>{it.x+=ln.speed*0.036*C.SPEED_MULT;if(ln.speed>0&&it.x>COLS+1)it.x=-it.len-1;if(ln.speed<0&&it.x<-it.len-1)it.x=COLS+1;});
       }
       // if on water, ride log
       const ln=lanes[frog.r];
       if(ln&&ln.type===2){
         let on=null;ln.items.forEach(it=>{if(frog.c+0.5>=it.x&&frog.c+0.5<=it.x+it.len)on=it;});
-        if(on){frog.c+=ln.speed*0.036;if(frog.c<0||frog.c>COLS-1)return die();}
+        if(on){frog.c+=ln.speed*0.036*C.SPEED_MULT;if(frog.c<0||frog.c>COLS-1)return die();}
         else return die();
       }
       // if on road, check car collision

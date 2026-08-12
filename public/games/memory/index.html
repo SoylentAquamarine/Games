@@ -102,7 +102,19 @@
   <script>
   (function () {
     const EMOJIS = ["🐶","🐱","🦊","🐼","🦁","🐸","🐵","🐧","🐙","🦄","🐝","🦋"];
-    const PAIRS = 8; // 8 pairs -> 4x4 grid
+    // Admin-tunable difficulty knob — see /admin/games/?game=memory. Same
+    // pattern as every other configurable game (e.g. kaboom): explicit
+    // allowlist, only numeric values, safe no-op with no localStorage
+    // (headless tests). Capped at EMOJIS.length (12) since a card needs a
+    // distinct face; the 4-column CSS grid just wraps to more rows for
+    // pair counts that aren't a multiple of 4, no breakage either way.
+    const C={ PAIRS:8 };
+    (function(){ try{
+      const allow=["PAIRS"];
+      const o=JSON.parse(localStorage.getItem("memory_config")||"{}");
+      for(const k of allow) if(typeof o[k]==="number") C[k]=Math.min(EMOJIS.length,Math.max(2,Math.round(o[k])));
+    }catch(_){} })();
+    window.__memory={ C };
     const gridEl = document.getElementById("grid");
     const movesEl = document.getElementById("moves");
     const timeEl = document.getElementById("time");
@@ -127,7 +139,7 @@
       clearInterval(timer);
       clearTimeout(flipTimeout);
       epoch++; // invalidate any in-flight flip-resolution timer from the previous game
-      deck = shuffle(EMOJIS.slice(0, PAIRS).flatMap((e) => [e, e]));
+      deck = shuffle(EMOJIS.slice(0, C.PAIRS).flatMap((e) => [e, e]));
       first = second = null; lock = false;
       moves = 0; matched = 0; seconds = 0; started = false;
       movesEl.textContent = 0; timeEl.textContent = "0:00"; winEl.textContent = "";
@@ -183,7 +195,7 @@
           s.card.classList.add("matched");
           resetTurn();
           matched++;
-          if (matched === PAIRS) win();
+          if (matched === C.PAIRS) win();
         }, 350);
       } else {
         flipTimeout = setTimeout(() => {

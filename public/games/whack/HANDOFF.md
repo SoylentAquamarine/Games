@@ -5,19 +5,19 @@ seconds, watch for golden bonus chickens and avoid bombs.
 
 ## What's here
 
-- `index.html` — everything. No `window.__` export — this game doesn't
-  expose a pure sim for headless testing (grepped the file to confirm).
+- `index.html` — everything. `window.__whack` exposes just `C` (the
+  admin-tunable difficulty knobs below) — not a full pure-sim export.
   Uses `/arcade.js` for `Arcade.stats.record("whack", score)`.
 - 3 pop types per spawn: regular chicken 🐔 (70% chance, +1), golden
   mole 🌟 (15%, +3), bomb 💣 (15%, −2, floored at 0). Only empty holes are
   eligible to pop (`free = holes.filter(h=>!h.type)`).
-- Difficulty ramps within the 30-second round: each pop's on-screen
-  lifetime shrinks (`life=Math.max(600,1200-(30-time)*20)`) and the delay
-  between spawns shrinks (`Math.max(350,750-(30-time)*12)`) as the timer
-  counts down, so later in the round chickens appear faster and vanish
-  quicker.
-- Best score persisted to `localStorage["whack_best"]`. No admin config
-  pane wired up for this game.
+- Difficulty ramps within the round: each pop's on-screen lifetime
+  shrinks (`life=Math.max(C.MOLE_LIFE_MIN,1200-(C.GAME_TIME-time)*20)`)
+  and the delay between spawns shrinks
+  (`Math.max(C.POP_INTERVAL_MIN,750-(C.GAME_TIME-time)*12)`) as the
+  timer counts down, so later in the round chickens appear faster and
+  vanish quicker.
+- Best score persisted to `localStorage["whack_best"]`.
 
 ## Most recent pass
 
@@ -42,6 +42,22 @@ reset loop, so a hole's expiry timer never outlives the state it was
 scheduled for. Repro + fix verified headless (scratchpad
 `whack-stale-timer-test.js`, not part of this repo).
 
+## Admin config
+
+`/admin/games/?game=whack` — 3 difficulty knobs registered in
+`NUMERIC_CONFIGS` (`public/admin/games/index.html`): `GAME_TIME`
+(round length), `POP_INTERVAL_MIN`, `MOLE_LIFE_MIN` (both endgame
+intensity floors for the ramps described above). Pulled out of inline
+magic numbers into a mutable `C` object; an IIFE reads
+`localStorage.whack_config` on load and overrides any matching
+numeric key via an explicit allowlist. `HOLES` (board size) stays a
+plain const — structural, not a difficulty knob.
+
 ## Open / deferred
 
-Nothing currently open for this game.
+- A scratchpad regression test (`whack-stale-timer-test.js`, not part
+  of this repo) that checks the stale-per-hole-timer fix above is
+  currently failing, and reproduces identically against the
+  pre-this-session committed source — so it's a pre-existing issue,
+  not something this pass introduced. Flagged separately for
+  investigation (spawned background task, 2026-08-11).

@@ -4,8 +4,9 @@ Classic Snake: grow by eating, don't hit the wall or your own tail.
 
 ## What's here
 
-- `index.html` — everything. No `window.__` pure-sim export; not yet set
-  up for headless testing the way most other games are.
+- `index.html` — everything. `window.__snake` exposes just `C` (the
+  admin-tunable difficulty knobs below) — not a full pure-sim export,
+  the update/render loop itself is still untested.
 - Starts on spacebar.
 
 ## Most recent pass
@@ -30,7 +31,17 @@ worked, but neither the start overlay nor the hint text ever mentioned
 it, so players had no way to know how to begin. A "it works but nobody
 can find it" bug, not a logic bug.
 
+## Admin config
+
+`/admin/games/?game=snake` — 3 difficulty knobs registered in
+`NUMERIC_CONFIGS` (`public/admin/games/index.html`): `START_SPEED`
+(initial step interval, ms), `MIN_SPEED` (fastest it can ramp to),
+`SPEED_STEP` (speed increase per food eaten). Pulled out of inline
+magic numbers into a mutable `C` object; an IIFE reads
+`localStorage.snake_config` on load and overrides any matching
+numeric key via an explicit allowlist. `GRID` (board size) stays a
+plain const — structural, not a difficulty knob.
+
 ## Open / deferred
 
-- **No `window.__snake` test export** — worth adding if this game gets a
-  future gameplay pass.
+Nothing currently open for this game.

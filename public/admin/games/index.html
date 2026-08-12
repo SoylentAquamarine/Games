@@ -1008,6 +1008,23 @@
       { key:"CPU_SPEED", label:"CPU paddle speed", min:1, max:10, def:4.6 },
       { key:"BALL_SPEED", label:"Initial ball speed", min:1, max:10, def:4 },
     ]},
+    snake:{ storageKey:"snake_config", sub:"Difficulty knobs — takes effect next time the game is opened.", fields:[
+      { key:"START_SPEED", label:"Starting step interval (ms — lower is faster)", min:40, max:300, def:130 },
+      { key:"MIN_SPEED", label:"Fastest step interval (ms)", min:20, max:200, def:60 },
+      { key:"SPEED_STEP", label:"Speed increase per food eaten (ms)", min:0, max:20, def:3 },
+    ]},
+    whack:{ storageKey:"whack_config", sub:"Difficulty knobs — takes effect next time the game is opened.", fields:[
+      { key:"GAME_TIME", label:"Round length (seconds)", min:10, max:120, def:30 },
+      { key:"POP_INTERVAL_MIN", label:"Fastest mole pop interval (ms)", min:100, max:1000, def:350 },
+      { key:"MOLE_LIFE_MIN", label:"Shortest time a mole stays up (ms)", min:200, max:1500, def:600 },
+    ]},
+    memory:{ storageKey:"memory_config", sub:"Difficulty knobs — takes effect next time the game is opened.", fields:[
+      { key:"PAIRS", label:"Number of matching pairs (2-12)", min:2, max:12, def:8 },
+    ]},
+    frogger:{ storageKey:"frogger_config", sub:"Difficulty knobs — takes effect next time the game is opened.", fields:[
+      { key:"LIVES", label:"Starting lives", min:1, max:9, def:3 },
+      { key:"SPEED_MULT", label:"Traffic/log speed multiplier", min:0.3, max:3, def:1 },
+    ]},
     robotron:{ storageKey:"robotron_config", sub:"Difficulty knobs — takes effect next time the game is opened.", fields:[
       { key:"GRUNT_SPEED", label:"Grunt speed", min:0.1, max:5, def:0.7 },
       { key:"HULK_HP", label:"Hulk hit points", min:1, max:20, def:5 },
