@@ -22,7 +22,34 @@ tables temporarily.
   hole in the boundary wall instead of erroring — safe fallback to
   `DEFAULT_MAP` otherwise).
 
-## Most recent pass
+## Most recent pass — instant turn response
+
+**Player feedback: "it seems like it misses the keystroke i feel like i
+keep missing turns i hit the arrow but go past where i wanted to go."**
+`setDir()` used to only stash the pressed direction into `pac.next`;
+that buffer was only ever checked once per grid `step()` tick (every
+`STEP_MS`, 150ms by default). A key press landing between ticks had to
+wait for the *next* tick to even be considered — by which point pac had
+often already moved past the intersection where the turn was still
+geometrically possible, so the turn silently failed for that pass and
+pac sailed straight through instead of taking the corner the player
+meant to hit. `setDir()` now also tries the turn immediately against
+pac's current (tick-stable) grid cell via the existing `canGo()` check,
+so a press made right at an intersection takes effect the instant it's
+pressed instead of waiting on the tick clock; `step()`'s own
+once-per-tick check is unchanged, so a turn requested before reaching
+an intersection still gets applied there as before.
+
+New `pacman-instant-turn-test.js` (5 checks) covers both halves: a
+turn that's valid from pac's current cell flips `pac.dir` immediately
+on `setDir()`, and an invalid one only updates the `pac.next` buffer
+without forcing an illegal move. Existing `pacman-board-editor-test.js`,
+`pacman-fright-sound-test.js`, and `pacman-swap-collision-test.js` all
+still pass — no regressions. Live-verified: deployed, confirmed the
+new `setDir()` body is live via a fresh no-store fetch, zero console
+errors.
+
+## Earlier pass — board/level editor rollout
 
 **Board/level editor rollout: pacman was the next candidate** (root
 `HANDOFF.md` — a single fixed `MAP`, closer to adventure's "one

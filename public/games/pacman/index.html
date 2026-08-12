@@ -361,7 +361,20 @@
       }
     }
     function roundRect(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
-    function setDir(d){pac.next=d;}
+    // Player feedback: "it seems like it misses the keystroke i feel like i
+    // keep missing turns i hit the arrow but go past where i wanted to go."
+    // pac.next used to only ever get checked once per tick (every
+    // STEP_MS=150ms), against pac's position as of the START of that tick
+    // — a key press landing between ticks (very plausible at 150ms apart)
+    // had to wait for the NEXT tick to even be considered, by which point
+    // pac had already moved past the intersection and the turn was no
+    // longer geometrically possible there — it silently missed that turn
+    // and kept going straight until the next one. Trying the turn
+    // immediately on keypress (pac's grid cell doesn't change between
+    // ticks, so canGo() is just as valid to check right now) means a press
+    // made while at an intersection takes effect the instant it's pressed
+    // instead of waiting on the tick clock.
+    function setDir(d){pac.next=d; if(canGo(pac.r,pac.c,d))pac.dir=d;}
     document.addEventListener("keydown",e=>{const m={ArrowUp:"up",ArrowDown:"down",ArrowLeft:"left",ArrowRight:"right",w:"up",s:"down",a:"left",d:"right"}[e.key];if(m){e.preventDefault();if(pac)setDir(m);}});
     document.querySelectorAll(".dpad button").forEach(b=>b.addEventListener("click",()=>pac&&setDir(b.dataset.d)));
     let ts=null;cv.addEventListener("touchstart",e=>ts={x:e.touches[0].clientX,y:e.touches[0].clientY},{passive:true});
