@@ -121,6 +121,18 @@
   (function () {
     const ROWS = 6, COLS = 7;
     const RED = 1, YELLOW = 2;         // RED = human/P1, YELLOW = AI/P2
+    // Admin-tunable difficulty knob — see /admin/games/?game=connect4.
+    // Same pattern as every other configurable game (e.g. kaboom): explicit
+    // allowlist, only numeric values, safe no-op with no localStorage
+    // (headless tests). Higher = the minimax AI looks further ahead (smarter
+    // but slower); very high values can noticeably slow the AI's move.
+    const C = { AI_DEPTH: 5 };
+    (function(){ try{
+      const allow=["AI_DEPTH"];
+      const o=JSON.parse(localStorage.getItem("connect4_config")||"{}");
+      for(const k of allow) if(typeof o[k]==="number") C[k]=Math.round(o[k]);
+    }catch(_){} })();
+    window.__connect4 = { C };
     const boardEl = document.getElementById("board");
     const colbtnsEl = document.getElementById("colbtns");
     const statusEl = document.getElementById("status");
@@ -254,7 +266,7 @@
       for (const c of valid) {
         const g = clone(grid);
         g[lowestRow(g, c)][c] = YELLOW;
-        const s = minimax(g, 5, -Infinity, Infinity, false);
+        const s = minimax(g, C.AI_DEPTH, -Infinity, Infinity, false);
         if (s > bestScore) { bestScore = s; bestCol = c; ties = [c]; }
         else if (s === bestScore) ties.push(c);
       }

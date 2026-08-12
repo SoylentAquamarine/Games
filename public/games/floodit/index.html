@@ -38,7 +38,19 @@
   </div>
   <script>
   (function(){
-    const SIZE=14, NC=6, MAXMOVES=25;
+    const SIZE=14, NC=6;
+    // Admin-tunable difficulty knob — see /admin/games/?game=floodit. Same
+    // pattern as every other configurable game (e.g. kaboom): explicit
+    // allowlist, only numeric values, safe no-op with no localStorage
+    // (headless tests). SIZE/NC stay fixed — NC is capped by COLORS.length
+    // (6 hex strings), not a plain scalar that can just scale up.
+    const C={ MAXMOVES:25 };
+    (function(){ try{
+      const allow=["MAXMOVES"];
+      const o=JSON.parse(localStorage.getItem("floodit_config")||"{}");
+      for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
+    }catch(_){} })();
+    const MAXMOVES=C.MAXMOVES;
     const COLORS=["#ef4444","#f97316","#eab308","#22c55e","#3b82f6","#a855f7"];
     const gridEl=document.getElementById("grid"),paletteEl=document.getElementById("palette"),statusEl=document.getElementById("status"),movesEl=document.getElementById("moves");
     let grid,moves,over,cells=[];
@@ -60,7 +72,7 @@
       paletteEl.innerHTML="";COLORS.forEach((col,i)=>{const s=document.createElement("div");s.className="sw";s.style.background=col;s.addEventListener("click",()=>pick(i));paletteEl.appendChild(s);});}
     function render(){for(let r=0;r<SIZE;r++)for(let c=0;c<SIZE;c++)cells[r][c].style.background=COLORS[grid[r][c]];}
     document.getElementById("new").addEventListener("click",newGame);
-    window.__flood={region:(g)=>{grid=g;return region();},pickTest:(g,col)=>{grid=g;const reg=region();reg.forEach(([r,c])=>grid[r][c]=col);return grid;},won:(g)=>{grid=g;return won();},SIZE,NC};
+    window.__flood={region:(g)=>{grid=g;return region();},pickTest:(g,col)=>{grid=g;const reg=region();reg.forEach(([r,c])=>grid[r][c]=col);return grid;},won:(g)=>{grid=g;return won();},SIZE,NC,C};
     build();newGame();
   })();
   </script>

@@ -1095,6 +1095,12 @@
     hangman:{ storageKey:"hangman_config", sub:"Difficulty knobs — takes effect next time the game is opened.", fields:[
       { key:"MAXW", label:"Wrong guesses allowed", min:1, max:6, def:6 },
     ]},
+    floodit:{ storageKey:"floodit_config", sub:"Difficulty knobs — takes effect next time the game is opened.", fields:[
+      { key:"MAXMOVES", label:"Moves allowed", min:5, max:60, def:25 },
+    ]},
+    connect4:{ storageKey:"connect4_config", sub:"Difficulty knobs — takes effect next time the game is opened.", fields:[
+      { key:"AI_DEPTH", label:"AI search depth (higher = smarter but slower)", min:1, max:7, def:5 },
+    ]},
     duckhunt:{ storageKey:"duckhunt_config", sub:"Difficulty knobs — takes effect next time the game is opened.", fields:[
       { key:"AMMO", label:"Shots per duck", min:1, max:10, def:3 },
       { key:"SPEED", label:"Duck speed", min:0.5, max:10, def:2.0 },
