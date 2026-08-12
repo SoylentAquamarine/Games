@@ -51,16 +51,25 @@
     const COLORS=["#ef4444","#f97316","#eab308","#22c55e","#22d3ee","#3b82f6","#a855f7"];
     let pegs,sel,moves,over;
 
+    // 2^N-1 is the proven minimum move count for N-disk Towers of Hanoi
+    // (shown to the player as the target to beat, in optEl).
     function reset(){pegs=[[],[],[]];for(let d=N;d>=1;d--)pegs[0].push(d);sel=null;moves=0;over=false;
       movesEl.textContent=0;optEl.textContent=Math.pow(2,N)-1;statusEl.textContent="Move all disks to the right peg.";render();}
     function top(p){return pegs[p][pegs[p].length-1];}
+    // Tap-to-select, tap-again-to-move (no drag). Tapping the same peg
+    // twice deselects. Tapping a DIFFERENT peg while one's already
+    // selected either completes the move (if legal — that peg is empty or
+    // its top disk is bigger than the one being moved) or, if the move
+    // would be illegal (landing a bigger disk on a smaller one), just
+    // switches the selection to that peg instead of doing nothing — lets
+    // the player redirect a move without an extra tap to deselect first.
     function click(p){
       if(over)return;
       if(sel===null){if(pegs[p].length===0)return;sel=p;render();return;}
       if(sel===p){sel=null;render();return;}
       const d=top(sel);
       if(pegs[p].length===0||top(p)>d){pegs[p].push(pegs[sel].pop());moves++;movesEl.textContent=moves;sel=null;render();check();}
-      else{sel=p;render();} // switch selection to a peg with a smaller top? just reselect
+      else{sel=p;render();}
     }
     function check(){if(pegs[2].length===N){over=true;const opt=Math.pow(2,N)-1;
       statusEl.textContent=moves===opt?`🏆 Perfect! Solved in the minimum ${moves} moves!`:`🎉 Solved in ${moves} moves (best: ${opt}).`;}}

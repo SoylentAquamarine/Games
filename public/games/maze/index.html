@@ -53,6 +53,17 @@
     let N=10;
     const cv=document.getElementById("c"),ctx=cv.getContext("2d"),statusEl=document.getElementById("status"),movesEl=document.getElementById("moves");
     let cells,player,moves,over,CELL;
+    // Randomized depth-first-search "recursive backtracker" maze
+    // generator — a standard algorithm, worth naming since the code
+    // itself doesn't look like a maze generator at a glance. Every cell
+    // starts walled off on all 4 sides; a stack-based DFS visits cells
+    // starting at the origin, and at each step knocks down the wall to a
+    // random UNVISITED neighbor (both cells' matching sides, since a wall
+    // is shared) before continuing from there. When a cell has no
+    // unvisited neighbors left, it backtracks (pops the stack) to the
+    // previous cell and tries again. This guarantees a "perfect" maze:
+    // every cell reachable, exactly one path between any two cells, no
+    // loops, no isolated pockets.
     function gen(){
       cells=Array.from({length:N},()=>Array.from({length:N},()=>({n:true,e:true,s:true,w:true,v:false})));
       const stack=[[0,0]];cells[0][0].v=true;

@@ -223,6 +223,13 @@
 
     function minimax(b, depth, isMax) {
       const line = winningLine(b);
+      // Score every full game tree exhaustively (the whole board is only
+      // 9 cells, so this is always fast). Subtracting/adding `depth`
+      // isn't just tie-breaking noise -- it makes a win found sooner
+      // score higher than a win found later (10-depth), and a loss found
+      // later score higher (less bad) than one found sooner (depth-10),
+      // so the AI always prefers the fastest win or the slowest loss
+      // among otherwise-equal outcomes, not just any win/loss.
       if (line) return b[line[0]] === "O" ? 10 - depth : depth - 10;
       if (b.every((c) => c)) return 0;
 

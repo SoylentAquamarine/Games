@@ -20,12 +20,24 @@ instead of doubling: 1+1=2, 1+2=3, 2+3=5, 3+5=8, 5+8=13…
 - Best score persisted to `localStorage["fib_best"]`. No admin config pane
   wired up for this game.
 
-## Most recent pass
+## Most recent pass — heavier code comments
 
-No player-feedback pass yet — this HANDOFF.md was created as part of a
-documentation sweep (see the root HANDOFF.md's "Per-game HANDOFF.md
-rollout" note). Everything under "What's here" reflects the game as
-originally built.
+Part of a site-wide comment-density pass (once the comment queue and
+the admin config-page rollout both ran dry — see root `HANDOFF.md`).
+This file had zero inline comments despite the whole point of the game
+being genuinely non-obvious without one: `canMerge()`'s consecutive-
+Fibonacci-numbers rule (not equal-value merging like 2048), plus
+`getLine()`/`setLine()`'s direction-agnostic line read/write trick that
+lets `collapse()` handle all 4 move directions with one slide-toward-
+the-front implementation. Comment-only — no logic touched. Live-
+verified: deployed, zero console errors.
+
+## Earlier pass
+
+No player-feedback pass yet at the time this HANDOFF.md was created —
+it was added as part of a documentation sweep (see the root
+`HANDOFF.md`'s "Per-game HANDOFF.md rollout" note). Everything under
+"What's here" reflects the game as originally built.
 
 ## Open / deferred
 

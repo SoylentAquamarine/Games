@@ -47,12 +47,28 @@
     const gridEl=document.getElementById("grid"),scoreEl=document.getElementById("score"),bestEl=document.getElementById("best"),statusEl=document.getElementById("status");
     let board,score,over,won,best=+localStorage.getItem("fib_best")||0,tiles=[];
     bestEl.textContent=best;
+    // This game's whole twist on 2048: tiles merge if they're CONSECUTIVE
+    // Fibonacci numbers (5+8=13), not equal ones. FIBS only lists a single
+    // 1 (real Fibonacci numbers don't repeat past that), so two 1-tiles
+    // are a special case handled explicitly; everything else checks that
+    // both values exist in FIBS and sit exactly one slot apart.
     function canMerge(a,b){if(a===1&&b===1)return true;const ia=FIBS.indexOf(a),ib=FIBS.indexOf(b);return ia>=0&&ib>=0&&Math.abs(ia-ib)===1;}
     function color(v){const i=Math.max(0,FIBS.indexOf(v));return `hsl(${HUES[i%HUES.length]} 70% ${68-Math.min(i,8)*2}%)`;}
 
+    // Slides one row/column toward its front: drops empties, then walks
+    // left-to-right merging each adjacent mergeable pair once (a merged
+    // tile doesn't chain into a second merge the same move — i+=2 skips
+    // past both consumed tiles rather than re-checking the new value).
     function collapse(line){const a=line.filter(v=>v>0),out=[];let i=0,gained=0;
       while(i<a.length){if(i+1<a.length&&canMerge(a[i],a[i+1])){const m=a[i]+a[i+1];out.push(m);gained+=m;if(m>=233)won=true;i+=2;}else{out.push(a[i]);i++;}}
       while(out.length<N)out.push(0);return{out,gained};}
+    // getLine/setLine let move() treat all 4 directions as "collapse this
+    // row/column toward index 0" by reading (and later writing back) each
+    // direction's cells in the order that makes THAT direction the front
+    // — e.g. "right" reads/writes each row back-to-front, so collapse()
+    // (which always slides toward the front of whatever array it's given)
+    // ends up sliding tiles rightward without needing its own direction-
+    // aware logic.
     function getLine(dir,idx){const l=[];for(let k=0;k<N;k++){if(dir==="left")l.push(board[idx][k]);else if(dir==="right")l.push(board[idx][N-1-k]);else if(dir==="up")l.push(board[k][idx]);else l.push(board[N-1-k][idx]);}return l;}
     function setLine(dir,idx,line){for(let k=0;k<N;k++){if(dir==="left")board[idx][k]=line[k];else if(dir==="right")board[idx][N-1-k]=line[k];else if(dir==="up")board[k][idx]=line[k];else board[N-1-k][idx]=line[k];}}
     function move(dir){
