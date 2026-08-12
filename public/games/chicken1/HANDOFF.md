@@ -32,7 +32,20 @@ Top-down F1-style racer: a curving road, forward scroll, traffic culling.
   fields are unused fallback defaults only, so a config knob on them
   would visibly do nothing.
 
-## Most recent pass
+## Most recent pass — responsive canvas sizing
+
+**Site-wide audit (player feedback: "all of the games need the proper
+aspect ratio and screen size"): this game's canvas had no responsive
+sizing rule at all** — it rendered at a fixed 480×360 CSS px forever,
+never scaling with the viewport the way most of the site's canvases
+do. Added `width:100%;max-width:480px;aspect-ratio:4/3` to the
+existing `canvas{}` rule. See the root `HANDOFF.md`'s "Canvas
+responsive-sizing audit" section for the full site-wide pass this was
+part of (4 games fixed total). Live-verified at a 375px mobile
+viewport: scales down correctly, holds exact 4:3 ratio, zero
+horizontal overflow, zero console errors.
+
+## Earlier pass
 
 **Numeric-config rollout: chicken1 was a flagged candidate**, needing
 the same care as `chickenposition` — its `C` mixes genuinely

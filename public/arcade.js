@@ -85,8 +85,42 @@
     src.start();
   }
 
+  // A short synthesized "scream" — a sharp rise, a wobble, then a ragged
+  // falling break, meant to read as a yelp rather than a plain descending
+  // tone. See sfx.death()'s comment for why this is synthesized rather
+  // than a sample of the actual film effect.
+  function scream() {
+    if (muted) return;
+    const a = ctx(); if (!a) return;
+    const o = a.createOscillator(), g = a.createGain();
+    const t0 = a.currentTime, dur = 0.5;
+    o.type = "sawtooth";
+    o.frequency.setValueAtTime(520, t0);
+    o.frequency.linearRampToValueAtTime(1150, t0 + dur * 0.12);
+    o.frequency.linearRampToValueAtTime(720, t0 + dur * 0.28);
+    o.frequency.linearRampToValueAtTime(980, t0 + dur * 0.42);
+    o.frequency.linearRampToValueAtTime(300, t0 + dur * 0.75);
+    o.frequency.linearRampToValueAtTime(110, t0 + dur);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(0.17, t0 + 0.03);
+    g.gain.exponentialRampToValueAtTime(0.11, t0 + dur * 0.5);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(g); g.connect(a.destination);
+    o.start(t0); o.stop(t0 + dur + 0.02);
+  }
+
   const sfx = {
-    shoot:   () => tone({ from: 880, to: 220, dur: 0.10, type: "square", vol: 0.12 }),
+    // Player feedback: "laser blast sounds should be more than just a puck
+    // sound." The old shoot() was a single flat square-wave sweep, always
+    // identical, always thin — read more like a hockey-puck blip than a
+    // laser. Sawtooth gives it the harsher harmonic buzz a laser needs;
+    // slight per-shot pitch randomization keeps rapid fire from sounding
+    // like the exact same note on a loop; a very short high-cut noise burst
+    // at the front adds the "zap" crack real laser SFX have alongside the
+    // tonal sweep.
+    shoot:   () => { const f = 1000 + Math.random() * 260;
+                     tone({ from: f, to: 160 + Math.random() * 60, dur: 0.09 + Math.random() * 0.03, type: "sawtooth", vol: 0.13 });
+                     noise({ dur: 0.035, cut: 5000, cutTo: 1800, vol: 0.05 }); },
     hit:     () => tone({ from: 320, to: 120, dur: 0.12, type: "square", vol: 0.16 }),
     explode: () => noise({ dur: 0.38, cut: 1600, cutTo: 120, vol: 0.26 }),
     pickup:  () => tone({ from: 660, to: 1320, dur: 0.12, type: "triangle", vol: 0.14 }),
@@ -97,8 +131,18 @@
     power:   () => tone({ from: 200, to: 640, dur: 0.28, type: "sawtooth", vol: 0.15 }),
     warn:    () => tone({ from: 900, dur: 0.05, type: "square", vol: 0.10 }),
     bounce:  () => tone({ from: 520, to: 300, dur: 0.08, type: "triangle", vol: 0.12 }),
+    // Player feedback: "find the wilhelm scream and incorporate that as the
+    // sound when I die." The actual film sample is a specific, still-
+    // copyrighted Warner Bros. recording — not something to fetch from the
+    // web and embed as a downloaded asset. This is a from-scratch
+    // synthesized stand-in built in the same spirit: a distinctive,
+    // wavering "yelp" register-break on top of the existing thump, rather
+    // than a literal sample of it. Wired into death() (not the generic
+    // hit()) since every game already calls death() specifically for the
+    // player's own death — no per-game changes needed.
     death:   () => { noise({ dur: 0.5, cut: 900, cutTo: 60, vol: 0.3 });
-                     tone({ from: 340, to: 60, dur: 0.55, type: "sawtooth", vol: 0.16 }); },
+                     tone({ from: 340, to: 60, dur: 0.55, type: "sawtooth", vol: 0.16 });
+                     scream(); },
     wave:    () => { [523, 659, 784].forEach((f, i) =>
                      setTimeout(() => tone({ from: f, dur: 0.16, type: "square", vol: 0.14 }), i * 110)); },
     win:     () => { [523, 659, 784, 1047].forEach((f, i) =>

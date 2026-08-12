@@ -14,7 +14,19 @@ until the board is empty.
   picks between the available layouts.
 - Includes a tile-review page for previewing the tile art.
 
-## Most recent pass
+## Most recent pass — responsive canvas sizing
+
+**Site-wide audit (player feedback: "all of the games need the proper
+aspect ratio and screen size"): this game's canvas had no responsive
+sizing rule at all** — it rendered at a fixed 640×480 CSS px forever,
+never scaling with the viewport the way most of the site's canvases
+do. Added `width:100%;max-width:640px;aspect-ratio:4/3` to the
+existing `canvas{}` rule. See the root `HANDOFF.md`'s "Canvas
+responsive-sizing audit" section for the full site-wide pass this was
+part of (4 games fixed total). Live-verified: source confirmed live
+via a fresh no-store fetch, zero console errors.
+
+## Earlier pass
 
 **Player feedback: "the colors are extremely faded, need to be crisp and
 clear. The tile setup was ridiculously easy, they were just mirrored.

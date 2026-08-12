@@ -41,7 +41,19 @@ that shift the rendered road, an offroad penalty.
   exposed knobs apply identically across every race in `RACES` since only
   `track`/`finishDist` vary per-race, not these.
 
-## Most recent pass
+## Most recent pass — responsive canvas sizing
+
+**Site-wide audit (player feedback: "all of the games need the proper
+aspect ratio and screen size"): this game's canvas had no responsive
+sizing rule at all** — it rendered at a fixed 480×360 CSS px forever,
+never scaling with the viewport the way most of the site's canvases
+do. Added `width:100%;max-width:480px;aspect-ratio:4/3` to the
+existing `canvas{}` rule. See the root `HANDOFF.md`'s "Canvas
+responsive-sizing audit" section for the full site-wide pass this was
+part of (4 games fixed total). Live-verified: source confirmed live
+via a fresh no-store fetch, zero console errors.
+
+## Earlier pass
 
 Added admin-configurable difficulty knobs (see above) as part of the
 site-wide numeric-knob config rollout — no player feedback prompted this,
