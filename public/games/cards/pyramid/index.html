@@ -48,11 +48,25 @@
     const ROWS=7;
     // ---- pure logic (exported for tests) ----
     const val=(c)=> c.rank===14?1:c.rank;                 // A=1, J=11, Q=12, K=13
+    // Triangular-number formula flattening a (row, col) pyramid position
+    // into a single array index: row 0 has 1 card starting at index 0, row
+    // 1 has 2 cards starting at index 1, row 2 has 3 starting at index 3,
+    // etc. -- the r-th row starts right after 1+2+...+r = r(r+1)/2 cards.
     const idx=(r,c)=> r*(r+1)/2 + c;
+    // A card's two "children" are the two cards directly below-left and
+    // below-right of it in the next row down (standard pyramid layout).
     function childrenOf(r,c){ return [idx(r+1,c), idx(r+1,c+1)]; }
+    // Pyramid Solitaire's exposure rule: a card can only be played once
+    // BOTH cards resting on it (its two children, one row down) have
+    // already been removed. The bottom row (ROWS-1) has no children below
+    // it at all, so those cards start exposed immediately.
     function isExposed(pyr,i){ const s=pyr[i]; if(!s||s.removed) return false;
       if(s.r===ROWS-1) return true;
       const [a,b]=childrenOf(s.r,s.c); return pyr[a].removed && pyr[b].removed; }
+    // The core rule this whole game is named for: any two cards (Ace=1
+    // through King=13) whose values sum to exactly 13 can be paired and
+    // cleared together (a King alone already equals 13, so it clears solo
+    // -- see clickCard()'s val(card)===13 special case).
     const sums13=(a,b)=> val(a)+val(b)===13;
     window.__pyramid={ val, idx, childrenOf, isExposed, sums13, ROWS };
 

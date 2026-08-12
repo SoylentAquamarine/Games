@@ -61,12 +61,28 @@
   <script>
   (function(){
     const NAMES=["You","West","North","East"];
+    // Spades are always trump: if anyone played a spade this trick, only
+    // spades are in contention for winning it (highest spade wins,
+    // regardless of what was led) -- otherwise it's highest card of the
+    // led suit, same as a plain trick-taking game with no trump in play.
     function bestOfTrick(trick){const led=trick[0].card.suit;const sp=trick.filter(t=>t.card.suit==="S");
       const pool=sp.length?sp:trick.filter(t=>t.card.suit===led);return pool.reduce((a,b)=>b.card.rank>a.card.rank?b:a);}
+    // Two real Spades rules: (1) must follow the led suit if you have any
+    // cards in it (`inSuit.length?inSuit:hand.slice()` -- anything goes,
+    // including trump, once you're out of the led suit); (2) spades can't
+    // be LED until "broken" (someone has already played one, whether
+    // because they had no other choice or chose to trump in) -- unless
+    // spades are literally the only suit left in hand.
     function legalPlays(hand,ctx){
       if(ctx.leading){if(!ctx.spadesBroken){const non=hand.filter(c=>c.suit!=="S");if(non.length)return non;}return hand.slice();}
       const inSuit=hand.filter(c=>c.suit===ctx.ledSuit);return inSuit.length?inSuit:hand.slice();
     }
+    // CPU strategy, not a rule: if the partner is already winning the
+    // trick, play the lowest legal card (no need to spend a strong one).
+    // Otherwise try to win as cheaply as possible -- the lowest in-suit
+    // card that still beats the current winner, or the lowest spade that
+    // beats it if out of the led suit, falling back to discarding the
+    // lowest non-spade (saving spades for later) if no winning play exists.
     function aiChoose(hand,trick,ctx){
       const opts=legalPlays(hand,ctx);
       if(ctx.leading){const non=opts.filter(c=>c.suit!=="S");return (non.length?non:opts).sort((a,b)=>a.rank-b.rank)[0];}

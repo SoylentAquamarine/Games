@@ -10,7 +10,19 @@ are always trump, make your contract.
   (`Cards.makeDeck`, `Cards.cardEl`, deck theme picker).
 - No admin config pane wired up for this game.
 
-## Most recent pass
+## Most recent pass — heavier code comments
+
+Part of a site-wide comment-density pass (once the comment queue and
+the admin config-page rollout both ran dry — see root `HANDOFF.md`).
+Explained the two real Spades rules encoded in `bestOfTrick()`
+(spades always trump, win by highest spade if any were played) and
+`legalPlays()` (must follow suit if able; spades can't be led until
+broken unless they're all that's left), plus a short note on
+`aiChoose()`'s cheap-win-or-duck strategy. Comment-only — no logic
+touched; existing `spades-stale-async-test.js` still passes unchanged.
+Live-verified: deployed, zero console errors.
+
+## Earlier pass — stale-AI-turn bug fix
 
 **Bug fix: stale AI turn could leak into a new hand mid-bid.** Same class of
 bug as hearts' HANDOFF: `proceed()`/`resolveTrick()` are `async` and `await
