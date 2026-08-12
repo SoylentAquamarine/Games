@@ -1083,6 +1083,15 @@
     "board/gameofchicken":{ storageKey:"board/gameofchicken_config", sub:"Difficulty knobs — takes effect next time the game is opened.", fields:[
       { key:"RESULT_DELAY", label:"How long an event-tile result stays on screen (ms)", min:500, max:15000, def:8000 },
     ]},
+    mastermind:{ storageKey:"mastermind_config", sub:"Difficulty knobs — takes effect next time the game is opened.", fields:[
+      { key:"LEN", label:"Code length (pegs)", min:2, max:6, def:4 },
+      { key:"ROWS", label:"Guesses allowed", min:3, max:20, def:10 },
+    ]},
+    simon:{ storageKey:"simon_config", sub:"Difficulty knobs — takes effect next time the game is opened.", fields:[
+      { key:"SPEED_START", label:"Starting playback interval (ms)", min:200, max:1500, def:650 },
+      { key:"SPEED_FLOOR", label:"Fastest playback interval (ms)", min:100, max:1000, def:300 },
+      { key:"SPEED_STEP", label:"Speed increase per round (ms)", min:0, max:50, def:20 },
+    ]},
     duckhunt:{ storageKey:"duckhunt_config", sub:"Difficulty knobs — takes effect next time the game is opened.", fields:[
       { key:"AMMO", label:"Shots per duck", min:1, max:10, def:3 },
       { key:"SPEED", label:"Duck speed", min:0.5, max:10, def:2.0 },

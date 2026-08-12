@@ -57,6 +57,17 @@
     const pads=[...document.querySelectorAll(".pad")];
     const roundEl=document.getElementById("round"),bestEl=document.getElementById("best"),statusEl=document.getElementById("status"),centerEl=document.getElementById("center");
     const FREQ=[329.63,261.63,392,523.25];
+    // Admin-tunable difficulty knobs — see /admin/games/?game=simon. Same
+    // pattern as every other configurable game (e.g. kaboom): explicit
+    // allowlist, only numeric values, safe no-op with no localStorage
+    // (headless tests).
+    const C={ SPEED_START:650, SPEED_FLOOR:300, SPEED_STEP:20 };
+    (function(){ try{
+      const allow=["SPEED_START","SPEED_FLOOR","SPEED_STEP"];
+      const o=JSON.parse(localStorage.getItem("simon_config")||"{}");
+      for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
+    }catch(_){} })();
+    window.__simon={ C };
     let seq,step,playing,acceptInput,best=Number(localStorage.getItem("simon_best")||0);
     bestEl.textContent=best;
     let actx,playTimer=null;
@@ -64,7 +75,7 @@
     function light(i,dur){pads[i].classList.add("lit");tone(i,dur);setTimeout(()=>pads[i].classList.remove("lit"),dur*.8);}
     function start(){if(playTimer){clearInterval(playTimer);playTimer=null;}seq=[];acceptInput=false;statusEl.textContent="";next();}
     function next(){step=0;seq.push(Math.floor(Math.random()*4));roundEl.textContent=seq.length;acceptInput=false;statusEl.textContent="Watch…";playback();}
-    function playback(){if(playTimer){clearInterval(playTimer);playTimer=null;}let i=0;const speed=Math.max(300,650-seq.length*20);playTimer=setInterval(()=>{if(i>=seq.length){clearInterval(playTimer);playTimer=null;acceptInput=true;statusEl.textContent="Your turn";return;}light(seq[i],speed*.7);i++;},speed);}
+    function playback(){if(playTimer){clearInterval(playTimer);playTimer=null;}let i=0;const speed=Math.max(C.SPEED_FLOOR,C.SPEED_START-seq.length*C.SPEED_STEP);playTimer=setInterval(()=>{if(i>=seq.length){clearInterval(playTimer);playTimer=null;acceptInput=true;statusEl.textContent="Your turn";return;}light(seq[i],speed*.7);i++;},speed);}
     function click(i){if(!acceptInput)return;light(i,220);
       if(seq[step]===i){step++;if(step===seq.length){acceptInput=false;if(typeof Arcade!=="undefined")Arcade.stats.record("simon",seq.length); if(seq.length>best){best=seq.length;bestEl.textContent=best;localStorage.setItem("simon_best",best);}statusEl.textContent="✓ Nice!";setTimeout(next,700);}}
       else{acceptInput=false;statusEl.textContent=`✗ Wrong! You reached round ${seq.length-1}.`;centerEl.textContent="▶";pads.forEach(p=>{p.style.opacity=".2";setTimeout(()=>p.style.opacity="",600);});}

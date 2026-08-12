@@ -53,7 +53,19 @@
   <script>
   (function(){
     const COLORS=["#f43f5e","#f97316","#fde047","#4ade80","#22d3ee","#7c5cff"];   // deeper orange, brighter yellow
-    const LEN=4, ROWS=10;
+    // Admin-tunable difficulty knobs — see /admin/games/?game=mastermind.
+    // Same pattern as every other configurable game (e.g. kaboom): explicit
+    // allowlist, only numeric values, safe no-op with no localStorage
+    // (headless tests). COLORS.length stays fixed — it's an array of hex
+    // strings, not a plain scalar, so it isn't a simple numeric knob.
+    const C={ LEN:4, ROWS:10 };
+    (function(){ try{
+      const allow=["LEN","ROWS"];
+      const o=JSON.parse(localStorage.getItem("mastermind_config")||"{}");
+      for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
+    }catch(_){} })();
+    window.__mastermind={ C };
+    const LEN=C.LEN, ROWS=C.ROWS;
     const boardEl=document.getElementById("board"),paletteEl=document.getElementById("palette"),statusEl=document.getElementById("status");
     let secret,row,guess,over,rowEls=[];
     function init(){
