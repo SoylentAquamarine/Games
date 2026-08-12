@@ -1080,6 +1080,9 @@
       { key:"CHICKENS", label:"Starting chickens (lives)", min:1, max:9, def:3 },
       { key:"DEATH_FRAMES", label:"Death freeze duration (frames)", min:10, max:300, def:50 },
     ]},
+    "board/gameofchicken":{ storageKey:"board/gameofchicken_config", sub:"Difficulty knobs — takes effect next time the game is opened.", fields:[
+      { key:"RESULT_DELAY", label:"How long an event-tile result stays on screen (ms)", min:500, max:15000, def:8000 },
+    ]},
     duckhunt:{ storageKey:"duckhunt_config", sub:"Difficulty knobs — takes effect next time the game is opened.", fields:[
       { key:"AMMO", label:"Shots per duck", min:1, max:10, def:3 },
       { key:"SPEED", label:"Duck speed", min:0.5, max:10, def:2.0 },

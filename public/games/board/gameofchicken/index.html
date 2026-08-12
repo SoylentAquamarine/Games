@@ -62,6 +62,22 @@
     ];
     const FAMILY_BONUS=5000, START_CASH=4000, NP=4, PNAMES=["You","CPU 1","CPU 2","CPU 3"];
     const rnd=(n)=>Math.floor(Math.random()*n);
+    // Player feedback: "when you draw a card and it says what the card
+    // says, that has to delay for at least 10 seconds so i can see what it
+    // says, it is floating past too fast... should be adjustable through
+    // the config page." The event-tile result text used to show for a flat
+    // 650ms before the next turn's banner overwrote it — nowhere near
+    // enough time to actually read it. Admin-tunable at
+    // /admin/games/?game=board/gameofchicken, same pattern as every other
+    // configurable game (e.g. kaboom): explicit allowlist, only numeric
+    // values, safe no-op with no localStorage (headless tests). Default
+    // raised to 8000ms (the player's own suggested value).
+    const C={ RESULT_DELAY:8000 };
+    (function(){ try{
+      const allow=["RESULT_DELAY"];
+      const o=JSON.parse(localStorage.getItem("board/gameofchicken_config")||"{}");
+      for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
+    }catch(_){} })();
 
     function tileType(i){
       if(i===0) return "start";
@@ -89,7 +105,7 @@
     function finalScore(p){ return p.cash + p.family*FAMILY_BONUS; }
     function allRetired(players){ return players.every(p=>p.retired); }
 
-    window.__gameofchicken={ N, CAREERS, tileType, spin, newPlayer, applyTile, movePlayer, finalScore, allRetired, FAMILY_BONUS, START_CASH };
+    window.__gameofchicken={ N, CAREERS, tileType, spin, newPlayer, applyTile, movePlayer, finalScore, allRetired, FAMILY_BONUS, START_CASH, C };
     if(typeof document==="undefined") return;
 
     const cv=document.getElementById("board"), ctx=cv.getContext("2d");
@@ -276,7 +292,7 @@
           spinBtn.disabled=true; renderPlayers();
           return;
         }
-        setTimeout(()=>{ if(g===gen && !over) advance(); }, 650);
+        setTimeout(()=>{ if(g===gen && !over) advance(); }, C.RESULT_DELAY);
       }};
     }
     function advance(){
