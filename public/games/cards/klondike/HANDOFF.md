@@ -35,7 +35,17 @@ a Standard and a Vegas rules mode.
 - "💰 Reset bankroll" zeroes the persisted bankroll (with a `confirm()`
   guard) — only shown in Vegas mode.
 
-## Most recent pass
+## Most recent pass — heavier code comments
+
+Part of a site-wide comment-density pass (once the comment queue and
+the admin config-page rollout both ran dry — see root `HANDOFF.md`).
+Explained the two core Klondike move rules encoded in `foundationOk()`
+(same suit, exactly one rank above the pile's top, Ace on empty) and
+`tableauOk()` (one rank below and opposite color, King on empty).
+Comment-only — no logic touched; existing `klondike-resetbank-test.js`
+still passes unchanged. Live-verified: deployed, zero console errors.
+
+## Earlier pass — admin config
 
 Added the admin config pane described above (`DEAL`, `VEGAS_PASSES`)
 — no gameplay change to the defaults. Verified against the existing

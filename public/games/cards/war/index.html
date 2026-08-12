@@ -88,13 +88,21 @@
         events.push({type:"battle",p,c});
         if(p.rank>c.rank){winner="you";break;}
         if(p.rank<c.rank){winner="cpu";break;}
-        // tie -> war: each lays up to 3 face-down, then loop flips again
+        // Standard War tie-break: each side lays up to 3 cards face-down
+        // onto the stake (fewer if they're low on cards), then the loop
+        // goes around again and flips two more face-up cards to compare --
+        // repeating the whole tie process again if THOSE also tie.
         const pDown=Math.min(3,you.length),cDown=Math.min(3,cpu.length);
         const downs=[];
         for(let i=0;i<pDown;i++){const x=you.shift();stake.push(x);downs.push(x);}
         for(let i=0;i<cDown;i++){const x=cpu.shift();stake.push(x);}
         events.push({type:"war",pDown,cDown});
-        if(!you.length&&!cpu.length){ // both emptied laying down -> compare not possible; higher last card... give to whoever has cards; here both 0 -> split by last battle (tie) -> award to you arbitrarily by count
+        // Edge case: both sides ran out of cards laying down their war
+        // cards at the exact same moment, so there's no face-up card left
+        // on either side to flip and compare. No real War rule covers
+        // this exact tie -- arbitrarily awarding it to the human rather
+        // than looping forever with nothing left to play.
+        if(!you.length&&!cpu.length){
           winner="you";break;
         }
       }
