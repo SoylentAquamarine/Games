@@ -8,7 +8,7 @@ hunters, use warp pads to escape.
 - `index.html` — everything. `window.__qbert` exposes the pure sim
   (`newState`, `hop`, `target`, `onPyramid`, `done`, `allChanged`,
   `resetBoard`, `spawnEnemy`, `enemyStep`, `plan`, `padAt`, `loseChicken`,
-  `awardExtras`, `BASE`, `C`).
+  `stepDying`, `awardExtras`, `BASE`, `C`).
 - 25-level plan, chickens as lives, warp pads, and two hunters.
 - **Two visually similar but unrelated orange sprites in this file** —
   don't conflate them:
@@ -20,12 +20,48 @@ hunters, use warp pads to escape.
      NOT part of the mascot library and was deliberately left alone
      during the mascots.js migration.
 - **Admin-configurable** at `/admin/games/?game=qbert`: `EXTRA_EVERY`
-  (extra-chicken score threshold) and `CHICKENS` (starting lives). Uses
-  the site's generic numeric-knob config pattern (see kaboom's
-  HANDOFF.md) — saved to `localStorage["qbert_config"]`, merged into `C`
-  at boot via an explicit allowlist.
+  (extra-chicken score threshold), `CHICKENS` (starting lives), and
+  `DEATH_FRAMES` (death freeze duration). Uses the site's generic
+  numeric-knob config pattern (see kaboom's HANDOFF.md) — saved to
+  `localStorage["qbert_config"]`, merged into `C` at boot via an
+  explicit allowlist.
+- **Getting caught freezes play for `DEATH_FRAMES` (50 frames, ~0.8s)
+  before resetting to the apex** — see "Most recent pass". `s.dying`
+  gates `hop()`/`enemyStep()` to no-ops while active; `stepDying()`
+  performs the actual apex reset once it elapses. A fatal catch (the
+  last chicken) skips the freeze and cuts straight to Game Over.
 
-## Most recent pass
+## Most recent pass — death animation
+
+**Player feedback: "if the enemy lands on me I need a short death
+animation."** Getting caught used to reset `s.q`/`s.enemies` on the
+very same tick the collision happened — the hero's sprite (drawn at
+`s.q`) snapped back to the apex instantly, with nothing but
+`Arcade.sfx.death()` to mark what happened. `loseChicken()` now sets
+`s.dying=C.DEATH_FRAMES` instead of resetting position immediately
+(unless it's a fatal catch — the last chicken skips straight to Game
+Over, same as breakout's final-life short-circuit); a new
+`stepDying()`, called every frame while `s.dying>0`, counts it down
+and only then resets `s.q`/`s.enemies`. `hop()` and `enemyStep()` both
+no-op while frozen, and the DOM layer's `go()` handler and the
+enemy-spawn/movement loop in `frame()` are gated the same way, so
+nothing moves during the freeze. `draw()` adds a red flash over the
+frozen scene that fades out as the freeze counts down. New knob:
+`DEATH_FRAMES` (default 50), registered in the admin config panel
+alongside the two that already existed.
+
+Tested via a new `qbert-death-pause-test.js` (17 checks: the freeze
+starts on a non-fatal catch and leaves the hero at the collision cube
+rather than the apex, `hop()`/`enemyStep()` are no-ops while frozen,
+the apex reset and enemy-clear happen exactly once the freeze reaches
+0 — not before, a fatal catch skips the freeze entirely, and the
+`DEATH_FRAMES` knob is overridable via `localStorage`). All 3
+pre-existing qbert test files still pass unchanged. Live-verified:
+deployed, forced a collision via the exposed sim and confirmed the
+freeze starts with the hero held at the fatal cube, confirmed the
+admin override applies, zero console errors.
+
+## Earlier pass
 
 **Bug fix (found in a code-review pass, not player-reported): dying on
 the final cube could silently complete the level.** `hop()` coated the

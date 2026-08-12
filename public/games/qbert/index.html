@@ -39,12 +39,12 @@
 <script src="/mascots.js"></script>
 <script>
 (function(){
-  const C={ rows:7, EXTRA_EVERY:10000, CHICKENS:3, PAD_ROWS:[2,4] };
+  const C={ rows:7, EXTRA_EVERY:10000, CHICKENS:3, PAD_ROWS:[2,4], DEATH_FRAMES:50 };
   // Admin-tunable difficulty knobs — see /admin/games/?game=qbert.
   // Same pattern as kaboom (see its HANDOFF.md): explicit allowlist, only
   // numeric values, safe no-op with no localStorage (headless tests).
   (function(){ try{
-    const allow=["EXTRA_EVERY","CHICKENS"];
+    const allow=["EXTRA_EVERY","CHICKENS","DEATH_FRAMES"];
     const o=JSON.parse(localStorage.getItem("qbert_config")||"{}");
     for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
   }catch(_){} })();
@@ -98,14 +98,28 @@
   function newState(){
     const s={ cube:emptyGrid(), q:{row:0,col:0}, enemies:[], padsUsed:[],
               chickens:C.CHICKENS, nextExtra:C.EXTRA_EVERY, gotExtra:0,
-              score:0, level:1, over:false, warped:false };
+              score:0, level:1, over:false, warped:false, dying:0 };
     s.cube[0][0]=1;
     return s;
   }
+  // Player feedback: "if the enemy lands on me I need a short death
+  // animation." Getting caught used to reset s.q/s.enemies on the very
+  // same tick — the hero's sprite (drawn at s.q) snapped back to the apex
+  // instantly, with nothing but the death sfx to mark what happened. Now a
+  // non-fatal catch freezes play for DEATH_FRAMES (s.dying, matching the
+  // site-wide death-pause convention — e.g. breakout/invaders) with the
+  // hero left exactly where she was caught; stepDying() below does the
+  // actual apex reset once the freeze elapses. A fatal catch (last
+  // chicken) skips the freeze entirely and goes straight to the Game Over
+  // screen, same as breakout's final-life short-circuit.
   function loseChicken(s){
     s.chickens--;
     if(s.chickens<=0){ s.over=true; return s; }
-    s.q={row:0,col:0}; s.enemies=[];
+    s.dying=C.DEATH_FRAMES;
+    return s;
+  }
+  function stepDying(s){
+    if(s.dying>0 && --s.dying<=0){ s.q={row:0,col:0}; s.enemies=[]; }
     return s;
   }
   function awardExtras(s){
@@ -113,7 +127,7 @@
   }
 
   function hop(s, dir){
-    if(s.over) return s;
+    if(s.over||s.dying>0) return s;
     const p=plan(s.level);
     const t=target(s.q.row,s.q.col,dir);
     s.warped=false;
@@ -158,7 +172,7 @@
     return s;
   }
   function enemyStep(s, dirOverride){
-    if(s.over) return s;
+    if(s.over||s.dying>0) return s;
     for(let i=s.enemies.length-1;i>=0;i--){
       const e=s.enemies[i];
       let dir=dirOverride;
@@ -179,7 +193,7 @@
     return s;
   }
   window.__qbert={ newState, hop, target, onPyramid, done, allChanged, resetBoard,
-                   spawnEnemy, enemyStep, plan, padAt, loseChicken, awardExtras, BASE, C };
+                   spawnEnemy, enemyStep, plan, padAt, loseChicken, stepDying, awardExtras, BASE, C };
 
   if(typeof document==="undefined") return;
   const $=(id)=>document.getElementById(id);
@@ -281,6 +295,11 @@
       ctx.fillStyle="#e6e6f0"; ctx.font="13px system-ui";
       ctx.fillText("Level "+bannerLevel+" next", W/2, H/2+15);
     }
+    // Player feedback: "if the enemy lands on me I need a short death
+    // animation." A brief red flash over the frozen scene, fading out as
+    // s.dying counts down, so getting caught reads as a distinct moment
+    // instead of an instant teleport back to the apex.
+    if(s.dying>0){ ctx.fillStyle="rgba(244,63,94,"+(0.45*s.dying/C.DEATH_FRAMES)+")"; ctx.fillRect(0,0,W,H); }
     if(s.over){ ctx.fillStyle="rgba(0,0,0,.6)"; ctx.fillRect(0,0,W,H); ctx.fillStyle="#f43f5e"; ctx.font="bold 24px system-ui"; ctx.textAlign="center"; ctx.fillText("GAME OVER",W/2,H/2-6); ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Score "+s.score+"  ·  Best "+best,W/2,H/2+16); }
   }
   function hud(){
@@ -288,7 +307,7 @@
     $("level").textContent=s.level;
     $("lives").textContent="🐔".repeat(Math.max(0,s.chickens));
   }
-  function go(dir){ if(s.over||anim||levelBanner>0) return;
+  function go(dir){ if(s.over||s.dying>0||anim||levelBanner>0) return;
     const lv=s.level, chickens0=s.chickens, extras0=s.gotExtra;
     const from=cubeXY(s.q.row,s.q.col);
     const tc=target(s.q.row,s.q.col,dir);
@@ -334,6 +353,7 @@
     if(s.chickens<chickens0 && typeof Arcade!=="undefined") Arcade.sfx.death();
     if(typeof Arcade!=="undefined")Arcade.stats.record("qbert",s.score);
     if(s.over && s.score>best){ best=s.score; try{localStorage.setItem("qbert_best",String(best));}catch(e){} $("msg").textContent="Out of chickens! Score "+s.score+"  ·  Best "+best; }
+    else if(s.dying>0) $("msg").textContent="Caught! "+s.chickens+" left...";
     hud(); }
   function frame(){
     if(!GATE.open){ draw(); GATE.paint(); return requestAnimationFrame(frame); }
@@ -356,16 +376,26 @@
       draw(); return requestAnimationFrame(frame);
     }
     if(!s.over){
-      const p=plan(s.level);
-      if(++spawnT>=p.spawnEvery){ spawnT=0; spawnEnemy(s); }
-      if(s.enemies.length && ++enemyT>=p.enemyEvery){ enemyT=0;
-        const before=s.enemies.map(e=>({e, xy:cubeXY(e.row,e.col)}));
-        enemyStep(s);
-        for(const b of before){ if(s.enemies.includes(b.e)){
-          const et=cubeXY(b.e.row,b.e.col);
-          eAnims.set(b.e,{fx:b.xy.x,fy:b.xy.y,tx:et.x,ty:et.y,t0:performance.now()}); } }
-        if(s.over && s.score>best){ best=s.score; try{localStorage.setItem("qbert_best",String(best));}catch(e){} }
-        hud(); if(s.over) $("msg").textContent="Caught! Score "+s.score+"  ·  Best "+best; }
+      if(s.dying>0){
+        stepDying(s);
+        if(s.dying===0){ eAnims.clear(); $("msg").textContent="Watch out for the hunters!"; hud(); }
+      } else {
+        const p=plan(s.level);
+        if(++spawnT>=p.spawnEvery){ spawnT=0; spawnEnemy(s); }
+        if(s.enemies.length && ++enemyT>=p.enemyEvery){ enemyT=0;
+          const before=s.enemies.map(e=>({e, xy:cubeXY(e.row,e.col)}));
+          const chickens0=s.chickens;
+          enemyStep(s);
+          for(const b of before){ if(s.enemies.includes(b.e)){
+            const et=cubeXY(b.e.row,b.e.col);
+            eAnims.set(b.e,{fx:b.xy.x,fy:b.xy.y,tx:et.x,ty:et.y,t0:performance.now()}); } }
+          if(s.chickens<chickens0 && typeof Arcade!=="undefined") Arcade.sfx.death();
+          if(s.over && s.score>best){ best=s.score; try{localStorage.setItem("qbert_best",String(best));}catch(e){} }
+          hud();
+          if(s.over) $("msg").textContent="Caught! Score "+s.score+"  ·  Best "+best;
+          else if(s.dying>0) $("msg").textContent="Caught! "+s.chickens+" left...";
+        }
+      }
     }
     draw(); requestAnimationFrame(frame);
   }
