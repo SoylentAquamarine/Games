@@ -1281,6 +1281,13 @@
     dotsboxes:{ storageKey:"dotsboxes_config", sub:"Board size — takes effect next time the game is opened.", fields:[
       { key:"GRID_SIZE", label:"Dots per side (game length/complexity)", min:3, max:9, def:5 },
     ]},
+    threes:{ storageKey:"threes_config", sub:"Spawn odds — takes effect next time the game is opened. Grid size isn't editable here since 4x4 is definitional to Threes, not a difficulty dial.", fields:[
+      { key:"ONE_CHANCE", label:"Chance the next tile is a 1", min:0, max:1, def:0.45 },
+      { key:"TWO_CHANCE", label:"Chance the next tile is a 2 (remainder is a 3)", min:0, max:1, def:0.45 },
+    ]},
+    mancala:{ storageKey:"mancala_config", sub:"Starting seeds — takes effect next time the game is opened. The 6-pits-per-side layout isn't editable here since that's the standard board; seeds per pit is the usual variant dial.", fields:[
+      { key:"SEEDS_PER_PIT", label:"Starting seeds per pit", min:2, max:8, def:4 },
+    ]},
   };
   let numericInitSlug=null;
   function initNumericEditor(slug){

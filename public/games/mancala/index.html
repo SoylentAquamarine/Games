@@ -56,10 +56,22 @@
   </div>
   <script>
   (function(){
+    // Admin-tunable difficulty knob — see /admin/games/?game=mancala. Same
+    // pattern as every other configurable game on the site: explicit
+    // allowlist, only numeric values, safe no-op with no localStorage
+    // (headless tests). The 6-pits-per-side layout isn't exposed — that's
+    // the standard Mancala/Kalah board, seeds-per-pit is the usual variant
+    // dial (some rule sets use 3 or 6 instead of the classic 4).
+    const C={ SEEDS_PER_PIT:4 };
+    (function(){ try{
+      const allow=["SEEDS_PER_PIT"];
+      const o=JSON.parse(localStorage.getItem("mancala_config")||"{}");
+      for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
+    }catch(_){} })();
     // board[0..5]=your pits, 6=your store, 7..12=cpu pits, 13=cpu store
     const statusEl=document.getElementById("status");
     let board,turn,over;
-    function fresh(){const b=Array(14).fill(4);b[6]=0;b[13]=0;return b;}
+    function fresh(){const b=Array(14).fill(C.SEEDS_PER_PIT);b[6]=0;b[13]=0;return b;}
     function myPits(p){return p===0?[0,1,2,3,4,5]:[7,8,9,10,11,12];}
     function store(p){return p===0?6:13;}
     function legal(b,p){return myPits(p).filter(i=>b[i]>0);}
@@ -101,7 +113,7 @@
     }
     function finish(){over=true;render();statusEl.textContent=board[6]>board[13]?`🏆 You win ${board[6]}–${board[13]}!`:board[6]<board[13]?`CPU wins ${board[13]}–${board[6]}.`:`Tie ${board[6]}–${board[13]}.`;}
     document.getElementById("new").addEventListener("click",newGame);
-    window.__mancala={fresh,move,legal,ended,sweep,myPits,store};
+    window.__mancala={fresh,move,legal,ended,sweep,myPits,store,C,...C};
     newGame();
   })();
   </script>

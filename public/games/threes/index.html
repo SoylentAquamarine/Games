@@ -44,6 +44,17 @@
   <script src="/arcade.js"></script>
   <script>
   (function(){
+    // Admin-tunable difficulty knob — see /admin/games/?game=threes. Same
+    // pattern as every other configurable game on the site: explicit
+    // allowlist, only numeric values, safe no-op with no localStorage
+    // (headless tests). N (4x4 grid) isn't exposed — that's definitional
+    // to Threes, not a difficulty dial (same call made for 2048's SIZE).
+    const C={ ONE_CHANCE:0.45, TWO_CHANCE:0.45 };
+    (function(){ try{
+      const allow=["ONE_CHANCE","TWO_CHANCE"];
+      const o=JSON.parse(localStorage.getItem("threes_config")||"{}");
+      for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
+    }catch(_){} })();
     const N=4;
     const gridEl=document.getElementById("grid"),scoreEl=document.getElementById("score"),bestEl=document.getElementById("best"),statusEl=document.getElementById("status"),nextEl=document.getElementById("next");
     let board,next,over,best=+localStorage.getItem("threes_best")||0,tiles=[];
@@ -83,7 +94,7 @@
       render();updateScore();
       if(!anyMove())gameOver();
     }
-    function genNext(){const r=Math.random();return r<0.45?1:r<0.9?2:3;}
+    function genNext(){const r=Math.random();return r<C.ONE_CHANCE?1:r<C.ONE_CHANCE+C.TWO_CHANCE?2:3;}
     function anyMove(){for(const d of["left","right","up","down"]){for(let idx=0;idx<N;idx++)if(slideLine(getLine(d,idx)).moved)return true;}return false;}
     function tileScore(v){if(v<3)return 0;let k=Math.round(Math.log2(v/3));return Math.pow(3,k+1);}
     function score(){let s=0;for(let r=0;r<N;r++)for(let c=0;c<N;c++)s+=tileScore(board[r][c]);return s;}
@@ -103,7 +114,7 @@
     let ts=null;gridEl.addEventListener("touchstart",e=>ts={x:e.touches[0].clientX,y:e.touches[0].clientY},{passive:true});
     gridEl.addEventListener("touchend",e=>{if(!ts)return;const dx=e.changedTouches[0].clientX-ts.x,dy=e.changedTouches[0].clientY-ts.y;if(Math.abs(dx)<20&&Math.abs(dy)<20)return;if(Math.abs(dx)>Math.abs(dy))move(dx>0?"right":"left");else move(dy>0?"down":"up");ts=null;},{passive:true});
     document.getElementById("new").addEventListener("click",newGame);
-    window.__threes={slideLine,canMerge,merged};
+    window.__threes={slideLine,canMerge,merged,genNext,newGame,C,...C};
     build();newGame();
   })();
   </script>
