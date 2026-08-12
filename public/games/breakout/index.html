@@ -50,12 +50,21 @@
     const scoreEl=document.getElementById("score"),livesEl=document.getElementById("lives"),levelEl=document.getElementById("level");
     const ov=document.getElementById("ov"),ot=document.getElementById("ot"),om=document.getElementById("om"),startBtn=document.getElementById("start");
     const COLS=8,ROWS=5,BW=W/COLS,BH=22,TOP=50;
-    const DEATH_FRAMES=120;   // 2s @ 60fps — the site-wide "room to breathe" pause after a death
+    // Admin-tunable difficulty knobs — see /admin/games/?game=breakout. Same
+    // pattern as every other configurable game on the site (e.g. kaboom):
+    // explicit allowlist, only numeric values, safe no-op with no
+    // localStorage (headless tests).
+    const C={ LIVES:3, DEATH_FRAMES:120, BALL_SPEED:4 };
+    (function(){ try{
+      const allow=["LIVES","DEATH_FRAMES","BALL_SPEED"];
+      const o=JSON.parse(localStorage.getItem("breakout_config")||"{}");
+      for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
+    }catch(_){} })();
     let paddle,ball,bricks,score,lives,level,running,raf,dying=0;
     function reset(full){
-      if(full){score=0;lives=3;level=1;}
+      if(full){score=0;lives=C.LIVES;level=1;}
       paddle={w:84,h:12,x:W/2-42,y:H-28};
-      ball={x:W/2,y:H-42,r:7,vx:4*(Math.random()<.5?1:-1),vy:-4.5};
+      ball={x:W/2,y:H-42,r:7,vx:C.BALL_SPEED*(Math.random()<.5?1:-1),vy:-C.BALL_SPEED*1.125};
       bricks=[];
       dying=0;
       for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++)bricks.push({x:c*BW,y:TOP+r*BH,alive:true,hue:200+r*28});
@@ -94,7 +103,7 @@
       // lose life
       if(ball.y-ball.r>H){lives--;livesEl.textContent=lives;
         if(lives<=0){return gameOver();}
-        ball.vx=0;ball.vy=0;dying=DEATH_FRAMES;
+        ball.vx=0;ball.vy=0;dying=C.DEATH_FRAMES;
       }
     }
     function render(){
@@ -122,7 +131,11 @@
     startBtn.addEventListener("click",start);
     reset(true);render();
     // expose for headless testing
-    window.__breakout={ update, reset, DEATH_FRAMES,
+    // The admin config panel tunes C.LIVES/DEATH_FRAMES/BALL_SPEED (see
+    // /admin/games/?game=breakout); C is exported both nested (C) and
+    // spread flat (...C) so existing tests referencing e.g. G.DEATH_FRAMES
+    // keep working unchanged.
+    window.__breakout={ update, reset, C, ...C,
       getBall:()=>ball, getLives:()=>lives, getDying:()=>dying,
       setBallY:(y)=>{ball.y=y;} };
   })();

@@ -45,8 +45,17 @@
 <script src="/mascots.js"></script>
 <script>
 (function(){
-  const C={ cols:12, rows:6 };
-  const DEATH_FRAMES=50;   // freeze + shake before the farmer respawns (or the run ends)
+  // cols/rows are structural (the fixed ladder layout depends on them) and
+  // deliberately NOT in the admin allowlist below — only the difficulty
+  // knobs are. Same C-object + localStorage-override pattern every other
+  // configurable game on the site uses (e.g. kaboom); see
+  // /admin/games/?game=dk.
+  const C={ cols:12, rows:6, DEATH_FRAMES:50, BELT_FLIP_AT:280, FLYBY_EVERY:5 };
+  (function(){ try{
+    const allow=["DEATH_FRAMES","BELT_FLIP_AT","FLYBY_EVERY"];
+    const o=JSON.parse(localStorage.getItem("dk_config")||"{}");
+    for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
+  }catch(_){} })();
   const LADDERS=[{col:9,lower:5,upper:4},{col:2,lower:4,upper:3},{col:9,lower:3,upper:2},{col:4,lower:2,upper:1},{col:8,lower:1,upper:0}];
   // The hen (goal) sits at row 0, col HEN_COL. Player feedback: "the goal
   // needs to be for me to pluck the chicken's tail feathers, so I have to
@@ -75,9 +84,8 @@
   const BOARD_LABEL={girders:"Girders",conveyor:"Conveyor",elevator:"Elevators"};
   const RIVET_ROWS=[1,2,3,4], RIVET_COLS=[3,8];
   function makeRivets(){ const r=[]; for(const row of RIVET_ROWS) for(const col of RIVET_COLS) r.push({row,col,taken:false}); return r; }
-  const BELT_FLIP_AT=280;
   function makeBeltDirs(){ const d=[]; for(let r=0;r<C.rows;r++) d.push(rowDir(r)); return d; }
-  const FLYBY_EVERY=5, FLY_W=30, FLY_H=22, WIN_FRAMES=90;
+  const FLY_W=30, FLY_H=22, WIN_FRAMES=90;
   function spawnStart(level){ return Math.max(50, 90-(level-1)*6); }
   // The ongoing gap between eggs also has to shrink with level — the delay
   // after each egg used to reset to a flat 190-280 frame range regardless
@@ -88,7 +96,7 @@
   function newState(){
     const level=1, boardType=boardTypeFor(level);
     return { ladders:LADDERS.map(l=>({...l})), player:{col:1,row:C.rows-1,jump:0,climb:0,dying:0}, barrels:[], score:0, lives:3, level, boardType,
-      beltDirs: boardType==="conveyor" ? makeBeltDirs() : null, beltFlipT:BELT_FLIP_AT, beltFlipped:false,
+      beltDirs: boardType==="conveyor" ? makeBeltDirs() : null, beltFlipT:C.BELT_FLIP_AT, beltFlipped:false,
       rivets: boardType==="elevator" ? makeRivets() : null,
       over:false, won:false, winT:0, flyby:null, spawnT:spawnStart(1) }; }
   function resetPlayer(s){ s.player.col=1; s.player.row=C.rows-1; s.player.jump=0; s.player.climb=0; s.player.dying=0; }
@@ -99,10 +107,10 @@
     s.level++; s.won=false; s.barrels=[]; s.spawnT=spawnStart(s.level);
     s.boardType=boardTypeFor(s.level);
     s.beltDirs = s.boardType==="conveyor" ? makeBeltDirs() : null;
-    s.beltFlipT = BELT_FLIP_AT; s.beltFlipped=false;
+    s.beltFlipT = C.BELT_FLIP_AT; s.beltFlipped=false;
     s.rivets = s.boardType==="elevator" ? makeRivets() : null;
     resetPlayer(s);
-    if(s.level % FLYBY_EVERY === 0 && !s.flyby) s.flyby=spawnFlyby();
+    if(s.level % C.FLYBY_EVERY === 0 && !s.flyby) s.flyby=spawnFlyby();
   }
   // Counts down the win celebration; when it finishes, starts the next
   // level. Returns true while still celebrating (caller should freeze
@@ -170,16 +178,21 @@
   function collide(s){ if(s.player.dying>0) return s;
     for(const b of s.barrels){ if(b.col===s.player.col&&b.row===s.player.row){
       if(s.player.jump>0){ if(!b.dodged){ b.dodged=true; s.score+=100; } }
-      else { s.lives--; s.player.dying=DEATH_FRAMES; s.player.jump=0; return s; } } } return s; }
+      else { s.lives--; s.player.dying=C.DEATH_FRAMES; s.player.jump=0; return s; } } } return s; }
   // Counts down the death animation; when it finishes, respawns the farmer or,
   // if that was the last life, ends the run. Returns true while still dying (the
   // caller should freeze movement/barrels/collide for that frame).
   function stepDying(s){ if(s.player.dying<=0) return false;
     if(--s.player.dying<=0){ if(s.lives<=0){ s.over=true; } else { resetPlayer(s); } }
     return true; }
-  window.__dk={ newState, move, jump, jumpHeight, barrelStep, collide, ladderAt, spawnBarrel, resetPlayer, stepDying, nextLevel, stepWinning, spawnFlyby, spawnStart, spawnGap, C,
-                JUMP_FRAMES, JUMP_APEX, DEATH_FRAMES, WIN_FRAMES, FLYBY_EVERY, HEN_COL,
-                BOARD_CYCLE, boardTypeFor, RIVET_ROWS, RIVET_COLS, makeRivets, BELT_FLIP_AT, makeBeltDirs, stepBelt, checkRivets, beltDirFor };
+  // The admin config panel tunes C.DEATH_FRAMES/BELT_FLIP_AT/FLYBY_EVERY
+  // (see /admin/games/?game=dk; C.cols/C.rows are structural, not exposed
+  // as knobs). C is exported both nested (C) and spread flat (...C), so
+  // G.BELT_FLIP_AT and G.C.BELT_FLIP_AT are both valid — existing tests
+  // keep working unchanged.
+  window.__dk={ newState, move, jump, jumpHeight, barrelStep, collide, ladderAt, spawnBarrel, resetPlayer, stepDying, nextLevel, stepWinning, spawnFlyby, spawnStart, spawnGap, C, ...C,
+                JUMP_FRAMES, JUMP_APEX, WIN_FRAMES, HEN_COL,
+                BOARD_CYCLE, boardTypeFor, RIVET_ROWS, RIVET_COLS, makeRivets, makeBeltDirs, stepBelt, checkRivets, beltDirFor };
 
   if(typeof document==="undefined") return;
   const $=(id)=>document.getElementById(id);

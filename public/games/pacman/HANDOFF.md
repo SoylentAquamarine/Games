@@ -68,6 +68,21 @@ behavior fix (was likely a simpler/uniform AI before). Original
 gameplay-defining pass: smooth movement, death animation, and arcade
 ghost AI all together.
 
+## Admin config
+
+`/admin/games/?game=pacman` — 5 difficulty knobs registered in
+`NUMERIC_CONFIGS` (`public/admin/games/index.html`): `LIVES`,
+`STEP_MS` (grid-step interval — lower is faster), `FRIGHT_TICKS`,
+`SCATTER_STEPS`, `CHASE_STEPS`. Pulled out of standalone `const`
+declarations into a mutable `C` object (same pattern as every other
+configurable game); an IIFE reads `localStorage.pacman_config` on
+load and overrides any matching numeric key via an explicit
+allowlist. `DEATH_MS` and `FRIGHT_WARN_TICKS` stay plain consts —
+not exposed as knobs. `window.__pacman` exports `C` alongside its
+existing map/board-editor exports. Note this is a separate
+`localStorage` key from the `pacman_map` board editor above — one
+controls the maze layout, the other controls difficulty pacing.
+
 ## Open / deferred
 
 Nothing currently open for this game.

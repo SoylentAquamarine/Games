@@ -65,6 +65,20 @@ eggs always roll downhill now (`rowDir`, `barrelStep` — used to keep
 whatever direction they had, rolling uphill on half the girders), and the
 farmer's movement is a steady glide instead of a jerky exponential ease.
 
+## Admin config
+
+`/admin/games/?game=dk` — 3 difficulty knobs registered in
+`NUMERIC_CONFIGS` (`public/admin/games/index.html`): `DEATH_FRAMES`,
+`BELT_FLIP_AT`, `FLYBY_EVERY`. These live in the same `C` object DK
+already used for board dimensions (`cols`/`rows`); an IIFE reads
+`localStorage.dk_config` on load and overrides any matching numeric
+key via an explicit allowlist. `cols`/`rows` are deliberately NOT in
+that allowlist — they're structural (girder/ladder layout depends on
+them), not a difficulty tuning knob. `window.__dk` exports `C` both
+nested (`.C`) and spread flat (`...C`), so `G.BELT_FLIP_AT` and
+`G.C.BELT_FLIP_AT` are both valid — existing tests keep working
+unchanged.
+
 ## Open / deferred
 
 Nothing currently open for this game.

@@ -24,6 +24,18 @@ state in an invalid combination the update loop didn't handle. Also:
 rarer rooster spawn rate and a flock-thinning speedup shared with
 Centipede's pass.
 
+## Admin config
+
+`/admin/games/?game=invaders` — 3 difficulty knobs registered in
+`NUMERIC_CONFIGS` (`public/admin/games/index.html`): `LIVES`,
+`DEATH_FRAMES`, `CARD_FRAMES`. This was the first game retrofitted
+with no pre-existing `C` object — one was added (`const C={LIVES:3,
+DEATH_FRAMES:60, CARD_FRAMES:90}`) alongside an IIFE that reads
+`localStorage.invaders_config` on load and overrides any matching
+numeric key via an explicit allowlist. `window.__invaders` exports
+`C` alongside its existing state-snapshot closure, same pattern as
+every other configurable game (e.g. kaboom).
+
 ## Open / deferred
 
 Nothing currently open for this game.

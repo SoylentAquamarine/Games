@@ -943,6 +943,28 @@
   // or JS needed on the admin side.
   // =========================================================================
   const NUMERIC_CONFIGS={
+    dk:{ storageKey:"dk_config", sub:"Difficulty knobs — takes effect next time the game is opened.", fields:[
+      { key:"DEATH_FRAMES", label:"Death freeze duration (frames)", min:10, max:300, def:50 },
+      { key:"BELT_FLIP_AT", label:"Conveyor belt flip timing (frames into the level)", min:30, max:1000, def:280 },
+      { key:"FLYBY_EVERY", label:"Spacesuit chicken flyby every N levels", min:1, max:20, def:5 },
+    ]},
+    invaders:{ storageKey:"invaders_config", sub:"Difficulty knobs — takes effect next time the game is opened.", fields:[
+      { key:"LIVES", label:"Starting chickens (lives)", min:1, max:9, def:3 },
+      { key:"DEATH_FRAMES", label:"Death animation duration (frames)", min:10, max:200, def:60 },
+      { key:"CARD_FRAMES", label:"Level-clear card duration (frames)", min:10, max:300, def:90 },
+    ]},
+    pacman:{ storageKey:"pacman_config", sub:"Difficulty knobs — takes effect next time the game is opened.", fields:[
+      { key:"LIVES", label:"Starting lives", min:1, max:9, def:3 },
+      { key:"STEP_MS", label:"Grid-step interval (ms — lower is faster)", min:50, max:400, def:150 },
+      { key:"FRIGHT_TICKS", label:"Power pellet duration (steps)", min:5, max:100, def:45 },
+      { key:"SCATTER_STEPS", label:"Ghost scatter phase length (steps)", min:5, max:200, def:47 },
+      { key:"CHASE_STEPS", label:"Ghost chase phase length (steps)", min:5, max:300, def:133 },
+    ]},
+    breakout:{ storageKey:"breakout_config", sub:"Difficulty knobs — takes effect next time the game is opened.", fields:[
+      { key:"LIVES", label:"Starting lives", min:1, max:9, def:3 },
+      { key:"DEATH_FRAMES", label:"Death freeze duration (frames)", min:10, max:300, def:120 },
+      { key:"BALL_SPEED", label:"Ball speed", min:1, max:15, def:4 },
+    ]},
     robotron:{ storageKey:"robotron_config", sub:"Difficulty knobs — takes effect next time the game is opened.", fields:[
       { key:"GRUNT_SPEED", label:"Grunt speed", min:0.1, max:5, def:0.7 },
       { key:"HULK_HP", label:"Hulk hit points", min:1, max:20, def:5 },

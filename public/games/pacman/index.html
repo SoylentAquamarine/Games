@@ -93,13 +93,22 @@
     const ov=document.getElementById("ov"),ot=document.getElementById("ot"),om=document.getElementById("om"),startBtn=document.getElementById("start");
     const GHOST_COLORS=["#ff0000","#ffb8ff","#00ffff","#ffb852"];  // Blinky, Pinky, Inky, Clyde
     let grid,dots,pac,ghosts,score,lives,fright,running,stepTimer,raf,pacStart,ghostStarts,best=+localStorage.getItem("pacman_best")||0;
-    const STEP_MS=150, DEATH_MS=2000;          // one grid step; length of the death animation
+    // Admin-tunable difficulty knobs — see /admin/games/?game=pacman. Same
+    // pattern as every other configurable game on the site (e.g. kaboom):
+    // explicit allowlist, only numeric values, safe no-op with no
+    // localStorage (headless tests).
+    const C={ LIVES:3, STEP_MS:150, FRIGHT_TICKS:45, SCATTER_STEPS:47, CHASE_STEPS:133 };
+    (function(){ try{
+      const allow=["LIVES","STEP_MS","FRIGHT_TICKS","SCATTER_STEPS","CHASE_STEPS"];
+      const o=JSON.parse(localStorage.getItem("pacman_config")||"{}");
+      for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
+    }catch(_){} })();
+    const DEATH_MS=2000;          // length of the death animation
     // Player feedback: "the blue does not last long enough, we need sound
     // indications that the chickens are blue and that they are about to turn
     // back." FRIGHT_TICKS was 28 (4.2s) -- up to 45 (6.75s). The flash-warning
     // window scaled up proportionally, from the last 8 ticks to the last 12.
-    const FRIGHT_TICKS=45, FRIGHT_WARN_TICKS=12;
-    const SCATTER_STEPS=47, CHASE_STEPS=133;   // ~7s scatter / ~20s chase at 150ms a step
+    const FRIGHT_WARN_TICKS=12;
     let mode="scatter", modeTick=0, lastStep=0, dying=0, pendingGameOver=false, ghostTick=0, ghostCum=0;
     bestEl.textContent=best;
 
@@ -120,7 +129,7 @@
     }
     let dotmap;
     function reset(full){
-      if(full){score=0;lives=3;}
+      if(full){score=0;lives=C.LIVES;}
       dotmap=parse();
       pac={r:pacStart.r,c:pacStart.c,pr:pacStart.r,pc:pacStart.c,dir:"left",next:"left",mouth:0};
       // Personalities follow the original arcade ghosts: a direct chaser, an
@@ -134,7 +143,7 @@
     }
     function recountDots(){dots=0;for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++)if(dotmap[r][c])dots++;}
     function start(){reset(true);ov.classList.add("hidden");running=true;dying=0;pendingGameOver=false;
-      lastStep=performance.now();clearInterval(stepTimer);stepTimer=setInterval(step,STEP_MS);
+      lastStep=performance.now();clearInterval(stepTimer);stepTimer=setInterval(step,C.STEP_MS);
       cancelAnimationFrame(raf);raf=requestAnimationFrame(frame);}
     // Rendering runs every frame so movement can be interpolated between grid steps.
     function frame(){
@@ -150,7 +159,7 @@
       // scatter/chase alternation — ghosts reverse direction the moment it flips
       if(fright<=0){
         modeTick++;
-        const limit = mode==="scatter" ? SCATTER_STEPS : CHASE_STEPS;
+        const limit = mode==="scatter" ? C.SCATTER_STEPS : C.CHASE_STEPS;
         if(modeTick>=limit){ modeTick=0; mode = mode==="scatter"?"chase":"scatter";
           ghosts.forEach(g=>{ if(!g.eaten) g.dir=oppositeOf(g.dir); }); }
       }
@@ -161,7 +170,7 @@
       pac.mouth=(pac.mouth+1)%2;
       // eat
       if(dotmap[pac.r][pac.c]===1){dotmap[pac.r][pac.c]=0;score+=10;dots--;if(typeof Arcade!=="undefined")Arcade.sfx.step();}
-      else if(dotmap[pac.r][pac.c]===2){dotmap[pac.r][pac.c]=0;score+=50;dots--;fright=FRIGHT_TICKS;if(typeof Arcade!=="undefined")Arcade.sfx.power();}
+      else if(dotmap[pac.r][pac.c]===2){dotmap[pac.r][pac.c]=0;score+=50;dots--;fright=C.FRIGHT_TICKS;if(typeof Arcade!=="undefined")Arcade.sfx.power();}
       scoreEl.textContent=score;
       if(fright>0){
         fright--;
@@ -286,7 +295,7 @@
       }
       // Positions are interpolated between the last grid step and this one, so
       // movement reads as continuous instead of snapping a whole tile at a time.
-      const a=Math.max(0,Math.min(1,(performance.now()-lastStep)/STEP_MS));
+      const a=Math.max(0,Math.min(1,(performance.now()-lastStep)/C.STEP_MS));
       const lerp=(p,n)=>Math.abs(n-p)>1 ? n : p+(n-p)*a;   // big jumps (respawn) snap
       // pac
       const px=(lerp(pac.pc==null?pac.c:pac.pc,pac.c)+.5)*T, py=(lerp(pac.pr==null?pac.r:pac.pr,pac.r)+.5)*T, rad=T*0.42;
@@ -358,7 +367,7 @@
     let ts=null;cv.addEventListener("touchstart",e=>ts={x:e.touches[0].clientX,y:e.touches[0].clientY},{passive:true});
     cv.addEventListener("touchend",e=>{if(!ts||!pac)return;const dx=e.changedTouches[0].clientX-ts.x,dy=e.changedTouches[0].clientY-ts.y;if(Math.abs(dx)<18&&Math.abs(dy)<18)return;if(Math.abs(dx)>Math.abs(dy))setDir(dx>0?"right":"left");else setDir(dy>0?"down":"up");ts=null;},{passive:true});
     startBtn.addEventListener("click",start);
-    window.__pacman={MAP,DEFAULT_MAP,isValidMap,ROWS,COLS,getPacStart:()=>pacStart,getGhostStarts:()=>ghostStarts,getDots:()=>dots};
+    window.__pacman={MAP,DEFAULT_MAP,isValidMap,ROWS,COLS,getPacStart:()=>pacStart,getGhostStarts:()=>ghostStarts,getDots:()=>dots,C};
     reset(true);draw();
   })();
   </script>

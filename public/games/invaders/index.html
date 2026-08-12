@@ -58,7 +58,16 @@
     const COLS=8,ROWS=4,IW=25,IH=17,GAPX=14,GAPY=14;   // sprites 5% larger
     let player,invaders,dir,drop,pBullet,eBullets,shields,score,lives,wave,running,raf,stepAcc,moveEvery;
     let dying=0,deathDebris=[],levelCard=0;   // death animation, then a 'level N / chickens left' card
-    const DEATH_FRAMES=60, CARD_FRAMES=90;
+    // Admin-tunable difficulty knobs — see /admin/games/?game=invaders. Same
+    // pattern as every other configurable game on the site (e.g. kaboom):
+    // explicit allowlist, only numeric values, safe no-op with no
+    // localStorage (headless tests).
+    const C={ LIVES:3, DEATH_FRAMES:60, CARD_FRAMES:90 };
+    (function(){ try{
+      const allow=["LIVES","DEATH_FRAMES","CARD_FRAMES"];
+      const o=JSON.parse(localStorage.getItem("invaders_config")||"{}");
+      for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
+    }catch(_){} })();
     function renderLives(){livesEl.textContent='🐔'.repeat(Math.max(0,lives));}
     const keys={left:false,right:false,fire:false};
     let best=+localStorage.getItem("invaders_best")||0;
@@ -75,7 +84,7 @@
       return arr;}
     function makeShields(){const s=[];const ys=H-110;for(let b=0;b<4;b++){const bx=30+b*((W-60)/4)+((W-60)/4-56)/2;
       for(let i=0;i<7;i++)for(let j=0;j<4;j++)s.push({x:bx+i*8,y:ys+j*8,hp:2});}return s;}
-    function reset(full){if(full){score=0;lives=3;wave=1;}
+    function reset(full){if(full){score=0;lives=C.LIVES;wave=1;}
       player={x:W/2-16,y:H-30,w:32,h:12};
       invaders=makeInvaders();dir=1;drop=0;pBullet=null;eBullets=[];shields=makeShields();
       ufo=null;ufoFlash=null;ufoTimer=UFO_EVERY();ufoDone=false;
@@ -86,13 +95,13 @@
     window.__invaders={ state:()=>({pBullet,keys,ufo,ufoDone,score,wave,lives,running,dying,levelCard,
                           invadersAlive:invaders?invaders.filter(i=>i.alive).length:0,
                           shieldsUp:shields?shields.filter(s=>s.hp>0).length:0}),
-                        setUfo:(u)=>{ufo=u;}, hit:()=>die(), step:()=>update() };
+                        setUfo:(u)=>{ufo=u;}, hit:()=>die(), step:()=>update(), C };
     function loop(){if(!running)return;update();render();raf=requestAnimationFrame(loop);}
     function alive(){return invaders.filter(i=>i.alive);}
     function update(){
       // hold the board frozen while the fighter blows up, then show the card
       if(dying>0){ for(const d of deathDebris){ d.x+=d.vx; d.y+=d.vy; d.vy+=0.12; d.rot+=d.vr; d.life--; }
-        if(--dying<=0){ levelCard=CARD_FRAMES; player.x=W/2-16; } return; }
+        if(--dying<=0){ levelCard=C.CARD_FRAMES; player.x=W/2-16; } return; }
       if(levelCard>0){ if(--levelCard<=0){/* resume */} return; }
       // player
       if(keys.left)player.x-=4;if(keys.right)player.x+=4;
@@ -171,10 +180,10 @@
         ot.textContent=overrun&&lives>0?"Overrun!":"Game Over";om.textContent="Score "+score+(score>=best?" · best!":"");startBtn.textContent="Play again";ov.classList.remove("hidden");return;}
       // your fighter bursts apart, then a title card, then you carry on from the
       // same board — invaders and shields are left exactly where they were.
-      dying=DEATH_FRAMES; deathDebris=[];
+      dying=C.DEATH_FRAMES; deathDebris=[];
       const cx=player.x+player.w/2, cy=player.y+player.h/2;
       for(let i=0;i<16;i++){ const a=Math.random()*Math.PI*2, sp=1+Math.random()*3;
-        deathDebris.push({x:cx,y:cy,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-1,life:DEATH_FRAMES,rot:Math.random()*7,vr:(Math.random()-0.5)*0.4}); }
+        deathDebris.push({x:cx,y:cy,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-1,life:C.DEATH_FRAMES,rot:Math.random()*7,vr:(Math.random()-0.5)*0.4}); }
       if(typeof Arcade!=="undefined") Arcade.sfx.death();}
     // Four chicken breeds — one per invader row.
     // 0 red hen · 1 brown hen · 2 yellow chick · 3 white rooster
@@ -248,7 +257,7 @@
       if(dying>0){
         ctx.fillStyle="#22d3ee";
         for(const d of deathDebris){ ctx.save(); ctx.translate(d.x,d.y); ctx.rotate(d.rot);
-          ctx.globalAlpha=Math.max(0,d.life/DEATH_FRAMES); ctx.fillRect(-3,-2,6,4); ctx.restore(); }
+          ctx.globalAlpha=Math.max(0,d.life/C.DEATH_FRAMES); ctx.fillRect(-3,-2,6,4); ctx.restore(); }
         ctx.globalAlpha=1;
       } else if(levelCard<=0){
         ctx.fillStyle="#22d3ee";ctx.fillRect(player.x,player.y,player.w,player.h);ctx.fillRect(player.x+player.w/2-2,player.y-6,4,6);
