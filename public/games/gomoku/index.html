@@ -40,10 +40,18 @@
 
     function newGame(){board=Array.from({length:N},()=>Array(N).fill(0));turn=B;over=false;lastAI=null;statusEl.textContent="Your move (black).";draw();}
     function inb(r,c){return r>=0&&r<N&&c>=0&&c<N;}
+    // Only 4 axes needed (not all 8 compass directions) — checking both
+    // signs (+1/-1) of each axis below already covers the opposite
+    // direction, so horizontal/vertical/both diagonals is the full set.
     function win(b,p,r,c){for(const[dr,dc]of DIRS){let cnt=1;
       for(const s of[1,-1]){let nr=r+dr*s,nc=c+dc*s;while(inb(nr,nc)&&b[nr][nc]===p){cnt++;nr+=dr*s;nc+=dc*s;}}
       if(cnt>=5)return true;}return false;}
-    // score of placing p at (r,c)
+    // Heuristic value of placing p at (r,c): for each of the 4 axes, walks
+    // both directions counting p's own existing run length through this
+    // point plus whether each end is still "open" (an empty cell, so the
+    // run could keep growing) vs. blocked. pat() below turns that
+    // (line length, open ends) pair into a score — an open 4 is worth
+    // 10x a blocked 4 because it's an unstoppable double-ended threat.
     function cellScore(b,r,c,p){let total=0;
       for(const[dr,dc]of DIRS){let line=1,open=0;
         for(const s of[1,-1]){let nr=r+dr*s,nc=c+dc*s,k=0;while(inb(nr,nc)&&b[nr][nc]===p){k++;nr+=dr*s;nc+=dc*s;}line+=k;
@@ -51,12 +59,22 @@
         total+=pat(line,open);}
       return total;}
     function pat(line,open){if(line>=5)return 1e7;if(line===4)return open===2?1e5:1e4;if(line===3)return open===2?5e3:500;if(line===2)return open===2?200:50;return open===2?10:1;}
+    // No lookahead/minimax — one-ply heuristic only. Each empty candidate
+    // cell is scored as "how good is this for ME" (cellScore for W) plus
+    // "how good would this have been for the human here" (cellScore for
+    // B, at 0.95x — deliberately weighted slightly below offense) so the
+    // same score also captures defense: a cell that would complete the
+    // human's near-win scores high too, driving the CPU to block it.
     function aiMove(){
       let best=null,bs=-1;const cand=[];
       for(let r=0;r<N;r++)for(let c=0;c<N;c++){if(board[r][c])continue;if(!near(r,c))continue;
         const s=cellScore(board,r,c,W)+0.95*cellScore(board,r,c,B);if(s>bs){bs=s;best=[r,c];}}
       if(!best)best=[Math.floor(N/2),Math.floor(N/2)];
       return best;}
+    // Restricts the CPU's search to cells within 2 of an existing stone —
+    // on a 13x13 board scoring all 169 cells every move (each an 8-way
+    // walk) adds up, and empty corners far from any play are never worth
+    // considering anyway.
     function near(r,c){for(let dr=-2;dr<=2;dr++)for(let dc=-2;dc<=2;dc++){const nr=r+dr,nc=c+dc;if(inb(nr,nc)&&board[nr][nc])return true;}return false;}
     function place(r,c,p){board[r][c]=p;if(win(board,p,r,c)){over=true;return true;}return false;}
 

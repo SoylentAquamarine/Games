@@ -46,12 +46,25 @@
   (function(){
     const N=8,B=1,W=2;
     const DIRS=[[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
+    // CPU's positional-value heuristic, not a real-time lookahead: corners
+    // are hugely valuable (120) because a disc there can never be flipped;
+    // the squares diagonally/orthogonally adjacent to a corner are
+    // strongly NEGATIVE (-20/-40) because taking one early tends to hand
+    // the opponent the corner next to it. Center/edge cells are mildly
+    // positive. See evalBoard() for how this is scored per-player.
     const WEIGHTS=[[120,-20,20,5,5,20,-20,120],[-20,-40,-5,-5,-5,-5,-40,-20],[20,-5,15,3,3,15,-5,20],[5,-5,3,3,3,3,-5,5],[5,-5,3,3,3,3,-5,5],[20,-5,15,3,3,15,-5,20],[-20,-40,-5,-5,-5,-5,-40,-20],[120,-20,20,5,5,20,-20,120]];
     const boardEl=document.getElementById("board"),statusEl=document.getElementById("status");
     let board,turn,over,cells=[];
 
     function initBoard(){const b=Array.from({length:N},()=>Array(N).fill(0));b[3][3]=W;b[3][4]=B;b[4][3]=B;b[4][4]=W;return b;}
     function opp(p){return p===B?W:B;}
+    // Core Reversi rule: a move is legal only if it "flanks" an unbroken
+    // run of the opponent's discs, terminated by one of the player's own.
+    // Walks all 8 directions from (r,c); a direction only contributes its
+    // collected opponent discs to the flip list if that run is capped by
+    // the player's own disc (an empty cell or the board edge caps it with
+    // nothing to flip). Doubles as the legality check — empty return means
+    // no legal flips exist here.
     function flipsFor(b,p,r,c){if(b[r][c]!==0)return[];const out=[];
       for(const[dr,dc]of DIRS){const line=[];let nr=r+dr,nc=c+dc;
         while(nr>=0&&nr<N&&nc>=0&&nc<N&&b[nr][nc]===opp(p)){line.push([nr,nc]);nr+=dr;nc+=dc;}
@@ -60,6 +73,10 @@
     function legalMoves(b,p){const m=[];for(let r=0;r<N;r++)for(let c=0;c<N;c++)if(flipsFor(b,p,r,c).length)m.push([r,c]);return m;}
     function applyMove(b,p,r,c){const nb=b.map(row=>row.slice());const fl=flipsFor(b,p,r,c);nb[r][c]=p;for(const[fr,fc]of fl)nb[fr][fc]=p;return nb;}
     function count(b){let x=0,o=0;for(let r=0;r<N;r++)for(let c=0;c<N;c++){if(b[r][c]===B)x++;else if(b[r][c]===W)o++;}return[x,o];}
+    // Sums WEIGHTS for the player's own discs and subtracts it for the
+    // opponent's — a positional score, not a disc-count score (having more
+    // discs mid-game is often a trap in Reversi, since it can mean fewer
+    // safe replies later; corner/edge control matters far more).
     function evalBoard(b,p){let s=0;for(let r=0;r<N;r++)for(let c=0;c<N;c++){if(b[r][c]===p)s+=WEIGHTS[r][c];else if(b[r][c]===opp(p))s-=WEIGHTS[r][c];}return s;}
 
     function build(){boardEl.innerHTML="";cells=[];for(let r=0;r<N;r++){cells[r]=[];for(let c=0;c<N;c++){const d=document.createElement("div");d.className="cell";
@@ -71,6 +88,10 @@
       document.getElementById("s1").classList.toggle("turn",turn===B&&!over);document.getElementById("s2").classList.toggle("turn",turn===W&&!over);}
     function newGame(){board=initBoard();turn=B;over=false;statusEl.textContent="Your move (black).";render();}
     function human(r,c){if(over||turn!==B)return;if(!flipsFor(board,B,r,c).length)return;board=applyMove(board,B,r,c);turn=W;render();next();}
+    // Real Reversi rule, not a bug: if the player to move has no legal
+    // flip anywhere on the board, their turn is skipped (a forced pass)
+    // rather than ending the game — the game only ends once BOTH players
+    // are simultaneously stuck (checked via the opponent's legalMoves).
     function next(){
       if(over)return;
       if(!legalMoves(board,turn).length){
@@ -83,6 +104,9 @@
     }
     function cpu(){
       if(over)return;const moves=legalMoves(board,W);if(!moves.length)return next();
+      // Greedy one-ply pick by evalBoard() score, not a minimax search —
+      // the tiny random jitter just breaks ties between equally-scored
+      // moves so the CPU doesn't always play the exact same opening.
       let best=moves[0],bs=-1e9;for(const[r,c]of moves){const s=evalBoard(applyMove(board,W,r,c),W)+Math.random()*0.1;if(s>bs){bs=s;best=[r,c];}}
       board=applyMove(board,W,best[0],best[1]);turn=B;render();next();
     }
