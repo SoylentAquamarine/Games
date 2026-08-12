@@ -64,7 +64,7 @@
     function hyperspace(){if(!ship)return;const now=performance.now();if(now-lastWarp<600)return;lastWarp=now;ship.x=Math.random()*W;ship.y=Math.random()*H;ship.vx=0;ship.vy=0;inv=Math.max(inv,45);}
     let lastFire=0;
     // Death sequence: 2s of drifting wreckage, then a clearly-announced new ship.
-    const DEATH_FRAMES=120, RESPAWN_INV=120, RESPAWN_FLASH=90;
+    const RESPAWN_FLASH=90;
     let dying=0, debris=[], gameOverPending=false, respawnFlash=0;
 
     // Two hostiles share the sky with the eggs.
@@ -72,9 +72,19 @@
     //    straight through and leaves, so it is a bonus you have to take quickly
     //  · the space weasel arrives at wave 10 and behaves like an egg: it drifts
     //    and wraps and stays until you kill it, but it shoots back
-    const FLYBY_EVERY=5, WEASEL_FROM=10;               // a flyby between waves, every 5th
     const FLYBY_SHOT=90, WEASEL_SHOT=140;              // 1.5s and ~2.3s between shots
     const FLYBY_SCORE=500, WEASEL_SCORE=250;
+    // Admin-tunable difficulty knobs — see /admin/games/?game=asteroids.
+    // Same pattern as every other configurable game (e.g. kaboom): explicit
+    // allowlist, only numeric values, safe no-op with no localStorage
+    // (headless tests).
+    const C={ LIVES:3, DEATH_FRAMES:120, RESPAWN_INV:120, FLYBY_EVERY:5, WEASEL_FROM:10 };
+    (function(){ try{
+      const allow=["LIVES","DEATH_FRAMES","RESPAWN_INV","FLYBY_EVERY","WEASEL_FROM"];
+      const o=JSON.parse(localStorage.getItem("asteroids_config")||"{}");
+      for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
+    }catch(_){} })();
+    window.__asteroids={ C };
     let flyby=null, weasels=[], eBullets=[], pops=[], interlude=false, flybyWave=-1;
 
     // He crosses on a clear screen between waves, and deliberately not on your
@@ -93,8 +103,8 @@
     }
     function spawnWeasels(){
       weasels=[];
-      if(wave<WEASEL_FROM) return;
-      const n=1+Math.floor((wave-WEASEL_FROM)/4);
+      if(wave<C.WEASEL_FROM) return;
+      const n=1+Math.floor((wave-C.WEASEL_FROM)/4);
       for(let i=0;i<n;i++){
         let x,y; do{ x=Math.random()*W; y=Math.random()*H; }while(ship&&Math.hypot(x-ship.x,y-ship.y)<150);
         const a=Math.random()*Math.PI*2, sp=0.5+Math.random()*0.5;
@@ -121,7 +131,7 @@
     function spawnWave(){rocks=[];const count=Math.min(7, 2+Math.ceil(wave*0.6));for(let i=0;i<count;i++){
       let x,y;do{x=Math.random()*W;y=Math.random()*H;}while(Math.hypot(x-ship.x,y-ship.y)<120);
       rocks.push(makeRock(x,y,3));}}
-    function reset(full){if(full){score=0;lives=3;wave=1;flybyWave=-1;}dying=0;debris=[];gameOverPending=false;respawnFlash=0;ship=newShip();bullets=[];inv=90;
+    function reset(full){if(full){score=0;lives=C.LIVES;wave=1;flybyWave=-1;}dying=0;debris=[];gameOverPending=false;respawnFlash=0;ship=newShip();bullets=[];inv=90;
       flyby=null;interlude=false;weasels=[];eBullets=[];pops=[];spawnWave();spawnWeasels();
       scoreEl.textContent=score;livesEl.textContent=lives;}
     function start(){reset(true);ov.classList.add("hidden");running=true;loop();}
@@ -172,11 +182,11 @@
         // before the next batch of eggs arrives.
         // one pass per 5-wave milestone — the sentinel stops it re-spawning if
         // you die mid-flyby (interlude resets but the wave hasn't advanced yet)
-        if(wave%FLYBY_EVERY===0 && flybyWave!==wave){ interlude=true; flybyWave=wave; spawnFlyby(); }
-        else { wave++;ship=newShip();inv=RESPAWN_INV;spawnWave();spawnWeasels(); }
+        if(wave%C.FLYBY_EVERY===0 && flybyWave!==wave){ interlude=true; flybyWave=wave; spawnFlyby(); }
+        else { wave++;ship=newShip();inv=C.RESPAWN_INV;spawnWave();spawnWeasels(); }
       }
       // once he is gone, the next wave rolls in
-      if(interlude && !flyby){ interlude=false; wave++;ship=newShip();inv=RESPAWN_INV;spawnWave();spawnWeasels(); }
+      if(interlude && !flyby){ interlude=false; wave++;ship=newShip();inv=C.RESPAWN_INV;spawnWave();spawnWeasels(); }
     }
     function stepEnemies(){
       pops.forEach(p=>{p.y-=0.5;p.life--;}); pops=pops.filter(p=>p.life>0);
@@ -226,7 +236,7 @@
       // Blow the ship apart into drifting shards for ~2s before the next one appears.
       debris=[]; for(let i=0;i<14;i++){ const a=Math.random()*Math.PI*2, sp=0.6+Math.random()*2.2;
         debris.push({x:ship.x,y:ship.y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,a:Math.random()*7,va:(Math.random()-.5)*0.3,len:4+Math.random()*7}); }
-      dying=DEATH_FRAMES; ship=null;
+      dying=C.DEATH_FRAMES; ship=null;
       if(lives<=0){ gameOverPending=true; }
     }
     // Called when the death animation finishes.
@@ -235,7 +245,7 @@
       if(gameOverPending){ gameOverPending=false; running=false; cancelAnimationFrame(raf);
         if(typeof Arcade!=="undefined")Arcade.stats.record("asteroids",score); if(score>best){best=score;localStorage.setItem("asteroids_best",best);bestEl.textContent=best;}
         ot.textContent="Game Over";om.textContent="Score "+score+" · wave "+wave;startBtn.textContent="Play again";ov.classList.remove("hidden");return; }
-      ship=newShip(); inv=RESPAWN_INV; respawnFlash=RESPAWN_FLASH;
+      ship=newShip(); inv=C.RESPAWN_INV; respawnFlash=RESPAWN_FLASH;
     }
     function render(){
       ctx.clearRect(0,0,W,H);
@@ -288,7 +298,7 @@
       for(const p of pops){ ctx.fillStyle="rgba(250,204,21,"+Math.min(1,p.life/40)+")"; ctx.fillText(p.text,p.x,p.y); }
       // wreckage, drifting and fading over the 2s death animation
       if(dying>0){
-        const fade=Math.min(1,dying/DEATH_FRAMES);
+        const fade=Math.min(1,dying/C.DEATH_FRAMES);
         ctx.strokeStyle="rgba(250,204,21,"+fade+")"; ctx.lineWidth=2;
         for(const d of debris){ ctx.save(); ctx.translate(d.x,d.y); ctx.rotate(d.a);
           ctx.beginPath(); ctx.moveTo(-d.len/2,0); ctx.lineTo(d.len/2,0); ctx.stroke(); ctx.restore(); }

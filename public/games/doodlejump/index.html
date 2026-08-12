@@ -47,7 +47,18 @@
     const cv=document.getElementById("c"),ctx=cv.getContext("2d"),W=cv.width,H=cv.height;
     const scoreEl=document.getElementById("score"),bestEl=document.getElementById("best");
     const ov=document.getElementById("ov"),ot=document.getElementById("ot"),om=document.getElementById("om"),startBtn=document.getElementById("start");
-    const GRAV=0.32,JUMP=-11,PW=58,PH=12,MOVE=4.4;
+    const PW=58,PH=12;
+    // Admin-tunable difficulty knobs — see /admin/games/?game=doodlejump.
+    // Same pattern as every other configurable game (e.g. kaboom): explicit
+    // allowlist, only numeric values, safe no-op with no localStorage
+    // (headless tests).
+    const C={ GRAV:0.32, JUMP:-11, MOVE:4.4 };
+    (function(){ try{
+      const allow=["GRAV","JUMP","MOVE"];
+      const o=JSON.parse(localStorage.getItem("doodlejump_config")||"{}");
+      for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
+    }catch(_){} })();
+    window.__doodlejump={ C };
     let player,plats,score,maxY,running,raf,best=+localStorage.getItem("doodle_best")||0;
     let left=false,right=false;
     bestEl.textContent=best;
@@ -58,18 +69,18 @@
       for(let i=1;i<9;i++)plats.push(mkPlat(Math.random()*(W-PW),H-40-i*58,Math.random()<0.2?1:0));
       score=0;maxY=player.y;scoreEl.textContent=0;
     }
-    function start(){reset();ov.classList.add("hidden");running=true;player.vy=JUMP;loop();}
+    function start(){reset();ov.classList.add("hidden");running=true;player.vy=C.JUMP;loop();}
     function loop(){if(!running)return;update();render();raf=requestAnimationFrame(loop);}
     function update(){
-      if(left)player.x-=MOVE;if(right)player.x+=MOVE;
+      if(left)player.x-=C.MOVE;if(right)player.x+=C.MOVE;
       if(player.x<-player.w)player.x=W;if(player.x>W)player.x=-player.w;
-      player.vy+=GRAV;player.y+=player.vy;
+      player.vy+=C.GRAV;player.y+=player.vy;
       // scroll when high
       if(player.y<H*0.4){const dy=H*0.4-player.y;player.y=H*0.4;plats.forEach(p=>p.y+=dy);score+=Math.round(dy);scoreEl.textContent=score;}
       // moving platforms
       plats.forEach(p=>{if(p.move){p.x+=p.dir*1.4;if(p.x<0||p.x>W-PW)p.dir*=-1;}});
       // land
-      if(player.vy>0)for(const p of plats){if(player.x+player.w>p.x&&player.x<p.x+PW&&player.y+player.h>p.y&&player.y+player.h<p.y+PH+player.vy){player.vy=JUMP;break;}}
+      if(player.vy>0)for(const p of plats){if(player.x+player.w>p.x&&player.x<p.x+PW&&player.y+player.h>p.y&&player.y+player.h<p.y+PH+player.vy){player.vy=C.JUMP;break;}}
       // recycle platforms that fell below
       plats=plats.filter(p=>p.y<H+20);
       while(plats.length<9){const top=Math.min(...plats.map(p=>p.y));plats.push(mkPlat(Math.random()*(W-PW),top-58,Math.random()<0.25?1:0));}

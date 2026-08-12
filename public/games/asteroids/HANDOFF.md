@@ -25,6 +25,22 @@ wave could trigger a second pass. Now a `flybyWave` sentinel records
 milestone regardless of deaths in between; only resets on a full
 new-game reset.
 
+## Admin config
+
+`/admin/games/?game=asteroids` — 5 difficulty knobs registered in
+`NUMERIC_CONFIGS` (`public/admin/games/index.html`): `LIVES`,
+`DEATH_FRAMES`, `RESPAWN_INV`, `FLYBY_EVERY`, `WEASEL_FROM`. Pulled
+out of plain `const` declarations into a mutable `C` object; an IIFE
+reads `localStorage.asteroids_config` on load and overrides any
+matching numeric key via an explicit allowlist. This is the first
+minimal `window.__asteroids={C}` export this game has ever had — added
+purely to make `C` (and therefore the config override) verifiable;
+the rest of the game's state is still closure-only, untested by
+anything but the static source-regex checks in
+`asteroids-flyby-test.js` (which had two literal patterns —
+`wave%FLYBY_EVERY===0` and `lives=3` — updated to their new
+`C.FLYBY_EVERY`/`C.LIVES` source shape).
+
 ## Open / deferred
 
 Nothing currently open for this game.

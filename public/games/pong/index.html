@@ -37,15 +37,26 @@
   (function(){
     const cv=document.getElementById("c"),ctx=cv.getContext("2d"),W=cv.width,H=cv.height;
     const ov=document.getElementById("ov"),ot=document.getElementById("ot"),om=document.getElementById("om"),startBtn=document.getElementById("start");
-    const PW=10,PH=64,WIN=7;
+    const PW=10,PH=64;
+    // Admin-tunable difficulty knobs — see /admin/games/?game=pong. Same
+    // pattern as every other configurable game (e.g. kaboom): explicit
+    // allowlist, only numeric values, safe no-op with no localStorage
+    // (headless tests).
+    const C={ WIN:7, CPU_SPEED:4.6, BALL_SPEED:4 };
+    (function(){ try{
+      const allow=["WIN","CPU_SPEED","BALL_SPEED"];
+      const o=JSON.parse(localStorage.getItem("pong_config")||"{}");
+      for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
+    }catch(_){} })();
+    window.__pong={ C };
     let you,cpu,ball,sYou,sCpu,running,raf,upKey=false,downKey=false;
-    function reset(serveDir){you=H/2-PH/2;cpu=H/2-PH/2;ball={x:W/2,y:H/2,vx:4*(serveDir||(Math.random()<.5?1:-1)),vy:(Math.random()*4-2),r:7};}
+    function reset(serveDir){you=H/2-PH/2;cpu=H/2-PH/2;ball={x:W/2,y:H/2,vx:C.BALL_SPEED*(serveDir||(Math.random()<.5?1:-1)),vy:(Math.random()*4-2),r:7};}
     function newGame(){sYou=0;sCpu=0;reset();ov.classList.add("hidden");running=true;loop();}
     function loop(){if(!running)return;update();render();raf=requestAnimationFrame(loop);}
     function update(){
       if(upKey)you-=6;if(downKey)you+=6;you=Math.max(0,Math.min(H-PH,you));
       // cpu AI tracks ball with a speed cap + slight lag
-      const target=ball.y-PH/2;const cs=4.6;if(cpu+PH/2<ball.y-8)cpu+=cs;else if(cpu+PH/2>ball.y+8)cpu-=cs;cpu=Math.max(0,Math.min(H-PH,cpu));
+      const target=ball.y-PH/2;const cs=C.CPU_SPEED;if(cpu+PH/2<ball.y-8)cpu+=cs;else if(cpu+PH/2>ball.y+8)cpu-=cs;cpu=Math.max(0,Math.min(H-PH,cpu));
       ball.x+=ball.vx;ball.y+=ball.vy;
       if(ball.y<ball.r){ball.y=ball.r;ball.vy*=-1;}if(ball.y>H-ball.r){ball.y=H-ball.r;ball.vy*=-1;}
       // paddle collisions
@@ -53,8 +64,8 @@
       if(ball.x+ball.r>W-20-PW&&ball.x<W-20&&ball.y>cpu&&ball.y<cpu+PH&&ball.vx>0){ball.vx*=-1.06;ball.vy+=((ball.y-(cpu+PH/2))/(PH/2))*3;ball.x=W-20-PW-ball.r;}
       if(ball.x<0){sCpu++;point(1);}else if(ball.x>W){sYou++;point(-1);}
     }
-    function point(dir){if(sYou>=WIN||sCpu>=WIN){running=false;cancelAnimationFrame(raf);
-      ot.textContent=sYou>=WIN?"🏆 You win!":"CPU wins.";om.textContent=sYou+" – "+sCpu;startBtn.textContent="Play again";ov.classList.remove("hidden");return;}
+    function point(dir){if(sYou>=C.WIN||sCpu>=C.WIN){running=false;cancelAnimationFrame(raf);
+      ot.textContent=sYou>=C.WIN?"🏆 You win!":"CPU wins.";om.textContent=sYou+" – "+sCpu;startBtn.textContent="Play again";ov.classList.remove("hidden");return;}
       reset(dir);}
     function render(){
       ctx.clearRect(0,0,W,H);
