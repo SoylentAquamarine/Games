@@ -83,7 +83,17 @@
     // game's HANDOFF.md for why): this one is a buy-low-sell-high trading
     // route between towns instead, so the two Oregon-Trail-style games
     // actually play differently rather than being a reskin of each other.
-    const START_CASH=100, WAGON_CAP=100, WIN_TARGET=500;
+    // Admin-tunable difficulty knobs — see /admin/games/?game=chickencaravan.
+    // Same pattern as every other configurable game on the site: explicit
+    // allowlist, only numeric values, safe no-op with no localStorage
+    // (headless tests).
+    const C={ START_CASH:100, WAGON_CAP:100, WIN_TARGET:500 };
+    (function(){ try{
+      const allow=["START_CASH","WAGON_CAP","WIN_TARGET"];
+      const o=JSON.parse(localStorage.getItem("chickencaravan_config")||"{}");
+      for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
+    }catch(_){} })();
+    const START_CASH=C.START_CASH, WAGON_CAP=C.WAGON_CAP, WIN_TARGET=C.WIN_TARGET;
     const GOODS=["egg","feed","wool","tool"];
     const GOOD_INFO={ egg:{name:"Eggs",base:5}, feed:{name:"Feed",base:3}, wool:{name:"Wool",base:8}, tool:{name:"Tools",base:15} };
     const TOWNS=[ {name:"Coop Corner",dist:20}, {name:"Henhouse Hollow",dist:25}, {name:"Barnyard Bend",dist:30}, {name:"Market Town",dist:25} ];
@@ -181,7 +191,7 @@
       return { ok:true, msgs };
     }
 
-    window.__chickencaravan={ START_CASH, WAGON_CAP, WIN_TARGET, GOODS, GOOD_INFO, TOWNS,
+    window.__chickencaravan={ START_CASH, WAGON_CAP, WIN_TARGET, C, ...C, GOODS, GOOD_INFO, TOWNS,
       newGame, wagonUsed, rollPrices, travel, buy, sell, depart, finishRun, plFor };
     if(typeof document==="undefined") return;
 

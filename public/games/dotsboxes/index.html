@@ -38,7 +38,19 @@
   </div>
   <script>
   (function(){
-    const D=5, BOX=D-1;
+    // Admin-tunable difficulty knob — see /admin/games/?game=dotsboxes.
+    // Same pattern as every other configurable game on the site: explicit
+    // allowlist, only numeric values, safe no-op with no localStorage
+    // (headless tests). Unlike Tetris/2048/Battleship, Dots and Boxes has
+    // no single canonical grid size across implementations, so this is a
+    // genuine difficulty dial rather than a rule-breaking change.
+    const C={ GRID_SIZE:5 };
+    (function(){ try{
+      const allow=["GRID_SIZE"];
+      const o=JSON.parse(localStorage.getItem("dotsboxes_config")||"{}");
+      for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
+    }catch(_){} })();
+    const D=C.GRID_SIZE, BOX=D-1;
     const PAD=30, SP=(320-2*PAD)/(D-1);
     const svg=document.getElementById("board"),statusEl=document.getElementById("status");
     let h,v,boxes,turn,over,scoreY,scoreC;
@@ -99,7 +111,7 @@
       svg.querySelectorAll(".hit").forEach(el=>el.addEventListener("click",()=>human(el.dataset.t,+el.dataset.r,+el.dataset.c)));
     }
     document.getElementById("new").addEventListener("click",newGame);
-    window.__db={newGame:()=>{newGame();},applyEdge,boxSides,completesBox,sidesIfAdded,state:()=>({h,v,boxes})};
+    window.__db={newGame:()=>{newGame();},applyEdge,boxSides,completesBox,sidesIfAdded,state:()=>({h,v,boxes}),D,BOX,C,...C};
     newGame();
   })();
   </script>

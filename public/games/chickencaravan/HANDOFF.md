@@ -38,12 +38,27 @@ goods between 4 towns; reach $500 by the last stop to win.
   mode, aimed at the next stop); `finishRun()` is only valid at the
   final town. Neither is available while still on the road.
 
-## Most recent pass
+## Most recent pass — admin config
+
+Part of the site-wide admin config-page rollout (see root `HANDOFF.md`).
+`START_CASH`/`WAGON_CAP`/`WIN_TARGET` (were plain hardcoded consts)
+pulled into a `C` object with the standard localStorage-override IIFE
+(`chickencaravan_config`, matching allowlist). Registered in
+`/admin/games/`'s `NUMERIC_CONFIGS`. New `chickencaravan-config-test.js`
+(9 checks) verifies defaults match the original hardcoded values and
+that overrides actually flow through to `newGame()`. Existing
+`chickencaravan-test.js` still passes — its "long randomized
+playthrough" check is separately flaky (confirmed via `git stash` to
+fail intermittently against the unmodified original code too, not a
+regression from this change) and flagged for its own fix rather than
+addressed here. Live-verified: deployed, zero console errors.
+
+## Earlier pass — P/L column
 
 **Player feedback: "there needs to be a P/L column on the buy/sell
 screen."** Added — see "P/L column" above.
 
-## Earlier pass
+## Earlier pass — original build
 
 New game, built in response to the same player feedback as the other 3
 text games: "we need 4 text based games, make 2 pure text and 2 half
