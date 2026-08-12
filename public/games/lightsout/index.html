@@ -44,6 +44,17 @@
   <script>
   (function(){
     const N=5;
+    // Admin-tunable difficulty knobs — see /admin/games/?game=lightsout.
+    // Same pattern as every other configurable game (e.g. kaboom): explicit
+    // allowlist, only numeric values, safe no-op with no localStorage
+    // (headless tests).
+    const C={ SCRAMBLE_MIN:6, SCRAMBLE_RANGE:8 };
+    (function(){ try{
+      const allow=["SCRAMBLE_MIN","SCRAMBLE_RANGE"];
+      const o=JSON.parse(localStorage.getItem("lightsout_config")||"{}");
+      for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
+    }catch(_){} })();
+    window.__lightsout={ C };
     const gridEl=document.getElementById("grid"),statusEl=document.getElementById("status"),movesEl=document.getElementById("moves"),bestEl=document.getElementById("best");
     let grid,moves,over,cells=[];
     let best=localStorage.getItem("lightsout_best");bestEl.textContent=best||"—";
@@ -51,7 +62,7 @@
     function newPuzzle(){
       grid=Array.from({length:N},()=>Array(N).fill(0));
       // scramble from solved with random presses -> guaranteed solvable, and not already solved
-      let scrambles=6+Math.floor(Math.random()*8);
+      let scrambles=C.SCRAMBLE_MIN+Math.floor(Math.random()*C.SCRAMBLE_RANGE);
       do{for(let k=0;k<scrambles;k++)press(grid,Math.floor(Math.random()*N),Math.floor(Math.random()*N));}
       while(solved());
       moves=0;over=false;movesEl.textContent=0;statusEl.textContent="Turn off every light.";render();
