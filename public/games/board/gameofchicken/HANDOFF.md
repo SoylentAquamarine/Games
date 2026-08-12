@@ -26,7 +26,27 @@ event tiles, retire — biggest nest egg at The Coop wins.
   gameofchicken"]` needs bracket/quoted syntax, not the bare
   `identifier:{...}` shorthand every slash-free game uses.
 
-## Most recent pass
+## Most recent pass — test-hygiene: fix the stale-timer regression test
+
+`gameofchicken-newgame-stale-timer-test.js` (scratchpad-only, per the
+convention noted below and in `board/chickenopoly/HANDOFF.md`) was
+originally written to *reproduce* the New-Game-doesn't-cancel-in-flight-
+timers bug — its final check was literally named "BUG CONFIRMED: the
+stale timer auto-spun for the human player right after New Game." That
+bug was fixed in commit `e7ceb89` (the `gen`-counter guard, see `doSpin`/
+`advance`), but nobody went back and updated the test afterward, so its
+"BUG CONFIRMED" assertion had been silently failing ever since — flagged
+but left alone in the pass below. Rebuilt the test's harness (a
+`vm.runInContext` sandbox with mocked DOM/canvas/timers, driving a real
+human spin → CPU-turn timer → New Game → firing the now-stale CPU timer)
+and flipped the assertion to match the CURRENT correct behavior: the
+stale timer must be a no-op after New Game. Verified the new test has
+real teeth by running it against the pre-`e7ceb89` commit, where the same
+assertion fails as expected (i.e. it does catch the original bug), and
+against current `index.html`, where it passes. No game code changed —
+this was test-only.
+
+## Earlier pass — result-delay config (8s tile-result reveal)
 
 **Player feedback: "when you draw a card and it says what the card says,
 that has to delay for at least 10 seconds so i can see what it says, it
@@ -47,8 +67,8 @@ sim logic — unaffected, still passes) and
 `gameofchicken-newgame-stale-timer-test.js` — the latter's final
 "BUG CONFIRMED" assertion already failed against the pre-this-session
 committed source (the game's `gen`-counter guard already prevents the
-stale-timer bug the test was written to reproduce; the test itself is
-just out of date), unrelated to this change. Flagged separately rather
+stale-timer bug the test was written to reproduce; the test itself was
+just out of date — fixed in the pass above). Flagged separately rather
 than silently worked around. Live-verified: deployed, confirmed
 `C.RESULT_DELAY` defaults to 8000 and the admin override applies, zero
 console errors.
