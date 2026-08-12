@@ -75,7 +75,7 @@ console errors.
 
 ## Open / deferred
 
-- No HANDOFF.md existed for this game before this pass — created one now.
-  `board/candyland`, `board/sorry`, and `board/trouble` are still missing
-  theirs (only `board/chickenopoly` had one) — worth a follow-up
-  documentation pass across the rest of the board-games hub.
+Nothing currently open for this game. (Note, since corrected: this
+section used to say `board/candyland`, `board/sorry`, and `board/trouble`
+were still missing their own HANDOFF.md — that follow-up documentation
+pass has since happened; all four `board/` sub-games have one now.)
