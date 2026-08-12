@@ -24,7 +24,40 @@ Monopoly-style board game: 28-space square board (7/side), 4 players (you
   property has ≥1 house; at 0 houses it falls back to the pre-existing
   unimproved/full-group-doubled behavior unchanged.
 
-## Most recent pass — 4-player online multiplayer
+## Most recent pass — bottom-row label off-canvas bug
+
+**Player feedback (reported roughly 5 times): "I cannot see the bottom
+row of text, the text for the bottom of the game board is off the
+screen, you have to fix it."** An earlier pass already fixed labels
+*overflowing sideways* into the neighbouring tile (`fillText`'s
+`maxWidth` param), but this was a different bug in the same area: every
+non-corner tile's label drew at a fixed downward offset
+(`size/2+9`, "below the tile"). For the top row that pushes the label
+inward toward the board centre — fine — but the bottom row's tiles
+already sit at `y=H-PAD`, right against the canvas's own bottom edge, so
+that same downward push sent the label's `y` (~436.5) past `H` (432)
+entirely, off the visible canvas. Every property name along the bottom
+edge was silently unreadable, which is exactly what 5 rounds of the same
+comment were describing.
+
+Fixed with a side-aware offset (`labelY`): flips to negative (upward,
+inward) specifically for the bottom row (`side===0`); every other side's
+label position is unchanged. Found and fixed the same class of bug while
+in the area: house/hotel markers used a fixed *upward* offset, which by
+the same logic would push the TOP row's markers above `y=0` — mirrored
+the fix there too (`side===2` now draws its markers downward/inward).
+
+One existing test (`chickenopoly-cardmodal-textfix-test.js`) had a
+literal-source check tied to the old inline offset expression; updated
+to match the new `labelY` shape. Added a new
+`chickenopoly-bottomrow-label-test.js` that replicates the actual tile
+layout math numerically (not just a source-text check) and proves every
+row's label now lands within the canvas's `[0, H]` bounds — including a
+sanity check confirming the *old* formula genuinely would have failed
+the same assertion, so the test has real teeth. Live-verified: deployed,
+confirmed the new offset expression is live, zero console errors.
+
+## Earlier pass — 4-player online multiplayer
 
 **Player feedback: "Prepare for multiplayer with 4 human players on 4
 computers"**, clarified as "Turn-based (MP_GAMES engine)" and then, once

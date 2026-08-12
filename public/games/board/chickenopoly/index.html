@@ -483,7 +483,7 @@
     function render(){
       ctx.fillStyle="#dff0d8"; ctx.fillRect(0,0,W,H);
       for(let i=0;i<TRACK;i++){
-        const t=tileXY(i), sp=SPACES[i], owner=ownerOf(s,i);
+        const t=tileXY(i), sp=SPACES[i], owner=ownerOf(s,i), side=Math.floor(i/PER);
         ctx.save(); ctx.translate(t.x,t.y);
         const isCorner=sp.type==="corner";
         const size=isCorner?38:27;
@@ -505,12 +505,28 @@
         // guarantees no overflow regardless of the exact string/font
         // metrics, rather than trying to out-guess character widths.
         const maxW = isCorner ? size-4 : CELL-6;
-        ctx.fillText(label,0,isCorner?0:size/2+9,maxW);
-        // house/hotel markers, drawn just above the tile
-        const h=s.houses?s.houses[i]:0;
-        if(h===5){ ctx.fillStyle="#dc2626"; ctx.fillRect(-size*0.28,-size/2-9,size*0.56,7); }
+        // Player feedback (reported ~5 times): "I cannot see the bottom
+        // row of text, the text for the bottom of the game board is off
+        // the screen." Every non-corner label drew at a fixed +size/2+9
+        // downward offset from its tile ("below the tile"). For the top
+        // row that pushes it inward toward the board centre — fine — but
+        // for the BOTTOM row (side===0, tiles already sitting at y=H-PAD,
+        // right against the canvas edge) that same downward push sent the
+        // label past H entirely, off the visible canvas. Flipped to a
+        // matching upward (inward) offset for side===0 only; every other
+        // side's label position is unchanged.
+        const labelY = isCorner ? 0 : (side===0 ? -(size/2+9) : size/2+9);
+        ctx.fillText(label,0,labelY,maxW);
+        // House/hotel markers, drawn just outward from the tile — same
+        // off-canvas risk as the label fix above, mirrored: they used to
+        // always draw ABOVE the tile (negative Y), which is fine pushing
+        // outward/upward for every side except the TOP row (side===2,
+        // y=PAD, already right against the canvas's top edge), where it
+        // would push past y=0. Flipped to draw below/inward for side===2.
+        const h=s.houses?s.houses[i]:0, markY=side===2?size/2+2:-size/2-9, markY2=side===2?size/2+2:-size/2-8;
+        if(h===5){ ctx.fillStyle="#dc2626"; ctx.fillRect(-size*0.28,markY,size*0.56,7); }
         else if(h>0){ const hw=4,gap=2,totalW=h*hw+(h-1)*gap;
-          for(let k=0;k<h;k++){ ctx.fillStyle="#22c55e"; ctx.fillRect(-totalW/2+k*(hw+gap),-size/2-8,hw,6); } }
+          for(let k=0;k<h;k++){ ctx.fillStyle="#22c55e"; ctx.fillRect(-totalW/2+k*(hw+gap),markY2,hw,6); } }
         ctx.restore();
       }
       const order=[...Array(NP).keys()].sort((a,b)=>(a===s.turn?1:0)-(b===s.turn?1:0));
