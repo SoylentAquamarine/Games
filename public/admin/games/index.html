@@ -1256,6 +1256,15 @@
       { key:"LOG_GAP_MIN", label:"Smallest gap between logs", min:0.5, max:3, def:1.5 },
       { key:"LOG_GAP_MAX", label:"Largest gap between logs", min:1.5, max:5, def:2.6 },
     ]},
+    wordsearch:{ storageKey:"wordsearch_config", sub:"Puzzle generation — takes effect next time the game is opened.", fields:[
+      { key:"GRID_SIZE", label:"Grid size (N x N)", min:6, max:20, def:12 },
+      { key:"WORD_COUNT", label:"Words per puzzle (capped by the 20-word pool)", min:3, max:20, def:8 },
+    ]},
+    dropmerge:{ storageKey:"dropmerge_config", sub:"Board size and spawn odds — takes effect next time the game is opened.", fields:[
+      { key:"COLS", label:"Grid columns", min:3, max:8, def:5 },
+      { key:"ROWS", label:"Grid rows", min:4, max:12, def:8 },
+      { key:"FOUR_CHANCE", label:"Chance a new tile is a 4 (vs a 2)", min:0, max:1, def:0.3 },
+    ]},
   };
   let numericInitSlug=null;
   function initNumericEditor(slug){

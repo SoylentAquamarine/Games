@@ -45,13 +45,23 @@
   <script src="/arcade.js"></script>
   <script>
   (function(){
-    const COLS=5,ROWS=8;
+    // Admin-tunable difficulty knobs — see /admin/games/?game=dropmerge.
+    // Same pattern as every other configurable game on the site: explicit
+    // allowlist, only numeric values, safe no-op with no localStorage
+    // (headless tests).
+    const C={ COLS:5, ROWS:8, FOUR_CHANCE:0.3 };
+    (function(){ try{
+      const allow=["COLS","ROWS","FOUR_CHANCE"];
+      const o=JSON.parse(localStorage.getItem("dropmerge_config")||"{}");
+      for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
+    }catch(_){} })();
+    const COLS=C.COLS,ROWS=C.ROWS;
     const HUES=[210,45,140,280,320,190,90,25,260,160,340,0];
     const gridEl=document.getElementById("grid"),scoreEl=document.getElementById("score"),bestEl=document.getElementById("best"),statusEl=document.getElementById("status"),nextEl=document.getElementById("next");
     let grid,next,score,over,best=+localStorage.getItem("dropmerge_best")||0,cells=[];
     bestEl.textContent=best;
     function color(v){const i=Math.round(Math.log2(v))-1;return `hsl(${HUES[i%HUES.length]} 70% ${66-Math.min(i,9)*2}%)`;}
-    function genNext(){return Math.random()<0.7?2:4;}
+    function genNext(){return Math.random()<C.FOUR_CHANCE?4:2;}
 
     function gravity(){for(let c=0;c<COLS;c++){const col=[];for(let r=ROWS-1;r>=0;r--)if(grid[r][c])col.push(grid[r][c]);
       for(let r=ROWS-1,i=0;r>=0;r--,i++)grid[r][c]=i<col.length?col[i]:0;}}
@@ -82,7 +92,7 @@
     function newGame(){grid=Array.from({length:ROWS},()=>Array(COLS).fill(0));score=0;over=false;scoreEl.textContent=0;statusEl.textContent="";
       next=genNext();nextEl.textContent=next;nextEl.style.background=color(next);render();}
     document.getElementById("new").addEventListener("click",newGame);
-    window.__drop={settle,gravity,setGrid:(g)=>{grid=g;},getGrid:()=>grid,ROWS,COLS};
+    window.__drop={settle,gravity,setGrid:(g)=>{grid=g;},getGrid:()=>grid,ROWS,COLS,genNext,C,...C};
     build();newGame();
   })();
   </script>

@@ -38,7 +38,17 @@
   </div>
   <script>
   (function(){
-    const N=12;
+    // Admin-tunable difficulty knobs — see /admin/games/?game=wordsearch.
+    // Same pattern as every other configurable game on the site: explicit
+    // allowlist, only numeric values, safe no-op with no localStorage
+    // (headless tests).
+    const C={ GRID_SIZE:12, WORD_COUNT:8 };
+    (function(){ try{
+      const allow=["GRID_SIZE","WORD_COUNT"];
+      const o=JSON.parse(localStorage.getItem("wordsearch_config")||"{}");
+      for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
+    }catch(_){} })();
+    const N=C.GRID_SIZE;
     const POOL="PYTHON ROCKET PLANET GARDEN DRAGON WIZARD FALCON JUNGLE ISLAND CASTLE THUNDER DIAMOND VOLCANO PENGUIN GALAXY MAGNET ORANGE PURPLE SILVER GUITAR".split(" ");
     const DIRS=[[0,1],[1,0],[1,1],[1,-1],[0,-1],[-1,0],[-1,-1],[-1,1]];
     const gridEl=document.getElementById("grid"),wordsEl=document.getElementById("words"),statusEl=document.getElementById("status");
@@ -54,7 +64,7 @@
     function newGame(){
       grid=Array.from({length:N},()=>Array(N).fill(""));placed=[];words=[];found=new Set();sel=null;
       const shuffled=POOL.slice().sort(()=>Math.random()-0.5);
-      for(const w of shuffled){if(placed.length>=8)break;const path=tryPlace(w);if(path){placed.push({word:w,path});words.push(w);}}
+      for(const w of shuffled){if(placed.length>=C.WORD_COUNT)break;const path=tryPlace(w);if(path){placed.push({word:w,path});words.push(w);}}
       for(let r=0;r<N;r++)for(let c=0;c<N;c++)if(!grid[r][c])grid[r][c]="ABCDEFGHIJKLMNOPQRSTUVWXYZ"[Math.floor(Math.random()*26)];
       statusEl.textContent="Tap the first and last letter of a word.";build();renderWords();
     }
@@ -80,7 +90,7 @@
     }
     function markFound(){for(const p of placed)if(found.has(p.word))p.path.forEach(([r,c])=>cells[r][c].classList.add("found"));}
     document.getElementById("new").addEventListener("click",newGame);
-    window.__ws={buildTest:()=>{newGame();return placed.map(p=>({word:p.word,spelled:p.path.map(([r,c])=>grid[r][c]).join("")}));},N};
+    window.__ws={buildTest:()=>{newGame();return placed.map(p=>({word:p.word,spelled:p.path.map(([r,c])=>grid[r][c]).join("")}));},N,C,...C};
     newGame();
   })();
   </script>
