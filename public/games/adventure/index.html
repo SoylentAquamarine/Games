@@ -26,6 +26,7 @@
   .maplabel{font-size:.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
   .msg{min-height:1.3em;font-weight:700;text-align:center;color:#fde68a}
   .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:9px 20px;border-radius:999px;cursor:pointer}
+  .btn:disabled{background:var(--panel);color:var(--muted);cursor:not-allowed;opacity:.6}
   .controls{display:flex;width:100%;justify-content:space-between;align-items:center;gap:14px;margin-top:2px}
   .dpad{display:grid;grid-template-columns:repeat(3,48px);grid-template-rows:repeat(3,48px);gap:5px}
   .dpad button{background:var(--panel);color:var(--text);border:1px solid rgba(255,255,255,.1);border-radius:10px;font-size:1.2rem;cursor:pointer;user-select:none}
@@ -41,7 +42,7 @@
 </head>
 <body>
 <div class="wrap">
-  <div class="topbar"><a class="home" href="/">← Home</a><h1>🐔 Chicken Adventure</h1><button class="btn" id="restart" title="Respawn at the start, keeping dead dragons dead and progress intact">Restart</button><button class="btn" id="new">New Game</button></div>
+  <div class="topbar"><a class="home" href="/">← Home</a><h1>🐔 Chicken Adventure</h1><button class="btn" id="restart" disabled title="Respawn immediately — only available while dead; keeps dead dragons dead and progress intact">Restart</button><button class="btn" id="new">New Game</button></div>
   <div class="hud"><span>Room: <b id="room">—</b></span><span>Health: <b id="hp">100%</b></span><span>Time: <b id="time">0:00</b></span><span>Best: <b id="best">—</b></span></div>
   <div class="carry" id="carry">Carrying: nothing</div>
   <div class="playarea">
@@ -376,6 +377,19 @@
         if(k in s.everCollected) s.everCollected[k]=true;
         break; } }
   }
+  // A dragon that's chosen to follow stays put (off-screen, in the room it's
+  // leaving) until its travel time to the door has actually elapsed, then it
+  // becomes real in the new room — see the "can't appear immediately"
+  // feedback above `for(const d of s.dragons){` in tick().
+  function stepPendingArrivals(s){
+    for(const d of s.dragons){
+      if(!d.pendingRoom) continue;
+      if(--d.chaseDelay<=0){
+        d.room=d.pendingRoom; d.x=d.pendingSpot.x; d.y=d.pendingSpot.y;
+        d.pendingRoom=null; d.pendingSpot=null; d.chaseDelay=0;
+      }
+    }
+  }
   function dragonStep(s,d){
     if(!d.alive||d.room!==s.room) return;
     // Fresh into a chased room, the dragon lags behind for CHASE_DELAY frames
@@ -413,7 +427,7 @@
     // A death clears any mid-chase state — dragons return to their home room, not
     // wherever they last chased to. The chase streak resets too, so a dragon
     // that was deep into a long chase doesn't pick up right where it left off.
-    for(const d of s.dragons){ d.x=d.hx; d.y=d.hy; d.room=d.hr; d.chaseDelay=0; d.chaseStreak=0; } placeDragonsAway(s);
+    for(const d of s.dragons){ d.x=d.hx; d.y=d.hy; d.room=d.hr; d.chaseDelay=0; d.chaseStreak=0; d.pendingRoom=null; d.pendingSpot=null; } placeDragonsAway(s);
   }
   function tick(s,dir){
     if(s.won||s.dead) return s;
@@ -438,20 +452,35 @@
       // overwritten below, using its real distance in the room it's leaving.
       // A dragon that follows arrives through the same doorway the hero
       // just used.
+      //
+      // Player feedback: "when a dragon follows me to the different room, it
+      // can't appear immediately, it has to take the time it would have
+      // taken to get to the door anyway." chaseDelayFor already computed
+      // that travel time correctly, but d.room was reassigned to the new
+      // room right here, on the spot — and draw() renders any dragon whose
+      // room matches the hero's, with no regard for chaseDelay. So the
+      // dragon's SPRITE popped into the new room, standing at the doorway,
+      // the instant you crossed — only its ability to actually move or bite
+      // was delayed, not its visibility. Fixed by keeping the dragon
+      // pending (d.pendingRoom/d.pendingSpot) — still off-screen in the room
+      // it's leaving — until stepPendingArrivals() below counts its travel
+      // time down to zero, and only then does it actually appear at the
+      // doorway.
       for(const d of s.dragons){
         if(!d.alive || d.room!==wasRoom) continue;
         const streak=d.chaseStreak||0;
         const chance=CHASE_CHANCE*Math.pow(CHASE_DECAY,streak);
         if(Math.random()<chance){
           const delay=chaseDelayFor(d,s.lastEnterDir);
-          d.room=s.room; d.chaseDelay=delay; d.chaseStreak=streak+1;
           const spot=doorwaySpot(s.lastEnterDir,DS);
-          if(spot){ d.x=spot.x; d.y=spot.y; }
+          d.chaseDelay=delay; d.chaseStreak=streak+1;
+          d.pendingRoom=s.room; d.pendingSpot=spot||{x:d.x,y:d.y};
         } else {
           d.chaseStreak=0;
         }
       }
     }
+    stepPendingArrivals(s);
     // A dragon that shares the hero's room has been encountered — the map
     // starts tracking it from here on (see the "show them on the world map"
     // feedback below and drawMap()'s use of d.triggered).
@@ -472,7 +501,7 @@
     }
   }
 
-  window.__adventure={ newGame, tick, drop, respawn, dragonStep, collide, ROOMS, borderWalls, roomWalls, LABEL,
+  window.__adventure={ newGame, tick, drop, respawn, dragonStep, stepPendingArrivals, collide, ROOMS, borderWalls, roomWalls, LABEL,
     spawnRooms, pickRooms, brokenDoors, freeSpot, doorwaySpot, distToExit, chaseDelayFor, placeDragonsAway,
     C:{SIZE,HS,OBJ,BW,DS,SPEED,DSPEED,HIT_DMG,HIT_INV,STUN,CHASE_CHANCE,CHASE_DELAY,CHASE_DECAY} };
 
@@ -705,7 +734,14 @@
           if(typeof Arcade!=="undefined"){ Arcade.sfx.win(); if(state.secretWin) setTimeout(()=>Arcade.sfx.win(),300); }
         }
       }
-      draw(); drawMap(); hud(); requestAnimationFrame(frame);
+      draw(); drawMap(); hud();
+      // Player feedback: "restart did not resume the game" — the button was
+      // always clickable but silently did nothing unless state.dead, so a
+      // click during normal play looked broken. It's disabled/greyed out now
+      // whenever it would be a no-op, so the button's own state communicates
+      // that instead of failing silently.
+      $("restart").disabled=!state.dead;
+      requestAnimationFrame(frame);
     }
 
     const KEY={ArrowUp:"up",ArrowDown:"down",ArrowLeft:"left",ArrowRight:"right",w:"up",s:"down",a:"left",d:"right",W:"up",S:"down",A:"left",D:"right"};

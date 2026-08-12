@@ -6,9 +6,9 @@ dragons that chase, castles, a 100%-completion secret ending.
 ## What's here
 
 - `index.html` — everything. `window.__adventure` exposes the pure sim
-  (`newGame`, `tick`, `drop`, `respawn`, `dragonStep`, `collide`, `ROOMS`,
-  `borderWalls`, `roomWalls`, `LABEL`, `doorwaySpot`, `distToExit`,
-  `chaseDelayFor`, `placeDragonsAway`) for headless testing.
+  (`newGame`, `tick`, `drop`, `respawn`, `dragonStep`, `stepPendingArrivals`,
+  `collide`, `ROOMS`, `borderWalls`, `roomWalls`, `LABEL`, `doorwaySpot`,
+  `distToExit`, `chaseDelayFor`, `placeDragonsAway`) for headless testing.
 - Rooms sit on a real grid with an overworld map shown beside the game
   canvas (side-by-side row, not stacked below it).
 - Dragons have a real chase behavior: leaving a room with a live dragon in
@@ -22,6 +22,14 @@ dragons that chase, castles, a 100%-completion secret ending.
   is between visits** — `placeDragonsAway` (far-corner placement) is only
   called by `respawn()` now, giving dragons a fresh, safe layout after a
   death, not on every ordinary room transition.
+- **A chasing dragon doesn't become visible in the new room until its
+  travel delay actually elapses** — see "Most recent pass" below. While
+  pending, it's tracked via `d.pendingRoom`/`d.pendingSpot` and
+  `stepPendingArrivals()` resolves the transition once `chaseDelay`
+  reaches 0.
+- The Restart button is disabled (greyed out) whenever it would be a
+  no-op — synced to `state.dead` every frame — instead of silently doing
+  nothing when clicked mid-play.
 - Dragons the hero has ever shared a room with (`d.triggered`) show their
   live current room on the overworld map from then on, including while
   chasing — untriggered (never-encountered) dragons stay hidden.
@@ -36,7 +44,51 @@ dragons that chase, castles, a 100%-completion secret ending.
   matching mini golf's wall brush) — the game's `ROOMS[id].inner` is what
   actually renders as obstacles inside a room.
 
-## Most recent pass — black castle maze + bridge barrier
+## Most recent pass — dragon appearance delay + restart button feedback
+
+Two player comments processed together:
+
+1. **"when a dragon follows me to the different room, it can't appear
+   immediately, it has to take the time it would have taken to get to
+   the door anyway."** This is exactly what `chaseDelayFor` already
+   computed — but the delay only ever gated the dragon's ability to
+   *move or attack* (`dragonStep`'s `chaseDelay>0` early-return). The
+   dragon's `d.room` was reassigned to the new room at the moment it
+   decided to follow, and `draw()` renders any dragon whose room
+   matches the hero's with no regard for `chaseDelay` — so its sprite
+   popped into the new room, sitting right at the doorway, the instant
+   you crossed. Only its behavior was delayed, not its visibility.
+   Fixed by not reassigning `d.room` at decision time at all: a
+   following dragon is now tracked as pending
+   (`d.pendingRoom`/`d.pendingSpot`) while it stays wherever it
+   physically was (off-screen, since the hero's already left that
+   room) — a new `stepPendingArrivals()`, called every tick, counts
+   `chaseDelay` down and only moves the dragon into the new room (at
+   the doorway spot) once it actually reaches 0. `respawn()` now also
+   clears `pendingRoom`/`pendingSpot` so a death mid-chase can't leave
+   a ghost arrival pending.
+2. **"restart did not resume the game."** The Restart button was
+   always clickable but silently did nothing unless `state.dead` —
+   correct by design (see the restart-button feedback further down),
+   but a click during normal play looked exactly like a broken button.
+   It's now `disabled` (greyed out via a new `.btn:disabled` style)
+   whenever it would be a no-op, synced every frame in the render
+   loop — the button's own state now communicates "not available right
+   now" instead of failing silently.
+
+Both fixes verified against the full existing test suite (11 files) —
+3 files needed updates for the deliberately changed behavior/markup:
+`adventure-dragon-chase-test.js` and `adventure-chase-decay-map-test.js`
+(both previously asserted a chasing dragon's room/position updated
+the instant it crossed a doorway — now correctly assert it stays
+pending until `stepPendingArrivals` resolves the delay) and
+`adventure-restart-button-test.js` (a literal-source gap-length regex
+between `id="restart"` and `id="new"` needed widening for the longer
+`disabled`/title-text markup). All 11 files pass. Live-verified:
+deployed, confirmed the button starts disabled on a fresh load, zero
+console errors.
+
+## Earlier pass — black castle maze + bridge barrier
 
 **Player feedback: "We need the black castle to have a lot of rooms
 inside it and to be a maze, and we need to have to use the bridge to
