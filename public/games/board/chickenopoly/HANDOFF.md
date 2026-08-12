@@ -24,7 +24,41 @@ Monopoly-style board game: 28-space square board (7/side), 4 players (you
   property has ≥1 house; at 0 houses it falls back to the pre-existing
   unimproved/full-group-doubled behavior unchanged.
 
-## Most recent pass — bottom-row label off-canvas bug
+## Most recent pass — two bug-hunt bugs fixed
+
+Both bugs noted below under "Open / deferred" from the earlier bug-hunt
+pass are now fixed, single-player only (multiplayer already had neither):
+
+1. **Utility rent flat-$28 + double-charge, fixed.** `movePlayerBy()`
+   now passes its `steps` argument (always a real dice total — every
+   call site passes `roll.total`, never a card-driven jump) through to
+   `landOn()` as `diceTotal`, so `rent=(diceTotal||7)*4` computes the
+   real rent instead of falling back to the hardcoded `7`. `doRoll()`'s
+   redundant "re-resolve with the dice total in scope" block — the
+   source of the second charge — was removed entirely; it's no longer
+   needed now that `landOn()` gets the right number the first time.
+2. **Stale in-flight timers after New Game, fixed.** Same generation-
+   counter pattern already used in `candyland`/`gameofchicken`/`sorry`/
+   `trouble` (see `board/HANDOFF.md`): a module-level `gen` counter,
+   bumped in `startNewGame()`; every `setTimeout` callback that leads to
+   `endTurn()`/`doRoll()` now snapshots `gen` at schedule time and
+   checks it still matches at fire time, so a timer left over from a
+   game the player abandoned mid-turn silently no-ops instead of firing
+   against the new game's state. `startNewGame()` also now directly
+   `clearTimeout`s the card-modal auto-dismiss timer (`cardTimer`),
+   which was already individually trackable.
+
+Verified via the existing repro script (scratchpad's
+`chickenopoly-utility-rent-test.js`, not part of the committed regression
+suite) — rent now matches `steps*4` exactly for every dice total tried,
+no more flat $28. All 9 of the game's own committed test files (board
+shape/movement/rent/tax/cards/jail/bankruptcy, houses/hotels, trading,
+UI/animation guards, board sizing, label positioning, card modal, plus
+the 4-player MP and match-page renderer suites) still pass — zero
+regressions. Live-verified: deployed, confirmed both fixes are live via
+a fresh no-store fetch, zero console errors.
+
+## Earlier pass — bottom-row label off-canvas bug
 
 **Player feedback (reported roughly 5 times): "I cannot see the bottom
 row of text, the text for the bottom of the game board is off the
@@ -169,31 +203,6 @@ checks ownership/cash are real before anything happens; CPUs decide via
 `executeTrade` does the actual prop/cash transfer both directions.
 
 ## Open / deferred
-
-**Two bugs confirmed (not player-reported) in a bug-hunt pass across the
-`board/` sub-games, both still present in the SINGLE-PLAYER `index.html`
-only** — the new multiplayer mode above ported the rules fresh and does
-not have either issue:
-
-1. **Utility rent is always a flat $28**, regardless of the actual dice
-   roll, on a normal turn. `landOn()` computes `rent=(diceTotal||7)*4`,
-   but `movePlayerBy()` — the path every ordinary roll takes — never
-   passes `diceTotal` through, so `landOn()` always falls back to the
-   hardcoded `7`. `doRoll()` tries to "correct" this afterward by
-   charging `roll.total*4` again, but that's a SECOND charge on top of
-   the first flat $28, not a replacement — so a normal roll onto an
-   opponent's utility double-charges the player (and double-pays the
-   owner). Jail-escape utility landings, which skip `doRoll()`'s
-   correction entirely, only get the wrong flat $28 with no second
-   charge.
-2. **The same "New Game doesn't cancel in-flight timers" bug fixed in
-   `candyland`/`gameofchicken`/`sorry`/`trouble` this pass** (see the
-   shared `board/HANDOFF.md`) is also present here — `startNewGame()`
-   reassigns state to a fresh object but never cancels any `setTimeout`
-   still pending from `endTurn`/`afterLanding`/a buy-or-pass prompt.
-
-Repro scripts for both (not committed, not part of the regression
-suite): scratchpad's `chickenopoly-utility-rent-test.js`.
 
 **Multiplayer follow-ups not attempted this pass** (functional as shipped,
 but worth revisiting): the offering side of a pending trade can cancel it

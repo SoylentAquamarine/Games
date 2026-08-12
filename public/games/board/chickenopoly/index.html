@@ -308,12 +308,21 @@
     }
     // Advance a player by `steps`, paying GO bonus on wraparound, then resolve
     // whatever they land on. Returns a description of what happened.
+    // Bug fix (found in a bug-hunt pass, not player-reported): `steps` here
+    // is always the actual dice total from whichever roll moved the player
+    // (every call site passes `roll.total`, never a card-driven "advance to
+    // X" jump) -- it needs to reach landOn() as diceTotal so utility rent
+    // can be computed from the real roll. It used to be silently dropped,
+    // so landOn()'s `rent=(diceTotal||7)*4` always fell back to the
+    // hardcoded 7 (a flat $28), and doRoll() then "corrected" this with a
+    // SECOND charge/pay on top of the first, double-charging the player
+    // (and double-paying the owner) on a normal roll onto a utility.
     function movePlayerBy(s,pi,steps){
       const p=s.players[pi];
       const from=p.pos, to=(from+steps)%TRACK;
       if(to<from) pay(s,pi,GO_BONUS);   // passed or landed on GO
       p.pos=to;
-      return landOn(s,pi,to);
+      return landOn(s,pi,to,steps);
     }
     function landOn(s,pi,idx,diceTotal){
       const sp=SPACES[idx], p=s.players[pi];
@@ -425,6 +434,17 @@
           buildListEl=document.getElementById("buildList"), buildBankMsgEl=document.getElementById("buildBankMsg"),
           buildCloseBtn=document.getElementById("buildClose");
     let s, anim=null, cardTimer=null;
+    // Bug fix (found in a bug-hunt pass, not player-reported): the same
+    // "New Game doesn't cancel in-flight timers" issue already fixed in
+    // candyland/gameofchicken/sorry/trouble this pass (see board/HANDOFF.md).
+    // startNewGame() used to reassign `s` to a fresh state but never
+    // cancelled any setTimeout still pending from endTurn/afterLanding/a
+    // buy-or-pass prompt -- one could still fire against the new game's
+    // state. Same generation-counter pattern as those other board games:
+    // every scheduled callback snapshots `gen` at schedule time and checks
+    // it still matches at fire time; startNewGame() bumps `gen`, which
+    // silently no-ops any timer left over from the game it replaced.
+    let gen=0;
 
     // ---- square-board layout: 7 spaces/side, corners shared ----
     // A slimmer margin so the tiles themselves get most of the space — they
@@ -592,20 +612,21 @@
       cardTimer=setTimeout(finish,10000);
     }
     function afterLanding(result){
+      const g=gen;   // snapshot this game's generation — see the `gen` declaration above
       if(result && result.text) statusEl.textContent=(PNAMES[s.turn]?PNAMES[s.turn]+": ":"")+result.text;
       renderPlayers(); render();
       if(checkWin(s)){ finishGame(); return; }
-      if(result && result.cardType){ showCardModal(result, ()=>{ if(checkWin(s)){ finishGame(); } else { setTimeout(endTurn,150); } }); return; }
+      if(result && result.cardType){ showCardModal(result, ()=>{ if(g!==gen)return; if(checkWin(s)){ finishGame(); } else { setTimeout(()=>{ if(g===gen)endTurn(); },150); } }); return; }
       if(s.pendingBuy){
         if(s.pendingBuy.pi===0){ showBuyPrompt(s.pendingBuy.idx); return; }
         // CPU buy decision, then continue
         const buy=cpuShouldBuy(s,s.pendingBuy.pi,s.pendingBuy.idx);
         const r=resolveBuy(s,buy);
         statusEl.textContent=PNAMES[s.pendingBuy?s.pendingBuy.pi:s.turn]||"";
-        setTimeout(()=>{ statusEl.textContent=PNAMES[s.turn]+(r.bought?" bought "+SPACES[r.idx].name:" passed on "+SPACES[r.idx].name); renderPlayers(); endTurn(); },500);
+        setTimeout(()=>{ if(g!==gen)return; statusEl.textContent=PNAMES[s.turn]+(r.bought?" bought "+SPACES[r.idx].name:" passed on "+SPACES[r.idx].name); renderPlayers(); endTurn(); },500);
         return;
       }
-      setTimeout(endTurn,650);
+      setTimeout(()=>{ if(g===gen)endTurn(); },650);
     }
     function finishGame(){
       hideBuyPrompt(); rollBtn.disabled=true; renderPlayers(); render();
@@ -621,6 +642,7 @@
     }
     function doRoll(){
       if(s.over||anim) return;
+      const g=gen;   // snapshot this game's generation — see the `gen` declaration above
       rollBtn.disabled=true;   // stays disabled through the hop animation — re-enabled in endTurn() on the human's next turn
       s.turns++;
       const pi=s.turn, p=s.players[pi];
@@ -630,30 +652,26 @@
         if(jr.roll) updateDice(jr.roll.a,jr.roll.b);
         statusEl.textContent=PNAMES[pi]+": "+jr.text;
         renderPlayers();
-        if(!jr.freed){ setTimeout(endTurn,650); return; }
+        if(!jr.freed){ setTimeout(()=>{ if(g===gen)endTurn(); },650); return; }
         if(jr.result){
           if(jr.roll){ animateTo(pi,from,jr.roll.total,()=>afterLanding(jr.result)); return; }
           return afterLanding(jr.result);
         }
         checkBankrupt(s,pi);
         if(checkWin(s)){ finishGame(); return; }
-        setTimeout(endTurn,650); return;
+        setTimeout(()=>{ if(g===gen)endTurn(); },650); return;
       }
       const roll=rollDice(); updateDice(roll.a,roll.b);
       const from=p.pos;
+      // movePlayerBy() now passes the real dice total through to landOn(),
+      // which computes and charges the correct utility rent itself -- no
+      // second "correction" charge needed here (see movePlayerBy's comment).
       const result=movePlayerBy(s,pi,roll.total);
-      if(SPACES[result.idx].type==="property"||SPACES[result.idx].type==="railroad"||SPACES[result.idx].type==="utility"){
-        // re-resolve with the dice total in scope for utility rent
-        const owner=ownerOf(s,result.idx);
-        if(owner>=0 && owner!==pi && SPACES[result.idx].type==="utility"){
-          const rent=roll.total*4; charge(s,pi,rent); if(!s.players[pi].bankrupt) pay(s,owner,rent);
-          result.text="Utility rent to "+PNAMES[owner]+": -$"+rent;
-        }
-      }
       animateTo(pi,from,roll.total,()=>afterLanding(result));
     }
     function endTurn(){
       if(s.over) return;
+      const g=gen;   // snapshot this game's generation — see the `gen` declaration above
       hideBuyPrompt();
       // Before handing off, let the CPU whose turn is ending try to build
       // one house (cpuMaybeBuild is a no-op if it owns nothing to build
@@ -663,10 +681,12 @@
       do{ next=(next+1)%NP; guard++; } while(s.players[next].bankrupt && guard<=NP);
       s.turn=next; renderPlayers(); render();
       if(s.turn===0){ rollBtn.disabled=false; statusEl.textContent="Your turn — ROLL!"; }
-      else { rollBtn.disabled=true; statusEl.textContent=PNAMES[s.turn]+" is rolling…"; setTimeout(doRoll,900); }
+      else { rollBtn.disabled=true; statusEl.textContent=PNAMES[s.turn]+" is rolling…"; setTimeout(()=>{ if(g===gen)doRoll(); },900); }
     }
 
     function startNewGame(){
+      gen++;   // invalidates any setTimeout still pending from the game being replaced
+      if(cardTimer){ clearTimeout(cardTimer); cardTimer=null; }
       s=newGame(); anim=null; hideBuyPrompt(); rollBtn.disabled=false;
       renderPlayers(); render();
       statusEl.textContent="Your turn — ROLL!";
@@ -744,17 +764,17 @@
 
     rollBtn.addEventListener("click",()=>{ if(s.turn===0 && !s.over) doRoll(); });
     buyBtn.addEventListener("click",()=>{
-      const idx=s.pendingBuy.idx, r=resolveBuy(s,true);
+      const g=gen, idx=s.pendingBuy.idx, r=resolveBuy(s,true);
       statusEl.textContent=r.bought?("Bought "+SPACES[idx].name+"!"):"Couldn't afford it.";
       hideBuyPrompt(); renderPlayers(); render();
       if(checkWin(s)){ finishGame(); return; }
-      setTimeout(endTurn,500);
+      setTimeout(()=>{ if(g===gen)endTurn(); },500);
     });
     passBtn.addEventListener("click",()=>{
-      const idx=s.pendingBuy.idx; resolveBuy(s,false);
+      const g=gen, idx=s.pendingBuy.idx; resolveBuy(s,false);
       statusEl.textContent="Passed on "+SPACES[idx].name+".";
       hideBuyPrompt(); renderPlayers(); render();
-      setTimeout(endTurn,500);
+      setTimeout(()=>{ if(g===gen)endTurn(); },500);
     });
     document.getElementById("new").addEventListener("click",startNewGame);
     startNewGame();
