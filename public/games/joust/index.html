@@ -10,13 +10,13 @@
   *{box-sizing:border-box}
   html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
     background:radial-gradient(1000px 500px at 70% -10%,rgba(124,92,255,.2),transparent 60%),radial-gradient(800px 400px at 10% 110%,rgba(34,211,238,.14),transparent 60%),var(--bg);-webkit-tap-highlight-color:transparent;touch-action:none;}
-  .wrap{max-width:690px;margin:0 auto;padding:14px 12px 30px;display:flex;flex-direction:column;align-items:center;gap:10px}
+  .wrap{max-width:1128px;margin:0 auto;padding:14px 12px 30px;display:flex;flex-direction:column;align-items:center;gap:10px}
   .topbar{width:100%;display:flex;align-items:center;justify-content:space-between}
   .home{color:var(--muted);text-decoration:none;font-size:.9rem;padding:6px 12px;border:1px solid rgba(255,255,255,.12);border-radius:999px}
   .home:hover{color:var(--text);border-color:rgba(124,92,255,.6)}
   h1{margin:0;font-size:1.3rem;background:linear-gradient(120deg,#ffcf5a,#f0616e);-webkit-background-clip:text;background-clip:text;color:transparent}
   .btn{background:linear-gradient(120deg,var(--accent),var(--accent-2));color:#0b0c1a;border:none;font-weight:700;padding:9px 16px;border-radius:999px;cursor:pointer}
-  .hud{width:100%;max-width:690px;display:flex;justify-content:space-between;font-size:.85rem;color:var(--muted)}
+  .hud{width:100%;max-width:1128px;display:flex;justify-content:space-between;font-size:.85rem;color:var(--muted)}
   .hud b{color:var(--text)}
   canvas{width:100%;max-width:1128px;aspect-ratio:4/3;image-rendering:pixelated;border-radius:10px;border:2px solid #2a2f55;background:#08040f;touch-action:none}
   .msg{min-height:1.3em;font-weight:800;text-align:center}
@@ -54,7 +54,8 @@
             GRAV:0.401*BOARD*GRAV_MUL, FLAP:-6.77*BOARD, MOVE:0.564*BOARD, MAXVX:4.51*BOARD,
             PW:Math.round(BASE.PW*BOARD*SPRITE), PH:Math.round(BASE.PH*BOARD*SPRITE), TOL:BASE.TOL*BOARD,
             LAND_BAND:BASE.LAND_BAND*BOARD, LAVA:Math.round(BASE.H*SCREEN-(BASE.H-BASE.LAVA)*BOARD),
-            SPAWN_FRAMES:48, INVULN_FRAMES:96, FLIP_CHANCE:0.004, SPAWN_GAP:45, EGG_CHANCE:0.25 };
+            SPAWN_FRAMES:48, INVULN_FRAMES:96, FLIP_CHANCE:0.004, SPAWN_GAP:45, EGG_CHANCE:0.25,
+            GROUND_FRICTION:0.82, WAVE_BANNER_FRAMES:90 };
   // Admin-tunable difficulty knobs — see /admin/games/?game=joust. Same
   // pattern as kaboom (see its HANDOFF.md): explicit allowlist, only
   // numeric values, safe no-op with no localStorage (headless tests).
@@ -92,6 +93,14 @@
   function physics(o, input){
     if(input.flap) o.vy=C.FLAP;
     if(input.left){ o.vx=Math.max(-C.MAXVX,o.vx-C.MOVE); o.facing=-1; } if(input.right){ o.vx=Math.min(C.MAXVX,o.vx+C.MOVE); o.facing=1; }
+    // Player feedback: "the birds need to be able to slow to a stop and not
+    // just keep walking off the platform." vx used to only ever change from
+    // active steering input — released on a platform, a bird kept coasting
+    // at whatever speed it last had until it walked clean off the edge.
+    // Ground friction now decays vx toward 0 whenever standing and not
+    // actively steering (o.onGround reflects last frame's landing, set at
+    // the end of this same function via land()).
+    if(o.onGround && !input.left && !input.right) o.vx*=C.GROUND_FRICTION;
     o.vy+=C.GRAV; o.x+=o.vx; o.y+=o.vy;
     if(o.x<-C.PW) o.x=C.W; if(o.x>C.W) o.x=-C.PW;   // screen wrap
     land(o);
@@ -102,13 +111,30 @@
   // airborne. They're now queued (s.enemyQueue) and released into
   // s.enemies one every SPAWN_GAP frames — see drainSpawnQueue(), called
   // from both the normal and hatching branches of step().
+  //
+  // Player feedback (follow-up): "new enemies shouldn't pop in out of thin
+  // air, they have to respawn from one of the nests with a respawn
+  // animation" / "when the game starts the hero and enemies all have to
+  // spawn from the nests." Queued enemies now carry no position at all —
+  // drainSpawnQueue() below drops each one onto a random nest with the same
+  // e.spawning hatch countdown the player's own spawnOnNest() uses, and
+  // moveEnemy() holds it still there until the hatch finishes (see its
+  // e.spawning branch) before it starts flying, instead of appearing
+  // already airborne at a random point on screen.
   function makeWave(s){ s.wave++; const n=2+s.wave; s.enemyQueue=[];
-    for(let i=0;i<n;i++){ const d=(Math.random()<.5?-1:1); s.enemyQueue.push({x:40+Math.random()*(C.W-80),y:40+Math.random()*170,vx:d*1.5,vy:0,facing:d,dir:d,alive:true,flapT:Math.random()*30}); }
+    for(let i=0;i<n;i++){ const d=(Math.random()<.5?-1:1); s.enemyQueue.push({dir:d,facing:d,alive:true,flapT:Math.random()*30,spawning:0}); }
     s.enemies=[]; s.spawnQueueT=0;
   }
   function drainSpawnQueue(s){
     if(!s.enemyQueue || !s.enemyQueue.length) return;
-    if(--s.spawnQueueT<=0){ s.enemies.push(s.enemyQueue.shift()); s.spawnQueueT=C.SPAWN_GAP; }
+    if(--s.spawnQueueT<=0){
+      const e=s.enemyQueue.shift();
+      const nest=PLATS[NESTS[Math.floor(Math.random()*NESTS.length)]];
+      e.x=nest.x+nest.w/2-C.PW/2; e.y=nest.y-C.PH; e.vx=0; e.vy=0; e.onGround=true;
+      e.spawning=C.SPAWN_FRAMES;
+      s.enemies.push(e);
+      s.spawnQueueT=C.SPAWN_GAP;
+    }
   }
   function waveClear(s){ return s.enemies.length===0 && (!s.enemyQueue || s.enemyQueue.length===0); }
   // Drop the player onto a random nest and start the hatch: a short animation
@@ -119,15 +145,31 @@
     p.vx=0; p.vy=0; p.facing=1; p.onGround=true;
     p.spawning=C.SPAWN_FRAMES; p.invuln=C.SPAWN_FRAMES+C.INVULN_FRAMES;
   }
-  function newState(){ const s={ player:{x:60,y:355,vx:0,vy:0,facing:1,onGround:false,spawning:0,invuln:0}, enemies:[], eggs:[], score:0, wave:0, lives:3, over:false }; makeWave(s); spawnOnNest(s); return s; }
+  function newState(){ const s={ player:{x:60,y:355,vx:0,vy:0,facing:1,onGround:false,spawning:0,invuln:0}, enemies:[], eggs:[], score:0, wave:0, lives:3, over:false, waveBanner:0 }; makeWave(s); spawnOnNest(s); return s; }
   // Enemies cruise left-to-right or right-to-left and flap to stay aloft, flipping
   // now and then — they no longer home in on the player.
   function moveEnemy(s, e){
+    if(e.spawning>0){
+      e.spawning--;
+      if(e.spawning<=0){ e.vx=e.dir*1.5; e.onGround=false; }
+      return;
+    }
     e.flapT--;
     if(e.dir==null) e.dir = e.vx<0?-1:1;
     if(Math.random()<C.FLIP_CHANCE) e.dir=-e.dir;
     e.facing=e.dir;
-    const ei={flap:e.flapT<=0, left:e.dir<0, right:e.dir>0};
+    // Player feedback: "the enemies should not absolutely hug the ceiling,
+    // they are too difficult to kill... they need to fly more normally."
+    // Flap decisions used to ignore height entirely — with this game's very
+    // light gravity, repeated random flaps could drift an enemy up against
+    // y=0 and keep it pinned there (land()'s ceiling clamp bounces it right
+    // back down into another flap), leaving no room for the player to get
+    // above it and win the joust. Flapping is now skipped while already
+    // near the top of the screen; gravity alone pulls it back down into a
+    // normal cruising band, and the timer still resets so it tries again
+    // once it's drifted lower.
+    const nearCeiling = e.y < C.H*0.22;
+    const ei={flap:e.flapT<=0 && !nearCeiling, left:e.dir<0, right:e.dir>0};
     if(e.flapT<=0) e.flapT=18+Math.random()*22;
     physics(e, ei);
     if(e.y+C.PH>=C.LAVA) e.alive=false;
@@ -136,13 +178,20 @@
     if(s.over) return s;
     const p=s.player;
     if(p.invuln>0) p.invuln--;
+    // Player feedback: "after a set number of enemies is killed... more
+    // respawn all at once... check how the game is actually played." A new
+    // wave used to populate the instant the last enemy/egg cleared, same
+    // frame — a brief pause with a "WAVE CLEAR" banner (drawn in draw()
+    // below) now reads as a deliberate beat between waves instead of the
+    // next batch appearing to instantly mass-spawn.
+    if(s.waveBanner>0){ if(--s.waveBanner<=0) makeWave(s); return s; }
     // Hatching: she sits in the nest, immune, while the world keeps moving.
     if(p.spawning>0){
       p.spawning--;
       drainSpawnQueue(s);
       for(const e of s.enemies){ if(e.alive) moveEnemy(s,e); }
       s.enemies=s.enemies.filter(e=>e.alive);
-      if(waveClear(s)) makeWave(s);
+      if(waveClear(s)) s.waveBanner=C.WAVE_BANNER_FRAMES;
       return s;
     }
     physics(p, input);
@@ -151,25 +200,30 @@
     drainSpawnQueue(s);
     for(const e of s.enemies){ if(!e.alive) continue;
       moveEnemy(s,e);
-      if(!e.alive) continue;
+      if(!e.alive || e.spawning>0) continue;   // a hatching enemy can't be jousted yet
       if(vulnerable && rov(rect(p),rect(e))){ const r=joustResult(p.y, e.y);
         if(r==="aWins"){ e.alive=false; s.score+=500; p.vy=C.FLAP*0.6;
           // Player feedback: "when an enemy is killed, 25% chance it will
           // drop an egg." A dropped egg just falls (gravity, same as any
           // other object) — collect it by flying into it for a bonus, or
           // lose it to the lava like anything else that falls in.
-          if(Math.random()<C.EGG_CHANCE) s.eggs.push({x:e.x,y:e.y,vy:0}); }
+          // Player feedback: "the egg can't just hang in the air, it has to
+          // drop to the ground with sideways velocity if the bird that died
+          // had any." The dropped egg inherits half the slain enemy's
+          // horizontal speed instead of always falling perfectly straight
+          // down, so it drifts the way the bird was actually moving.
+          if(Math.random()<C.EGG_CHANCE) s.eggs.push({x:e.x,y:e.y,vx:e.vx*0.5,vy:e.vy||0}); }
         else if(r==="bWins"){ die(s); return s; }
         else { p.vx=-p.vx; e.vx=-e.vx; p.x-=p.facing*4; } }
     }
     s.enemies=s.enemies.filter(e=>e.alive);
-    for(const eg of s.eggs){ eg.vy+=C.GRAV*0.5; eg.y+=eg.vy; }
+    for(const eg of s.eggs){ eg.vy+=C.GRAV*0.5; eg.x+=eg.vx||0; eg.y+=eg.vy; }
     s.eggs=s.eggs.filter(eg=>{
       if(eg.y>=C.LAVA) return false;
       if(vulnerable && rov({x:eg.x-6,y:eg.y-8,w:12,h:16},rect(p))){ s.score+=200; if(typeof Arcade!=="undefined")Arcade.sfx.coin(); return false; }
       return true;
     });
-    if(waveClear(s)) makeWave(s);
+    if(waveClear(s)) s.waveBanner=C.WAVE_BANNER_FRAMES;
     return s;
   }
   function die(s){ s.lives--; if(s.lives<=0){ s.over=true; } else { spawnOnNest(s); } }
@@ -192,9 +246,14 @@
   // enemy used to render through the same bird() shape with a single plain
   // rectangle as a "rider" — no distinction between the two beyond tint
   // color. Now only the player draws an actual farmer (straw hat, overalls,
-  // face) riding the chicken; enemies are drawn as plain chickens with no
-  // rider at all, reading clearly as "other chickens" rather than other
-  // little riders — the visual language the comment asked for.
+  // face) riding the chicken.
+  //
+  // Player feedback (follow-up): "I am a farmer riding a bird and I need to
+  // fight chickens riding birds." Enemies went from "no rider at all" to a
+  // small chicken-headed rider of their own (drawChickenRider) — distinct
+  // color from the mount underneath it — so both sides read as "someone
+  // riding a bird," matching the real arcade game's rider-vs-rider joust
+  // rather than the earlier plain-chicken-enemy reading.
   function drawFarmer(){
     // straw hat: wide brim + domed crown
     ctx.fillStyle="#d9a441"; ctx.fillRect(-5,-13,10,2);
@@ -204,6 +263,25 @@
     // overalls body, with a strap on each side
     ctx.fillStyle="#3b6ea8"; ctx.fillRect(-3,-7,7,5);
     ctx.fillStyle="#2a4f7a"; ctx.fillRect(-2,-7,1,3); ctx.fillRect(2,-7,1,3);
+  }
+  function drawChickenRider(){
+    // a smaller chicken perched as the "jockey" — amber, not the mount's
+    // own red, so rider and mount read as two distinct birds
+    ctx.fillStyle="#e8b382"; ctx.fillRect(-2,-9,4,5);            // neck/body stub
+    ctx.fillStyle="#fbbf24"; ctx.beginPath(); ctx.arc(0,-11,3.4,0,7); ctx.fill(); // head
+    ctx.fillStyle="#dc2626"; ctx.fillRect(-1,-15,2,3);           // comb
+    ctx.fillStyle="#ffcf5a"; ctx.fillRect(1,-12,3,2);            // beak
+  }
+  // Player feedback: "research the actual game... the birds all need lances
+  // to actually joust." Purely a visual addition — a shaft + tip
+  // protruding forward past the beak — the win/lose collision math was
+  // already position-based ("jousting" by height comparison) and is
+  // unchanged; this just makes the mechanic visibly readable as a joust.
+  function drawLance(){
+    ctx.strokeStyle="#c9915a"; ctx.lineWidth=1.8;
+    ctx.beginPath(); ctx.moveTo(6,-9); ctx.lineTo(19,-5); ctx.stroke();
+    ctx.fillStyle="#d1d5db";
+    ctx.beginPath(); ctx.moveTo(19,-5); ctx.lineTo(15,-6.5); ctx.lineTo(15,-3.5); ctx.closePath(); ctx.fill();
   }
   function bird(o, col, rider){ const f=o.facing||1, K=C.PW/ART_W;
     ctx.save(); ctx.translate(o.x+C.PW/2,o.y+C.PH/2); ctx.scale(f*K,K);
@@ -216,10 +294,16 @@
     ctx.fillStyle="#0b0c1a"; ctx.fillRect(P/2-4,-6,2,2);                                  // eye
     ctx.fillStyle=col; ctx.beginPath();                                                    // tail feathers
     ctx.moveTo(-P/2,-2); ctx.lineTo(-P/2-7,-9); ctx.lineTo(-P/2,4); ctx.closePath(); ctx.fill();
-    if(rider) drawFarmer();
+    // Player feedback: "the birds need feet." Small talons under the body —
+    // every bird gets them, mount species or rider aside.
+    ctx.fillStyle="#ffcf5a"; ctx.fillRect(-3,6,2,3); ctx.fillRect(2,6,2,3);
+    drawLance();
+    if(rider==="farmer") drawFarmer(); else if(rider==="chicken") drawChickenRider();
     ctx.restore(); }
-  // The respawn hatch: an egg that cracks open, then the chick rises with a sparkle.
-  function drawHatch(o){
+  // The respawn hatch: an egg that cracks open, then the chick rises with a
+  // sparkle. col/rider let this be reused for a hatching enemy too (see
+  // draw()'s enemy loop) — the player's cyan+farmer used to be hardcoded.
+  function drawHatch(o, col, rider){
     const cx=o.x+C.PW/2, cy=o.y+C.PH/2, t=1-o.spawning/C.SPAWN_FRAMES;   // 0..1
     ctx.save();
     ctx.strokeStyle="rgba(255,207,90,"+(0.7*(1-t)).toFixed(2)+")"; ctx.lineWidth=2;
@@ -229,19 +313,26 @@
       ctx.fillStyle="#f3ead7"; ctx.beginPath(); ctx.ellipse(cx,cy+2,9,12,0,0,7); ctx.fill();
       ctx.strokeStyle="#c9bda3"; ctx.lineWidth=1.5; ctx.beginPath();
       ctx.moveTo(cx-9,cy); ctx.lineTo(cx-3,cy-2-t*4); ctx.lineTo(cx+2,cy+1); ctx.lineTo(cx+9,cy-1); ctx.stroke();
-    } else { // the chick emerging, with the farmer already aboard
-      bird(o,"#22d3ee",true);
+    } else { // the chick emerging, with its rider already aboard
+      bird(o,col,rider);
     }
   }
   function draw(){
     ctx.clearRect(0,0,W,H); ctx.fillStyle="#08040f"; ctx.fillRect(0,0,W,H);
     ctx.fillStyle="#8a1e1e"; ctx.fillRect(0,C.LAVA,W,H-C.LAVA); ctx.fillStyle="#f0616e"; for(let x=0;x<W;x+=16) ctx.fillRect(x,C.LAVA+(Math.sin(Date.now()/200+x)*2),8,3);
-    // Player feedback: "we need ground covering the lava" — a purely visual
-    // dirt layer covering most of the lava strip (the death line itself,
-    // C.LAVA, is unchanged); lava still peeks through in patches every
-    // third segment so it still reads as a hazard, not solid floor.
-    ctx.fillStyle="#4a3320";
-    for(let x=0;x<W;x+=54){ if((Math.floor(x/54))%3!==2) ctx.fillRect(x,C.LAVA,50,H-C.LAVA); }
+    // Player feedback: "there needs to be ground over the lava with just a
+    // little gap in the middle, as the levels go on and increase in
+    // difficulty there should be less ground and more lava." Replaced the
+    // old fixed every-third-segment pattern with a single central gap whose
+    // width grows with s.wave — wave 1 is mostly covered with a small gap,
+    // later waves show progressively more lava. Purely visual either way:
+    // the actual death line (C.LAVA) is unchanged, ground was never safe
+    // footing to stand on.
+    { const gapW=Math.min(W*0.72, 70+s.wave*42), gx0=W/2-gapW/2, gx1=W/2+gapW/2;
+      ctx.fillStyle="#4a3320";
+      if(gx0>0) ctx.fillRect(0,C.LAVA,gx0,H-C.LAVA);
+      if(gx1<W) ctx.fillRect(gx1,C.LAVA,W-gx1,H-C.LAVA);
+    }
     for(let i=0;i<PLATS.length;i++){ const p=PLATS[i];
       if(NESTS.includes(i)){ // a respawn nest: a woven twig platform with a couple of eggs
         ctx.fillStyle="#6b4a2a"; ctx.fillRect(p.x,p.y,p.w,p.h);
@@ -251,15 +342,18 @@
         ctx.fillStyle="#f3ead7"; const ex=p.x+p.w/2;
         for(const dx of [-9,3]){ ctx.beginPath(); ctx.ellipse(ex+dx,p.y-3,4,6,0,0,7); ctx.fill(); }
       } else { ctx.fillStyle="#5a4a6a"; ctx.fillRect(p.x,p.y,p.w,p.h); ctx.fillStyle="#7a6a8a"; ctx.fillRect(p.x,p.y,p.w,3); } }
-    for(const e of s.enemies) if(e.alive) bird(e,"#f0616e",false);
+    for(const e of s.enemies) if(e.alive){ if(e.spawning>0) drawHatch(e,"#f0616e","chicken"); else bird(e,"#f0616e","chicken"); }
     // eggs dropped by defeated enemies, falling and collectible for a bonus
     for(const eg of s.eggs){ ctx.fillStyle="#f3ead7"; ctx.beginPath(); ctx.ellipse(eg.x,eg.y,6,8,0,0,7); ctx.fill();
       ctx.strokeStyle="#c9bda3"; ctx.lineWidth=1; ctx.stroke(); }
     // the player: hatch animation while spawning, a blink through the safe window
     const pl=s.player;
-    if(pl.spawning>0){ drawHatch(pl); }
-    else if(pl.invuln<=0 || Math.floor(Date.now()/90)%2===0){ bird(pl,"#22d3ee",true); }
-    if(s.over){ ctx.fillStyle="rgba(0,0,0,.6)"; ctx.fillRect(0,0,W,H); ctx.fillStyle="#f43f5e"; ctx.font="bold 24px system-ui"; ctx.textAlign="center"; ctx.fillText("GAME OVER",W/2,H/2-6); ctx.fillStyle="#e6e6f0"; ctx.font="14px system-ui"; ctx.fillText("Score "+s.score+"  ·  Best "+best,W/2,H/2+16); }
+    if(pl.spawning>0){ drawHatch(pl,"#22d3ee","farmer"); }
+    else if(pl.invuln<=0 || Math.floor(Date.now()/90)%2===0){ bird(pl,"#22d3ee","farmer"); }
+    if(s.waveBanner>0){ ctx.fillStyle="rgba(0,0,0,.35)"; ctx.fillRect(0,H/2-46,W,80); ctx.textAlign="center";
+      ctx.fillStyle="#ffcf5a"; ctx.font="bold 34px system-ui"; ctx.fillText("WAVE "+s.wave+" CLEAR",W/2,H/2-4);
+      ctx.fillStyle="#e6e6f0"; ctx.font="18px system-ui"; ctx.fillText("Wave "+(s.wave+1)+" incoming…",W/2,H/2+26); }
+    if(s.over){ ctx.fillStyle="rgba(0,0,0,.6)"; ctx.fillRect(0,0,W,H); ctx.fillStyle="#f43f5e"; ctx.font="bold 38px system-ui"; ctx.textAlign="center"; ctx.fillText("GAME OVER",W/2,H/2-10); ctx.fillStyle="#e6e6f0"; ctx.font="22px system-ui"; ctx.fillText("Score "+s.score+"  ·  Best "+best,W/2,H/2+26); }
   }
   function frame(){
     if(!GATE.open){ draw(); GATE.paint(); return requestAnimationFrame(frame); } input.flap=flapEdge; flapEdge=false;
