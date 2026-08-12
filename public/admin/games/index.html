@@ -1092,6 +1092,9 @@
       { key:"SPEED_FLOOR", label:"Fastest playback interval (ms)", min:100, max:1000, def:300 },
       { key:"SPEED_STEP", label:"Speed increase per round (ms)", min:0, max:50, def:20 },
     ]},
+    hangman:{ storageKey:"hangman_config", sub:"Difficulty knobs — takes effect next time the game is opened.", fields:[
+      { key:"MAXW", label:"Wrong guesses allowed", min:1, max:6, def:6 },
+    ]},
     duckhunt:{ storageKey:"duckhunt_config", sub:"Difficulty knobs — takes effect next time the game is opened.", fields:[
       { key:"AMMO", label:"Shots per duck", min:1, max:10, def:3 },
       { key:"SPEED", label:"Duck speed", min:0.5, max:10, def:2.0 },

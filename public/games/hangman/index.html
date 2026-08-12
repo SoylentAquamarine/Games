@@ -41,7 +41,17 @@
   (function(){
     const WORDS=("planet rocket puzzle guitar dragon castle wizard forest island jungle desert glacier volcano diamond emerald compass anchor lantern harvest thunder blossom whisper journey mystery gravity machine rainbow bicycle penguin dolphin octopus panther cheetah leopard sparrow falcon monarch pyramid cathedral windmill treasure voyage galaxy comet meteor nebula quasar circuit network quantum crystal marble copper silver bronze velvet cotton feather blanket kitchen balcony chimney library museum stadium theater harbor bridge tunnel canyon meadow orchard").split(" ");
     const gallowsEl=document.getElementById("gallows"),wordEl=document.getElementById("word"),statusEl=document.getElementById("status"),kbEl=document.getElementById("kb");
-    const MAXW=6; // wrong guesses allowed
+    // Admin-tunable difficulty knob — see /admin/games/?game=hangman. Same
+    // pattern as every other configurable game (e.g. kaboom): explicit
+    // allowlist, only numeric values, safe no-op with no localStorage
+    // (headless tests).
+    const C={ MAXW:6 };
+    (function(){ try{
+      const allow=["MAXW"];
+      const o=JSON.parse(localStorage.getItem("hangman_config")||"{}");
+      for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
+    }catch(_){} })();
+    window.__hangman={ C };
     let answer,guessed,wrong,over;
     const PARTS=[
       '<line x1="50" y1="10" x2="120" y2="10"/>',        // top beam
@@ -54,7 +64,11 @@
     function drawGallows(){
       let s='<g stroke="#9aa4d0" stroke-width="4" fill="none" stroke-linecap="round">';
       s+='<line x1="20" y1="140" x2="80" y2="140"/><line x1="50" y1="140" x2="50" y2="10"/>';
-      for(let i=0;i<wrong;i++)s+=PARTS[i].replace(/<circle/g,'<circle fill="none"');
+      // Capped at PARTS.length: an admin-raised MAXW (see C.MAXW below) can
+      // let `wrong` climb past the number of gallows stages actually drawn
+      // — the figure just finishes appearing early rather than indexing
+      // past the array.
+      for(let i=0;i<wrong && i<PARTS.length;i++)s+=PARTS[i].replace(/<circle/g,'<circle fill="none"');
       s+='</g>';gallowsEl.innerHTML=s;
     }
     function newGame(){answer=WORDS[Math.floor(Math.random()*WORDS.length)];guessed=new Set();wrong=0;over=false;
@@ -65,7 +79,7 @@
       wordEl.innerHTML="";for(const ch of answer){const d=document.createElement("div");d.className="ch"+(guessed.has(ch)||over?" filled":"");
         d.textContent=(guessed.has(ch)||over)?ch:"";wordEl.appendChild(d);}
       drawGallows();
-      const lives=MAXW-wrong;statusEl.dataset.lives=lives;
+      const lives=C.MAXW-wrong;statusEl.dataset.lives=lives;
     }
     function guess(ch){
       if(over||guessed.has(ch))return;guessed.add(ch);
@@ -73,7 +87,7 @@
       if(answer.includes(ch)){btn.classList.add("good");btn.disabled=true;
         if([...answer].every(c=>guessed.has(c))){over=true;statusEl.textContent="🎉 You got it: "+answer.toUpperCase();}
       }else{wrong++;btn.classList.add("bad");btn.disabled=true;
-        if(wrong>=MAXW){over=true;statusEl.textContent="💀 Out of guesses — it was "+answer.toUpperCase();}}
+        if(wrong>=C.MAXW){over=true;statusEl.textContent="💀 Out of guesses — it was "+answer.toUpperCase();}}
       render();
     }
     document.addEventListener("keydown",e=>{if(/^[a-zA-Z]$/.test(e.key))guess(e.key.toLowerCase());});
