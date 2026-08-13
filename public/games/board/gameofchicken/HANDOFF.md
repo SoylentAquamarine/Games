@@ -26,7 +26,18 @@ event tiles, retire — biggest nest egg at The Coop wins.
   gameofchicken"]` needs bracket/quoted syntax, not the bare
   `identifier:{...}` shorthand every slash-free game uses.
 
-## Most recent pass — test-hygiene: fix the stale-timer regression test
+## Most recent pass — heavier code comments
+
+Part of a site-wide comment-density pass (once the comment queue and
+the admin config-page rollout both ran dry — see root `HANDOFF.md`).
+Explained `tileType()`'s position-derived tile assignment (why every
+4th space is a payday, every 7th-plus-3 is a family event, and the
+rest alternate positive/negative events by parity) — the tile layout
+isn't stored anywhere, it's computed purely from the index. Comment-
+only — no logic touched; existing `gameofchicken-test.js` still
+passes unchanged. Live-verified: deployed, zero console errors.
+
+## Earlier pass — test-hygiene: fix the stale-timer regression test
 
 `gameofchicken-newgame-stale-timer-test.js` (scratchpad-only, per the
 convention noted below and in `board/chickenopoly/HANDOFF.md`) was

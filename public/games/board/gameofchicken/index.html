@@ -79,6 +79,12 @@
       for(const k of allow) if(typeof o[k]==="number") C[k]=o[k];
     }catch(_){} })();
 
+    // Tile type is derived purely from position, not stored per-tile:
+    // start and the final space are fixed; every 4th space is a payday
+    // (career income), every 7th-plus-3 space (3,10,17...) is a family
+    // event, and every other space alternates between a positive and
+    // negative random event by parity -- interleaving all four tile
+    // types across the board without needing an explicit layout array.
     function tileType(i){
       if(i===0) return "start";
       if(i===N-1) return "retire";
