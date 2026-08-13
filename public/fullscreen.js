@@ -41,37 +41,39 @@
   }
 
   // Player feedback: "i can run full screen now but the actual play field is
-  // small, I want the play area to be most of the screen." Every game's
-  // canvas/board has its own small px-based CSS size cap, entirely
-  // independent of the .wrap container's own width -- simply letting .wrap
-  // fill the fullscreen viewport (above) doesn't make that content any
-  // bigger, since align-items:center just centers it at its normal small
-  // size within the now-huge box. Rather than chase down and override each
-  // game's own canvas sizing rule (fragile across ~105 differently-built
-  // games), this measures wrap's DIRECT CHILDREN's actual on-screen extent
-  // (their natural size, since flex children aren't stretched by
-  // align-items:center) and applies a single uniform transform:scale() to
-  // .wrap itself so the whole game -- title, canvas, controls, all of it --
-  // zooms up together to fill most of the screen, exactly like a browser
-  // zoom. Works identically for canvas games and DOM-grid games alike.
-  function naturalContentRect(wrap) {
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity, any = false;
-    for (const child of wrap.children) {
-      const r = child.getBoundingClientRect();
-      if (!r.width && !r.height) continue;
-      any = true;
-      minX = Math.min(minX, r.left); minY = Math.min(minY, r.top);
-      maxX = Math.max(maxX, r.right); maxY = Math.max(maxY, r.bottom);
-    }
-    return any ? { width: maxX - minX, height: maxY - minY } : null;
-  }
-  function applyFsScale(wrap) {
-    if (!fsEl()) { wrap.style.transform = ""; return; }
-    wrap.style.transform = "";   // reset first so the measurement below reflects natural (unscaled) size
-    const rect = naturalContentRect(wrap);
-    if (!rect || !rect.width || !rect.height) return;
-    const scale = Math.min(3, Math.min(window.innerWidth / rect.width, window.innerHeight / rect.height) * 0.96);
-    if (scale > 1.02) { wrap.style.transform = "scale(" + scale.toFixed(3) + ")"; wrap.style.transformOrigin = "center center"; }
+  // small, I want the play area to be most of the screen" — followed later
+  // by: "full screen games have to have the game contained on the screen
+  // without bleeding off the top or bottom or sides."
+  //
+  // The original approach applied transform:scale() directly to .wrap
+  // itself. That broke the moment content got close to filling the screen:
+  // .wrap:fullscreen is forced to EXACTLY 100vw x 100vh, so its own box
+  // already touches all four edges of the viewport before any transform is
+  // applied. Scaling an element that already fills its container by any
+  // factor above 1, from its own center, necessarily pushes it past every
+  // edge equally (confirmed live: a scale of just 1.05 was enough to blow
+  // ~9px off the left/right edges and ~20px off the top/bottom on a phone
+  // screen). Shrinking (scale<1) happened to stay safely inside the
+  // viewport, which is why this only showed up once content was already
+  // close to screen-filling size, not on every game.
+  //
+  // Fix: .wrap stays fixed at exactly 100vw x 100vh, unscaled, forever —
+  // it's purely the fullscreen backdrop + centering box now. Its children
+  // are moved once into a new inner wrapper that's inert in normal display
+  // (display:contents — zero visual/layout effect, children render exactly
+  // as if the wrapper didn't exist) and only becomes a real flex box while
+  // fullscreen is active, copying .wrap's own flex-direction/align-items/
+  // gap so the game still looks identical, just as a single measurable
+  // unit. THAT inner wrapper is what gets scaled — growing from its own
+  // (naturally content-sized, safely inside the viewport) center instead
+  // of from the edge-to-edge outer box's center.
+  function applyFsScale(inner) {
+    if (!fsEl()) { inner.style.transform = ""; return; }
+    inner.style.transform = "";   // reset first so the measurement below reflects natural (unscaled) size
+    const r = inner.getBoundingClientRect();
+    if (!r.width || !r.height) return;
+    const scale = Math.min(3, Math.min(window.innerWidth / r.width, window.innerHeight / r.height) * 0.96);
+    if (scale > 1.02) { inner.style.transform = "scale(" + scale.toFixed(3) + ")"; inner.style.transformOrigin = "center center"; }
   }
 
   function init() {
@@ -79,6 +81,24 @@
     const wrap = document.querySelector(".wrap");
     if (!wrap) return;
     injectStyles();
+
+    const inner = document.createElement("div");
+    inner.style.display = "contents";
+    while (wrap.firstChild) inner.appendChild(wrap.firstChild);
+    wrap.appendChild(inner);
+
+    function syncInnerLayout() {
+      if (fsEl()) {
+        const cs = getComputedStyle(wrap);
+        inner.style.display = "flex";
+        inner.style.flexDirection = cs.flexDirection;
+        inner.style.alignItems = cs.alignItems;
+        inner.style.gap = cs.gap;
+      } else {
+        inner.style.display = "contents";
+      }
+    }
+
     const btn = document.createElement("button");
     btn.className = "fs-btn";
     btn.type = "button";
@@ -89,12 +109,13 @@
 
     function sync() {
       btn.textContent = fsEl() ? "✕" : "⛶"; btn.title = fsEl() ? "Exit fullscreen" : "Fullscreen";
-      applyFsScale(wrap);
+      syncInnerLayout();
+      applyFsScale(inner);
     }
     btn.addEventListener("click", () => { fsEl() ? exitFs() : requestFs(wrap); });
     ["fullscreenchange", "webkitfullscreenchange", "msfullscreenchange"].forEach((evt) =>
       document.addEventListener(evt, sync));
-    addEventListener("resize", () => { if (fsEl()) applyFsScale(wrap); });
+    addEventListener("resize", () => { if (fsEl()) applyFsScale(inner); });
     sync();
   }
 
