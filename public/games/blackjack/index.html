@@ -75,6 +75,11 @@
     }catch(_){} })();
     let shoe,player,dealer,chips,bet,phase,over;
     function cardVal(c){if(c.rank>=11&&c.rank<=13)return 10;if(c.rank===14)return 11;return c.rank;}
+    // The "soft ace" rule: every Ace starts counted as 11 (cardVal above),
+    // but that can bust a hand that's actually fine -- so for each Ace
+    // still in play, if the total is over 21, downgrade that one Ace from
+    // 11 to 1 (subtract 10) and try again. A hand with N aces can have its
+    // total reduced by up to 10*N this way before it's a genuine bust.
     function handValue(cards){let sum=0,aces=0;for(const c of cards){sum+=cardVal(c);if(c.rank===14)aces++;}while(sum>21&&aces>0){sum-=10;aces--;}return sum;}
     function isBJ(cards){return cards.length===2&&handValue(cards)===21;}
     function newShoe(){shoe=Cards.shuffle([].concat(...Array.from({length:Math.max(1,Math.round(C.NUM_DECKS))},()=>Cards.makeDeck())));}
@@ -100,6 +105,12 @@
     function double(){if(phase!=="player"||chips<bet)return;chips-=bet;bet*=2;updateChips();player.push(draw());render();
       if(handValue(player)>21){$("banner").textContent="Bust!";$("banner").className="banner lose";settle("dealer");}else stand();}
     function stand(){if(phase!=="player")return;phase="dealer";revealAndSettle();}
+    // Dealer has no strategic choices at all: hits automatically until
+    // reaching C.DEALER_STAND (standard rule, default 17), then stops --
+    // no decision-making, so there's nothing to simulate beyond this loop.
+    // Settlement order matters: a player natural blackjack is checked
+    // (and paid at the bonus BLACKJACK_PAYOUT rate) BEFORE a plain bust
+    // check, so it's never mistaken for just "a 21."
     function revealAndSettle(){
       phase="dealer";
       while(handValue(dealer)<C.DEALER_STAND)dealer.push(draw());

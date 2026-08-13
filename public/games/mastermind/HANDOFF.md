@@ -22,7 +22,18 @@ duplicates allowed) in 10 tries, using black/yellow peg feedback.
   explicit allowlist. `COLORS.length` (6) stays fixed — it's an array of
   hex strings, not a plain scalar.
 
-## Most recent pass
+## Most recent pass — heavier code comments
+
+Part of a site-wide comment-density pass (once the comment queue and
+the admin config-page rollout both ran dry — see root `HANDOFF.md`).
+Explained `submit()`'s two-pass black/white peg scoring — the same
+duplicate-safe shape as wordle's guess coloring, needed so a repeated
+color in the guess can't score more pegs than it actually appears in
+the secret. Comment-only — no logic touched; existing
+`mastermind-probe.js` (8 hand-picked duplicate-color edge cases) still
+passes unchanged. Live-verified: deployed, zero console errors.
+
+## Earlier pass — admin config
 
 Added the admin config pane described above (`LEN`, `ROWS`) — no
 gameplay change to the defaults. `LEN`/`ROWS` are still plain

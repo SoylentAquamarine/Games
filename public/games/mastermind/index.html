@@ -91,6 +91,15 @@
     function undo(){if(over||!guess.length)return;guess.pop();renderActive();updateSubmit();}
     function submit(){
       if(guess.length!==LEN||over)return;
+      // Classic two-pass Mastermind feedback -- the same duplicate-safe
+      // shape as Wordle's guess scoring (see wordle's color() comment for
+      // why a single pass over-counts). Pass 1: exact position+color
+      // matches score a black peg, and both sides get marked -1 so
+      // they're removed from consideration entirely. Pass 2: for whatever
+      // guess pegs are left, a color that still exists ANYWHERE remaining
+      // in the secret scores a white peg (right color, wrong spot) --
+      // and that secret peg is also marked -1 so a color can't be
+      // white-peg-matched more times than it actually appears.
       let black=0,white=0;const s=secret.slice(),g=guess.slice();
       for(let i=0;i<LEN;i++)if(g[i]===s[i]){black++;s[i]=g[i]=-1;}
       for(let i=0;i<LEN;i++){if(g[i]<0)continue;const j=s.indexOf(g[i]);if(j>=0){white++;s[j]=-1;}}

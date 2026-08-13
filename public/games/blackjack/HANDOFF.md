@@ -30,7 +30,18 @@ dealer stands on 17, blackjack pays 3:2.
   `localStorage["blackjack_config"]`, merged into `C` at boot via an
   explicit allowlist.
 
-## Most recent pass
+## Most recent pass — heavier code comments
+
+Part of a site-wide comment-density pass (once the comment queue and
+the admin config-page rollout both ran dry — see root `HANDOFF.md`).
+Explained `handValue()`'s soft-ace downgrade (why subtracting 10 per
+Ace un-busts a hand) and `revealAndSettle()`'s fixed dealer-stand
+threshold plus its settlement check ordering (natural blackjack
+checked before a plain bust, so it's never mistaken for a plain 21).
+Comment-only — no logic touched. Live-verified: deployed, zero
+console errors.
+
+## Earlier pass — admin config
 
 Added the admin config pane described above (`DEALER_STAND`,
 `BLACKJACK_PAYOUT`, `NUM_DECKS`) — no gameplay change to the defaults.
