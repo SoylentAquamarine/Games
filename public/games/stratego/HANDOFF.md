@@ -33,12 +33,26 @@ enemy Stronghold or immobilize them entirely.
   attack is available.
 - No admin config pane wired up for this game.
 
-## Most recent pass
+## Most recent pass — heavier code comments
 
-No player-feedback pass yet — this HANDOFF.md was created as part of a
-documentation sweep (see the root HANDOFF.md's "Per-game HANDOFF.md
-rollout" note). Everything under "What's here" reflects the game as
-originally built.
+Part of a site-wide comment-density pass (once the comment queue and
+the admin config-page rollout both ran dry — see root `HANDOFF.md`).
+The file's overall comment ratio reads low mostly because it's long
+(362 lines, much of it DOM/rendering code) — the actual game-logic
+core was already reasonably explained (`combat()`'s special cases,
+`scoreMove()`'s CPU heuristic), with one genuine gap: `legalTargets()`
+never explained the Scout's (rank 2) unlimited-slide movement versus
+every other piece's single-step move. Added that. Comment-only — no
+logic touched; existing `stratego-smoke-test.js` (15 randomized games,
+no crashes) still passes unchanged. Live-verified: deployed, zero
+console errors.
+
+## Earlier pass
+
+No player-feedback pass yet at the time this HANDOFF.md was created —
+it was added as part of a documentation sweep (see the root
+`HANDOFF.md`'s "Per-game HANDOFF.md rollout" note). Everything under
+"What's here" reflects the game as originally built.
 
 ## Open / deferred
 

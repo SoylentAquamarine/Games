@@ -290,6 +290,15 @@
     // ---------- movement rules ----------
     function movable(p) { return p && p.rank !== "B" && p.rank !== "F"; }
 
+    // Every piece moves exactly one square orthogonally (up/down/left/
+    // right, never diagonal) EXCEPT rank 2 (the Scout), which can slide
+    // any distance in a straight line like a rook -- the `scout` flag is
+    // what keeps the while-loop going past the first step instead of
+    // breaking immediately. Either way, the slide stops the moment it
+    // hits an occupied square: an empty square in the path is a legal
+    // stop, an enemy piece there is a legal attack (and ends the slide),
+    // and a friendly piece blocks it entirely (no target added, loop
+    // still breaks). Lakes are impassable terrain for every piece.
     function legalTargets(r, c) {
       const p = board[r][c];
       const out = [];
