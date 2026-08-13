@@ -85,28 +85,92 @@
     src.start();
   }
 
-  // A short synthesized "scream" — a sharp rise, a wobble, then a ragged
-  // falling break, meant to read as a yelp rather than a plain descending
-  // tone. See sfx.death()'s comment for why this is synthesized rather
-  // than a sample of the actual film effect.
+  // Player feedback (round 2): "get it as close as you can" — a from-
+  // scratch push to make the synthesized stand-in read much closer to the
+  // real thing's well-documented acoustic shape, still built entirely from
+  // oscillators/noise/filters (no sample of the actual recording — see
+  // sfx.death()'s comment for why that stays off the table). The real
+  // scream's widely-analyzed shape isn't a clean tone sweep: it's a fast
+  // vocal attack, a wavering/raspy held note (vibrato + turbulent breath
+  // noise + vowel-formant resonance, not a pure waveform), and a ragged
+  // stuttering crack at the tail instead of a smooth fade-out. Each of
+  // those is modeled here as its own signal, then mixed:
+  //   - two detuned sawtooth voices (a cheap "chorus" trick — a single
+  //     oscillator reads as flat/synthetic, two slightly out of tune
+  //     against each other reads as an unsteady human voice)
+  //   - an 8Hz vibrato LFO modulating their pitch, for the held-note waver
+  //   - a bandpass "formant" filter coloring the tone voices toward a
+  //     shouted-vowel resonance rather than a raw buzzy sawtooth
+  //   - a waveshaper (tanh soft-clip) adding harmonic rasp/distortion —
+  //     the harshness a strained human voice has that a clean tone lacks
+  //   - band-filtered white noise mixed underneath for vocal breath/rasp
+  //     texture (real screams are full of turbulent non-tonal noise)
+  //   - a gain envelope with a brief dip-and-catch stutter near the end
+  //     (a voice cracking drops out and catches again, it doesn't glide
+  //     smoothly to silence)
   function scream() {
     if (muted) return;
     const a = ctx(); if (!a) return;
-    const o = a.createOscillator(), g = a.createGain();
-    const t0 = a.currentTime, dur = 0.5;
-    o.type = "sawtooth";
-    o.frequency.setValueAtTime(520, t0);
-    o.frequency.linearRampToValueAtTime(1150, t0 + dur * 0.12);
-    o.frequency.linearRampToValueAtTime(720, t0 + dur * 0.28);
-    o.frequency.linearRampToValueAtTime(980, t0 + dur * 0.42);
-    o.frequency.linearRampToValueAtTime(300, t0 + dur * 0.75);
-    o.frequency.linearRampToValueAtTime(110, t0 + dur);
+    const t0 = a.currentTime, dur = 0.82;
+
+    const o1 = a.createOscillator(), o2 = a.createOscillator();
+    o1.type = "sawtooth"; o2.type = "sawtooth";
+    o2.detune.setValueAtTime(11, t0);
+    [o1, o2].forEach((o) => {
+      o.frequency.setValueAtTime(480, t0);
+      o.frequency.linearRampToValueAtTime(1050, t0 + dur * 0.10);
+      o.frequency.linearRampToValueAtTime(880, t0 + dur * 0.22);
+      o.frequency.linearRampToValueAtTime(960, t0 + dur * 0.40);
+      o.frequency.linearRampToValueAtTime(900, t0 + dur * 0.60);
+      o.frequency.linearRampToValueAtTime(520, t0 + dur * 0.82);
+      o.frequency.linearRampToValueAtTime(210, t0 + dur);
+    });
+
+    const lfo = a.createOscillator(), lfoGain = a.createGain();
+    lfo.frequency.setValueAtTime(8, t0);
+    lfoGain.gain.setValueAtTime(35, t0);
+    lfo.connect(lfoGain); lfoGain.connect(o1.frequency); lfoGain.connect(o2.frequency);
+
+    const nBuf = a.createBuffer(1, Math.floor(a.sampleRate * dur), a.sampleRate);
+    const nd = nBuf.getChannelData(0);
+    for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
+    const nSrc = a.createBufferSource(); nSrc.buffer = nBuf;
+    const nFilt = a.createBiquadFilter(); nFilt.type = "bandpass";
+    nFilt.frequency.setValueAtTime(1200, t0);
+    nFilt.frequency.linearRampToValueAtTime(500, t0 + dur);
+    nFilt.Q.setValueAtTime(2.2, t0);
+    const nGain = a.createGain();
+    nGain.gain.setValueAtTime(0.0001, t0);
+    nGain.gain.linearRampToValueAtTime(0.05, t0 + dur * 0.15);
+    nGain.gain.linearRampToValueAtTime(0.035, t0 + dur * 0.7);
+    nGain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+
+    const shaper = a.createWaveShaper();
+    const curve = new Float32Array(256);
+    for (let i = 0; i < 256; i++) { const x = (i / 255) * 2 - 1; curve[i] = Math.tanh(x * 2.4); }
+    shaper.curve = curve; shaper.oversample = "2x";
+
+    const formant = a.createBiquadFilter();
+    formant.type = "bandpass";
+    formant.frequency.setValueAtTime(1500, t0);
+    formant.Q.setValueAtTime(1.1, t0);
+
+    const g = a.createGain();
     g.gain.setValueAtTime(0.0001, t0);
-    g.gain.exponentialRampToValueAtTime(0.17, t0 + 0.03);
-    g.gain.exponentialRampToValueAtTime(0.11, t0 + dur * 0.5);
+    g.gain.exponentialRampToValueAtTime(0.22, t0 + 0.025);
+    g.gain.exponentialRampToValueAtTime(0.16, t0 + dur * 0.55);
+    g.gain.exponentialRampToValueAtTime(0.19, t0 + dur * 0.68);
+    g.gain.exponentialRampToValueAtTime(0.05, t0 + dur * 0.74);
+    g.gain.exponentialRampToValueAtTime(0.14, t0 + dur * 0.8);
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-    o.connect(g); g.connect(a.destination);
-    o.start(t0); o.stop(t0 + dur + 0.02);
+
+    o1.connect(formant); o2.connect(formant);
+    formant.connect(shaper); shaper.connect(g);
+    nSrc.connect(nFilt); nFilt.connect(nGain); nGain.connect(g);
+    g.connect(a.destination);
+
+    o1.start(t0); o2.start(t0); lfo.start(t0); nSrc.start(t0);
+    o1.stop(t0 + dur + 0.02); o2.stop(t0 + dur + 0.02); lfo.stop(t0 + dur + 0.02);
   }
 
   const sfx = {
@@ -132,12 +196,14 @@
     warn:    () => tone({ from: 900, dur: 0.05, type: "square", vol: 0.10 }),
     bounce:  () => tone({ from: 520, to: 300, dur: 0.08, type: "triangle", vol: 0.12 }),
     // Player feedback: "find the wilhelm scream and incorporate that as the
-    // sound when I die." The actual film sample is a specific, still-
-    // copyrighted Warner Bros. recording — not something to fetch from the
-    // web and embed as a downloaded asset. This is a from-scratch
-    // synthesized stand-in built in the same spirit: a distinctive,
-    // wavering "yelp" register-break on top of the existing thump, rather
-    // than a literal sample of it. Wired into death() (not the generic
+    // sound when I die," then "get it as close as you can." The actual
+    // film sample is a specific, still-copyrighted Warner Bros. recording —
+    // not something to fetch from the web and embed as a downloaded asset,
+    // no matter how closely requested. scream() (above) is a from-scratch
+    // synthesis pass built to match its widely-documented acoustic shape
+    // as closely as oscillators/noise/filters can get: vibrato, formant
+    // coloring, distortion rasp, and a stuttering crack at the tail,
+    // rather than a plain tone sweep. Wired into death() (not the generic
     // hit()) since every game already calls death() specifically for the
     // player's own death — no per-game changes needed.
     death:   () => { noise({ dur: 0.5, cut: 900, cutTo: 60, vol: 0.3 });
